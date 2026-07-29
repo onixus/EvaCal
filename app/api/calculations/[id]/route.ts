@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { primaryStagesFromTemplate, rebuildStages } from "@/lib/calc";
+import { primaryStagesFromTemplate, rebuildStages, withPmStages } from "@/lib/calc";
 import { requireApiRole } from "@/lib/auth";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -20,7 +20,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const body = await req.json();
   const existing = await prisma.calculation.findUnique({
     where: { id: params.id },
-    include: { template: { include: { stageTemplates: true } } },
+    include: { template: { include: { stageTemplates: true, fields: true } } },
   });
   if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (existing.status === "approved") {
@@ -41,7 +41,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     },
   });
 
-  const primary = primaryStagesFromTemplate(existing.template.stageTemplates, answers);
+  const primary = withPmStages(
+    existing.template.fields,
+    answers,
+    primaryStagesFromTemplate(existing.template.stageTemplates, answers)
+  );
   await rebuildStages(calculation.id, primary, startDate);
 
   return NextResponse.json({ ok: true });

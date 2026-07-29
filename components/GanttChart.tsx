@@ -18,6 +18,7 @@ const ROLE_COLORS: Record<string, string> = {
   developer: "bg-violet-500",
   engineer: "bg-orange-500",
   analyst: "bg-teal-500",
+  pm: "bg-rose-500",
   architect: "bg-indigo-500",
   customer: "bg-amber-400",
   other: "bg-slate-400",
