@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { primaryStagesFromTemplate, rebuildStages } from "@/lib/calc";
+import { primaryStagesFromTemplate, rebuildStages, withPmStages } from "@/lib/calc";
 import { totalLaborHours } from "@/lib/scheduling";
 
 // Old calculations are visible to everyone, so a plain list with no auth filtering.
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
   const template = await prisma.formTemplate.findUnique({
     where: { id: templateId },
-    include: { stageTemplates: true },
+    include: { stageTemplates: true, fields: true },
   });
   if (!template) return NextResponse.json({ error: "template not found" }, { status: 404 });
 
@@ -55,7 +55,11 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  const primary = primaryStagesFromTemplate(template.stageTemplates, answersObj);
+  const primary = withPmStages(
+    template.fields,
+    answersObj,
+    primaryStagesFromTemplate(template.stageTemplates, answersObj)
+  );
   await rebuildStages(calculation.id, primary, start);
 
   return NextResponse.json({ id: calculation.id }, { status: 201 });

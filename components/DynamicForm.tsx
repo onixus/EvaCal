@@ -1,5 +1,7 @@
 "use client";
 
+import { COMPLEXITY_OPTIONS } from "@/lib/pm";
+
 export interface FormFieldDef {
   id: string;
   label: string;
@@ -68,6 +70,21 @@ export default function DynamicForm({ fields, values, onChange }: Props) {
               >
                 <option value="">— выбрать —</option>
                 {options.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            )}
+            {field.type === "complexity" && (
+              <select
+                className="input"
+                required={field.required}
+                value={value as string}
+                onChange={(e) => onChange(field.key, e.target.value)}
+              >
+                <option value="">— выбрать —</option>
+                {COMPLEXITY_OPTIONS.map((opt) => (
                   <option key={opt} value={opt}>
                     {opt}
                   </option>

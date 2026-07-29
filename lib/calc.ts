@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { expandWithApprovals, scheduleItems, PrimaryStageInput } from "./scheduling";
+import { buildPmStages } from "./pm";
 
 /** Wipes and regenerates every Stage row for a calculation from an ordered list of primary stages. */
 export async function rebuildStages(calculationId: string, primary: PrimaryStageInput[], startDate: Date) {
@@ -28,6 +29,17 @@ export async function rebuildStages(calculationId: string, primary: PrimaryStage
   );
 
   return prisma.stage.findMany({ where: { calculationId }, orderBy: { order: "asc" } });
+}
+
+/** Wraps a template-generated stage list with the automatic РП kickoff/closeout stages. */
+export function withPmStages(
+  fields: { key: string; type: string }[],
+  answers: Record<string, unknown>,
+  primary: PrimaryStageInput[]
+): PrimaryStageInput[] {
+  const otherHours = primary.reduce((sum, s) => sum + s.hours, 0);
+  const { start, close } = buildPmStages(fields, answers, otherHours);
+  return [start, ...primary, close];
 }
 
 export function primaryStagesFromTemplate(

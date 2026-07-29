@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { primaryStagesFromTemplate, rebuildStages } from "../lib/calc";
+import { primaryStagesFromTemplate, rebuildStages, withPmStages } from "../lib/calc";
 
 const prisma = new PrismaClient();
 
@@ -73,8 +73,7 @@ async function main() {
           {
             label: "Сложность проекта",
             key: "complexity",
-            type: "select",
-            options: JSON.stringify(["Простой", "Средний", "Сложный"]),
+            type: "complexity",
             required: true,
             order: 3,
           },
@@ -91,7 +90,7 @@ async function main() {
         ],
       },
     },
-    include: { stageTemplates: true },
+    include: { stageTemplates: true, fields: true },
   });
 
   const answers = {
@@ -113,7 +112,11 @@ async function main() {
     },
   });
 
-  const primary = primaryStagesFromTemplate(template.stageTemplates, answers);
+  const primary = withPmStages(
+    template.fields,
+    answers,
+    primaryStagesFromTemplate(template.stageTemplates, answers)
+  );
   await rebuildStages(calculation.id, primary, calculation.startDate);
 
   console.log("Сид выполнен: создан шаблон и демонстрационный расчёт.");

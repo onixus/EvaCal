@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ROLES } from "@/lib/roles";
+import { COMPLEXITY_LEVELS } from "@/lib/pm";
 
 interface Field {
   id: string;
@@ -40,6 +41,7 @@ const FIELD_TYPES = [
   { value: "select", label: "Список" },
   { value: "checkbox", label: "Флажок" },
   { value: "textarea", label: "Многострочный текст" },
+  { value: "complexity", label: "Сложность проекта (влияет на РП)" },
 ];
 
 export default function TemplateEditor({ template }: { template: Template }) {
@@ -166,6 +168,11 @@ export default function TemplateEditor({ template }: { template: Template }) {
                   placeholder="варианты через запятую"
                 />
               )}
+              {field.type === "complexity" && (
+                <span className="text-xs text-slate-500">
+                  Варианты фиксированы: {COMPLEXITY_LEVELS.map((l) => `${l.value} (+${l.percent}%)`).join(", ")}
+                </span>
+              )}
               <label className="flex items-center gap-1 text-xs text-slate-600">
                 <input
                   type="checkbox"
@@ -196,7 +203,9 @@ export default function TemplateEditor({ template }: { template: Template }) {
         <p className="mb-3 text-xs text-slate-500">
           Трудозатраты этапа = базовые часы + часы на единицу × значение числового вопроса. Для этапов с ролью
           «консультант», «разработчик», «инженер», «аналитик» автоматически добавляется 3-дневное согласование
-          с заказчиком.
+          с заказчиком. В каждый расчёт также автоматически добавляется РП: 16 ч на старт и закрытие проекта +
+          10%/20%/30% от суммарных трудозатрат остальных этапов — в зависимости от значения вопроса типа
+          «Сложность проекта».
         </p>
         <div className="space-y-2">
           {template.stageTemplates.map((st) => (
