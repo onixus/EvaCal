@@ -8,15 +8,25 @@ interface Template {
   id: string;
   name: string;
   fields: FormFieldDef[];
+  defaultStartDate: string | null;
+  defaultRequirements: string | null;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export default function NewCalculationForm({ template }: { template: Template }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [customer, setCustomer] = useState("");
+  const [startDate, setStartDate] = useState(template.defaultStartDate?.slice(0, 10) ?? todayIso());
+  const [requirements, setRequirements] = useState(template.defaultRequirements ?? "");
   const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const startDateLocked = !!template.defaultStartDate;
+  const requirementsLocked = !!template.defaultRequirements;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,7 +36,7 @@ export default function NewCalculationForm({ template }: { template: Template })
       const res = await fetch("/api/calculations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, customer, templateId: template.id, answers }),
+        body: JSON.stringify({ name, customer, templateId: template.id, answers, startDate, requirements }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -51,6 +61,32 @@ export default function NewCalculationForm({ template }: { template: Template })
         <div>
           <label className="label">Заказчик</label>
           <input className="input" required value={customer} onChange={(e) => setCustomer(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">
+            Дата старта проекта{startDateLocked && <span className="ml-1 text-xs text-slate-400">(зафиксирована шаблоном)</span>}
+          </label>
+          <input
+            type="date"
+            className="input"
+            required
+            disabled={startDateLocked}
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="label">
+            Требования и ограничения
+            {requirementsLocked && <span className="ml-1 text-xs text-slate-400">(зафиксированы шаблоном)</span>}
+          </label>
+          <textarea
+            className="input"
+            rows={2}
+            disabled={requirementsLocked}
+            value={requirements}
+            onChange={(e) => setRequirements(e.target.value)}
+          />
         </div>
       </div>
 

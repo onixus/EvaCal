@@ -3,11 +3,12 @@
 @tailwind utilities;
 
 body {
-  @apply bg-slate-50 text-slate-900;
+  @apply bg-slate-50 text-slate-900 dark:bg-nord-0 dark:text-nord-6;
 }
 
 .card {
-  @apply bg-white rounded-xl border border-slate-200 shadow-sm;
+  @apply bg-white rounded-xl border border-slate-200 shadow-sm
+    dark:bg-nord-1 dark:border-nord-2;
 }
 
 .btn {
@@ -15,21 +16,57 @@ body {
 }
 
 .btn-primary {
-  @apply btn bg-brand-600 text-white hover:bg-brand-700;
+  @apply btn bg-brand-600 text-white hover:bg-brand-700 hover:shadow-[0_0_16px_rgba(255,62,165,0.45)]
+    dark:bg-nord-frost4 dark:hover:bg-nord-frost3 dark:hover:shadow-[0_0_16px_rgba(136,192,208,0.45)];
 }
 
 .btn-secondary {
-  @apply btn bg-white border border-slate-300 text-slate-700 hover:bg-slate-100;
+  @apply btn bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 hover:border-neon-500/40
+    dark:bg-nord-1 dark:border-nord-2 dark:text-nord-4 dark:hover:bg-nord-2;
 }
 
 .input {
-  @apply w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent;
+  @apply w-full rounded-lg border border-slate-300 px-3 py-2 text-sm
+    focus:outline-none focus:ring-2 focus:ring-neon-500/60 focus:border-transparent
+    dark:bg-nord-0 dark:border-nord-2 dark:text-nord-6 dark:focus:ring-nord-frost2/60
+    disabled:bg-slate-100 dark:disabled:bg-nord-1;
 }
 
 .label {
-  @apply block text-sm font-medium text-slate-700 mb-1;
+  @apply block text-sm font-medium text-slate-700 mb-1 dark:text-nord-4;
 }
 
 .badge {
   @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+}
+
+/* Blanket Nord re-skin for the common slate utilities used throughout the app,
+   so individual pages don't need a `dark:` variant on every single element. */
+@media (prefers-color-scheme: dark) {
+  .text-slate-900 {
+    color: theme("colors.nord.6");
+  }
+  .text-slate-700,
+  .text-slate-600 {
+    color: theme("colors.nord.4");
+  }
+  .text-slate-500,
+  .text-slate-400 {
+    color: theme("colors.nord.3");
+  }
+  .bg-slate-50 {
+    background-color: theme("colors.nord.0");
+  }
+  .bg-slate-100,
+  .hover\:bg-slate-100:hover {
+    background-color: theme("colors.nord.2");
+  }
+  .border-slate-100,
+  .border-slate-200,
+  .border-slate-300 {
+    border-color: theme("colors.nord.2");
+  }
+  .text-brand-700 {
+    color: theme("colors.nord.frost2");
+  }
 }

@@ -109,6 +109,9 @@ async function main() {
       answers: JSON.stringify(answers),
       status: "approved",
       createdBy: "presale",
+      startDate: new Date(),
+      requirements:
+        "Интеграция только с существующей учётной системой заказчика. Ограничение: релиз до конца квартала, без миграции исторических данных.",
     },
   });
 

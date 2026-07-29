@@ -28,7 +28,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   const answers = body.answers ?? JSON.parse(existing.answers);
-  const startDate = body.startDate ? new Date(body.startDate) : existing.startDate;
+
+  // A template default locks the field for presale — the submitted value is ignored.
+  const startDate =
+    existing.template.defaultStartDate ?? (body.startDate ? new Date(body.startDate) : existing.startDate);
+  const requirements =
+    existing.template.defaultRequirements ??
+    (body.requirements !== undefined ? body.requirements || null : existing.requirements);
 
   const calculation = await prisma.calculation.update({
     where: { id: params.id },
@@ -37,6 +43,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       customer: body.customer ?? existing.customer,
       answers: JSON.stringify(answers),
       startDate,
+      requirements,
       status: existing.status === "pending_approval" ? "draft" : existing.status,
     },
   });
@@ -47,6 +54,38 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     primaryStagesFromTemplate(existing.template.stageTemplates, answers)
   );
   await rebuildStages(calculation.id, primary, startDate);
+
+  return NextResponse.json({ ok: true });
+}
+
+// Architect/admin override: bypasses the template-level lock on startDate/requirements
+// (but not the global "already approved" lock). Rescheduling preserves every stage's
+// current hours — it only shifts dates from the new anchor, it never re-runs formulas.
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireApiRole("architect");
+  if (auth instanceof NextResponse) return auth;
+
+  const body = await req.json();
+  const existing = await prisma.calculation.findUnique({
+    where: { id: params.id },
+    include: { stages: { orderBy: { order: "asc" } } },
+  });
+  if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (existing.status === "approved") {
+    return NextResponse.json({ error: "Расчёт уже утверждён и не может быть изменён" }, { status: 409 });
+  }
+
+  const startDate = body.startDate ? new Date(body.startDate) : existing.startDate;
+  const requirements = body.requirements !== undefined ? body.requirements || null : existing.requirements;
+
+  await prisma.calculation.update({ where: { id: params.id }, data: { startDate, requirements } });
+
+  if (body.startDate) {
+    const primary = existing.stages
+      .filter((s) => !s.isApprovalTask)
+      .map((s) => ({ name: s.name, role: s.role, hours: s.hours }));
+    await rebuildStages(params.id, primary, startDate);
+  }
 
   return NextResponse.json({ ok: true });
 }

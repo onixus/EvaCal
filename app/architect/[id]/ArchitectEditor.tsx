@@ -13,6 +13,8 @@ interface Calculation {
   name: string;
   customer: string;
   status: string;
+  startDate: string;
+  requirements: string | null;
   template: { name: string };
   stages: StageRow[];
 }
@@ -37,9 +39,33 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
       .filter((s) => !s.isApprovalTask)
       .map((s) => ({ key: s.id, name: s.name, role: s.role, hours: s.hours }))
   );
+  const [startDate, setStartDate] = useState(calculation.startDate.slice(0, 10));
+  const [requirements, setRequirements] = useState(calculation.requirements ?? "");
   const [saving, setSaving] = useState(false);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const locked = calculation.status === "approved";
+
+  async function saveSchedule() {
+    setScheduleSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/calculations/${calculation.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startDate, requirements }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Не удалось сохранить");
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка");
+    } finally {
+      setScheduleSaving(false);
+    }
+  }
 
   function updateStage(key: string, patch: Partial<EditableStage>) {
     setStages((prev) => prev.map((s) => (s.key === key ? { ...s, ...patch } : s)));
@@ -106,6 +132,39 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
           </p>
         </div>
         <StatusBadge status={calculation.status} />
+      </div>
+
+      <div className="card p-6">
+        <h2 className="mb-1 font-medium">Дата старта и требования</h2>
+        <p className="mb-3 text-xs text-slate-500">
+          Архитектор может менять эти поля даже если они зафиксированы шаблоном для пресейла. Изменение даты
+          старта сдвигает весь график, сохраняя текущие трудозатраты этапов.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Дата старта проекта</label>
+            <input
+              type="date"
+              className="input"
+              disabled={locked}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">Требования и ограничения</label>
+            <textarea
+              className="input"
+              rows={2}
+              disabled={locked}
+              value={requirements}
+              onChange={(e) => setRequirements(e.target.value)}
+            />
+          </div>
+        </div>
+        <button className="btn-secondary mt-3" disabled={scheduleSaving || locked} onClick={saveSchedule}>
+          {scheduleSaving ? "Сохранение…" : "Сохранить и пересчитать график"}
+        </button>
       </div>
 
       <div className="card p-6">

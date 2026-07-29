@@ -24,7 +24,7 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+          <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-nord-2 dark:text-nord-3">
             <th className="py-2 pr-4">Этап</th>
             <th className="py-2 pr-4">Роль</th>
             <th className="py-2 pr-4">Трудозатраты, ч</th>
@@ -36,12 +36,17 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
         </thead>
         <tbody>
           {stages.map((stage) => (
-            <tr key={stage.id} className={`border-b border-slate-100 ${stage.isApprovalTask ? "bg-amber-50/50" : ""}`}>
+            <tr
+              key={stage.id}
+              className={`border-b border-slate-100 dark:border-nord-2 ${
+                stage.isApprovalTask ? "bg-amber-50/50 dark:bg-nord-yellow/10" : ""
+              }`}
+            >
               <td className="py-2 pr-4">
                 {stage.isApprovalTask ? "⏳ " : ""}
                 {stage.name}
               </td>
-              <td className="py-2 pr-4 text-slate-600">{roleLabel(stage.role)}</td>
+              <td className="py-2 pr-4 text-slate-600 dark:text-nord-4">{roleLabel(stage.role)}</td>
               <td className="py-2 pr-4">{stage.isApprovalTask ? "—" : stage.hours}</td>
               <td className="py-2 pr-4">{fmt(stage.startDate)}</td>
               <td className="py-2 pr-4">{fmt(stage.endDate)}</td>

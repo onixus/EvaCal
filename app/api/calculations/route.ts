@@ -30,7 +30,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { name, customer, templateId, answers, startDate } = body;
+  const { name, customer, templateId, answers, startDate, requirements } = body;
   if (!name || !customer || !templateId) {
     return NextResponse.json({ error: "name, customer and templateId are required" }, { status: 400 });
   }
@@ -41,7 +41,9 @@ export async function POST(req: NextRequest) {
   });
   if (!template) return NextResponse.json({ error: "template not found" }, { status: 404 });
 
-  const start = startDate ? new Date(startDate) : new Date();
+  // A template-level default locks the field for presale; otherwise the submitted value is used.
+  const start = template.defaultStartDate ?? (startDate ? new Date(startDate) : new Date());
+  const finalRequirements = template.defaultRequirements ?? (requirements || null);
   const answersObj = answers ?? {};
 
   const calculation = await prisma.calculation.create({
@@ -51,6 +53,7 @@ export async function POST(req: NextRequest) {
       templateId,
       answers: JSON.stringify(answersObj),
       startDate: start,
+      requirements: finalRequirements,
       createdBy: "presale",
     },
   });

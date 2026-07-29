@@ -25,10 +25,14 @@ model User {
 // Only one template is "active" at a time and used by the presale interface,
 // but old templates are kept so old calculations remain readable.
 model FormTemplate {
-  id             String          @id @default(cuid())
-  name           String
-  description    String?
-  isActive       Boolean         @default(false)
+  id       String   @id @default(cuid())
+  name     String
+  description String?
+  isActive Boolean  @default(false)
+  // Optional locked defaults: when set, every calculation from this template
+  // inherits the value and only architect/admin can override it.
+  defaultStartDate    DateTime?
+  defaultRequirements String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   fields         FormField[]
@@ -72,7 +76,8 @@ model Calculation {
   template   FormTemplate @relation(fields: [templateId], references: [id])
   answers    String // JSON-encoded { [fieldKey]: value }
   status     String       @default("draft") // draft | pending_approval | approved
-  startDate  DateTime     @default(now())
+  startDate    DateTime @default(now()) // anchors the whole Gantt schedule
+  requirements String? // "Требования и ограничения" — locked the same way as startDate
   createdBy  String       @default("presale")
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt

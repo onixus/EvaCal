@@ -13,8 +13,16 @@ interface Calculation {
   name: string;
   customer: string;
   status: string;
+  startDate: string;
+  requirements: string | null;
   answers: Record<string, string | number | boolean>;
-  template: { id: string; name: string; fields: FormFieldDef[] };
+  template: {
+    id: string;
+    name: string;
+    fields: FormFieldDef[];
+    defaultStartDate: string | null;
+    defaultRequirements: string | null;
+  };
   stages: StageRow[];
 }
 
@@ -22,10 +30,14 @@ export default function PresaleCalculationEditor({ calculation }: { calculation:
   const router = useRouter();
   const [name, setName] = useState(calculation.name);
   const [customer, setCustomer] = useState(calculation.customer);
+  const [startDate, setStartDate] = useState(calculation.startDate.slice(0, 10));
+  const [requirements, setRequirements] = useState(calculation.requirements ?? "");
   const [answers, setAnswers] = useState(calculation.answers);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const locked = calculation.status === "approved";
+  const startDateLocked = locked || !!calculation.template.defaultStartDate;
+  const requirementsLocked = locked || !!calculation.template.defaultRequirements;
 
   async function save() {
     setSaving(true);
@@ -34,7 +46,7 @@ export default function PresaleCalculationEditor({ calculation }: { calculation:
       const res = await fetch(`/api/calculations/${calculation.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, customer, answers }),
+        body: JSON.stringify({ name, customer, answers, startDate, requirements }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -78,6 +90,32 @@ export default function PresaleCalculationEditor({ calculation }: { calculation:
               disabled={locked}
               value={customer}
               onChange={(e) => setCustomer(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">
+              Дата старта проекта
+              {startDateLocked && <span className="ml-1 text-xs text-slate-400">(зафиксирована)</span>}
+            </label>
+            <input
+              type="date"
+              className="input"
+              disabled={startDateLocked}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">
+              Требования и ограничения
+              {requirementsLocked && <span className="ml-1 text-xs text-slate-400">(зафиксированы)</span>}
+            </label>
+            <textarea
+              className="input"
+              rows={2}
+              disabled={requirementsLocked}
+              value={requirements}
+              onChange={(e) => setRequirements(e.target.value)}
             />
           </div>
         </div>
