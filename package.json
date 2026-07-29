@@ -13,13 +13,16 @@
   "dependencies": {
     "@prisma/client": "^5.20.0",
     "bcryptjs": "^2.4.3",
+    "dejavu-fonts-ttf": "^2.37.3",
     "next": "14.2.35",
+    "pdfkit": "^0.19.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.10",
+    "@types/pdfkit": "^0.17.6",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.19",
