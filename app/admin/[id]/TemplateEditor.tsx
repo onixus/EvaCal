@@ -31,6 +31,8 @@ interface Template {
   name: string;
   description: string | null;
   isActive: boolean;
+  defaultStartDate: string | null;
+  defaultRequirements: string | null;
   fields: Field[];
   stageTemplates: StageTemplate[];
 }
@@ -106,6 +108,14 @@ export default function TemplateEditor({ template }: { template: Template }) {
     call(`/api/templates/${template.id}/stage-templates/${st.id}`, { method: "DELETE" });
   }
 
+  function updateTemplate(patch: { defaultStartDate?: string | null; defaultRequirements?: string | null }) {
+    call(`/api/templates/${template.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  }
+
   const numberFields = template.fields.filter((f) => f.type === "number");
 
   return (
@@ -118,6 +128,35 @@ export default function TemplateEditor({ template }: { template: Template }) {
         <Link href="/admin" className="btn-secondary">
           ← К шаблонам
         </Link>
+      </div>
+
+      <div className="card p-6">
+        <h2 className="mb-1 font-medium">Фиксированные значения (опционально)</h2>
+        <p className="mb-3 text-xs text-slate-500">
+          Если заполнено — значение фиксируется для всех расчётов по шаблону, пресейл его не может изменить
+          (только архитектор). Если оставить пустым — пресейл сам укажет значение при создании расчёта, а после
+          утверждения архитектором оно зафиксируется.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Дата старта проекта</label>
+            <input
+              type="date"
+              className="input"
+              defaultValue={template.defaultStartDate ? template.defaultStartDate.slice(0, 10) : ""}
+              onBlur={(e) => updateTemplate({ defaultStartDate: e.target.value || null })}
+            />
+          </div>
+          <div>
+            <label className="label">Требования и ограничения</label>
+            <textarea
+              className="input"
+              rows={2}
+              defaultValue={template.defaultRequirements ?? ""}
+              onBlur={(e) => updateTemplate({ defaultRequirements: e.target.value || null })}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="card p-6">

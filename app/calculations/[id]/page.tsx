@@ -26,11 +26,19 @@ export default async function CalculationViewPage({ params }: { params: { id: st
         <div>
           <h1 className="text-xl font-semibold">{calculation.name}</h1>
           <p className="text-sm text-slate-500">
-            Заказчик: {calculation.customer} · Шаблон: {calculation.template.name}
+            Заказчик: {calculation.customer} · Шаблон: {calculation.template.name} · Старт проекта:{" "}
+            {calculation.startDate.toLocaleDateString("ru-RU")}
           </p>
         </div>
         <StatusBadge status={calculation.status} />
       </div>
+
+      {calculation.requirements && (
+        <div className="card p-5">
+          <h2 className="mb-2 font-medium">Требования и ограничения</h2>
+          <p className="whitespace-pre-wrap text-sm text-slate-700">{calculation.requirements}</p>
+        </div>
+      )}
 
       <div className="card p-5">
         <h2 className="mb-3 font-medium">Ответы опросника</h2>

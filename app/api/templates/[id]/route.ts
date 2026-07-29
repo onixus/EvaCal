@@ -24,6 +24,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     data: {
       ...(body.name !== undefined ? { name: body.name } : {}),
       ...(body.description !== undefined ? { description: body.description } : {}),
+      ...(body.defaultStartDate !== undefined
+        ? { defaultStartDate: body.defaultStartDate ? new Date(body.defaultStartDate) : null }
+        : {}),
+      ...(body.defaultRequirements !== undefined
+        ? { defaultRequirements: body.defaultRequirements || null }
+        : {}),
     },
   });
   return NextResponse.json(template);
