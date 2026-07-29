@@ -6,7 +6,8 @@ import DynamicForm, { FormFieldDef } from "@/components/DynamicForm";
 import StageTable, { StageRow } from "@/components/StageTable";
 import GanttChart from "@/components/GanttChart";
 import StatusBadge from "@/components/StatusBadge";
-import { totalLaborHours } from "@/lib/scheduling";
+import TotalsSummary, { RiskRow } from "@/components/TotalsSummary";
+import RiskList from "@/components/RiskList";
 
 interface Calculation {
   id: string;
@@ -14,16 +15,16 @@ interface Calculation {
   customer: string;
   status: string;
   startDate: string;
-  requirements: string | null;
+  pmHours: number;
   answers: Record<string, string | number | boolean>;
   template: {
     id: string;
     name: string;
     fields: FormFieldDef[];
     defaultStartDate: string | null;
-    defaultRequirements: string | null;
   };
   stages: StageRow[];
+  risks: RiskRow[];
 }
 
 export default function PresaleCalculationEditor({ calculation }: { calculation: Calculation }) {
@@ -31,13 +32,11 @@ export default function PresaleCalculationEditor({ calculation }: { calculation:
   const [name, setName] = useState(calculation.name);
   const [customer, setCustomer] = useState(calculation.customer);
   const [startDate, setStartDate] = useState(calculation.startDate.slice(0, 10));
-  const [requirements, setRequirements] = useState(calculation.requirements ?? "");
   const [answers, setAnswers] = useState(calculation.answers);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const locked = calculation.status === "approved";
   const startDateLocked = locked || !!calculation.template.defaultStartDate;
-  const requirementsLocked = locked || !!calculation.template.defaultRequirements;
 
   async function save() {
     setSaving(true);
@@ -46,7 +45,7 @@ export default function PresaleCalculationEditor({ calculation }: { calculation:
       const res = await fetch(`/api/calculations/${calculation.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, customer, answers, startDate, requirements }),
+        body: JSON.stringify({ name, customer, answers, startDate }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -105,19 +104,6 @@ export default function PresaleCalculationEditor({ calculation }: { calculation:
               onChange={(e) => setStartDate(e.target.value)}
             />
           </div>
-          <div>
-            <label className="label">
-              Требования и ограничения
-              {requirementsLocked && <span className="ml-1 text-xs text-slate-400">(зафиксированы)</span>}
-            </label>
-            <textarea
-              className="input"
-              rows={2}
-              disabled={requirementsLocked}
-              value={requirements}
-              onChange={(e) => setRequirements(e.target.value)}
-            />
-          </div>
         </div>
 
         <div>
@@ -148,9 +134,12 @@ export default function PresaleCalculationEditor({ calculation }: { calculation:
       </div>
 
       <div className="card p-5">
-        <h2 className="mb-3 font-medium">
-          Этапы и трудозатраты · Итого {totalLaborHours(calculation.stages)} ч
-        </h2>
+        <h2 className="mb-3 font-medium">Трудозатраты</h2>
+        <TotalsSummary stages={calculation.stages} pmHours={calculation.pmHours} risks={calculation.risks} />
+      </div>
+
+      <div className="card p-5">
+        <h2 className="mb-3 font-medium">Этапы</h2>
         <StageTable stages={calculation.stages} />
       </div>
 
@@ -158,6 +147,13 @@ export default function PresaleCalculationEditor({ calculation }: { calculation:
         <h2 className="mb-3 font-medium">Диаграмма Ганта</h2>
         <GanttChart stages={calculation.stages} />
       </div>
+
+      {calculation.risks.length > 0 && (
+        <div className="card p-5">
+          <h2 className="mb-3 font-medium">Риски</h2>
+          <RiskList risks={calculation.risks} />
+        </div>
+      )}
     </div>
   );
 }

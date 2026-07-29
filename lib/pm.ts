@@ -19,24 +19,18 @@ export function complexityPercent(value: string | undefined | null): number {
   return found ? found.percent : DEFAULT_COMPLEXITY_PERCENT;
 }
 
-export interface PmStages {
-  start: { name: string; role: "pm"; hours: number };
-  close: { name: string; role: "pm"; hours: number };
-}
-
-/** otherStagesHours = sum of hours of every non-PM, non-approval stage in the calculation. */
-export function buildPmStages(
+/**
+ * РП isn't a Gantt stage — it's a scalar allowance counted only in the calculation's
+ * total labor hours. otherStagesHours = sum of hours of every non-approval stage.
+ */
+export function computePmHours(
   fields: { key: string; type: string }[],
   answers: Record<string, unknown>,
   otherStagesHours: number
-): PmStages {
+): number {
   const complexityField = fields.find((f) => f.type === "complexity");
   const complexityValue = complexityField ? String(answers[complexityField.key] ?? "") : "";
   const percent = complexityPercent(complexityValue);
-  const overhead = Math.round(((percent / 100) * otherStagesHours + Number.EPSILON) * 100) / 100;
-
-  return {
-    start: { name: "РП: старт проекта", role: "pm", hours: PM_START_HOURS },
-    close: { name: "РП: закрытие проекта", role: "pm", hours: PM_CLOSE_HOURS + overhead },
-  };
+  const overhead = (percent / 100) * otherStagesHours;
+  return Math.round((PM_START_HOURS + PM_CLOSE_HOURS + overhead + Number.EPSILON) * 100) / 100;
 }

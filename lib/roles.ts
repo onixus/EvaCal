@@ -3,7 +3,6 @@ export const ROLES = [
   { value: "developer", label: "Разработчик" },
   { value: "engineer", label: "Инженер" },
   { value: "analyst", label: "Аналитик" },
-  { value: "pm", label: "РП" },
   { value: "architect", label: "Архитектор" },
   { value: "customer", label: "Заказчик" },
   { value: "other", label: "Другое" },

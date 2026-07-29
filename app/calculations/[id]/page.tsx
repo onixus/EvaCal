@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { totalLaborHours } from "@/lib/scheduling";
 import StatusBadge from "@/components/StatusBadge";
 import StageTable from "@/components/StageTable";
 import GanttChart from "@/components/GanttChart";
+import TotalsSummary from "@/components/TotalsSummary";
+import RiskList from "@/components/RiskList";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export default async function CalculationViewPage({ params }: { params: { id: st
     include: {
       template: { include: { fields: { orderBy: { order: "asc" } } } },
       stages: { orderBy: { order: "asc" } },
+      risks: { orderBy: { order: "asc" } },
     },
   });
   if (!calculation) notFound();
@@ -33,13 +35,6 @@ export default async function CalculationViewPage({ params }: { params: { id: st
         <StatusBadge status={calculation.status} />
       </div>
 
-      {calculation.requirements && (
-        <div className="card p-5">
-          <h2 className="mb-2 font-medium">Требования и ограничения</h2>
-          <p className="whitespace-pre-wrap text-sm text-slate-700">{calculation.requirements}</p>
-        </div>
-      )}
-
       <div className="card p-5">
         <h2 className="mb-3 font-medium">Ответы опросника</h2>
         <dl className="grid gap-3 sm:grid-cols-2">
@@ -53,9 +48,12 @@ export default async function CalculationViewPage({ params }: { params: { id: st
       </div>
 
       <div className="card p-5">
-        <h2 className="mb-3 font-medium">
-          Этапы и трудозатраты · Итого {totalLaborHours(calculation.stages)} ч
-        </h2>
+        <h2 className="mb-3 font-medium">Трудозатраты</h2>
+        <TotalsSummary stages={calculation.stages} pmHours={calculation.pmHours} risks={calculation.risks} />
+      </div>
+
+      <div className="card p-5">
+        <h2 className="mb-3 font-medium">Этапы</h2>
         <StageTable stages={calculation.stages} />
       </div>
 
@@ -63,6 +61,13 @@ export default async function CalculationViewPage({ params }: { params: { id: st
         <h2 className="mb-3 font-medium">Диаграмма Ганта</h2>
         <GanttChart stages={calculation.stages} />
       </div>
+
+      {calculation.risks.length > 0 && (
+        <div className="card p-5">
+          <h2 className="mb-3 font-medium">Риски</h2>
+          <RiskList risks={calculation.risks} />
+        </div>
+      )}
 
       <div className="flex gap-3 text-sm">
         <Link href={`/presale/${calculation.id}`} className="btn-secondary">

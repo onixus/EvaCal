@@ -74,6 +74,7 @@ export interface PrimaryStageInput {
   name: string;
   role: string;
   hours: number;
+  requirements?: string | null;
 }
 
 export interface StagePlanItem {
@@ -81,6 +82,7 @@ export interface StagePlanItem {
   role: string;
   hours: number;
   isApprovalTask: boolean;
+  requirements: string | null;
 }
 
 export interface ScheduledItem extends StagePlanItem {
@@ -94,13 +96,20 @@ export interface ScheduledItem extends StagePlanItem {
 export function expandWithApprovals(primary: PrimaryStageInput[]): StagePlanItem[] {
   const items: StagePlanItem[] = [];
   for (const p of primary) {
-    items.push({ name: p.name, role: p.role, hours: Math.max(0, p.hours), isApprovalTask: false });
+    items.push({
+      name: p.name,
+      role: p.role,
+      hours: Math.max(0, p.hours),
+      isApprovalTask: false,
+      requirements: p.requirements ?? null,
+    });
     if (APPROVAL_REQUIRED_ROLES.includes(p.role as Role)) {
       items.push({
         name: `Согласование заказчиком: «${p.name}»`,
         role: "customer",
         hours: 0,
         isApprovalTask: true,
+        requirements: null,
       });
     }
   }

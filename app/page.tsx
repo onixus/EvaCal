@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { totalLaborHours } from "@/lib/scheduling";
+import { grandTotalHours } from "@/lib/totals";
 import StatusBadge from "@/components/StatusBadge";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const calculations = await prisma.calculation.findMany({
     orderBy: { createdAt: "desc" },
-    include: { template: { select: { name: true } }, stages: true },
+    include: { template: { select: { name: true } }, stages: true, risks: true },
   });
 
   return (
@@ -50,7 +50,7 @@ export default async function HomePage() {
                   </td>
                   <td className="p-3">{c.customer}</td>
                   <td className="p-3 text-slate-600">{c.template.name}</td>
-                  <td className="p-3">{totalLaborHours(c.stages)}</td>
+                  <td className="p-3">{grandTotalHours(c.stages, c.pmHours, c.risks)}</td>
                   <td className="p-3">
                     <StatusBadge status={c.status} />
                   </td>

@@ -11,6 +11,7 @@ export interface GanttStage {
   startDate: string | Date;
   endDate: string | Date;
   status: string;
+  requirements?: string | null;
 }
 
 const ROLE_COLORS: Record<string, string> = {
@@ -18,7 +19,6 @@ const ROLE_COLORS: Record<string, string> = {
   developer: "bg-violet-500",
   engineer: "bg-orange-500",
   analyst: "bg-teal-500",
-  pm: "bg-rose-500",
   architect: "bg-indigo-500",
   customer: "bg-amber-400",
   other: "bg-slate-400",
@@ -72,7 +72,7 @@ export default function GanttChart({ stages }: { stages: GanttStage[] }) {
                     style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                     title={`${fmtDate(stage.startDate)} — ${fmtDate(stage.endDate)}${
                       stage.isApprovalTask ? "" : ` · ${stage.hours} ч`
-                    }`}
+                    }${stage.requirements ? `\n${stage.requirements}` : ""}`}
                   />
                 </div>
                 <div className="w-28 shrink-0 text-right text-xs text-slate-500 dark:text-nord-3">

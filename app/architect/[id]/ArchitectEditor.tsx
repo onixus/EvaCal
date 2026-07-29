@@ -6,7 +6,7 @@ import { ROLES } from "@/lib/roles";
 import StageTable, { StageRow } from "@/components/StageTable";
 import GanttChart from "@/components/GanttChart";
 import StatusBadge from "@/components/StatusBadge";
-import { totalLaborHours } from "@/lib/scheduling";
+import TotalsSummary, { RiskRow } from "@/components/TotalsSummary";
 
 interface Calculation {
   id: string;
@@ -14,9 +14,10 @@ interface Calculation {
   customer: string;
   status: string;
   startDate: string;
-  requirements: string | null;
+  pmHours: number;
   template: { name: string };
   stages: StageRow[];
+  risks: RiskRow[];
 }
 
 interface EditableStage {
@@ -24,6 +25,7 @@ interface EditableStage {
   name: string;
   role: string;
   hours: number;
+  requirements: string;
 }
 
 let uid = 0;
@@ -37,12 +39,14 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
   const [stages, setStages] = useState<EditableStage[]>(
     calculation.stages
       .filter((s) => !s.isApprovalTask)
-      .map((s) => ({ key: s.id, name: s.name, role: s.role, hours: s.hours }))
+      .map((s) => ({ key: s.id, name: s.name, role: s.role, hours: s.hours, requirements: s.requirements ?? "" }))
   );
   const [startDate, setStartDate] = useState(calculation.startDate.slice(0, 10));
-  const [requirements, setRequirements] = useState(calculation.requirements ?? "");
   const [saving, setSaving] = useState(false);
   const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [riskBusy, setRiskBusy] = useState(false);
+  const [newRiskDescription, setNewRiskDescription] = useState("");
+  const [newRiskHours, setNewRiskHours] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const locked = calculation.status === "approved";
 
@@ -53,7 +57,7 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
       const res = await fetch(`/api/calculations/${calculation.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startDate, requirements }),
+        body: JSON.stringify({ startDate }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -72,7 +76,10 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
   }
 
   function addStage() {
-    setStages((prev) => [...prev, { key: nextKey(), name: "Новый этап", role: "developer", hours: 8 }]);
+    setStages((prev) => [
+      ...prev,
+      { key: nextKey(), name: "Новый этап", role: "developer", hours: 8, requirements: "" },
+    ]);
   }
 
   function removeStage(key: string) {
@@ -97,7 +104,12 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          stages: stages.map((s) => ({ name: s.name, role: s.role, hours: Number(s.hours) || 0 })),
+          stages: stages.map((s) => ({
+            name: s.name,
+            role: s.role,
+            hours: Number(s.hours) || 0,
+            requirements: s.requirements || null,
+          })),
         }),
       });
       if (!res.ok) {
@@ -122,6 +134,49 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
     }
   }
 
+  async function addRisk() {
+    if (!newRiskDescription.trim()) return;
+    setRiskBusy(true);
+    try {
+      const res = await fetch(`/api/calculations/${calculation.id}/risks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: newRiskDescription, hours: newRiskHours }),
+      });
+      if (res.ok) {
+        setNewRiskDescription("");
+        setNewRiskHours(0);
+        router.refresh();
+      }
+    } finally {
+      setRiskBusy(false);
+    }
+  }
+
+  async function updateRisk(risk: RiskRow, patch: { description?: string; hours?: number }) {
+    setRiskBusy(true);
+    try {
+      await fetch(`/api/calculations/${calculation.id}/risks/${risk.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      router.refresh();
+    } finally {
+      setRiskBusy(false);
+    }
+  }
+
+  async function removeRisk(risk: RiskRow) {
+    setRiskBusy(true);
+    try {
+      await fetch(`/api/calculations/${calculation.id}/risks/${risk.id}`, { method: "DELETE" });
+      router.refresh();
+    } finally {
+      setRiskBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
@@ -135,32 +190,19 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
       </div>
 
       <div className="card p-6">
-        <h2 className="mb-1 font-medium">Дата старта и требования</h2>
+        <h2 className="mb-1 font-medium">Дата старта проекта</h2>
         <p className="mb-3 text-xs text-slate-500">
-          Архитектор может менять эти поля даже если они зафиксированы шаблоном для пресейла. Изменение даты
-          старта сдвигает весь график, сохраняя текущие трудозатраты этапов.
+          Архитектор может менять дату старта даже если она зафиксирована шаблоном для пресейла. Изменение сдвигает
+          весь график, сохраняя текущие трудозатраты этапов.
         </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="label">Дата старта проекта</label>
-            <input
-              type="date"
-              className="input"
-              disabled={locked}
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="label">Требования и ограничения</label>
-            <textarea
-              className="input"
-              rows={2}
-              disabled={locked}
-              value={requirements}
-              onChange={(e) => setRequirements(e.target.value)}
-            />
-          </div>
+        <div className="max-w-xs">
+          <input
+            type="date"
+            className="input"
+            disabled={locked}
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
         </div>
         <button className="btn-secondary mt-3" disabled={scheduleSaving || locked} onClick={saveSchedule}>
           {scheduleSaving ? "Сохранение…" : "Сохранить и пересчитать график"}
@@ -178,56 +220,66 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
         </div>
         <p className="mb-3 text-xs text-slate-500">
           Для этапов с исполнителем «консультант», «разработчик», «инженер» или «аналитик» система автоматически
-          добавит задачу согласования на заказчика сроком 3 рабочих дня.
+          добавит задачу согласования на заказчика сроком 3 рабочих дня. РП в этапах не отображается — учитывается
+          только в итоговых трудозатратах.
         </p>
 
         <div className="space-y-2">
           {stages.map((s, index) => (
-            <div key={s.key} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-2">
+            <div key={s.key} className="space-y-2 rounded-lg border border-slate-200 p-2 dark:border-nord-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  className="input flex-1 min-w-[180px]"
+                  disabled={locked}
+                  value={s.name}
+                  onChange={(e) => updateStage(s.key, { name: e.target.value })}
+                />
+                <select
+                  className="input w-44"
+                  disabled={locked}
+                  value={s.role}
+                  onChange={(e) => updateStage(s.key, { role: e.target.value })}
+                >
+                  {ROLES.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min={0}
+                  className="input w-28"
+                  disabled={locked}
+                  value={s.hours}
+                  onChange={(e) => updateStage(s.key, { hours: e.target.valueAsNumber || 0 })}
+                />
+                <span className="text-xs text-slate-500">ч</span>
+                {!locked && (
+                  <div className="ml-auto flex gap-1">
+                    <button className="btn-secondary px-2 py-1" onClick={() => moveStage(index, -1)} title="Вверх">
+                      ↑
+                    </button>
+                    <button className="btn-secondary px-2 py-1" onClick={() => moveStage(index, 1)} title="Вниз">
+                      ↓
+                    </button>
+                    <button
+                      className="btn-secondary px-2 py-1 text-rose-600"
+                      onClick={() => removeStage(s.key)}
+                      title="Удалить"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
               <input
-                className="input flex-1 min-w-[180px]"
+                className="input"
+                placeholder="Требования и ограничения по этапу"
                 disabled={locked}
-                value={s.name}
-                onChange={(e) => updateStage(s.key, { name: e.target.value })}
+                value={s.requirements}
+                onChange={(e) => updateStage(s.key, { requirements: e.target.value })}
               />
-              <select
-                className="input w-44"
-                disabled={locked}
-                value={s.role}
-                onChange={(e) => updateStage(s.key, { role: e.target.value })}
-              >
-                {ROLES.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                min={0}
-                className="input w-28"
-                disabled={locked}
-                value={s.hours}
-                onChange={(e) => updateStage(s.key, { hours: e.target.valueAsNumber || 0 })}
-              />
-              <span className="text-xs text-slate-500">ч</span>
-              {!locked && (
-                <div className="ml-auto flex gap-1">
-                  <button className="btn-secondary px-2 py-1" onClick={() => moveStage(index, -1)} title="Вверх">
-                    ↑
-                  </button>
-                  <button className="btn-secondary px-2 py-1" onClick={() => moveStage(index, 1)} title="Вниз">
-                    ↓
-                  </button>
-                  <button
-                    className="btn-secondary px-2 py-1 text-rose-600"
-                    onClick={() => removeStage(s.key)}
-                    title="Удалить"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
             </div>
           ))}
           {stages.length === 0 && <p className="text-sm text-slate-500">Нет этапов. Добавьте хотя бы один.</p>}
@@ -249,10 +301,69 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
         </div>
       </div>
 
+      <div className="card p-6">
+        <h2 className="mb-3 font-medium">Риски</h2>
+        <div className="space-y-2">
+          {calculation.risks.map((risk) => (
+            <div key={risk.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-2 dark:border-nord-2">
+              <input
+                className="input flex-1 min-w-[220px]"
+                disabled={locked}
+                defaultValue={risk.description}
+                onBlur={(e) => e.target.value !== risk.description && updateRisk(risk, { description: e.target.value })}
+              />
+              <input
+                type="number"
+                min={0}
+                className="input w-28"
+                disabled={locked}
+                defaultValue={risk.hours}
+                onBlur={(e) => updateRisk(risk, { hours: e.target.valueAsNumber || 0 })}
+              />
+              <span className="text-xs text-slate-500">ч</span>
+              {!locked && (
+                <button
+                  className="btn-secondary ml-auto px-2 py-1 text-rose-600"
+                  onClick={() => removeRisk(risk)}
+                  title="Удалить"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+          {calculation.risks.length === 0 && <p className="text-sm text-slate-500">Риски не зафиксированы.</p>}
+        </div>
+        {!locked && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              className="input flex-1 min-w-[220px]"
+              placeholder="Описание риска"
+              value={newRiskDescription}
+              onChange={(e) => setNewRiskDescription(e.target.value)}
+            />
+            <input
+              type="number"
+              min={0}
+              className="input w-28"
+              placeholder="ч"
+              value={newRiskHours || ""}
+              onChange={(e) => setNewRiskHours(e.target.valueAsNumber || 0)}
+            />
+            <button className="btn-secondary" disabled={riskBusy || !newRiskDescription.trim()} onClick={addRisk}>
+              + Добавить риск
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="card p-5">
-        <h2 className="mb-3 font-medium">
-          Итоговый график · Итого {totalLaborHours(calculation.stages)} ч
-        </h2>
+        <h2 className="mb-3 font-medium">Трудозатраты</h2>
+        <TotalsSummary stages={calculation.stages} pmHours={calculation.pmHours} risks={calculation.risks} />
+      </div>
+
+      <div className="card p-5">
+        <h2 className="mb-3 font-medium">Итоговый график</h2>
         <StageTable stages={calculation.stages} />
       </div>
 

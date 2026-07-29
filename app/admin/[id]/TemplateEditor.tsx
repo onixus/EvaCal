@@ -32,7 +32,6 @@ interface Template {
   description: string | null;
   isActive: boolean;
   defaultStartDate: string | null;
-  defaultRequirements: string | null;
   fields: Field[];
   stageTemplates: StageTemplate[];
 }
@@ -108,7 +107,7 @@ export default function TemplateEditor({ template }: { template: Template }) {
     call(`/api/templates/${template.id}/stage-templates/${st.id}`, { method: "DELETE" });
   }
 
-  function updateTemplate(patch: { defaultStartDate?: string | null; defaultRequirements?: string | null }) {
+  function updateTemplate(patch: { defaultStartDate?: string | null }) {
     call(`/api/templates/${template.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -131,31 +130,19 @@ export default function TemplateEditor({ template }: { template: Template }) {
       </div>
 
       <div className="card p-6">
-        <h2 className="mb-1 font-medium">Фиксированные значения (опционально)</h2>
+        <h2 className="mb-1 font-medium">Дата старта проекта (опционально)</h2>
         <p className="mb-3 text-xs text-slate-500">
-          Если заполнено — значение фиксируется для всех расчётов по шаблону, пресейл его не может изменить
-          (только архитектор). Если оставить пустым — пресейл сам укажет значение при создании расчёта, а после
-          утверждения архитектором оно зафиксируется.
+          Если заполнено — дата фиксируется для всех расчётов по шаблону, пресейл её не может изменить (только
+          архитектор). Если оставить пустым — пресейл сам укажет дату при создании расчёта, а после утверждения
+          архитектором она зафиксируется.
         </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="label">Дата старта проекта</label>
-            <input
-              type="date"
-              className="input"
-              defaultValue={template.defaultStartDate ? template.defaultStartDate.slice(0, 10) : ""}
-              onBlur={(e) => updateTemplate({ defaultStartDate: e.target.value || null })}
-            />
-          </div>
-          <div>
-            <label className="label">Требования и ограничения</label>
-            <textarea
-              className="input"
-              rows={2}
-              defaultValue={template.defaultRequirements ?? ""}
-              onBlur={(e) => updateTemplate({ defaultRequirements: e.target.value || null })}
-            />
-          </div>
+        <div className="max-w-xs">
+          <input
+            type="date"
+            className="input"
+            defaultValue={template.defaultStartDate ? template.defaultStartDate.slice(0, 10) : ""}
+            onBlur={(e) => updateTemplate({ defaultStartDate: e.target.value || null })}
+          />
         </div>
       </div>
 
@@ -242,9 +229,9 @@ export default function TemplateEditor({ template }: { template: Template }) {
         <p className="mb-3 text-xs text-slate-500">
           Трудозатраты этапа = базовые часы + часы на единицу × значение числового вопроса. Для этапов с ролью
           «консультант», «разработчик», «инженер», «аналитик» автоматически добавляется 3-дневное согласование
-          с заказчиком. В каждый расчёт также автоматически добавляется РП: 16 ч на старт и закрытие проекта +
-          10%/20%/30% от суммарных трудозатрат остальных этапов — в зависимости от значения вопроса типа
-          «Сложность проекта».
+          с заказчиком. В итоговые трудозатраты расчёта также автоматически добавляется РП: 16 ч на старт и
+          закрытие проекта + 10%/20%/30% от суммарных трудозатрат остальных этапов — в зависимости от значения
+          вопроса типа «Сложность проекта». РП не отображается как отдельный этап на Ганте.
         </p>
         <div className="space-y-2">
           {template.stageTemplates.map((st) => (

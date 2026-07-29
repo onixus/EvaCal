@@ -29,10 +29,9 @@ model FormTemplate {
   name     String
   description String?
   isActive Boolean  @default(false)
-  // Optional locked defaults: when set, every calculation from this template
-  // inherits the value and only architect/admin can override it.
-  defaultStartDate    DateTime?
-  defaultRequirements String?
+  // Optional locked default: when set, every calculation from this template
+  // inherits the start date and only architect/admin can override it.
+  defaultStartDate DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   fields         FormField[]
@@ -76,12 +75,15 @@ model Calculation {
   template   FormTemplate @relation(fields: [templateId], references: [id])
   answers    String // JSON-encoded { [fieldKey]: value }
   status     String       @default("draft") // draft | pending_approval | approved
-  startDate    DateTime @default(now()) // anchors the whole Gantt schedule
-  requirements String? // "Требования и ограничения" — locked the same way as startDate
+  startDate  DateTime     @default(now()) // anchors the whole Gantt schedule
+  // РП (project manager) allowance: 8h start + 8h close + complexity overhead.
+  // Counted only in the calculation's total labor hours — never shown as a Gantt stage.
+  pmHours    Float        @default(0)
   createdBy  String       @default("presale")
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
   stages     Stage[]
+  risks      Risk[]
 }
 
 // A stage on the Gantt chart. Approval tasks (auto-inserted whenever a stage's
@@ -100,5 +102,18 @@ model Stage {
   approvalForStageId String?
   status             String      @default("planned") // planned | in_progress | done | approved | rejected
   dueDate            DateTime?
+  requirements       String? // "Требования и ограничения" for this specific stage
   createdAt          DateTime    @default(now())
+}
+
+// A risk the architect flags on a calculation, with the extra labor hours it adds
+// to the total estimate. Risks aren't stages — no dates, no Gantt row.
+model Risk {
+  id            String      @id @default(cuid())
+  calculationId String
+  calculation   Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  description   String
+  hours         Float       @default(0)
+  order         Int         @default(0)
+  createdAt     DateTime    @default(now())
 }

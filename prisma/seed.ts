@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { primaryStagesFromTemplate, rebuildStages, withPmStages } from "../lib/calc";
+import { primaryStagesFromTemplate, rebuildStages, pmHoursFor } from "../lib/calc";
 
 const prisma = new PrismaClient();
 
@@ -101,6 +101,11 @@ async function main() {
     comment: "Демонстрационный расчёт, созданный при первом запуске.",
   };
 
+  const primary = primaryStagesFromTemplate(template.stageTemplates, answers);
+  primary[0].requirements =
+    "Интеграция только с существующей учётной системой заказчика, без миграции исторических данных.";
+  const pmHours = pmHoursFor(template.fields, answers, primary);
+
   const calculation = await prisma.calculation.create({
     data: {
       name: "CRM для «Ромашка Логистик»",
@@ -110,16 +115,19 @@ async function main() {
       status: "approved",
       createdBy: "presale",
       startDate: new Date(),
-      requirements:
-        "Интеграция только с существующей учётной системой заказчика. Ограничение: релиз до конца квартала, без миграции исторических данных.",
+      pmHours,
+      risks: {
+        create: [
+          {
+            description: "Заказчик может задержать предоставление доступов к учётной системе для интеграции.",
+            hours: 8,
+            order: 0,
+          },
+        ],
+      },
     },
   });
 
-  const primary = withPmStages(
-    template.fields,
-    answers,
-    primaryStagesFromTemplate(template.stageTemplates, answers)
-  );
   await rebuildStages(calculation.id, primary, calculation.startDate);
 
   console.log("Сид выполнен: создан шаблон и демонстрационный расчёт.");

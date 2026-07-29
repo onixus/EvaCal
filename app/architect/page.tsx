@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import StatusBadge from "@/components/StatusBadge";
-import { totalLaborHours } from "@/lib/scheduling";
+import { grandTotalHours } from "@/lib/totals";
 
 export const dynamic = "force-dynamic";
 
 export default async function ArchitectPage() {
   const calculations = await prisma.calculation.findMany({
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    include: { stages: true, template: { select: { name: true } } },
+    include: { stages: true, risks: true, template: { select: { name: true } } },
   });
 
   const pending = calculations.filter((c) => c.status === "pending_approval");
@@ -63,7 +63,7 @@ export default async function ArchitectPage() {
                   </td>
                   <td className="py-2 pr-4">{c.customer}</td>
                   <td className="py-2 pr-4 text-slate-600">{c.template.name}</td>
-                  <td className="py-2 pr-4">{totalLaborHours(c.stages)}</td>
+                  <td className="py-2 pr-4">{grandTotalHours(c.stages, c.pmHours, c.risks)}</td>
                   <td className="py-2 pr-4">
                     <StatusBadge status={c.status} />
                   </td>
