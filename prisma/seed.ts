@@ -1,12 +1,62 @@
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { primaryStagesFromTemplate, rebuildStages } from "../lib/calc";
 
 const prisma = new PrismaClient();
 
+function generatePassword(): string {
+  return crypto.randomBytes(9).toString("base64url"); // 12 url-safe chars
+}
+
+async function seedDefaultUsers() {
+  const existingUsers = await prisma.user.count();
+  if (existingUsers > 0) {
+    console.log("Учётные записи уже созданы, пропускаю генерацию паролей.");
+    return;
+  }
+
+  const accounts = [
+    { username: "architect", role: "architect" },
+    { username: "admin", role: "admin" },
+  ];
+
+  const credentials: { username: string; role: string; password: string }[] = [];
+
+  for (const account of accounts) {
+    const password = generatePassword();
+    const passwordHash = await bcrypt.hash(password, 10);
+    await prisma.user.create({
+      data: { username: account.username, role: account.role, passwordHash, mustChangePassword: true },
+    });
+    credentials.push({ ...account, password });
+  }
+
+  const lines = [
+    "EvaCal — учётные записи по умолчанию (созданы при первом запуске)",
+    "Эти пароли показываются только один раз. Смените их после первого входа в /account.",
+    "",
+    ...credentials.map((c) => `  роль: ${c.role.padEnd(10)} логин: ${c.username.padEnd(12)} пароль: ${c.password}`),
+    "",
+  ];
+
+  console.log("\n" + "=".repeat(70));
+  console.log(lines.join("\n"));
+  console.log("=".repeat(70) + "\n");
+
+  const credentialsFile = path.resolve(__dirname, "..", "credentials.local.txt");
+  fs.writeFileSync(credentialsFile, lines.join("\n"), "utf-8");
+  console.log(`Пароли также сохранены в ${credentialsFile} (в .gitignore, удалите файл после смены паролей).\n`);
+}
+
 async function main() {
+  await seedDefaultUsers();
+
   const existing = await prisma.formTemplate.findFirst();
   if (existing) {
-    console.log("Данные уже существуют, пропускаю сид.");
+    console.log("Демо-шаблон и расчёт уже существуют, пропускаю.");
     return;
   }
 

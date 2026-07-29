@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { primaryStagesFromTemplate, rebuildStages } from "@/lib/calc";
+import { requireApiRole } from "@/lib/auth";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const calculation = await prisma.calculation.findUnique({
@@ -47,6 +48,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireApiRole("architect");
+  if (auth instanceof NextResponse) return auth;
+
   await prisma.calculation.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }
