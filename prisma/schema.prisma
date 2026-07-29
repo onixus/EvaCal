@@ -1,0 +1,88 @@
+// EvaCal: labor-cost calculator
+// Lightweight embedded DB (SQLite) via Prisma.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// A questionnaire template built in the admin's visual form constructor.
+// Only one template is "active" at a time and used by the presale interface,
+// but old templates are kept so old calculations remain readable.
+model FormTemplate {
+  id             String          @id @default(cuid())
+  name           String
+  description    String?
+  isActive       Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  fields         FormField[]
+  stageTemplates StageTemplate[]
+  calculations   Calculation[]
+}
+
+// A single question/field in the questionnaire.
+model FormField {
+  id         String       @id @default(cuid())
+  templateId String
+  template   FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  label      String
+  key        String // machine key, referenced by StageTemplate.driverFieldKey and stored in Calculation.answers
+  type       String // text | number | select | checkbox | textarea
+  options    String? // JSON-encoded array of strings, used when type = select
+  required   Boolean      @default(false)
+  order      Int          @default(0)
+}
+
+// Defines a stage that gets generated for every calculation made from this template.
+// hours = baseHours + hoursPerUnit * answers[driverFieldKey]
+model StageTemplate {
+  id             String       @id @default(cuid())
+  templateId     String
+  template       FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name           String
+  role           String // consultant | developer | engineer | analyst | architect | customer | other
+  baseHours      Float        @default(0)
+  hoursPerUnit   Float        @default(0)
+  driverFieldKey String?
+  order          Int          @default(0)
+}
+
+// A concrete labor-cost calculation, produced by presale, refined by the architect.
+model Calculation {
+  id         String       @id @default(cuid())
+  name       String
+  customer   String
+  templateId String
+  template   FormTemplate @relation(fields: [templateId], references: [id])
+  answers    String // JSON-encoded { [fieldKey]: value }
+  status     String       @default("draft") // draft | pending_approval | approved
+  startDate  DateTime     @default(now())
+  createdBy  String       @default("presale")
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  stages     Stage[]
+}
+
+// A stage on the Gantt chart. Approval tasks (auto-inserted whenever a stage's
+// executor role requires customer sign-off) are Stage rows with isApprovalTask = true.
+model Stage {
+  id                 String      @id @default(cuid())
+  calculationId      String
+  calculation        Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  name               String
+  role               String
+  hours              Float
+  order              Int
+  startDate          DateTime
+  endDate            DateTime
+  isApprovalTask     Boolean     @default(false)
+  approvalForStageId String?
+  status             String      @default("planned") // planned | in_progress | done | approved | rejected
+  dueDate            DateTime?
+  createdAt          DateTime    @default(now())
+}
