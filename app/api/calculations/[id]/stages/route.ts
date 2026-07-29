@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { rebuildStages } from "@/lib/calc";
+import { requireApiRole } from "@/lib/auth";
 
 // Architect editing: replaces the full ordered list of primary (non-approval) stages.
 // Approval tasks for consultant/developer/engineer/analyst stages are re-derived automatically.
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireApiRole("architect");
+  if (auth instanceof NextResponse) return auth;
+
   const body = await req.json();
   const stages = body.stages;
   if (!Array.isArray(stages) || stages.length === 0) {

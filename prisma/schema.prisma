@@ -10,6 +10,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// RBAC: only the architect and admin interfaces require a login; presale stays open.
+model User {
+  id                 String   @id @default(cuid())
+  username           String   @unique
+  role               String // architect | admin
+  passwordHash       String
+  mustChangePassword Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
 // A questionnaire template built in the admin's visual form constructor.
 // Only one template is "active" at a time and used by the presale interface,
 // but old templates are kept so old calculations remain readable.

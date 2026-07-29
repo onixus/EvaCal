@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireApiRole } from "@/lib/auth";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const template = await prisma.formTemplate.findUnique({
@@ -14,6 +15,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireApiRole("admin");
+  if (auth instanceof NextResponse) return auth;
+
   const body = await req.json();
   const template = await prisma.formTemplate.update({
     where: { id: params.id },
@@ -26,6 +30,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireApiRole("admin");
+  if (auth instanceof NextResponse) return auth;
+
   const inUse = await prisma.calculation.count({ where: { templateId: params.id } });
   if (inUse > 0) {
     return NextResponse.json(

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireApiRole } from "@/lib/auth";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireApiRole("admin");
+  if (auth instanceof NextResponse) return auth;
+
   const body = await req.json();
   if (!body.label || !body.key || !body.type) {
     return NextResponse.json({ error: "label, key and type are required" }, { status: 400 });

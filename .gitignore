@@ -7,4 +7,6 @@ dist
 .env.local
 prisma/dev.db
 prisma/dev.db-journal
+credentials.local.txt
 .DS_Store
+*.tsbuildinfo

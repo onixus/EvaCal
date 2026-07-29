@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireApiRole } from "@/lib/auth";
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string; stId: string } }) {
+  const auth = await requireApiRole("admin");
+  if (auth instanceof NextResponse) return auth;
+
   const body = await req.json();
   const stageTemplate = await prisma.stageTemplate.update({
     where: { id: params.stId },
@@ -18,6 +22,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string; 
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string; stId: string } }) {
+  const auth = await requireApiRole("admin");
+  if (auth instanceof NextResponse) return auth;
+
   await prisma.stageTemplate.delete({ where: { id: params.stId } });
   return NextResponse.json({ ok: true });
 }
