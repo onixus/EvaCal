@@ -1,15 +1,11 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { primaryStagesFromTemplate, rebuildStages, pmHoursFor } from "../lib/calc";
+import { generatePassword } from "../lib/password";
 
 const prisma = new PrismaClient();
-
-function generatePassword(): string {
-  return crypto.randomBytes(9).toString("base64url"); // 12 url-safe chars
-}
 
 async function seedDefaultUsers() {
   const existingUsers = await prisma.user.count();

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import NewTemplateForm from "./NewTemplateForm";
 import TemplateList from "./TemplateList";
@@ -12,11 +13,16 @@ export default async function AdminPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Интерфейс администратора</h1>
-        <p className="text-sm text-slate-500">
-          Визуальный конструктор форм: создавайте шаблоны опросников и настраивайте формулы этапов.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">Интерфейс администратора</h1>
+          <p className="text-sm text-slate-500">
+            Визуальный конструктор форм: создавайте шаблоны опросников и настраивайте формулы этапов.
+          </p>
+        </div>
+        <Link href="/admin/users" className="btn-secondary">
+          Пользователи
+        </Link>
       </div>
 
       <div className="card p-6">
