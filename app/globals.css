@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 body {
-  @apply bg-slate-50 text-slate-900 dark:bg-nord-0 dark:text-nord-6;
+  @apply bg-slate-50 text-slate-900 dark:bg-nord-0 dark:text-nord-6 transition-colors duration-200;
 }
 
 .card {
@@ -41,32 +41,32 @@ body {
 }
 
 /* Blanket Nord re-skin for the common slate utilities used throughout the app,
-   so individual pages don't need a `dark:` variant on every single element. */
-@media (prefers-color-scheme: dark) {
-  .text-slate-900 {
-    color: theme("colors.nord.6");
-  }
-  .text-slate-700,
-  .text-slate-600 {
-    color: theme("colors.nord.4");
-  }
-  .text-slate-500,
-  .text-slate-400 {
-    color: theme("colors.nord.3");
-  }
-  .bg-slate-50 {
-    background-color: theme("colors.nord.0");
-  }
-  .bg-slate-100,
-  .hover\:bg-slate-100:hover {
-    background-color: theme("colors.nord.2");
-  }
-  .border-slate-100,
-  .border-slate-200,
-  .border-slate-300 {
-    border-color: theme("colors.nord.2");
-  }
-  .text-brand-700 {
-    color: theme("colors.nord.frost2");
-  }
+   so individual pages don't need a `dark:` variant on every single element.
+   Scoped to .dark (toggled by ThemeToggle / the system-preference bootstrap script)
+   rather than a media query, so the manual light/dark switch actually works. */
+.dark .text-slate-900 {
+  color: theme("colors.nord.6");
+}
+.dark .text-slate-700,
+.dark .text-slate-600 {
+  color: theme("colors.nord.4");
+}
+.dark .text-slate-500,
+.dark .text-slate-400 {
+  color: theme("colors.nord.3");
+}
+.dark .bg-slate-50 {
+  background-color: theme("colors.nord.0");
+}
+.dark .bg-slate-100,
+.dark .hover\:bg-slate-100:hover {
+  background-color: theme("colors.nord.2");
+}
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300 {
+  border-color: theme("colors.nord.2");
+}
+.dark .text-brand-700 {
+  color: theme("colors.nord.frost2");
 }

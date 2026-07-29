@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import ThemeToggle from "./ThemeToggle";
 
 const LINKS = [
   { href: "/", label: "Расчёты" },
@@ -79,6 +80,7 @@ export default function Nav() {
             Войти
           </Link>
         )}
+        <ThemeToggle />
       </div>
     </header>
   );
