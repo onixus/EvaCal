@@ -73,7 +73,12 @@ export default function PresaleCalculationEditor({ calculation }: { calculation:
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <h1 className="text-xl font-semibold">Расчёт: {calculation.name}</h1>
-        <StatusBadge status={calculation.status} />
+        <div className="flex items-center gap-3">
+          <StatusBadge status={calculation.status} />
+          <a href={`/api/calculations/${calculation.id}/pdf`} className="btn-secondary">
+            Скачать PDF
+          </a>
+        </div>
       </div>
 
       <div className="card space-y-5 p-6">

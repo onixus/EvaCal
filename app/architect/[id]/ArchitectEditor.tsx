@@ -186,7 +186,12 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
             Заказчик: {calculation.customer} · Шаблон: {calculation.template.name}
           </p>
         </div>
-        <StatusBadge status={calculation.status} />
+        <div className="flex items-center gap-3">
+          <StatusBadge status={calculation.status} />
+          <a href={`/api/calculations/${calculation.id}/pdf`} className="btn-secondary">
+            Скачать PDF
+          </a>
+        </div>
       </div>
 
       <div className="card p-6">
