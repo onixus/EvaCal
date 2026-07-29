@@ -9,7 +9,6 @@ interface Template {
   name: string;
   fields: FormFieldDef[];
   defaultStartDate: string | null;
-  defaultRequirements: string | null;
 }
 
 function todayIso(): string {
@@ -21,12 +20,10 @@ export default function NewCalculationForm({ template }: { template: Template })
   const [name, setName] = useState("");
   const [customer, setCustomer] = useState("");
   const [startDate, setStartDate] = useState(template.defaultStartDate?.slice(0, 10) ?? todayIso());
-  const [requirements, setRequirements] = useState(template.defaultRequirements ?? "");
   const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const startDateLocked = !!template.defaultStartDate;
-  const requirementsLocked = !!template.defaultRequirements;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,7 +33,7 @@ export default function NewCalculationForm({ template }: { template: Template })
       const res = await fetch("/api/calculations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, customer, templateId: template.id, answers, startDate, requirements }),
+        body: JSON.stringify({ name, customer, templateId: template.id, answers, startDate }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -73,19 +70,6 @@ export default function NewCalculationForm({ template }: { template: Template })
             disabled={startDateLocked}
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="label">
-            Требования и ограничения
-            {requirementsLocked && <span className="ml-1 text-xs text-slate-400">(зафиксированы шаблоном)</span>}
-          </label>
-          <textarea
-            className="input"
-            rows={2}
-            disabled={requirementsLocked}
-            value={requirements}
-            onChange={(e) => setRequirements(e.target.value)}
           />
         </div>
       </div>

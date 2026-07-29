@@ -27,9 +27,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       ...(body.defaultStartDate !== undefined
         ? { defaultStartDate: body.defaultStartDate ? new Date(body.defaultStartDate) : null }
         : {}),
-      ...(body.defaultRequirements !== undefined
-        ? { defaultRequirements: body.defaultRequirements || null }
-        : {}),
     },
   });
   return NextResponse.json(template);

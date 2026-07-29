@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { primaryStagesFromTemplate, rebuildStages, withPmStages } from "@/lib/calc";
-import { totalLaborHours } from "@/lib/scheduling";
+import { primaryStagesFromTemplate, rebuildStages, pmHoursFor } from "@/lib/calc";
+import { grandTotalHours } from "@/lib/totals";
 
 // Old calculations are visible to everyone, so a plain list with no auth filtering.
 export async function GET() {
   const calculations = await prisma.calculation.findMany({
     orderBy: { createdAt: "desc" },
-    include: { template: { select: { name: true } }, stages: true },
+    include: { template: { select: { name: true } }, stages: true, risks: true },
   });
   const summarized = calculations.map((c) => ({
     id: c.id,
@@ -15,7 +15,7 @@ export async function GET() {
     customer: c.customer,
     status: c.status,
     templateName: c.template.name,
-    totalHours: totalLaborHours(c.stages),
+    totalHours: grandTotalHours(c.stages, c.pmHours, c.risks),
     stageCount: c.stages.filter((s) => !s.isApprovalTask).length,
     startDate: c.startDate,
     endDate: c.stages.reduce<Date | null>((latest, s) => {
@@ -30,7 +30,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { name, customer, templateId, answers, startDate, requirements } = body;
+  const { name, customer, templateId, answers, startDate } = body;
   if (!name || !customer || !templateId) {
     return NextResponse.json({ error: "name, customer and templateId are required" }, { status: 400 });
   }
@@ -41,10 +41,12 @@ export async function POST(req: NextRequest) {
   });
   if (!template) return NextResponse.json({ error: "template not found" }, { status: 404 });
 
-  // A template-level default locks the field for presale; otherwise the submitted value is used.
+  // A template-level default locks the start date for presale; otherwise the submitted value is used.
   const start = template.defaultStartDate ?? (startDate ? new Date(startDate) : new Date());
-  const finalRequirements = template.defaultRequirements ?? (requirements || null);
   const answersObj = answers ?? {};
+
+  const primary = primaryStagesFromTemplate(template.stageTemplates, answersObj);
+  const pmHours = pmHoursFor(template.fields, answersObj, primary);
 
   const calculation = await prisma.calculation.create({
     data: {
@@ -53,16 +55,11 @@ export async function POST(req: NextRequest) {
       templateId,
       answers: JSON.stringify(answersObj),
       startDate: start,
-      requirements: finalRequirements,
+      pmHours,
       createdBy: "presale",
     },
   });
 
-  const primary = withPmStages(
-    template.fields,
-    answersObj,
-    primaryStagesFromTemplate(template.stageTemplates, answersObj)
-  );
   await rebuildStages(calculation.id, primary, start);
 
   return NextResponse.json({ id: calculation.id }, { status: 201 });

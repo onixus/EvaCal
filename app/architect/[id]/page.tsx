@@ -10,6 +10,7 @@ export default async function ArchitectCalculationPage({ params }: { params: { i
     include: {
       template: { select: { name: true } },
       stages: { orderBy: { order: "asc" } },
+      risks: { orderBy: { order: "asc" } },
     },
   });
   if (!calculation) notFound();

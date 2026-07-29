@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { rebuildStages } from "@/lib/calc";
+import { rebuildStages, pmHoursFor } from "@/lib/calc";
 import { requireApiRole } from "@/lib/auth";
 
-// Architect editing: replaces the full ordered list of primary (non-approval) stages.
+// Architect editing: replaces the full ordered list of primary (non-approval) stages,
+// including each stage's own "Требования и ограничения" text.
 // Approval tasks for consultant/developer/engineer/analyst stages are re-derived automatically.
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireApiRole("architect");
@@ -20,17 +21,24 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
   }
 
-  const existing = await prisma.calculation.findUnique({ where: { id: params.id } });
+  const existing = await prisma.calculation.findUnique({
+    where: { id: params.id },
+    include: { template: { select: { fields: true } } },
+  });
   if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (existing.status === "approved") {
     return NextResponse.json({ error: "Расчёт уже утверждён и не может быть изменён" }, { status: 409 });
   }
 
-  const primary = stages.map((s: { name: string; role: string; hours: number }) => ({
+  const primary = stages.map((s: { name: string; role: string; hours: number; requirements?: string | null }) => ({
     name: s.name,
     role: s.role,
     hours: s.hours,
+    requirements: s.requirements || null,
   }));
+
+  const pmHours = pmHoursFor(existing.template.fields, JSON.parse(existing.answers), primary);
+  await prisma.calculation.update({ where: { id: params.id }, data: { pmHours } });
 
   const result = await rebuildStages(params.id, primary, existing.startDate);
   return NextResponse.json(result);

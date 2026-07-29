@@ -13,6 +13,7 @@ export interface StageRow {
   endDate: string | Date;
   dueDate: string | Date | null;
   status: string;
+  requirements?: string | null;
 }
 
 function fmt(d: string | Date): string {
@@ -45,6 +46,11 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
               <td className="py-2 pr-4">
                 {stage.isApprovalTask ? "⏳ " : ""}
                 {stage.name}
+                {stage.requirements && (
+                  <div className="mt-0.5 text-xs font-normal text-slate-500 dark:text-nord-3">
+                    {stage.requirements}
+                  </div>
+                )}
               </td>
               <td className="py-2 pr-4 text-slate-600 dark:text-nord-4">{roleLabel(stage.role)}</td>
               <td className="py-2 pr-4">{stage.isApprovalTask ? "—" : stage.hours}</td>
@@ -60,7 +66,7 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
         <tfoot>
           <tr>
             <td className="pt-2 pr-4 font-medium" colSpan={2}>
-              Итого трудозатрат
+              Итого по этапам
             </td>
             <td className="pt-2 pr-4 font-medium">
               {stages.filter((s) => !s.isApprovalTask).reduce((sum, s) => sum + s.hours, 0)}

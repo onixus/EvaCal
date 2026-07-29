@@ -10,6 +10,7 @@ export default async function PresaleCalculationPage({ params }: { params: { id:
     include: {
       template: { include: { fields: { orderBy: { order: "asc" } } } },
       stages: { orderBy: { order: "asc" } },
+      risks: { orderBy: { order: "asc" } },
     },
   });
   if (!calculation) notFound();
