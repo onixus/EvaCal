@@ -9,6 +9,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     include: {
       fields: { orderBy: { order: "asc" } },
       stageTemplates: { orderBy: { order: "asc" } },
+      riskTemplates: { orderBy: { order: "asc" } },
     },
   });
   if (!template) return NextResponse.json({ error: "not found" }, { status: 404 });

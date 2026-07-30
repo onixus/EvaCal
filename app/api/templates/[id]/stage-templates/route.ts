@@ -19,6 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       baseHours: body.baseHours ?? 0,
       hoursPerUnit: body.hoursPerUnit ?? 0,
       driverFieldKey: body.driverFieldKey || null,
+      requirements: body.requirements || null,
       order: body.order ?? count,
     },
   });

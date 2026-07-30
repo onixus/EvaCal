@@ -10,6 +10,7 @@ export default async function AdminTemplatePage({ params }: { params: { id: stri
     include: {
       fields: { orderBy: { order: "asc" } },
       stageTemplates: { orderBy: { order: "asc" } },
+      riskTemplates: { orderBy: { order: "asc" } },
     },
   });
   if (!template) notFound();
