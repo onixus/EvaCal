@@ -7,6 +7,9 @@ RUN npm ci
 # --- builder: generate prisma client and build the app ---
 FROM node:20-alpine AS builder
 WORKDIR /app
+# Alpine ships libssl but no `openssl` CLI; Prisma's engine-detection shells out to it and
+# silently falls back to the wrong (openssl-1.1.x) binary target without it.
+RUN apk add --no-cache openssl
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
@@ -18,7 +21,8 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-RUN addgroup --system --gid 1001 nodejs \
+RUN apk add --no-cache openssl \
+  && addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
 
 # Next.js standalone output bundles only the files needed to run the server.
