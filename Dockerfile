@@ -14,16 +14,24 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-# --- migrate: one-off schema sync (prisma db push against the mounted SQLite volume) ---
+# --- migrate: one-off schema sync + seed (prisma db push and db:seed against the mounted SQLite volume) ---
 # Kept separate from `runner` so the app image stays slim; the CLI and its schema-engine
 # binary aren't needed to serve requests, only to initialize/update the DB before startup.
 FROM node:20-alpine AS migrate
 WORKDIR /app
-RUN apk add --no-cache openssl
+# su-exec drops from root (needed to chown the mounted volume) to the app's uid before running prisma,
+# so files in the volume end up owned by the same uid the runner stage serves requests as.
+RUN apk add --no-cache openssl su-exec \
+  && addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 nextjs
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json tsconfig.json ./
 COPY prisma ./prisma
-CMD ["npx", "prisma", "db", "push", "--skip-generate"]
+COPY lib ./lib
+COPY docker-migrate-entrypoint.sh /usr/local/bin/docker-migrate-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-migrate-entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/docker-migrate-entrypoint.sh"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate && npx prisma generate && npx tsx prisma/seed.ts"]
 
 # --- runner: minimal production image ---
 FROM node:20-alpine AS runner
