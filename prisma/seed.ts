@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { primaryStagesFromTemplate, rebuildStages, pmHoursFor } from "../lib/calc";
+import { primaryStagesFromTemplate, rebuildStages, pmHoursFor, scheduleConfigFromTemplate } from "../lib/calc";
 import { generatePassword } from "../lib/password";
 
 const prisma = new PrismaClient();
@@ -100,6 +100,10 @@ async function main() {
   const primary = primaryStagesFromTemplate(template.stageTemplates, answers);
   primary[0].requirements =
     "Интеграция только с существующей учётной системой заказчика, без миграции исторических данных.";
+  // Demonstrates the architect's Gantt controls: infra setup runs alongside integration
+  // development, and testing gets a longer 5-day customer sign-off instead of the default 3.
+  primary[3].parallel = true;
+  primary[4].approvalDays = 5;
   const pmHours = pmHoursFor(template.fields, answers, primary);
 
   const calculation = await prisma.calculation.create({
@@ -124,7 +128,7 @@ async function main() {
     },
   });
 
-  await rebuildStages(calculation.id, primary, calculation.startDate);
+  await rebuildStages(calculation.id, primary, calculation.startDate, scheduleConfigFromTemplate(template));
 
   console.log("Сид выполнен: создан шаблон и демонстрационный расчёт.");
 }

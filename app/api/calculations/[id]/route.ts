@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { primaryStagesFromTemplate, rebuildStages, pmHoursFor } from "@/lib/calc";
+import { primaryStagesFromTemplate, rebuildStages, pmHoursFor, scheduleConfigFromTemplate } from "@/lib/calc";
 import { requireApiRole } from "@/lib/auth";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -50,7 +50,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     },
   });
 
-  await rebuildStages(calculation.id, primary, startDate);
+  await rebuildStages(calculation.id, primary, startDate, scheduleConfigFromTemplate(existing.template));
 
   return NextResponse.json({ ok: true });
 }
@@ -65,7 +65,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body = await req.json();
   const existing = await prisma.calculation.findUnique({
     where: { id: params.id },
-    include: { stages: { orderBy: { order: "asc" } } },
+    include: {
+      stages: { orderBy: { order: "asc" } },
+      template: { select: { workDayHours: true, includeWeekends: true } },
+    },
   });
   if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (existing.status === "approved") {
@@ -80,8 +83,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const primary = existing.stages
     .filter((s) => !s.isApprovalTask)
-    .map((s) => ({ name: s.name, role: s.role, hours: s.hours, requirements: s.requirements }));
-  await rebuildStages(params.id, primary, startDate);
+    .map((s) => ({
+      name: s.name,
+      role: s.role,
+      hours: s.hours,
+      requirements: s.requirements,
+      parallel: s.parallel,
+      approvalDays: s.approvalDays,
+    }));
+  await rebuildStages(params.id, primary, startDate, scheduleConfigFromTemplate(existing.template));
 
   return NextResponse.json({ ok: true });
 }

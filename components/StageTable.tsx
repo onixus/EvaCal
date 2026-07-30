@@ -14,6 +14,8 @@ export interface StageRow {
   dueDate: string | Date | null;
   status: string;
   requirements?: string | null;
+  parallel?: boolean;
+  approvalDays?: number | null;
 }
 
 function fmt(d: string | Date): string {
@@ -45,6 +47,14 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
             >
               <td className="py-2 pr-4">
                 {stage.isApprovalTask ? "⏳ " : ""}
+                {stage.parallel && (
+                  <span
+                    className="mr-1 rounded bg-sky-100 px-1 text-[10px] font-medium text-sky-700 dark:bg-nord-frost4/20 dark:text-nord-frost2"
+                    title="Выполняется параллельно с предыдущим этапом"
+                  >
+                    ∥
+                  </span>
+                )}
                 {stage.name}
                 {stage.requirements && (
                   <div className="mt-0.5 text-xs font-normal text-slate-500 dark:text-nord-3">

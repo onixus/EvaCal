@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { primaryStagesFromTemplate, rebuildStages, pmHoursFor } from "@/lib/calc";
+import { primaryStagesFromTemplate, rebuildStages, pmHoursFor, scheduleConfigFromTemplate } from "@/lib/calc";
 import { grandTotalHours } from "@/lib/totals";
 
 // Old calculations are visible to everyone, so a plain list with no auth filtering.
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  await rebuildStages(calculation.id, primary, start);
+  await rebuildStages(calculation.id, primary, start, scheduleConfigFromTemplate(template));
 
   return NextResponse.json({ id: calculation.id }, { status: 201 });
 }

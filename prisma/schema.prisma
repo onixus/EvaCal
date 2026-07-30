@@ -32,6 +32,9 @@ model FormTemplate {
   // Optional locked default: when set, every calculation from this template
   // inherits the start date and only architect/admin can override it.
   defaultStartDate DateTime?
+  // Scheduling: length of a working day (4-6h) and whether weekends count as working days.
+  workDayHours    Int             @default(6)
+  includeWeekends Boolean         @default(false)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   fields         FormField[]
@@ -103,6 +106,9 @@ model Stage {
   status             String      @default("planned") // planned | in_progress | done | approved | rejected
   dueDate            DateTime?
   requirements       String? // "Требования и ограничения" for this specific stage
+  // Architect-editable Gantt controls (primary stages only, not approval-task rows):
+  parallel           Boolean     @default(false) // starts alongside the preceding non-parallel stage
+  approvalDays       Int? // custom duration (business days) for this stage's own approval task; null = default 3
   createdAt          DateTime    @default(now())
 }
 

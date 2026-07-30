@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { rebuildStages, pmHoursFor } from "@/lib/calc";
+import { rebuildStages, pmHoursFor, scheduleConfigFromTemplate } from "@/lib/calc";
 import { requireApiRole } from "@/lib/auth";
 
 // Architect editing: replaces the full ordered list of primary (non-approval) stages,
-// including each stage's own "Требования и ограничения" text.
-// Approval tasks for consultant/developer/engineer/analyst stages are re-derived automatically.
+// including each stage's own "Требования и ограничения" text, parallel flag, and
+// custom approval-task duration. Approval tasks for consultant/developer/engineer/analyst
+// stages are re-derived automatically.
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireApiRole("architect");
   if (auth instanceof NextResponse) return auth;
@@ -23,23 +24,39 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const existing = await prisma.calculation.findUnique({
     where: { id: params.id },
-    include: { template: { select: { fields: true } } },
+    include: { template: { select: { fields: true, workDayHours: true, includeWeekends: true } } },
   });
   if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (existing.status === "approved") {
     return NextResponse.json({ error: "Расчёт уже утверждён и не может быть изменён" }, { status: 409 });
   }
 
-  const primary = stages.map((s: { name: string; role: string; hours: number; requirements?: string | null }) => ({
-    name: s.name,
-    role: s.role,
-    hours: s.hours,
-    requirements: s.requirements || null,
-  }));
+  const primary = stages.map(
+    (s: {
+      name: string;
+      role: string;
+      hours: number;
+      requirements?: string | null;
+      parallel?: boolean;
+      approvalDays?: number | null;
+    }) => ({
+      name: s.name,
+      role: s.role,
+      hours: s.hours,
+      requirements: s.requirements || null,
+      parallel: !!s.parallel,
+      approvalDays: s.approvalDays && s.approvalDays > 0 ? Math.round(s.approvalDays) : null,
+    })
+  );
 
   const pmHours = pmHoursFor(existing.template.fields, JSON.parse(existing.answers), primary);
   await prisma.calculation.update({ where: { id: params.id }, data: { pmHours } });
 
-  const result = await rebuildStages(params.id, primary, existing.startDate);
+  const result = await rebuildStages(
+    params.id,
+    primary,
+    existing.startDate,
+    scheduleConfigFromTemplate(existing.template)
+  );
   return NextResponse.json(result);
 }
