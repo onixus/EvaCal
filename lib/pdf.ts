@@ -3,6 +3,7 @@ import PDFDocument from "pdfkit";
 import { roleLabel, STATUS_LABELS } from "./roles";
 import { totalLaborHours } from "./scheduling";
 import { risksTotalHours } from "./totals";
+import { CalculationForExport as CalculationForPdf } from "./export";
 
 // pdfkit's built-in fonts only support WinAnsi (no Cyrillic), so a Cyrillic-capable
 // TTF is bundled via the dejavu-fonts-ttf package instead of relying on the host's fonts.
@@ -12,40 +13,6 @@ import { risksTotalHours } from "./totals";
 const FONTS_DIR = path.join(process.cwd(), "node_modules", "dejavu-fonts-ttf", "ttf");
 const FONT_REGULAR = path.join(FONTS_DIR, "DejaVuSans.ttf");
 const FONT_BOLD = path.join(FONTS_DIR, "DejaVuSans-Bold.ttf");
-
-export interface StageForPdf {
-  name: string;
-  role: string;
-  hours: number;
-  isApprovalTask: boolean;
-  startDate: Date;
-  endDate: Date;
-  status: string;
-  requirements: string | null;
-}
-
-export interface RiskForPdf {
-  description: string;
-  hours: number;
-}
-
-export interface FieldForPdf {
-  label: string;
-  key: string;
-}
-
-export interface CalculationForPdf {
-  name: string;
-  customer: string;
-  status: string;
-  startDate: Date;
-  pmHours: number;
-  templateName: string;
-  answers: Record<string, unknown>;
-  fields: FieldForPdf[];
-  stages: StageForPdf[];
-  risks: RiskForPdf[];
-}
 
 function fmtDate(d: Date): string {
   return new Date(d).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });

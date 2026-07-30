@@ -7,6 +7,7 @@ import StageTable, { StageRow } from "@/components/StageTable";
 import GanttChart from "@/components/GanttChart";
 import StatusBadge from "@/components/StatusBadge";
 import TotalsSummary, { RiskRow } from "@/components/TotalsSummary";
+import ExportLinks from "@/components/ExportLinks";
 
 interface Calculation {
   id: string;
@@ -208,9 +209,7 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
         </div>
         <div className="flex items-center gap-3">
           <StatusBadge status={calculation.status} />
-          <a href={`/api/calculations/${calculation.id}/pdf`} className="btn-secondary">
-            Скачать PDF
-          </a>
+          <ExportLinks calculationId={calculation.id} />
         </div>
       </div>
 
@@ -252,7 +251,7 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
 
         <div className="space-y-2">
           {stages.map((s, index) => (
-            <div key={s.key} className="space-y-2 rounded-lg border border-slate-200 p-2 dark:border-nord-2">
+            <div key={s.key} className="space-y-2 rounded-lg border border-slate-200 p-2 dark:border-nord-3">
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   className="input flex-1 min-w-[180px]"
@@ -357,7 +356,7 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
         <h2 className="mb-3 font-medium">Риски</h2>
         <div className="space-y-2">
           {calculation.risks.map((risk) => (
-            <div key={risk.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-2 dark:border-nord-2">
+            <div key={risk.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-2 dark:border-nord-3">
               <input
                 className="input flex-1 min-w-[220px]"
                 disabled={locked}
