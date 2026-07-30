@@ -4,7 +4,8 @@ import TemplateEditor from "./TemplateEditor";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminTemplatePage({ params }: { params: { id: string } }) {
+export default async function AdminTemplatePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const template = await prisma.formTemplate.findUnique({
     where: { id: params.id },
     include: {

@@ -4,7 +4,8 @@ import { requireApiRole } from "@/lib/auth";
 
 // Deep-copies a template's fields, stage formulas and base risks into a new, inactive template
 // so the admin can branch off an existing setup without disturbing calculations already made from it.
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireApiRole("admin");
   if (auth instanceof NextResponse) return auth;
 

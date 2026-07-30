@@ -11,7 +11,11 @@ async function assertEditable(calculationId: string) {
   return null;
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string; riskId: string } }) {
+export async function PUT(
+  req: NextRequest,
+  props: { params: Promise<{ id: string; riskId: string }> }
+) {
+  const params = await props.params;
   const auth = await requireApiRole("architect");
   if (auth instanceof NextResponse) return auth;
 
@@ -29,7 +33,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string; 
   return NextResponse.json(risk);
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string; riskId: string } }) {
+export async function DELETE(
+  _req: NextRequest,
+  props: { params: Promise<{ id: string; riskId: string }> }
+) {
+  const params = await props.params;
   const auth = await requireApiRole("architect");
   if (auth instanceof NextResponse) return auth;
 

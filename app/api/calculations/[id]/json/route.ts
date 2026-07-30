@@ -4,7 +4,8 @@ import { totalLaborHours } from "@/lib/scheduling";
 import { risksTotalHours } from "@/lib/totals";
 
 // Same visibility as the rest of the archive: no auth required to export a calculation.
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const calc = await loadCalculationForExport(params.id);
   if (!calc) return NextResponse.json({ error: "not found" }, { status: 404 });
 
