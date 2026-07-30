@@ -14,6 +14,17 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
+# --- migrate: one-off schema sync (prisma db push against the mounted SQLite volume) ---
+# Kept separate from `runner` so the app image stays slim; the CLI and its schema-engine
+# binary aren't needed to serve requests, only to initialize/update the DB before startup.
+FROM node:20-alpine AS migrate
+WORKDIR /app
+RUN apk add --no-cache openssl
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+CMD ["npx", "prisma", "db", "push", "--skip-generate"]
+
 # --- runner: minimal production image ---
 FROM node:20-alpine AS runner
 WORKDIR /app

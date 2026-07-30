@@ -1,4 +1,16 @@
 services:
+  # One-off schema sync: run before first `docker compose up` and after any schema
+  # change, e.g. `docker compose run --rm migrate`. Not part of the default `up`.
+  migrate:
+    build:
+      context: .
+      target: migrate
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-file:./dev.db}
+    volumes:
+      - db-data:/app/prisma
+
   app:
     build: .
     restart: unless-stopped

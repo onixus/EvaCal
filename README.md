@@ -124,3 +124,16 @@ npm run dev
 
 Приложение будет доступно на http://localhost:3000. Логины и пароли для входа в
 `/architect` и `/admin` — см. вывод `npm run db:seed` или `credentials.local.txt`.
+
+### Docker
+
+```bash
+cp .env.example .env   # задать SESSION_SECRET
+docker compose run --rm migrate   # разово: создаёт/синхронизирует SQLite-схему в volume db-data
+docker compose up -d --build
+```
+
+`migrate` — отдельный сервис (профиль `tools`, не поднимается вместе с `up`): образ `app`
+собирается в режиме `next build --standalone` и не содержит Prisma CLI, поэтому синхронизация
+схемы (`prisma db push`) вынесена в отдельный шаг на полном `node_modules`. Повторяйте
+`docker compose run --rm migrate` после любого изменения `prisma/schema.prisma`.
