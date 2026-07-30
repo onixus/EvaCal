@@ -27,7 +27,7 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-nord-2 dark:text-nord-3">
+          <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-nord-3 dark:text-nord-muted">
             <th className="py-2 pr-4">Этап</th>
             <th className="py-2 pr-4">Роль</th>
             <th className="py-2 pr-4">Трудозатраты, ч</th>
@@ -41,7 +41,7 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
           {stages.map((stage) => (
             <tr
               key={stage.id}
-              className={`border-b border-slate-100 dark:border-nord-2 ${
+              className={`border-b border-slate-100 dark:border-nord-3 ${
                 stage.isApprovalTask ? "bg-amber-50/50 dark:bg-nord-yellow/10" : ""
               }`}
             >
@@ -57,7 +57,7 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
                 )}
                 {stage.name}
                 {stage.requirements && (
-                  <div className="mt-0.5 text-xs font-normal text-slate-500 dark:text-nord-3">
+                  <div className="mt-0.5 text-xs font-normal text-slate-500 dark:text-nord-muted">
                     {stage.requirements}
                   </div>
                 )}

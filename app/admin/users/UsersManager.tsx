@@ -70,7 +70,7 @@ export default function UsersManager({ users }: { users: User[] }) {
             Пользователь «{created.username}» ({ROLE_LABELS[created.role]}) создан.
           </p>
           <p className="mt-1">
-            Пароль: <code className="rounded bg-white px-1.5 py-0.5 dark:bg-nord-1">{created.password}</code> —
+            Пароль: <code className="rounded bg-white px-1.5 py-0.5 dark:bg-nord-2">{created.password}</code> —
             показывается один раз, сохраните и передайте пользователю. При первом входе стоит сменить пароль в
             «Аккаунт».
           </p>
@@ -108,7 +108,7 @@ export default function UsersManager({ users }: { users: User[] }) {
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-nord-2 dark:text-nord-3">
+              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-nord-3 dark:text-nord-muted">
                 <th className="py-2 pr-4">Логин</th>
                 <th className="py-2 pr-4">Роль</th>
                 <th className="py-2 pr-4">Пароль</th>
@@ -118,13 +118,13 @@ export default function UsersManager({ users }: { users: User[] }) {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="border-b border-slate-100 last:border-0 dark:border-nord-2">
+                <tr key={u.id} className="border-b border-slate-100 last:border-0 dark:border-nord-3">
                   <td className="py-2 pr-4 font-medium">{u.username}</td>
                   <td className="py-2 pr-4">{ROLE_LABELS[u.role] ?? u.role}</td>
-                  <td className="py-2 pr-4 text-slate-500 dark:text-nord-3">
+                  <td className="py-2 pr-4 text-slate-500 dark:text-nord-muted">
                     {u.mustChangePassword ? "выдан, ещё не менялся" : "изменён пользователем"}
                   </td>
-                  <td className="py-2 pr-4 text-slate-500 dark:text-nord-3">
+                  <td className="py-2 pr-4 text-slate-500 dark:text-nord-muted">
                     {new Date(u.createdAt).toLocaleDateString("ru-RU")}
                   </td>
                   <td className="py-2 pr-4">

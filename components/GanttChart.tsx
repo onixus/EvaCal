@@ -42,7 +42,7 @@ export default function GanttChart({ stages }: { stages: GanttStage[] }) {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-3 text-xs text-slate-500 mb-1 dark:text-nord-3">
+      <div className="flex flex-wrap gap-3 text-xs text-slate-500 mb-1 dark:text-nord-muted">
         {Object.entries(ROLE_COLORS).map(([role, color]) => (
           <span key={role} className="inline-flex items-center gap-1">
             <span className={`h-2.5 w-2.5 rounded-sm ${color}`} />
@@ -64,7 +64,7 @@ export default function GanttChart({ stages }: { stages: GanttStage[] }) {
                   {stage.parallel ? "∥ " : ""}
                   {stage.name}
                 </div>
-                <div className="relative h-6 flex-1 rounded bg-slate-100 dark:bg-nord-0">
+                <div className="relative h-6 flex-1 rounded bg-slate-100 dark:bg-nord-1">
                   <div
                     className={`absolute h-6 rounded ${
                       stage.isApprovalTask
@@ -77,7 +77,7 @@ export default function GanttChart({ stages }: { stages: GanttStage[] }) {
                     }${stage.requirements ? `\n${stage.requirements}` : ""}`}
                   />
                 </div>
-                <div className="w-28 shrink-0 text-right text-xs text-slate-500 dark:text-nord-3">
+                <div className="w-28 shrink-0 text-right text-xs text-slate-500 dark:text-nord-muted">
                   {fmtDate(stage.startDate)}–{fmtDate(stage.endDate)}
                 </div>
               </div>
