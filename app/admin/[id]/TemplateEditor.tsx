@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ROLES } from "@/lib/roles";
 import { COMPLEXITY_LEVELS } from "@/lib/pm";
+import { MIN_WORK_DAY_HOURS, MAX_WORK_DAY_HOURS } from "@/lib/scheduling";
 
 interface Field {
   id: string;
@@ -32,6 +33,8 @@ interface Template {
   description: string | null;
   isActive: boolean;
   defaultStartDate: string | null;
+  workDayHours: number;
+  includeWeekends: boolean;
   fields: Field[];
   stageTemplates: StageTemplate[];
 }
@@ -107,7 +110,11 @@ export default function TemplateEditor({ template }: { template: Template }) {
     call(`/api/templates/${template.id}/stage-templates/${st.id}`, { method: "DELETE" });
   }
 
-  function updateTemplate(patch: { defaultStartDate?: string | null }) {
+  function updateTemplate(patch: {
+    defaultStartDate?: string | null;
+    workDayHours?: number;
+    includeWeekends?: boolean;
+  }) {
     call(`/api/templates/${template.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -143,6 +150,35 @@ export default function TemplateEditor({ template }: { template: Template }) {
             defaultValue={template.defaultStartDate ? template.defaultStartDate.slice(0, 10) : ""}
             onBlur={(e) => updateTemplate({ defaultStartDate: e.target.value || null })}
           />
+        </div>
+      </div>
+
+      <div className="card p-6">
+        <h2 className="mb-1 font-medium">Рабочий график</h2>
+        <p className="mb-3 text-xs text-slate-500">
+          Длительность рабочего дня (используется при расчёте дат этапов на Ганте, старт всегда с 9:00) и
+          учитывать ли выходные как рабочие дни.
+        </p>
+        <div className="flex flex-wrap items-center gap-4">
+          <div>
+            <label className="label">Рабочий день, ч</label>
+            <input
+              type="number"
+              min={MIN_WORK_DAY_HOURS}
+              max={MAX_WORK_DAY_HOURS}
+              className="input w-28"
+              defaultValue={template.workDayHours}
+              onBlur={(e) => updateTemplate({ workDayHours: e.target.valueAsNumber || template.workDayHours })}
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={template.includeWeekends}
+              onChange={(e) => updateTemplate({ includeWeekends: e.target.checked })}
+            />
+            Учитывать выходные как рабочие дни
+          </label>
         </div>
       </div>
 
@@ -228,8 +264,9 @@ export default function TemplateEditor({ template }: { template: Template }) {
         </div>
         <p className="mb-3 text-xs text-slate-500">
           Трудозатраты этапа = базовые часы + часы на единицу × значение числового вопроса. Для этапов с ролью
-          «консультант», «разработчик», «инженер», «аналитик» автоматически добавляется 3-дневное согласование
-          с заказчиком. В итоговые трудозатраты расчёта также автоматически добавляется РП: 16 ч на старт и
+          «консультант», «разработчик», «инженер», «аналитик» автоматически добавляется согласование с
+          заказчиком (по умолчанию 3 рабочих дня — архитектор может изменить длительность для конкретного
+          этапа). В итоговые трудозатраты расчёта также автоматически добавляется РП: 16 ч на старт и
           закрытие проекта + 10%/20%/30% от суммарных трудозатрат остальных этапов — в зависимости от значения
           вопроса типа «Сложность проекта». РП не отображается как отдельный этап на Ганте.
         </p>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ROLES } from "@/lib/roles";
+import { ROLES, APPROVAL_REQUIRED_ROLES, APPROVAL_BUSINESS_DAYS, Role } from "@/lib/roles";
 import StageTable, { StageRow } from "@/components/StageTable";
 import GanttChart from "@/components/GanttChart";
 import StatusBadge from "@/components/StatusBadge";
@@ -26,6 +26,8 @@ interface EditableStage {
   role: string;
   hours: number;
   requirements: string;
+  parallel: boolean;
+  approvalDays: number;
 }
 
 let uid = 0;
@@ -39,7 +41,15 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
   const [stages, setStages] = useState<EditableStage[]>(
     calculation.stages
       .filter((s) => !s.isApprovalTask)
-      .map((s) => ({ key: s.id, name: s.name, role: s.role, hours: s.hours, requirements: s.requirements ?? "" }))
+      .map((s) => ({
+        key: s.id,
+        name: s.name,
+        role: s.role,
+        hours: s.hours,
+        requirements: s.requirements ?? "",
+        parallel: s.parallel ?? false,
+        approvalDays: s.approvalDays ?? APPROVAL_BUSINESS_DAYS,
+      }))
   );
   const [startDate, setStartDate] = useState(calculation.startDate.slice(0, 10));
   const [saving, setSaving] = useState(false);
@@ -78,7 +88,15 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
   function addStage() {
     setStages((prev) => [
       ...prev,
-      { key: nextKey(), name: "Новый этап", role: "developer", hours: 8, requirements: "" },
+      {
+        key: nextKey(),
+        name: "Новый этап",
+        role: "developer",
+        hours: 8,
+        requirements: "",
+        parallel: false,
+        approvalDays: APPROVAL_BUSINESS_DAYS,
+      },
     ]);
   }
 
@@ -109,6 +127,8 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
             role: s.role,
             hours: Number(s.hours) || 0,
             requirements: s.requirements || null,
+            parallel: s.parallel,
+            approvalDays: APPROVAL_REQUIRED_ROLES.includes(s.role as Role) ? Number(s.approvalDays) || null : null,
           })),
         }),
       });
@@ -225,8 +245,9 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
         </div>
         <p className="mb-3 text-xs text-slate-500">
           Для этапов с исполнителем «консультант», «разработчик», «инженер» или «аналитик» система автоматически
-          добавит задачу согласования на заказчика сроком 3 рабочих дня. РП в этапах не отображается — учитывается
-          только в итоговых трудозатратах.
+          добавит задачу согласования на заказчика — длительность можно изменить для каждого этапа отдельно
+          (по умолчанию 3 рабочих дня). Отметьте «параллельно», чтобы этап начинался одновременно с предыдущим,
+          а не после его окончания. РП в этапах не отображается — учитывается только в итоговых трудозатратах.
         </p>
 
         <div className="space-y-2">
@@ -285,6 +306,32 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
                 value={s.requirements}
                 onChange={(e) => updateStage(s.key, { requirements: e.target.value })}
               />
+              <div className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-nord-4">
+                  <input
+                    type="checkbox"
+                    disabled={locked}
+                    checked={s.parallel}
+                    onChange={(e) => updateStage(s.key, { parallel: e.target.checked })}
+                  />
+                  Параллельно с предыдущим этапом
+                </label>
+                {APPROVAL_REQUIRED_ROLES.includes(s.role as Role) && (
+                  <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-nord-4">
+                    Согласование, дней:
+                    <input
+                      type="number"
+                      min={1}
+                      disabled={locked}
+                      className="input w-20"
+                      value={s.approvalDays}
+                      onChange={(e) =>
+                        updateStage(s.key, { approvalDays: e.target.valueAsNumber || APPROVAL_BUSINESS_DAYS })
+                      }
+                    />
+                  </label>
+                )}
+              </div>
             </div>
           ))}
           {stages.length === 0 && <p className="text-sm text-slate-500">Нет этапов. Добавьте хотя бы один.</p>}

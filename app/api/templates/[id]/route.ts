@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiRole } from "@/lib/auth";
+import { clampWorkDayHours } from "@/lib/scheduling";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const template = await prisma.formTemplate.findUnique({
@@ -27,6 +28,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       ...(body.defaultStartDate !== undefined
         ? { defaultStartDate: body.defaultStartDate ? new Date(body.defaultStartDate) : null }
         : {}),
+      ...(body.workDayHours !== undefined ? { workDayHours: clampWorkDayHours(Number(body.workDayHours)) } : {}),
+      ...(body.includeWeekends !== undefined ? { includeWeekends: !!body.includeWeekends } : {}),
     },
   });
   return NextResponse.json(template);

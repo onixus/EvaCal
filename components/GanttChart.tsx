@@ -12,6 +12,7 @@ export interface GanttStage {
   endDate: string | Date;
   status: string;
   requirements?: string | null;
+  parallel?: boolean;
 }
 
 const ROLE_COLORS: Record<string, string> = {
@@ -60,6 +61,7 @@ export default function GanttChart({ stages }: { stages: GanttStage[] }) {
               <div key={stage.id} className="flex items-center gap-3">
                 <div className="w-56 shrink-0 truncate text-sm text-slate-700 dark:text-nord-4" title={stage.name}>
                   {stage.isApprovalTask ? "⏳ " : ""}
+                  {stage.parallel ? "∥ " : ""}
                   {stage.name}
                 </div>
                 <div className="relative h-6 flex-1 rounded bg-slate-100 dark:bg-nord-0">
@@ -68,7 +70,7 @@ export default function GanttChart({ stages }: { stages: GanttStage[] }) {
                       stage.isApprovalTask
                         ? "bg-amber-400/70 border border-dashed border-amber-500 dark:bg-nord-yellow/40 dark:border-nord-yellow"
                         : ROLE_COLORS[stage.role] ?? "bg-slate-400"
-                    }`}
+                    } ${stage.parallel ? "ring-2 ring-sky-400 dark:ring-nord-frost2" : ""}`}
                     style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                     title={`${fmtDate(stage.startDate)} — ${fmtDate(stage.endDate)}${
                       stage.isApprovalTask ? "" : ` · ${stage.hours} ч`

@@ -1,10 +1,21 @@
 import { prisma } from "./prisma";
-import { expandWithApprovals, scheduleItems, PrimaryStageInput } from "./scheduling";
+import {
+  expandWithApprovals,
+  scheduleItems,
+  PrimaryStageInput,
+  ScheduleConfig,
+  DEFAULT_SCHEDULE_CONFIG,
+} from "./scheduling";
 import { computePmHours } from "./pm";
 
 /** Wipes and regenerates every Stage row for a calculation from an ordered list of primary stages. */
-export async function rebuildStages(calculationId: string, primary: PrimaryStageInput[], startDate: Date) {
-  const scheduled = scheduleItems(expandWithApprovals(primary), startDate);
+export async function rebuildStages(
+  calculationId: string,
+  primary: PrimaryStageInput[],
+  startDate: Date,
+  config: ScheduleConfig = DEFAULT_SCHEDULE_CONFIG
+) {
+  const scheduled = scheduleItems(expandWithApprovals(primary), startDate, config);
 
   await prisma.stage.deleteMany({ where: { calculationId } });
 
@@ -24,12 +35,18 @@ export async function rebuildStages(calculationId: string, primary: PrimaryStage
           isApprovalTask: item.isApprovalTask,
           dueDate: item.dueDate,
           requirements: item.requirements,
+          parallel: item.parallel,
+          approvalDays: item.approvalDays,
         },
       })
     )
   );
 
   return prisma.stage.findMany({ where: { calculationId }, orderBy: { order: "asc" } });
+}
+
+export function scheduleConfigFromTemplate(template: { workDayHours: number; includeWeekends: boolean }): ScheduleConfig {
+  return { workDayHours: template.workDayHours, includeWeekends: template.includeWeekends };
 }
 
 /** РП isn't a stage — this computes the scalar hours to store on Calculation.pmHours. */
