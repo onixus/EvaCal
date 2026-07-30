@@ -60,7 +60,15 @@ export function pmHoursFor(
 }
 
 export function primaryStagesFromTemplate(
-  stageTemplates: { name: string; role: string; baseHours: number; hoursPerUnit: number; driverFieldKey: string | null; order: number }[],
+  stageTemplates: {
+    name: string;
+    role: string;
+    baseHours: number;
+    hoursPerUnit: number;
+    driverFieldKey: string | null;
+    requirements?: string | null;
+    order: number;
+  }[],
   answers: Record<string, unknown>
 ): PrimaryStageInput[] {
   return [...stageTemplates]
@@ -71,6 +79,16 @@ export function primaryStagesFromTemplate(
         name: st.name,
         role: st.role,
         hours: Math.max(0, st.baseHours + st.hoursPerUnit * driverValue),
+        requirements: st.requirements ?? null,
       };
     });
+}
+
+/** Turns an admin's default RiskTemplate rows into Risk create-input for a new calculation. */
+export function risksFromTemplate(
+  riskTemplates: { description: string; hours: number; order: number }[]
+): { description: string; hours: number; order: number }[] {
+  return [...riskTemplates]
+    .sort((a, b) => a.order - b.order)
+    .map((rt) => ({ description: rt.description, hours: rt.hours, order: rt.order }));
 }

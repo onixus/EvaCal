@@ -15,6 +15,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string; 
       ...(body.baseHours !== undefined ? { baseHours: body.baseHours } : {}),
       ...(body.hoursPerUnit !== undefined ? { hoursPerUnit: body.hoursPerUnit } : {}),
       ...(body.driverFieldKey !== undefined ? { driverFieldKey: body.driverFieldKey || null } : {}),
+      ...(body.requirements !== undefined ? { requirements: body.requirements || null } : {}),
       ...(body.order !== undefined ? { order: body.order } : {}),
     },
   });

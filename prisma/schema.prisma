@@ -39,6 +39,7 @@ model FormTemplate {
   updatedAt      DateTime        @updatedAt
   fields         FormField[]
   stageTemplates StageTemplate[]
+  riskTemplates  RiskTemplate[]
   calculations   Calculation[]
 }
 
@@ -66,7 +67,21 @@ model StageTemplate {
   baseHours      Float        @default(0)
   hoursPerUnit   Float        @default(0)
   driverFieldKey String?
+  // Admin-set default "Требования и ограничения" text, copied onto every stage
+  // generated from this stage template. The architect can still edit it per calculation.
+  requirements   String?
   order          Int          @default(0)
+}
+
+// Admin-defined default risk, copied onto every calculation made from this template
+// (as a Risk row) so common risks don't need to be re-entered by hand each time.
+model RiskTemplate {
+  id          String       @id @default(cuid())
+  templateId  String
+  template    FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  description String
+  hours       Float        @default(0)
+  order       Int          @default(0)
 }
 
 // A concrete labor-cost calculation, produced by presale, refined by the architect.

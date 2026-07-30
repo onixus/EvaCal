@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { primaryStagesFromTemplate, rebuildStages, pmHoursFor, scheduleConfigFromTemplate } from "@/lib/calc";
+import { primaryStagesFromTemplate, rebuildStages, pmHoursFor, scheduleConfigFromTemplate, risksFromTemplate } from "@/lib/calc";
 import { grandTotalHours } from "@/lib/totals";
 
 // Old calculations are visible to everyone, so a plain list with no auth filtering.
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
   const template = await prisma.formTemplate.findUnique({
     where: { id: templateId },
-    include: { stageTemplates: true, fields: true },
+    include: { stageTemplates: true, fields: true, riskTemplates: true },
   });
   if (!template) return NextResponse.json({ error: "template not found" }, { status: 404 });
 
@@ -61,6 +61,13 @@ export async function POST(req: NextRequest) {
   });
 
   await rebuildStages(calculation.id, primary, start, scheduleConfigFromTemplate(template));
+
+  const defaultRisks = risksFromTemplate(template.riskTemplates);
+  if (defaultRisks.length > 0) {
+    await prisma.risk.createMany({
+      data: defaultRisks.map((r) => ({ ...r, calculationId: calculation.id })),
+    });
+  }
 
   return NextResponse.json({ id: calculation.id }, { status: 201 });
 }
