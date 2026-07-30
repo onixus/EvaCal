@@ -7,6 +7,7 @@ import StageTable, { StageRow } from "@/components/StageTable";
 import GanttChart from "@/components/GanttChart";
 import StatusBadge from "@/components/StatusBadge";
 import TotalsSummary, { RiskRow } from "@/components/TotalsSummary";
+import ExportLinks from "@/components/ExportLinks";
 
 interface Calculation {
   id: string;
@@ -208,9 +209,7 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
         </div>
         <div className="flex items-center gap-3">
           <StatusBadge status={calculation.status} />
-          <a href={`/api/calculations/${calculation.id}/pdf`} className="btn-secondary">
-            Скачать PDF
-          </a>
+          <ExportLinks calculationId={calculation.id} />
         </div>
       </div>
 

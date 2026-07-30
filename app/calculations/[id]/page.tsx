@@ -6,6 +6,7 @@ import StageTable from "@/components/StageTable";
 import GanttChart from "@/components/GanttChart";
 import TotalsSummary from "@/components/TotalsSummary";
 import RiskList from "@/components/RiskList";
+import ExportLinks from "@/components/ExportLinks";
 
 export const dynamic = "force-dynamic";
 
@@ -34,9 +35,7 @@ export default async function CalculationViewPage({ params }: { params: { id: st
         </div>
         <div className="flex items-center gap-3">
           <StatusBadge status={calculation.status} />
-          <a href={`/api/calculations/${calculation.id}/pdf`} className="btn-secondary">
-            Скачать PDF
-          </a>
+          <ExportLinks calculationId={calculation.id} />
         </div>
       </div>
 
