@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireApiRole } from "@/lib/auth";
 
 // Risks are architect-only: they add contingency hours to the total without touching the Gantt.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireApiRole("architect");
   if (auth instanceof NextResponse) return auth;
 

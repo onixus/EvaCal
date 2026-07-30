@@ -56,7 +56,7 @@ export function verifySessionToken(token: string | undefined | null): SessionPay
 
 /** Reads the session from cookies — usable in Server Components, layouts and Route Handlers. */
 export async function getSession(): Promise<SessionPayload | null> {
-  const token = cookies().get(SESSION_COOKIE_NAME)?.value;
+  const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
   return verifySessionToken(token);
 }
 

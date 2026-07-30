@@ -10,7 +10,8 @@ import ExportLinks from "@/components/ExportLinks";
 
 export const dynamic = "force-dynamic";
 
-export default async function CalculationViewPage({ params }: { params: { id: string } }) {
+export default async function CalculationViewPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const calculation = await prisma.calculation.findUnique({
     where: { id: params.id },
     include: {

@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireApiRole } from "@/lib/auth";
 import { clampWorkDayHours } from "@/lib/scheduling";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const template = await prisma.formTemplate.findUnique({
     where: { id: params.id },
     include: {
@@ -16,7 +17,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json(template);
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireApiRole("admin");
   if (auth instanceof NextResponse) return auth;
 
@@ -36,7 +38,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json(template);
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireApiRole("admin");
   if (auth instanceof NextResponse) return auth;
 

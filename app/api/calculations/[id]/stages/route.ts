@@ -7,7 +7,8 @@ import { requireApiRole } from "@/lib/auth";
 // including each stage's own "Требования и ограничения" text, parallel flag, and
 // custom approval-task duration. Approval tasks for consultant/developer/engineer/analyst
 // stages are re-derived automatically.
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireApiRole("architect");
   if (auth instanceof NextResponse) return auth;
 

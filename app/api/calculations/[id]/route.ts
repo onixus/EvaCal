@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { primaryStagesFromTemplate, rebuildStages, pmHoursFor, scheduleConfigFromTemplate } from "@/lib/calc";
 import { requireApiRole } from "@/lib/auth";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const calculation = await prisma.calculation.findUnique({
     where: { id: params.id },
     include: {
@@ -18,7 +19,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
 // Presale edits: name/customer/answers -> stages (and the derived РП hours) are regenerated
 // from the template formulas. Per-stage requirements text is architect-only, so it's untouched here.
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const body = await req.json();
   const existing = await prisma.calculation.findUnique({
     where: { id: params.id },
@@ -58,7 +60,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 // Architect/admin override: bypasses the template-level lock on startDate
 // (but not the global "already approved" lock). Rescheduling preserves every stage's
 // current hours and per-stage requirements — it only shifts dates, it never re-runs formulas.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireApiRole("architect");
   if (auth instanceof NextResponse) return auth;
 
@@ -96,7 +99,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireApiRole("architect");
   if (auth instanceof NextResponse) return auth;
 
