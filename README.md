@@ -129,11 +129,25 @@ npm run dev
 
 ```bash
 cp .env.example .env   # задать SESSION_SECRET
-docker compose run --rm migrate   # разово: создаёт/синхронизирует SQLite-схему в volume db-data
+mkdir -p nginx/certs && openssl req -x509 -nodes -newkey rsa:2048 \
+  -keyout nginx/certs/privkey.pem -out nginx/certs/fullchain.pem \
+  -days 365 -subj "/CN=localhost"   # для реального домена используйте certbot/Let's Encrypt
+docker compose run --rm migrate   # разово: схема + сид (демо-данные, пароли architect/admin)
 docker compose up -d --build
 ```
 
 `migrate` — отдельный сервис (профиль `tools`, не поднимается вместе с `up`): образ `app`
 собирается в режиме `next build --standalone` и не содержит Prisma CLI, поэтому синхронизация
-схемы (`prisma db push`) вынесена в отдельный шаг на полном `node_modules`. Повторяйте
-`docker compose run --rm migrate` после любого изменения `prisma/schema.prisma`.
+схемы (`prisma db push`), генерация клиента (`prisma generate`) и сид (`tsx prisma/seed.ts`)
+вынесены в отдельный шаг на полном `node_modules`. Его entrypoint запускается от root, чтобы
+привести владельца volume `db-data` к тому же uid, под которым работает `app` (иначе SQLite-файл
+недоступен на запись), и только потом переключается на непривилегированного пользователя.
+Повторяйте `docker compose run --rm migrate` после любого изменения `prisma/schema.prisma` —
+повторный запуск идемпотентен и не трогает уже созданные учётные записи и данные.
+
+Логины и пароли для `/architect` и `/admin` печатаются в консоль при первом запуске `migrate`
+(и сохраняются в `credentials.local.txt` внутри контейнера `app`) — см. общий раздел
+[«Доступ (RBAC)»](#доступ-rbac).
+
+Веб-морда отдаётся через `web` (nginx) на портах 80/443 — сервис `app` наружу не публикуется
+(`expose`, не `ports`), только внутри docker-сети.
