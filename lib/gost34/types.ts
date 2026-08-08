@@ -6,6 +6,7 @@
 import type { StandardProfile } from './standards/types';
 import type { Gost34RequirementV2 } from './requirements/v2';
 import type { ProjectContext } from './context/types';
+import type { ValidationReport } from './validation/types';
 
 export type GostDocumentType = 'TZ' | 'PZ' | 'AF' | 'PMI' | 'SPEC';
 
@@ -148,4 +149,6 @@ export interface Gost34InputPayload {
   vendorSourceFiles?: string[];
   /** Проектный контекст: источник сведений о системе вместо жёстко заданных значений в шаблонах. */
   projectContext?: ProjectContext;
+  /** Замечания GOST Validator к набору требований. Не блокирует генерацию. */
+  validation?: ValidationReport;
 }
