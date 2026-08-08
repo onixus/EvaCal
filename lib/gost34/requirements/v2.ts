@@ -1,14 +1,8 @@
 import type { StandardReference } from '../standards';
+import type { RequirementCategory } from '../types';
 
-export type RequirementCategory =
-  | 'functional'
-  | 'performance'
-  | 'security'
-  | 'reliability'
-  | 'ergonomics'
-  | 'technical'
-  | 'software'
-  | 'organizational';
+// Re-exported rather than redeclared: a second copy of this union drifts.
+export type { RequirementCategory } from '../types';
 
 export type RequirementType =
   | 'business'
@@ -97,6 +91,20 @@ export interface Gost34RequirementV2 {
   createdBy?: string;
   createdAt?: string;
   updatedAt?: string;
+
+  /**
+   * Presentation-only fields carried over from Gost34RequirementItem so the
+   * round trip through the adapters is lossless. Stage mapping moves into the
+   * traceability model in PR-07; nothing new should be added here.
+   */
+  legacy?: {
+    normalizedBy?: string;
+    stageName?: string;
+    stageRole?: string;
+    mappedStageId?: string;
+    mappedStageName?: string;
+    mappedRole?: string;
+  };
 }
 
 export function getRequirementEffectiveText(requirement: Gost34RequirementV2): string {

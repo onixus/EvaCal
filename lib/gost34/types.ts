@@ -73,6 +73,13 @@ export interface Gost34RequirementItem {
   title: string;
   description: string;
   sourceFile?: string; // Имя файла вендорского ТЗ/ФТ/ТТ
+  /**
+   * Immutable source wording. Templates ignore it; it exists so provenance
+   * survives the round trip through the client. See requirements/v2.ts.
+   */
+  originalText?: string;
+  /** Who produced `description` if it is not the original text (e.g. an LLM). */
+  normalizedBy?: string;
   stageName?: string;
   stageRole?: string;
   mappedStageId?: string;
