@@ -1,7 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { loadCalculationForExport, safeFileName, contentDisposition } from '@/lib/export';
-import { generateGost34Document, GostDocumentType, Gost34RequirementItem } from '@/lib/gost34';
+import {
+  generateGost34Document,
+  GostDocumentType,
+  GostExportType,
+  Gost34RequirementItem,
+  getZipEntries,
+  resolveGost34Profile,
+} from '@/lib/gost34';
+
+/**
+ * Fallback signatories used when the caller supplies none. Single source of
+ * truth: the GET, POST and batch-ZIP paths must not drift apart.
+ */
+const DEFAULT_SIGNATURES = {
+  developer: 'Иванов А.В.',
+  checker: 'Петров С.Н.',
+  techControl: 'Сидоров К.М.',
+  normControl: 'Васильева Е.И.',
+  approver: 'Михайлов Д.П.',
+  customerApprover: 'Александров И.В.',
+  invSubl: 'ИНВ-102938',
+};
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -14,11 +35,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const city = searchParams.get('city') || undefined;
   const enrich = searchParams.get('enrich') !== 'false';
 
-  const developer = searchParams.get('developer') || 'Иванов А.В.';
-  const checker = searchParams.get('checker') || 'Петров С.Н.';
-  const normControl = searchParams.get('normControl') || 'Васильева Е.И.';
-  const approver = searchParams.get('approver') || 'Михайлов Д.П.';
-  const customerApprover = searchParams.get('customerApprover') || 'Александров И.В.';
+  const standardProfileId = searchParams.get('profile') || undefined;
 
   const { buffer, filename } = await generateGost34Document({
     calculation: calc,
@@ -27,14 +44,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       contractNumber,
       city,
       enrichRequirements: enrich,
+      standardProfileId,
       signatures: {
-        developer,
-        checker,
-        techControl: 'Сидоров К.М.',
-        normControl,
-        approver,
-        customerApprover,
-        invSubl: 'ИНВ-102938',
+        ...DEFAULT_SIGNATURES,
+        developer: searchParams.get('developer') || DEFAULT_SIGNATURES.developer,
+        checker: searchParams.get('checker') || DEFAULT_SIGNATURES.checker,
+        normControl: searchParams.get('normControl') || DEFAULT_SIGNATURES.normControl,
+        approver: searchParams.get('approver') || DEFAULT_SIGNATURES.approver,
+        customerApprover: searchParams.get('customerApprover') || DEFAULT_SIGNATURES.customerApprover,
         signDate: new Date().toLocaleDateString('ru-RU'),
       },
     },
@@ -63,56 +80,48 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       city,
       enrich = true,
       enrichmentOptions,
-      developer = 'Иванов А.В.',
-      checker = 'Петров С.Н.',
-      normControl = 'Васильева Е.И.',
-      approver = 'Михайлов Д.П.',
-      customerApprover = 'Александров И.В.',
+      developer = DEFAULT_SIGNATURES.developer,
+      checker = DEFAULT_SIGNATURES.checker,
+      normControl = DEFAULT_SIGNATURES.normControl,
+      approver = DEFAULT_SIGNATURES.approver,
+      customerApprover = DEFAULT_SIGNATURES.customerApprover,
+      standardProfileId,
       rawRequirements,
     } = body;
 
     const commonSignatures = {
+      ...DEFAULT_SIGNATURES,
       developer,
       checker,
-      techControl: 'Сидоров К.М.',
       normControl,
       approver,
       customerApprover,
-      invSubl: 'ИНВ-102938',
       signDate: new Date().toLocaleDateString('ru-RU'),
     };
 
     // If batch ZIP export is requested
-    if (isBatchZip || docType === 'ZIP') {
+    if (isBatchZip || (docType as GostExportType) === 'ZIP') {
       const zip = new JSZip();
 
-      const docTypesList: Array<{ type: GostDocumentType; prefix: string; name: string }> = [
-        { type: 'TZ', prefix: '01_TZ', name: 'Техническое_задание_ГОСТ_34.602-89' },
-        { type: 'PZ', prefix: '02_PZ', name: 'Пояснительная_записка_РД_50-34.698-90' },
-        { type: 'AF', prefix: '03_AF', name: 'Описание_функций_РД_50-34.698-90' },
-        { type: 'PMI', prefix: '04_PMI', name: 'Программа_и_методика_испытаний_РД_50-34.698-90' },
-        { type: 'SPEC', prefix: '05_SPEC', name: 'Спецификация_оборудования_и_ПО_ГОСТ_34.201-89' },
-      ];
+      const zipEntries = getZipEntries(resolveGost34Profile(standardProfileId));
 
       // Generate all 5 GOST 34 documents in parallel
       const generatedDocs = await Promise.all(
-        docTypesList.map(async (docInfo) => {
+        zipEntries.map(async (entry) => {
           const { buffer } = await generateGost34Document({
             calculation: calc,
             rawRequirements,
             metadataOverride: {
-              docType: docInfo.type,
+              docType: entry.docType,
               contractNumber,
               city,
               enrichRequirements: Boolean(enrich),
               enrichmentOptions,
+              standardProfileId,
               signatures: commonSignatures,
             },
           });
-          return {
-            filename: `${docInfo.prefix}_${docInfo.name}.docx`,
-            buffer,
-          };
+          return { filename: entry.filename, buffer };
         })
       );
 
@@ -142,6 +151,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         city,
         enrichRequirements: Boolean(enrich),
         enrichmentOptions,
+        standardProfileId,
         signatures: commonSignatures,
       },
     });
