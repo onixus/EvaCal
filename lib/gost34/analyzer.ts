@@ -7,6 +7,7 @@ import {
   GostDocumentType,
 } from './types';
 import { getEnrichedGostRequirements } from './enricher';
+import { resolveGost34Profile } from './standards';
 
 /**
  * Normalizes input from EvaCal Calculation model or direct external API input
@@ -72,6 +73,8 @@ export function analyzeAndNormalizeInput(input: {
       ...(input.metadataOverride?.signatures || {}),
     },
   };
+
+  const standardProfile = resolveGost34Profile(metadata.standardProfileId);
 
   // Parse answers if JSON string
   let parsedAnswers: Record<string, any> = {};
@@ -139,6 +142,7 @@ export function analyzeAndNormalizeInput(input: {
 
   return {
     metadata,
+    standardProfile,
     systemName,
     customerName,
     templateName: calc?.template?.name,

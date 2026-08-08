@@ -3,6 +3,24 @@
 import { useState, useEffect } from "react";
 import { GostDocumentType, Gost34RequirementItem } from "@/lib/gost34/types";
 import { normalizeRequirementItems } from "@/lib/gost34/parser/requirementSanitizer";
+import { DEFAULT_GOST34_PROFILE } from "@/lib/gost34/standards";
+import { ENRICHMENT_OPTION_KEYS } from "@/lib/gost34/enricher";
+
+/**
+ * The modal exports under the default (legacy) profile. The current profile is
+ * reachable only through the API until its TZ structure lands (PR-03).
+ */
+const EXPORT_PROFILE = DEFAULT_GOST34_PROFILE;
+
+const DOCUMENT_TYPE_CARDS: Array<{ type: GostDocumentType; title: string; gost: string; desc: string }> =
+  [...EXPORT_PROFILE.documentTypes]
+    .sort((a, b) => a.zipOrder - b.zipOrder)
+    .map((doc) => ({
+      type: doc.docType,
+      title: doc.uiTitle,
+      gost: doc.standardCitation,
+      desc: doc.uiDescription,
+    }));
 
 interface VendorSpecUploadModalProps {
   calculationId: string;
@@ -1254,44 +1272,13 @@ export default function VendorSpecUploadModal({
 
                 {/* 5 Document Types Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {[
-                    {
-                      type: "TZ",
-                      title: "ТЗ — Техническое задание",
-                      gost: "ГОСТ 34.602-89",
-                      desc: "Главный документ с требованиями к системе, структурой и матрицей прослеживаемости.",
-                    },
-                    {
-                      type: "PZ",
-                      title: "ПЗ — Пояснительная записка",
-                      gost: "РД 50-34.698-90 п.2.1",
-                      desc: "Архитектурное обоснование, описание структуры и проектных решений.",
-                    },
-                    {
-                      type: "AF",
-                      title: "АФ — Описание функций",
-                      gost: "РД 50-34.698-90 п.2.2",
-                      desc: "Детальное описание автоматизируемых функций и подсистем.",
-                    },
-                    {
-                      type: "PMI",
-                      title: "ПМИ — Программа и методика испытаний",
-                      gost: "РД 50-34.698-90 п.2.7",
-                      desc: "Методика приемо-сдаточных испытаний, проверок и сценариев тестирования.",
-                    },
-                    {
-                      type: "SPEC",
-                      title: "SPEC — Спецификация оборудования и ПО",
-                      gost: "ГОСТ 34.201-89",
-                      desc: "Перечень серверного оборудования, системного ПО, СУБД и АРМ пользователей.",
-                    },
-                  ].map((item) => {
+                  {DOCUMENT_TYPE_CARDS.map((item) => {
                     const isSelected = docType === item.type;
                     return (
                       <button
                         key={item.type}
                         type="button"
-                        onClick={() => setDocType(item.type as GostDocumentType)}
+                        onClick={() => setDocType(item.type)}
                         className={`p-4 rounded-xl border text-left transition-all ${
                           isSelected
                             ? "bg-blue-600 border-blue-400 text-white font-bold shadow-xl shadow-blue-600/30 ring-2 ring-blue-300"
@@ -1327,7 +1314,7 @@ export default function VendorSpecUploadModal({
                       <br />
                       • Извлечённых требований вендора: <strong className="text-white font-bold">{extractedReqs.length}</strong>
                       <br />
-                      • Включённых государственных стандартов: <strong className="text-white font-bold">{countActiveEnrichments()} из 13</strong>
+                      • Включённых государственных стандартов: <strong className="text-white font-bold">{countActiveEnrichments()} из {ENRICHMENT_OPTION_KEYS.length}</strong>
                     </div>
                   </div>
 

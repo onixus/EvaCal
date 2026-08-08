@@ -10,12 +10,16 @@ import {
   convertMillimetersToTwip,
 } from 'docx';
 import { Gost34DocMetadata } from '../types';
+import { DEFAULT_GOST34_PROFILE, StandardProfile } from '../standards';
 
 /**
  * Builds standard GOST 2.104-2006 stamp tables with pixel-perfect TWIP dimensions (dxa).
  * Printable width: 185mm = 10488 dxa (A4 210mm - 20mm left - 5mm right).
  */
-export function buildGost2104Form2Table(meta: Gost34DocMetadata): Table {
+export function buildGost2104Form2Table(
+  meta: Gost34DocMetadata,
+  profile: StandardProfile = DEFAULT_GOST34_PROFILE
+): Table {
   const sigs = meta.signatures;
 
   const font = 'Times New Roman';
@@ -123,7 +127,7 @@ export function buildGost2104Form2Table(meta: Gost34DocMetadata): Table {
           makeCell(sigs.normControl || '—', 23, { align: AlignmentType.LEFT, size: smallTextSize }),
           makeCell('', 15),
           makeCell('', 10),
-          makeCell(meta.contractNumber || 'Техническое задание по ГОСТ 34', 70, { size: smallTextSize }),
+          makeCell(meta.contractNumber || profile.citations.frameFallbackTitle, 70, { size: smallTextSize }),
           makeCell(meta.city, 50, { size: smallTextSize, colSpan: 3 }),
         ],
       }),

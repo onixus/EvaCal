@@ -17,6 +17,7 @@ import {
 } from 'docx';
 import { Gost34DocumentAST, Gost34Section } from '../types';
 import { buildGost2104Form2Table, buildGost2104Form2aTable } from './gostFrameBuilder';
+import { DEFAULT_GOST34_PROFILE, getDocumentHeadings } from '../standards';
 
 /**
  * Renders a GOST 34 Document AST into a Microsoft Word (.docx) binary buffer
@@ -31,32 +32,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
   const meta = ast.metadata;
   const sigs = meta.signatures;
 
-  let docTitleText = 'ТЕХНИЧЕСКОЕ ЗАДАНИЕ';
-  let docSubtitleText = '(ГОСТ 34.602-89)';
-
-  switch (meta.docType) {
-    case 'PZ':
-      docTitleText = 'ПОЯСНИТЕЛЬНАЯ ЗАПИСКА';
-      docSubtitleText = '(РД 50-34.698-90 п.2.1)';
-      break;
-    case 'AF':
-      docTitleText = 'ОПИСАНИЕ АВТОМАТИЗИРУЕМЫХ ФУНКЦИЙ';
-      docSubtitleText = '(РД 50-34.698-90 п.2.2)';
-      break;
-    case 'PMI':
-      docTitleText = 'ПРОГРАММА И МЕТОДИКА ИСПЫТАНИЙ';
-      docSubtitleText = '(РД 50-34.698-90 п.2.7)';
-      break;
-    case 'SPEC':
-      docTitleText = 'СПЕЦИФИКАЦИЯ ОБОРУДОВАНИЯ И ПО';
-      docSubtitleText = '(ГОСТ 34.201-89 / РД 50-34.698-90 п.2.8)';
-      break;
-    case 'TZ':
-    default:
-      docTitleText = 'ТЕХНИЧЕСКОЕ ЗАДАНИЕ';
-      docSubtitleText = '(ГОСТ 34.602-89)';
-      break;
-  }
+  const standardProfile = ast.standardProfile ?? DEFAULT_GOST34_PROFILE;
+  const { title: docTitleText, subtitle: docSubtitleText } = getDocumentHeadings(standardProfile, meta.docType);
 
   // Outer GOST Page Frame Border (offsetFrom PAGE with valid OpenXML point spaces: 14pt ~ 5mm, 31pt ~ 11mm)
   const gostBordersConfig = {
@@ -372,7 +349,7 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
         },
         footers: {
           first: new Footer({
-            children: [buildGost2104Form2Table(meta)],
+            children: [buildGost2104Form2Table(meta, standardProfile)],
           }),
           default: new Footer({
             children: [buildGost2104Form2aTable(meta)],

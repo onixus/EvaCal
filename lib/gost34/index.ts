@@ -4,6 +4,7 @@ import { exportGost34ToDocx } from './exporters/docxExporter';
 import { Gost34DocMetadata, Gost34RequirementItem, Gost34DocumentAST } from './types';
 
 export * from './types';
+export * from './standards';
 export { getEnrichedGostRequirements } from './enricher';
 export { analyzeAndNormalizeInput } from './analyzer';
 export { buildGost34DocumentAST } from './generator';

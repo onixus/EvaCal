@@ -16,27 +16,31 @@ import { Gost34RequirementItem, Gost34EnrichmentOptions } from './types';
  * - SLA 99.9% Reliability (RTO ≤ 15 min, RPO ≤ 5 min)
  * - GOST R 52872-2019 / WCAG 2.1 AA (Web Accessibility)
  */
+/** Every enrichment flag, in UI order. Single source of truth for the option count. */
+export const ENRICHMENT_OPTION_KEYS: Array<keyof Gost34EnrichmentOptions> = [
+  'fstek_21',
+  'fstek_117',
+  'fstek_239',
+  'gost_57580',
+  'cb_683p',
+  'cb_757p',
+  'cb_719p',
+  'fsb_282_gossopka',
+  'fz_187_kii',
+  'fz_152',
+  'fz_188_reestr',
+  'sla_999',
+  'wcag_52872',
+];
+
 export function getEnrichedGostRequirements(
   options?: Gost34EnrichmentOptions
 ): Gost34RequirementItem[] {
   const reqs: Gost34RequirementItem[] = [];
 
   // Default: if options is undefined, enable all
-  const opts: Gost34EnrichmentOptions = options || {
-    fstek_21: true,
-    fstek_117: true,
-    fstek_239: true,
-    gost_57580: true,
-    cb_683p: true,
-    cb_757p: true,
-    cb_719p: true,
-    fsb_282_gossopka: true,
-    fz_187_kii: true,
-    fz_152: true,
-    fz_188_reestr: true,
-    sla_999: true,
-    wcag_52872: true,
-  };
+  const opts: Gost34EnrichmentOptions =
+    options || Object.fromEntries(ENRICHMENT_OPTION_KEYS.map((key) => [key, true]));
 
   let idx = 1;
 

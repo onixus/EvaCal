@@ -2,6 +2,7 @@ import { Gost34InputPayload, Gost34Section } from '../types';
 
 export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[] {
   const meta = payload.metadata;
+  const citations = payload.standardProfile.citations;
 
   return [
     {
@@ -9,7 +10,7 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
       numStr: '1',
       title: 'ВВОДНАЯ ЧАСТЬ И НАЗНАЧЕНИЕ СПЕЦИФИКАЦИИ',
       paragraphs: [
-        `1.1 Настоящая спецификация составлена в соответствии с ГОСТ 34.201-89 и РД 50-34.698-90 (п. 2.8) на систему «${meta.systemName}».`,
+        `1.1 Настоящая спецификация составлена в соответствии с ${citations.specificationBasis} на систему «${meta.systemName}».`,
         `1.2 Документ содержит полный перечень программных средств, серверного оборудования, вычислительной техники и сетевых средств, необходимых для развертывания и эксплуатации системы у Заказчика (${meta.customerName}).`,
       ],
     },
