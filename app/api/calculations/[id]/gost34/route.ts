@@ -87,6 +87,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       customerApprover = DEFAULT_SIGNATURES.customerApprover,
       standardProfileId,
       rawRequirements,
+      /** Ручной ввод проектного контекста: перекрывает данные опросника и расчёта. */
+      projectContext,
     } = body;
 
     const commonSignatures = {
@@ -111,6 +113,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
           const { buffer } = await generateGost34Document({
             calculation: calc,
             rawRequirements,
+            projectContext,
             metadataOverride: {
               docType: entry.docType,
               contractNumber,
@@ -145,6 +148,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const { buffer, filename } = await generateGost34Document({
       calculation: calc,
       rawRequirements,
+      projectContext,
       metadataOverride: {
         docType,
         contractNumber,

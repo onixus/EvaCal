@@ -57,7 +57,13 @@ describe('current profile', () => {
     }
   });
 
-  it('is marked preview until the 2020 structure lands', () => {
-    expect(current.status).toBe('preview');
+  it('is stable now that the 2020 TZ structure has landed', () => {
+    expect(current.status).toBe('stable');
+  });
+
+  it('publishes the mandatory 2020 TZ sections', () => {
+    const tz = current.documentTypes.find((d) => d.docType === 'TZ');
+    expect(tz?.sections.length).toBe(10);
+    expect(tz?.sections[0]).toBe('ОБЩИЕ СВЕДЕНИЯ');
   });
 });
