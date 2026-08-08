@@ -37,6 +37,8 @@ export async function POST(req: NextRequest) {
 
           return {
             ...req,
+            // Recorded before any cleaning: everything downstream carries it forward.
+            originalText: req.description,
             title: cleanTitle,
             description: cleanDesc,
           };
