@@ -809,8 +809,16 @@ export default function VendorSpecUploadModal({
                                   <div className="text-slate-300 text-[11px] leading-relaxed">{req.description}</div>
                                 )}
                               </td>
-                              <td className="p-3 text-slate-400 text-[11px] align-top truncate">
-                                {req.sourceFile || "—"}
+                              <td className="p-3 text-slate-400 text-[11px] align-top space-y-1">
+                                <div className="truncate">{req.sourceFile || "—"}</div>
+                                {req.normalizedBy && (
+                                  <div
+                                    className="inline-block px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px]"
+                                    title={req.originalText ? `Исходная формулировка: ${req.originalText}` : undefined}
+                                  >
+                                    ИИ-предложение
+                                  </div>
+                                )}
                               </td>
                               <td className="p-3 text-center align-top">
                                 <button

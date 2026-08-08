@@ -1,5 +1,10 @@
 import { Gost34RequirementItem } from '../types';
-import { normalizeRequirementItems } from './requirementSanitizer';
+import {
+  Gost34RequirementV2,
+  fromGost34RequirementItems,
+  toGost34RequirementItems,
+} from '../requirements';
+import { normalizeRequirementItemsV2 } from './requirementSanitizer';
 
 export interface LlmNormalizerOptions {
   provider?: 'ollama' | 'openai_compatible'; // Default: 'ollama'
@@ -66,13 +71,84 @@ export async function checkLocalLlmAvailability(
   return { available: false, provider, models: [] };
 }
 
+const LLM_CATEGORIES = ['functional', 'security', 'reliability', 'performance', 'ergonomics', 'technical'];
+
+/**
+ * Turns an LLM reply into requirement *proposals*.
+ *
+ * The model's wording lands in `normalizedText`; `originalText` stays the text
+ * that came out of the vendor document, and the source filename stays the real
+ * file. Proposals are never APPROVED — a human accepts them (PR-08), and until
+ * then the effective text of the requirement is still the original.
+ */
+function buildLlmProposals(
+  parsedJson: any[],
+  rawItems: Gost34RequirementItem[],
+  targetModel: string,
+  idPrefix: string
+): Gost34RequirementV2[] {
+  const byCode = new Map<string, Gost34RequirementItem>();
+  for (const item of rawItems) {
+    if (item.code && !byCode.has(item.code)) byCode.set(item.code, item);
+  }
+
+  const stamp = Date.now();
+
+  return parsedJson.map((item: any, idx: number) => {
+    // Match the reply back to its input by code, else positionally.
+    const source = (item.code && byCode.get(item.code)) || rawItems[idx];
+    const proposedText = item.description || item.title || '';
+
+    const proposal: Gost34RequirementV2 = {
+      id: source?.id || `${idPrefix}-${stamp}-${idx}`,
+      code: item.code || source?.code || `ТР-ГОСТ-${String(idx + 1).padStart(2, '0')}`,
+      category: LLM_CATEGORIES.includes(item.category)
+        ? item.category
+        : source?.category || 'functional',
+      type: 'system',
+      title: item.title || item.code || 'Требование ГОСТ 34',
+      originalText: source?.originalText ?? source?.description ?? proposedText,
+      normalizedText: proposedText,
+      approval: { status: 'PROPOSED' },
+      legacy: { normalizedBy: `ИИ-Нормализация (${targetModel})` },
+    };
+
+    if (source?.sourceFile) proposal.source = { filename: source.sourceFile };
+    if (typeof item.confidence === 'number') proposal.confidence = item.confidence;
+    if (source?.stageName) proposal.legacy!.stageName = source.stageName;
+    if (source?.stageRole) proposal.legacy!.stageRole = source.stageRole;
+
+    return proposal;
+  });
+}
+
+/** Rule-based normalization, used whenever the LLM is unavailable or unusable. */
+function rulesFallback(rawItems: Gost34RequirementItem[]): LlmNormalizationResult {
+  const normalized = normalizeRequirementItemsV2(fromGost34RequirementItems(rawItems));
+  return {
+    requirements: toGost34RequirementItems(normalized, { preferNormalized: true }),
+    requirementsV2: normalized,
+    usedLlm: false,
+  };
+}
+
+export interface LlmNormalizationResult {
+  /** Legacy-shaped items for the existing pipeline; description shows the proposal. */
+  requirements: Gost34RequirementItem[];
+  /** Full proposals with provenance and approval state. */
+  requirementsV2: Gost34RequirementV2[];
+  usedLlm: boolean;
+  modelUsed?: string;
+  providerUsed?: string;
+}
+
 /**
  * Normalizes raw unstructured requirement text using Ollama or LM Studio / OpenAI API.
  */
 export async function normalizeRequirementsWithLlm(
   rawItems: Gost34RequirementItem[],
   options: LlmNormalizerOptions = {}
-): Promise<{ requirements: Gost34RequirementItem[]; usedLlm: boolean; modelUsed?: string; providerUsed?: string }> {
+): Promise<LlmNormalizationResult> {
   const provider = options.provider || 'ollama';
   const defaultEndpoint = provider === 'ollama' ? 'http://localhost:11434' : 'http://localhost:1234/v1';
   const endpoint = (options.endpoint || process.env.OLLAMA_HOST || defaultEndpoint).replace(/\/+$/, '');
@@ -83,10 +159,7 @@ export async function normalizeRequirementsWithLlm(
 
   if (!available) {
     if (fallbackToRules) {
-      return {
-        requirements: normalizeRequirementItems(rawItems),
-        usedLlm: false,
-      };
+      return rulesFallback(rawItems);
     } else {
       throw new Error(`ИИ-сервер недоступен по адресу ${endpoint}. Запустите Ollama или LM Studio.`);
     }
@@ -170,19 +243,11 @@ export async function normalizeRequirementsWithLlm(
           const parsedJson = JSON.parse(jsonString);
 
           if (Array.isArray(parsedJson) && parsedJson.length > 0) {
-            const llmRequirements: Gost34RequirementItem[] = parsedJson.map((item: any, idx: number) => ({
-              id: `req-lmstudio-${Date.now()}-${idx}`,
-              code: item.code || `ТР-ГОСТ-${String(idx + 1).padStart(2, '0')}`,
-              category: ['functional', 'security', 'reliability', 'performance', 'ergonomics', 'technical'].includes(item.category)
-                ? item.category
-                : 'functional',
-              title: item.title || item.code || 'Требование ГОСТ 34',
-              description: item.description || item.title || '',
-              sourceFile: `ИИ-Нормализация (${targetModel})`,
-            }));
+            const proposals = buildLlmProposals(parsedJson, rawItems, targetModel, 'req-lmstudio');
 
             return {
-              requirements: llmRequirements,
+              requirements: toGost34RequirementItems(proposals, { preferNormalized: true }),
+              requirementsV2: proposals,
               usedLlm: true,
               modelUsed: targetModel,
               providerUsed: 'LM Studio / OpenAI',
@@ -225,19 +290,11 @@ export async function normalizeRequirementsWithLlm(
         const parsedJson = JSON.parse(jsonString);
 
         if (Array.isArray(parsedJson) && parsedJson.length > 0) {
-          const llmRequirements: Gost34RequirementItem[] = parsedJson.map((item: any, idx: number) => ({
-            id: `req-ollama-${Date.now()}-${idx}`,
-            code: item.code || `ТР-ГОСТ-${String(idx + 1).padStart(2, '0')}`,
-            category: ['functional', 'security', 'reliability', 'performance', 'ergonomics', 'technical'].includes(item.category)
-              ? item.category
-              : 'functional',
-            title: item.title || item.code || 'Требование ГОСТ 34',
-            description: item.description || item.title || '',
-            sourceFile: `ИИ-Нормализация (${targetModel})`,
-          }));
+          const proposals = buildLlmProposals(parsedJson, rawItems, targetModel, 'req-ollama');
 
           return {
-            requirements: llmRequirements,
+            requirements: toGost34RequirementItems(proposals, { preferNormalized: true }),
+            requirementsV2: proposals,
             usedLlm: true,
             modelUsed: targetModel,
             providerUsed: 'Ollama',
@@ -250,8 +307,5 @@ export async function normalizeRequirementsWithLlm(
   }
 
   // Fallback to rules if LLM parsing failed
-  return {
-    requirements: normalizeRequirementItems(rawItems),
-    usedLlm: false,
-  };
+  return rulesFallback(rawItems);
 }

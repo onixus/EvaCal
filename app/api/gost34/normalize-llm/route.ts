@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       requirements: result.requirements,
+      requirementsV2: result.requirementsV2,
       usedLlm: result.usedLlm,
       modelUsed: result.modelUsed,
       providerUsed: result.providerUsed,
