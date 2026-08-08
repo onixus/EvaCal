@@ -69,10 +69,17 @@ export async function requireRole(role: string): Promise<SessionPayload> {
   return session as SessionPayload;
 }
 
-/** For Route Handlers: returns the session, or an error NextResponse to return immediately. */
-export async function requireApiRole(role: string): Promise<SessionPayload | NextResponse> {
+/**
+ * For Route Handlers: returns the session, or an error NextResponse to return
+ * immediately. Accepts several acceptable roles — a route that an architect may
+ * call is usually one an admin may call too.
+ */
+export async function requireApiRole(role: string | string[]): Promise<SessionPayload | NextResponse> {
+  const allowed = Array.isArray(role) ? role : [role];
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Требуется вход в систему" }, { status: 401 });
-  if (session.role !== role) return NextResponse.json({ error: "Недостаточно прав" }, { status: 403 });
+  if (!allowed.includes(session.role)) {
+    return NextResponse.json({ error: "Недостаточно прав" }, { status: 403 });
+  }
   return session;
 }

@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Gost34RequirementItem } from '../../types';
 import { normalizeRequirementsWithLlm } from '../llmNormalizer';
+import type { LlmProvider } from '../../llm/providers';
+
+const testProvider: LlmProvider = {
+  id: 'test-lmstudio',
+  label: 'Test LM Studio',
+  kind: 'openai_compatible',
+  endpoint: 'http://localhost:1234/v1',
+};
 
 const rawItems: Gost34RequirementItem[] = [
   {
@@ -45,10 +53,7 @@ describe('normalizeRequirementsWithLlm', () => {
   it('keeps the original text and the real source file', async () => {
     stubLmStudio(LLM_REPLY);
 
-    const result = await normalizeRequirementsWithLlm(rawItems, {
-      provider: 'openai_compatible',
-      endpoint: 'http://localhost:1234/v1',
-    });
+    const result = await normalizeRequirementsWithLlm(rawItems, { provider: testProvider });
 
     expect(result.usedLlm).toBe(true);
     const [proposal] = result.requirementsV2;
@@ -60,13 +65,13 @@ describe('normalizeRequirementsWithLlm', () => {
 
   it('marks LLM output as a proposal, never as approved', async () => {
     stubLmStudio(LLM_REPLY);
-    const result = await normalizeRequirementsWithLlm(rawItems, { provider: 'openai_compatible' });
+    const result = await normalizeRequirementsWithLlm(rawItems, { provider: testProvider });
     expect(result.requirementsV2[0].approval.status).toBe('PROPOSED');
   });
 
   it('still shows the model wording in the legacy item, with provenance attached', async () => {
     stubLmStudio(LLM_REPLY);
-    const result = await normalizeRequirementsWithLlm(rawItems, { provider: 'openai_compatible' });
+    const result = await normalizeRequirementsWithLlm(rawItems, { provider: testProvider });
     const [item] = result.requirements;
     expect(item.description).toBe(LLM_REPLY[0].description);
     expect(item.originalText).toBe('вести журнал событий безопасности');
@@ -76,7 +81,7 @@ describe('normalizeRequirementsWithLlm', () => {
 
   it('matches a reply positionally when the model changes the code', async () => {
     stubLmStudio([{ ...LLM_REPLY[0], code: 'ТР-НОВЫЙ-77' }]);
-    const result = await normalizeRequirementsWithLlm(rawItems, { provider: 'openai_compatible' });
+    const result = await normalizeRequirementsWithLlm(rawItems, { provider: testProvider });
     expect(result.requirementsV2[0].originalText).toBe('вести журнал событий безопасности');
     expect(result.requirementsV2[0].code).toBe('ТР-НОВЫЙ-77');
   });
@@ -86,7 +91,7 @@ describe('normalizeRequirementsWithLlm', () => {
       throw new Error('ECONNREFUSED');
     }));
 
-    const result = await normalizeRequirementsWithLlm(rawItems, { provider: 'openai_compatible' });
+    const result = await normalizeRequirementsWithLlm(rawItems, { provider: testProvider });
     expect(result.usedLlm).toBe(false);
     expect(result.requirementsV2[0].originalText).toBe('вести журнал событий безопасности');
     expect(result.requirements[0].description).toBe('вести журнал событий безопасности');
@@ -101,7 +106,7 @@ describe('normalizeRequirementsWithLlm', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await normalizeRequirementsWithLlm(rawItems, { provider: 'openai_compatible' });
+    const result = await normalizeRequirementsWithLlm(rawItems, { provider: testProvider });
     expect(result.usedLlm).toBe(false);
     expect(result.requirementsV2[0].originalText).toBe('вести журнал событий безопасности');
   });

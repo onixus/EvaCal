@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiRole } from '@/lib/auth';
+import { GOST34_LLM_ROLES } from '../roles';
 import { generateGost34Document } from '@/lib/gost34';
 
 export async function POST(req: NextRequest) {
+  const session = await requireApiRole(GOST34_LLM_ROLES);
+  if (session instanceof NextResponse) return session;
+
   try {
     const body = await req.json();
     const { calculation, metadataOverride, rawRequirements } = body;

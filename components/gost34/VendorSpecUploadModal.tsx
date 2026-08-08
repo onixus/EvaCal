@@ -5,6 +5,7 @@ import { GostDocumentType, Gost34RequirementItem } from "@/lib/gost34/types";
 import { normalizeRequirementItems } from "@/lib/gost34/parser/requirementSanitizer";
 import { DEFAULT_GOST34_PROFILE } from "@/lib/gost34/standards";
 import { ENRICHMENT_OPTION_KEYS } from "@/lib/gost34/enricher";
+import type { PublicLlmProvider } from "@/lib/gost34/llm/providers";
 
 /**
  * The modal exports under the default (legacy) profile. The current profile is
@@ -79,41 +80,42 @@ export default function VendorSpecUploadModal({
   const [newReqDesc, setNewReqDesc] = useState("");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
 
-  // Local LLM / Ollama & LM Studio configuration state
+  /**
+   * LLM configuration is server-side: the client picks a provider by id and
+   * never sees or sends an endpoint or an API key.
+   */
   const [showLlmSettings, setShowLlmSettings] = useState<boolean>(false);
-  const [llmProvider, setLlmProvider] = useState<"ollama" | "openai_compatible">("ollama");
-  const [llmEndpoint, setLlmEndpoint] = useState<string>("http://localhost:11434");
+  const [llmProviders, setLlmProviders] = useState<PublicLlmProvider[]>([]);
+  const [llmProviderId, setLlmProviderId] = useState<string>("");
   const [llmSelectedModel, setLlmSelectedModel] = useState<string>("");
-  const [llmApiKey, setLlmApiKey] = useState<string>("");
   const [llmAvailable, setLlmAvailable] = useState<boolean>(false);
   const [llmModels, setLlmModels] = useState<string[]>([]);
+  const [llmError, setLlmError] = useState<string>("");
   const [isLlmNormalizing, setIsLlmNormalizing] = useState<boolean>(false);
 
-  // Load saved LLM settings from localStorage
+  // One-time cleanup: earlier versions kept an API key in localStorage.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const savedProvider = localStorage.getItem("gost34_llm_provider") as any;
-    const savedEndpoint = localStorage.getItem("gost34_llm_endpoint");
-    const savedModel = localStorage.getItem("gost34_llm_model");
-    const savedApiKey = localStorage.getItem("gost34_llm_apikey");
-
-    if (savedProvider) setLlmProvider(savedProvider);
-    if (savedEndpoint) setLlmEndpoint(savedEndpoint);
-    if (savedModel) setLlmSelectedModel(savedModel);
-    if (savedApiKey) setLlmApiKey(savedApiKey);
+    for (const key of ["gost34_llm_provider", "gost34_llm_endpoint", "gost34_llm_model", "gost34_llm_apikey"]) {
+      localStorage.removeItem(key);
+    }
   }, []);
 
-  const handleCheckLlmStatus = async (
-    endpoint = llmEndpoint,
-    provider = llmProvider
-  ) => {
+  const handleCheckLlmStatus = async (providerId = llmProviderId) => {
+    if (!providerId) return false;
     try {
-      const query = new URLSearchParams({ endpoint, provider });
+      const query = new URLSearchParams({ providerId });
       const res = await fetch(`/api/gost34/llm-status?${query.toString()}`);
       const data = await res.json();
+      if (!res.ok) {
+        setLlmAvailable(false);
+        setLlmError(data?.error || "Не удалось проверить доступность ИИ-сервера.");
+        return false;
+      }
+      setLlmError("");
       setLlmAvailable(Boolean(data.available));
       setLlmModels(data.models || []);
-      if (data.models && data.models.length > 0 && !llmSelectedModel) {
+      if (data.models?.length > 0 && !llmSelectedModel) {
         setLlmSelectedModel(data.models[0]);
       }
       return data.available;
@@ -123,24 +125,37 @@ export default function VendorSpecUploadModal({
     }
   };
 
-  // Check LLM status on modal open or endpoint change
+  // Load the server-side provider list when the modal opens.
   useEffect(() => {
     if (!isOpen) return;
-    handleCheckLlmStatus(llmEndpoint, llmProvider);
-  }, [isOpen, llmEndpoint, llmProvider]);
+    let cancelled = false;
 
-  const saveLlmSettings = (
-    provider: "ollama" | "openai_compatible",
-    endpoint: string,
-    model: string,
-    key: string
-  ) => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem("gost34_llm_provider", provider);
-    localStorage.setItem("gost34_llm_endpoint", endpoint);
-    localStorage.setItem("gost34_llm_model", model);
-    localStorage.setItem("gost34_llm_apikey", key);
-  };
+    (async () => {
+      try {
+        const res = await fetch("/api/gost34/llm-providers");
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          setLlmError(data?.error || "ИИ-провайдеры недоступны.");
+          setLlmProviders([]);
+          return;
+        }
+        setLlmProviders(data.providers || []);
+        setLlmProviderId((current) => current || data.defaultProviderId || data.providers?.[0]?.id || "");
+      } catch {
+        if (!cancelled) setLlmError("Не удалось получить список ИИ-провайдеров.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !llmProviderId) return;
+    handleCheckLlmStatus(llmProviderId);
+  }, [isOpen, llmProviderId]);
 
   const handleNormalizeAll = () => {
     setExtractedReqs((prev) => normalizeRequirementItems(prev));
@@ -155,15 +170,14 @@ export default function VendorSpecUploadModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           requirements: extractedReqs,
-          provider: llmProvider,
-          endpoint: llmEndpoint,
+          providerId: llmProviderId,
           model: llmSelectedModel,
-          apiKey: llmApiKey,
         }),
       });
 
       if (!res.ok) {
-        throw new Error("Ошибка при обработке ИИ-моделью");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || "Ошибка при обработке ИИ-моделью");
       }
 
       const data = await res.json();
@@ -617,51 +631,39 @@ export default function VendorSpecUploadModal({
                       </div>
                       <button
                         type="button"
-                        onClick={() => handleCheckLlmStatus(llmEndpoint, llmProvider)}
+                        onClick={() => handleCheckLlmStatus()}
                         className="text-xs text-purple-300 hover:underline font-bold"
                       >
                         🔄 Проверить связь
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                      {/* Provider Select */}
+                    {llmError && (
+                      <div className="text-[11px] text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+                        {llmError}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      {/* Provider Select — ids only; the endpoint lives on the server */}
                       <div>
                         <label className="block text-[#a3be8c] text-[11px] font-bold mb-1">
                           Провайдер ИИ
                         </label>
                         <select
-                          value={llmProvider}
+                          value={llmProviderId}
                           onChange={(e) => {
-                            const newProv = e.target.value as any;
-                            setLlmProvider(newProv);
-                            const defaultEp = newProv === "ollama" ? "http://localhost:11434" : "http://localhost:1234/v1";
-                            setLlmEndpoint(defaultEp);
-                            saveLlmSettings(newProv, defaultEp, llmSelectedModel, llmApiKey);
-                            handleCheckLlmStatus(defaultEp, newProv);
+                            setLlmProviderId(e.target.value);
+                            setLlmSelectedModel("");
                           }}
-                          className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-1.5 text-white font-bold focus:border-purple-400 focus:outline-none"
+                          disabled={llmProviders.length === 0}
+                          className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-1.5 text-white font-bold focus:border-purple-400 focus:outline-none disabled:opacity-50"
                         >
-                          <option value="ollama">Ollama (по умолчанию: 11434)</option>
-                          <option value="openai_compatible">LM Studio / OpenAI Local (1234 / v1)</option>
+                          {llmProviders.length === 0 && <option value="">Нет настроенных провайдеров</option>}
+                          {llmProviders.map((p) => (
+                            <option key={p.id} value={p.id}>{p.label}</option>
+                          ))}
                         </select>
-                      </div>
-
-                      {/* Endpoint Input */}
-                      <div>
-                        <label className="block text-[#a3be8c] text-[11px] font-bold mb-1">
-                          Адрес сервера (Endpoint)
-                        </label>
-                        <input
-                          type="text"
-                          value={llmEndpoint}
-                          onChange={(e) => {
-                            setLlmEndpoint(e.target.value);
-                            saveLlmSettings(llmProvider, e.target.value, llmSelectedModel, llmApiKey);
-                          }}
-                          className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-1.5 text-white font-mono focus:border-purple-400 focus:outline-none"
-                          placeholder="http://localhost:11434"
-                        />
                       </div>
 
                       {/* Model Select / Manual Input */}
@@ -672,10 +674,7 @@ export default function VendorSpecUploadModal({
                         {llmModels.length > 0 ? (
                           <select
                             value={llmSelectedModel}
-                            onChange={(e) => {
-                              setLlmSelectedModel(e.target.value);
-                              saveLlmSettings(llmProvider, llmEndpoint, e.target.value, llmApiKey);
-                            }}
+                            onChange={(e) => setLlmSelectedModel(e.target.value)}
                             className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-1.5 text-white font-bold focus:border-purple-400 focus:outline-none"
                           >
                             {llmModels.map((m) => (
@@ -686,10 +685,7 @@ export default function VendorSpecUploadModal({
                           <input
                             type="text"
                             value={llmSelectedModel}
-                            onChange={(e) => {
-                              setLlmSelectedModel(e.target.value);
-                              saveLlmSettings(llmProvider, llmEndpoint, e.target.value, llmApiKey);
-                            }}
+                            onChange={(e) => setLlmSelectedModel(e.target.value)}
                             placeholder="llama3.2 / qwen2.5 / local-model"
                             className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-1.5 text-white focus:border-purple-400 focus:outline-none"
                           />
@@ -697,46 +693,13 @@ export default function VendorSpecUploadModal({
                       </div>
                     </div>
 
-                    {/* Presets Bar */}
-                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[#3b4252]/60 text-[11px]">
-                      <span className="text-slate-400">Быстрые пресеты:</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLlmProvider("ollama");
-                          setLlmEndpoint("http://localhost:11434");
-                          saveLlmSettings("ollama", "http://localhost:11434", llmSelectedModel, llmApiKey);
-                          handleCheckLlmStatus("http://localhost:11434", "ollama");
-                        }}
-                        className="px-2 py-0.5 rounded bg-[#2e3440] hover:bg-[#3b4252] text-slate-200 border border-[#434c5e]"
-                      >
-                        Ollama (11434)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLlmProvider("openai_compatible");
-                          setLlmEndpoint("http://localhost:1234/v1");
-                          saveLlmSettings("openai_compatible", "http://localhost:1234/v1", llmSelectedModel, llmApiKey);
-                          handleCheckLlmStatus("http://localhost:1234/v1", "openai_compatible");
-                        }}
-                        className="px-2 py-0.5 rounded bg-[#2e3440] hover:bg-[#3b4252] text-slate-200 border border-[#434c5e]"
-                      >
-                        LM Studio (1234)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLlmProvider("openai_compatible");
-                          setLlmEndpoint("http://localhost:8000/v1");
-                          saveLlmSettings("openai_compatible", "http://localhost:8000/v1", llmSelectedModel, llmApiKey);
-                          handleCheckLlmStatus("http://localhost:8000/v1", "openai_compatible");
-                        }}
-                        className="px-2 py-0.5 rounded bg-[#2e3440] hover:bg-[#3b4252] text-slate-200 border border-[#434c5e]"
-                      >
-                        vLLM / LocalAI (8000)
-                      </button>
-                    </div>
+                    <p className="text-[11px] text-slate-400 pt-1 border-t border-[#3b4252]/60">
+                      Адреса ИИ-серверов и ключи доступа задаются на сервере (переменные окружения
+                      <code className="mx-1 text-slate-300">OLLAMA_HOST</code>,
+                      <code className="mx-1 text-slate-300">LMSTUDIO_HOST</code>,
+                      <code className="mx-1 text-slate-300">EVACAL_LLM_PROVIDERS</code>)
+                      и в браузер не передаются.
+                    </p>
                   </div>
                 )}
 
