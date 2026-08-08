@@ -14,6 +14,8 @@ import {
   fromGost34RequirementItems,
   toGost34RequirementItems,
 } from './requirements';
+import { buildProjectContext } from './context/builder';
+import { ProjectContext } from './context/types';
 
 /**
  * Normalizes input from EvaCal Calculation model or direct external API input
@@ -39,6 +41,8 @@ export function analyzeAndNormalizeInput(input: {
   metadataOverride?: Partial<Gost34DocMetadata>;
   rawRequirements?: Gost34RequirementItem[];
   vendorFiles?: string[];
+  /** Ручной ввод проектного контекста: перекрывает данные опросника и расчёта. */
+  projectContext?: Partial<ProjectContext>;
 }): Gost34InputPayload {
   const calc = input.calculation;
 
@@ -159,6 +163,18 @@ export function analyzeAndNormalizeInput(input: {
   const pmHours = calc?.pmHours || 0;
   const totalLaborHours = totalStageHours + totalRiskHours + pmHours;
 
+  const projectContext = buildProjectContext({
+    systemName,
+    customerName,
+    answers: parsedAnswers,
+    stages,
+    risks,
+    requirements: customRequirements,
+    totalLaborHours,
+    vendorSourceFiles: input.vendorFiles || [],
+    override: input.projectContext,
+  });
+
   return {
     metadata,
     standardProfile,
@@ -173,5 +189,6 @@ export function analyzeAndNormalizeInput(input: {
     customRequirements,
     requirementsV2,
     vendorSourceFiles: input.vendorFiles || [],
+    projectContext,
   };
 }
