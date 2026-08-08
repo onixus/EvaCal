@@ -8,6 +8,12 @@ import {
 } from './types';
 import { getEnrichedGostRequirements } from './enricher';
 import { resolveGost34Profile } from './standards';
+import {
+  Gost34RequirementV2,
+  fromGost34RequirementItem,
+  fromGost34RequirementItems,
+  toGost34RequirementItems,
+} from './requirements';
 
 /**
  * Normalizes input from EvaCal Calculation model or direct external API input
@@ -110,30 +116,43 @@ export function analyzeAndNormalizeInput(input: {
   }));
 
   // Extract explicit functional and technical requirements from stage requirements
-  const extractedRequirements: Gost34RequirementItem[] = [];
+  const requirementsV2: Gost34RequirementV2[] = [];
   let reqCounter = 1;
 
   stages.forEach((stg) => {
     if (stg.requirements && stg.requirements.trim().length > 0) {
-      extractedRequirements.push({
-        id: `req-${reqCounter}`,
-        code: `ТР-ЭТ-${String(reqCounter).padStart(2, '0')}`,
-        category: 'functional',
-        title: `Требования к этапу «${stg.name}»`,
-        description: stg.requirements,
-        stageName: stg.name,
-        stageRole: stg.role,
-      });
+      requirementsV2.push(
+        fromGost34RequirementItem(
+          {
+            id: `req-${reqCounter}`,
+            code: `ТР-ЭТ-${String(reqCounter).padStart(2, '0')}`,
+            category: 'functional',
+            title: `Требования к этапу «${stg.name}»`,
+            description: stg.requirements,
+            stageName: stg.name,
+            stageRole: stg.role,
+          },
+          { sourceSection: stg.name }
+        )
+      );
       reqCounter++;
     }
   });
 
-  let customRequirements = [...extractedRequirements, ...(input.rawRequirements || [])];
+  requirementsV2.push(...fromGost34RequirementItems(input.rawRequirements || []));
 
   // Apply normative enrichment if flag is active
   if (metadata.enrichRequirements) {
-    customRequirements = [...customRequirements, ...getEnrichedGostRequirements(metadata.enrichmentOptions)];
+    // Canned regulatory text, not a machine proposal — it needs no review.
+    requirementsV2.push(
+      ...fromGost34RequirementItems(getEnrichedGostRequirements(metadata.enrichmentOptions), {
+        type: 'regulatory',
+        status: 'APPROVED',
+      })
+    );
   }
+
+  const customRequirements = toGost34RequirementItems(requirementsV2, { preferNormalized: true });
 
   const totalStageHours = stages.reduce((sum, s) => sum + s.hours, 0);
   const totalRiskHours = risks.reduce((sum, r) => sum + r.hours, 0);
@@ -152,6 +171,7 @@ export function analyzeAndNormalizeInput(input: {
     pmHours,
     totalLaborHours,
     customRequirements,
+    requirementsV2,
     vendorSourceFiles: input.vendorFiles || [],
   };
 }

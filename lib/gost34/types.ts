@@ -4,6 +4,7 @@
 
 // Type-only import: standards/types.ts imports GostDocumentType back from here.
 import type { StandardProfile } from './standards/types';
+import type { Gost34RequirementV2 } from './requirements/v2';
 
 export type GostDocumentType = 'TZ' | 'PZ' | 'AF' | 'PMI' | 'SPEC';
 
@@ -141,5 +142,7 @@ export interface Gost34InputPayload {
   pmHours?: number;
   totalLaborHours?: number;
   customRequirements?: Gost34RequirementItem[];
+  /** Same requirements in the v2 model, with provenance and approval state. */
+  requirementsV2?: Gost34RequirementV2[];
   vendorSourceFiles?: string[];
 }
