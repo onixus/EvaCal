@@ -55,6 +55,7 @@ describe('profile completeness', () => {
       expect(doc.title.trim()).not.toBe('');
       expect(doc.standardCitation.trim()).not.toBe('');
       expect(doc.shortLabel.trim()).not.toBe('');
+      expect(doc.uiTitle.trim()).not.toBe('');
       expect(doc.uiDescription.trim()).not.toBe('');
       // filenameBase goes straight into a ZIP entry name
       expect(doc.filenameBase).not.toMatch(/[\s/\\]/);

@@ -21,7 +21,9 @@ export interface DocumentProfile {
   standardCitation: string;
   /** Short label for UI ("ТЗ", "ПЗ", …). */
   shortLabel: string;
-  /** One-line description for the UI document-type grid. */
+  /** Card heading in the UI document-type grid. */
+  uiTitle: string;
+  /** Card body text in the UI document-type grid. */
   uiDescription: string;
   /** Filename body used in the batch ZIP (no extension, no separators). */
   filenameBase: string;
