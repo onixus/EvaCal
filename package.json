@@ -7,6 +7,9 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts"
   },
@@ -35,7 +38,8 @@
     "prisma": "^5.20.0",
     "tailwindcss": "^3.4.6",
     "tsx": "^4.16.2",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "vitest": "^3.2.7"
   },
   "overrides": {
     "postcss": "^8.5.18",
