@@ -2,9 +2,11 @@ import { analyzeAndNormalizeInput } from './analyzer';
 import { buildGost34DocumentAST } from './generator';
 import { exportGost34ToDocx } from './exporters/docxExporter';
 import { Gost34DocMetadata, Gost34RequirementItem, Gost34DocumentAST } from './types';
+import { ProjectContext } from './context/types';
 
 export * from './types';
 export * from './standards';
+export * from './context';
 export { getEnrichedGostRequirements } from './enricher';
 export { analyzeAndNormalizeInput } from './analyzer';
 export { buildGost34DocumentAST } from './generator';
@@ -18,6 +20,7 @@ export async function generateGost34Document(params: {
   calculation?: any;
   metadataOverride?: Partial<Gost34DocMetadata>;
   rawRequirements?: Gost34RequirementItem[];
+  projectContext?: Partial<ProjectContext>;
 }): Promise<{ buffer: Buffer; filename: string; ast: Gost34DocumentAST }> {
   const normalizedPayload = analyzeAndNormalizeInput(params);
   const ast = buildGost34DocumentAST(normalizedPayload);
