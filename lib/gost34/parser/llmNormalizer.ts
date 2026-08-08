@@ -5,12 +5,16 @@ import {
   toGost34RequirementItems,
 } from '../requirements';
 import { normalizeRequirementItemsV2 } from './requirementSanitizer';
+import { LlmProvider, getProviderApiKey } from '../llm/providers';
 
 export interface LlmNormalizerOptions {
-  provider?: 'ollama' | 'openai_compatible'; // Default: 'ollama'
-  endpoint?: string; // Default: http://localhost:11434 or http://localhost:1234/v1
+  /**
+   * Resolved server-side provider. There is deliberately no `endpoint` or
+   * `apiKey` option: a caller must not be able to choose what the server
+   * connects to, or what credential it sends. See lib/gost34/llm/providers.ts.
+   */
+  provider: LlmProvider;
   model?: string; // Default: llama3.2, qwen2.5, mistral, deepseek-r1
-  apiKey?: string;
   temperature?: number;
   fallbackToRules?: boolean;
 }
@@ -147,11 +151,11 @@ export interface LlmNormalizationResult {
  */
 export async function normalizeRequirementsWithLlm(
   rawItems: Gost34RequirementItem[],
-  options: LlmNormalizerOptions = {}
+  options: LlmNormalizerOptions
 ): Promise<LlmNormalizationResult> {
-  const provider = options.provider || 'ollama';
-  const defaultEndpoint = provider === 'ollama' ? 'http://localhost:11434' : 'http://localhost:1234/v1';
-  const endpoint = (options.endpoint || process.env.OLLAMA_HOST || defaultEndpoint).replace(/\/+$/, '');
+  const provider = options.provider.kind;
+  const endpoint = options.provider.endpoint.replace(/\/+$/, '');
+  const apiKey = getProviderApiKey(options.provider);
   const fallbackToRules = options.fallbackToRules !== false;
 
   // 1. Check availability
@@ -166,7 +170,7 @@ export async function normalizeRequirementsWithLlm(
   }
 
   const preferredModels = ['qwen2.5', 'llama3.2', 'llama3', 'mistral', 'deepseek-r1', 'gemma2', 'local-model'];
-  let targetModel = options.model;
+  let targetModel = options.model || options.provider.defaultModel;
 
   if (!targetModel) {
     targetModel = models.find((m) => preferredModels.some((pref) => m.toLowerCase().includes(pref))) || models[0] || 'llama3.2';
@@ -214,8 +218,8 @@ export async function normalizeRequirementsWithLlm(
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-      if (options.apiKey) {
-        headers['Authorization'] = `Bearer ${options.apiKey}`;
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
       }
 
       const res = await fetch(chatUrl, {

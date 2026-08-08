@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiRole } from '@/lib/auth';
+import { GOST34_LLM_ROLES } from '../roles';
 import { parseVendorDocument } from '@/lib/gost34/parser/vendorDocParser';
 import { normalizeRequirementItems } from '@/lib/gost34/parser/requirementSanitizer';
 
 export async function POST(req: NextRequest) {
+  const session = await requireApiRole(GOST34_LLM_ROLES);
+  if (session instanceof NextResponse) return session;
+
   try {
     const formData = await req.formData();
     const files = formData.getAll('files') as File[];
