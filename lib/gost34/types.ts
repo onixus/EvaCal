@@ -2,7 +2,13 @@
  * GOST 34 / GOST 2.104-2006 / GOST 2.105-95 Domain Types
  */
 
+// Type-only import: standards/types.ts imports GostDocumentType back from here.
+import type { StandardProfile } from './standards/types';
+
 export type GostDocumentType = 'TZ' | 'PZ' | 'AF' | 'PMI' | 'SPEC';
+
+/** What an export request may ask for: one document, or the full batch as a ZIP. */
+export type GostExportType = GostDocumentType | 'ZIP';
 
 export interface Gost2104Signatures {
   developer: string; // Разработал (ФИО)
@@ -47,6 +53,7 @@ export interface Gost34DocMetadata {
   version: string; // Версия документа
   enrichRequirements?: boolean; // Флаг нормативного авто-обогащения
   enrichmentOptions?: Gost34EnrichmentOptions; // Выбранные стандарты нормативного обогащения
+  standardProfileId?: string; // Идентификатор нормативного профиля (по умолчанию legacy)
 }
 
 export type RequirementCategory =
@@ -108,6 +115,8 @@ export interface Gost34Section {
 export interface Gost34DocumentAST {
   metadata: Gost34DocMetadata;
   sections: Gost34Section[];
+  /** Optional so a hand-built AST still compiles; the exporter falls back to legacy. */
+  standardProfile?: StandardProfile;
 }
 
 /**
@@ -115,6 +124,7 @@ export interface Gost34DocumentAST {
  */
 export interface Gost34InputPayload {
   metadata: Gost34DocMetadata;
+  standardProfile: StandardProfile;
   systemName: string;
   customerName: string;
   templateName?: string;

@@ -36,5 +36,6 @@ export function buildGost34DocumentAST(payload: Gost34InputPayload): Gost34Docum
   return {
     metadata: meta,
     sections,
+    standardProfile: payload.standardProfile,
   };
 }

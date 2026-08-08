@@ -6,6 +6,7 @@ export function buildTZ34Sections(payload: Gost34InputPayload): Gost34Section[] 
   const stages = payload.stages;
   const risks = payload.risks || [];
   const reqs = payload.customRequirements || [];
+  const citations = payload.standardProfile.citations;
 
   const traceabilityTable = generateTraceabilityTable(reqs, stages);
 
@@ -109,7 +110,7 @@ export function buildTZ34Sections(payload: Gost34InputPayload): Gost34Section[] 
       numStr: '6',
       title: 'ПОРЯДОК КОНТРОЛЯ И ПРИЕМКИ СИСТЕМЫ',
       paragraphs: [
-        '6.1 Приемка системы осуществляется по результатам приемо-сдаточных испытаний (ПСИ) в соответствии с ПМИ (РД 50-34.698-90 п.2.7).',
+        `6.1 Приемка системы осуществляется по результатам приемо-сдаточных испытаний (ПСИ) в соответствии с ПМИ (${citations.testing}).`,
         '6.2 По результатам ПСИ подписывается двусторонний Акт сдачи-приемки выполненных работ.',
       ],
     },
@@ -123,14 +124,14 @@ export function buildTZ34Sections(payload: Gost34InputPayload): Gost34Section[] 
       id: 'sec-8',
       numStr: '8',
       title: 'ТРЕБОВАНИЯ К ДОКУМЕНТИРОВАНИЮ',
-      paragraphs: ['8.1 Комплект документации включает: ТЗ (ГОСТ 34.602-89), ПЗ, АФ, ПМИ, Спецификацию ПО и оборудования (SPEC) и Руководство пользователя.'],
+      paragraphs: [`8.1 ${citations.documentationSetSentence}`],
     },
     {
       id: 'sec-9',
       numStr: '9',
       title: 'ИСТОЧНИКИ РАЗРАБОТКИ',
       paragraphs: [
-        '9.1 ГОСТ 34.602-89, ГОСТ 34.201-89, РД 50-34.698-90, ГОСТ 7.32-2017, ГОСТ Р 56939-2016, Приказы ФСТЭК России № 21 и № 117, Федеральный закон 152-ФЗ.',
+        `9.1 ${citations.referencesList}`,
         `9.2 Материалы опросника и технические требования проекта «${meta.systemName}».`,
       ],
     },

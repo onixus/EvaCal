@@ -40,6 +40,8 @@ export type CitationKey =
   | 'documentsClassifier'
   | 'projectDocumentation'
   | 'testing'
+  /** Standards the equipment/software specification is drawn up under, incl. clause. */
+  | 'specificationBasis'
   | 'referencesList'
   | 'frameFallbackTitle'
   | 'documentationSetSentence';

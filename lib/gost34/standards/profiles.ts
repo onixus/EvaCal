@@ -153,6 +153,8 @@ export const GOST34_2020_PROFILE: StandardProfile = {
     documentsClassifier: 'ГОСТ 34.201-2020',
     projectDocumentation: 'ГОСТ Р 59795-2021',
     testing: 'ГОСТ Р 59792-2021',
+    // TODO(PR-03): no verified clause-level successor to РД 50-34.698-90 п.2.8 yet.
+    specificationBasis: 'ГОСТ 34.201-2020 и ГОСТ Р 59795-2021',
     referencesList:
       'ГОСТ 34.602-2020, ГОСТ 34.201-2020, ГОСТ Р 59793-2021, ГОСТ Р 59795-2021, ГОСТ Р 59792-2021, ГОСТ 7.32-2017, ГОСТ Р 56939-2016, Приказы ФСТЭК России № 21 и № 117, Федеральный закон 152-ФЗ.',
     frameFallbackTitle: 'Техническое задание по ГОСТ 34',
@@ -209,6 +211,7 @@ export const GOST34_LEGACY_PROFILE: StandardProfile = {
     documentsClassifier: 'ГОСТ 34.201-89',
     projectDocumentation: 'РД 50-34.698-90',
     testing: 'РД 50-34.698-90 п.2.7',
+    specificationBasis: 'ГОСТ 34.201-89 и РД 50-34.698-90 (п. 2.8)',
     referencesList:
       'ГОСТ 34.602-89, ГОСТ 34.201-89, РД 50-34.698-90, ГОСТ 7.32-2017, ГОСТ Р 56939-2016, Приказы ФСТЭК России № 21 и № 117, Федеральный закон 152-ФЗ.',
     frameFallbackTitle: 'Техническое задание по ГОСТ 34',
