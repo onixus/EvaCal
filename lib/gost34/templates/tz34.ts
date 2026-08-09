@@ -1,7 +1,7 @@
 import { Gost34InputPayload, Gost34RequirementItem, Gost34Section } from '../types';
 import { buildProjectContext } from '../context/builder';
 import { normalizeProjectContextForGeneration } from '../context/normalize';
-import { ContextGap } from '../context/types';
+import { CONTEXT_GAP_PLACEHOLDER, ContextGap } from '../context/types';
 import { toGost34RequirementItems } from '../requirements/adapters';
 import { LEGACY_GOST34_PROFILE_ID } from '../standards';
 import { renderDocumentSchema, validateSchemaCoverage } from '../schema/renderer';
@@ -48,6 +48,26 @@ function applyTraceabilityToRequirements(payload: Gost34InputPayload): Gost34Inp
   return { ...payload, customRequirements };
 }
 
+function reconcileRenderedSections(
+  sections: Gost34Section[],
+  payload: Gost34InputPayload
+): Gost34Section[] {
+  if (payload.stages.length > 0) return sections;
+
+  return sections.map((section) => {
+    if (section.id !== 'tz2020-work-scope') return section;
+
+    return {
+      ...section,
+      paragraphs: section.paragraphs.map((paragraph) =>
+        paragraph.includes('Перечень стадий и этапов работ, их содержание и трудоёмкость приведены в таблице')
+          ? `${section.numStr}.1 Состав стадий и этапов работ — ${CONTEXT_GAP_PLACEHOLDER}.`
+          : paragraph
+      ),
+    };
+  });
+}
+
 export function buildTZ34Document(payload: Gost34InputPayload): TZ34BuildResult {
   const effectivePayload = applyTraceabilityToRequirements(payload);
 
@@ -75,9 +95,10 @@ export function buildTZ34Document(payload: Gost34InputPayload): TZ34BuildResult 
     schema: TZ_SCHEMA_2020,
   });
   const coverageIssues = validateSchemaCoverage(TZ_SCHEMA_2020, rendered.sections);
+  const sections = reconcileRenderedSections(rendered.sections, effectivePayload);
 
   return {
-    sections: rendered.sections,
+    sections,
     gaps: rendered.gaps,
     issues: [...rendered.issues, ...coverageIssues],
   };
