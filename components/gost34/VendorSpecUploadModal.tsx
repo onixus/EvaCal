@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { GostDocumentType, Gost34RequirementItem } from '@/lib/gost34/types';
 import { normalizeRequirementItems } from '@/lib/gost34/parser/requirementSanitizer';
 import { DEFAULT_GOST34_PROFILE } from '@/lib/gost34/standards';
+import { LAYOUT_PROFILES, DEFAULT_LAYOUT_PROFILE } from '@/lib/gost34/exporters/layout';
+import type { LayoutProfileId } from '@/lib/gost34/exporters/layout';
 import { ENRICHMENT_OPTION_KEYS } from '@/lib/gost34/enricher';
 import type { PublicLlmProvider } from '@/lib/gost34/llm/providers';
 
@@ -27,6 +29,8 @@ const DOCUMENT_TYPE_CARDS: Array<{
     desc: doc.uiDescription,
   }));
 
+const LAYOUT_PROFILE_CARDS = Object.values(LAYOUT_PROFILES);
+
 interface VendorSpecUploadModalProps {
   calculationId: string;
   calculationName?: string;
@@ -49,6 +53,9 @@ export default function VendorSpecUploadModal({
 
   // Document metadata state
   const [docType, setDocType] = useState<GostDocumentType>('TZ');
+  const [layoutProfileId, setLayoutProfileId] = useState<LayoutProfileId>(
+    DEFAULT_LAYOUT_PROFILE.id,
+  );
   const [developer, setDeveloper] = useState('Иванов А.В.');
   const [checker, setChecker] = useState('Петров С.Н.');
   const [normControl, setNormControl] = useState('Васильева Е.И.');
@@ -303,6 +310,7 @@ export default function VendorSpecUploadModal({
     try {
       const payload = {
         docType,
+        layoutProfileId,
         contractNumber,
         city,
         enrich,
@@ -363,6 +371,7 @@ export default function VendorSpecUploadModal({
       const payload = {
         docType: 'ZIP',
         isBatchZip: true,
+        layoutProfileId,
         contractNumber,
         city,
         enrich,
@@ -1324,6 +1333,59 @@ export default function VendorSpecUploadModal({
                   </p>
                 </div>
 
+                {/* Layout Profile Selector — рамки ЕСКД / современный стиль */}
+                <div className="space-y-2 border-b border-[#3b4252] pb-4">
+                  <div>
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      Оформление документа
+                    </span>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Рамка по ГОСТ 2.301-68 (20 мм слева, 5 мм с прочих сторон) и основные надписи
+                      форм 2 / 2а по ГОСТ 2.104-2006
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    {LAYOUT_PROFILE_CARDS.map((profile) => {
+                      const isSelected = layoutProfileId === profile.id;
+                      return (
+                        <button
+                          key={profile.id}
+                          type="button"
+                          onClick={() => setLayoutProfileId(profile.id)}
+                          aria-pressed={isSelected}
+                          className={`p-3 rounded-xl border text-left transition-all ${
+                            isSelected
+                              ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-600/25 ring-1 ring-blue-300'
+                              : 'bg-[#1c1f26] border-[#3b4252] text-slate-300 hover:border-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-xs">{profile.name}</span>
+                            {profile.showEskdFrames && (
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                  isSelected
+                                    ? 'bg-white text-blue-700'
+                                    : 'bg-[#2e3440] text-blue-300 border border-[#434c5e]'
+                                }`}
+                              >
+                                рамка
+                              </span>
+                            )}
+                          </div>
+                          <p
+                            className={`text-[11px] mt-1.5 leading-relaxed ${
+                              isSelected ? 'text-blue-100' : 'text-slate-400'
+                            }`}
+                          >
+                            {profile.description}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* 5 Document Types Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {DOCUMENT_TYPE_CARDS.map((item) => {
@@ -1372,6 +1434,10 @@ export default function VendorSpecUploadModal({
                     <div className="text-slate-300 leading-relaxed">
                       • Выбранный документ:{' '}
                       <strong className="text-blue-400 font-bold">{docType}</strong>
+                      <br />• Оформление:{' '}
+                      <strong className="text-white font-bold">
+                        {LAYOUT_PROFILES[layoutProfileId].name}
+                      </strong>
                       <br />• Извлечённых требований вендора:{' '}
                       <strong className="text-white font-bold">{extractedReqs.length}</strong>
                       <br />• Включённых государственных стандартов:{' '}

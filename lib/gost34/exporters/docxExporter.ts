@@ -10,15 +10,18 @@ import {
   AlignmentType,
   HeadingLevel,
   Footer,
+  Header,
   convertMillimetersToTwip,
-  BorderStyle,
-  PageBorderOffsetFrom,
-  PageBorderDisplay,
   PageNumber,
   TableOfContents,
 } from 'docx';
 import { Gost34DocumentAST, Gost34Section } from '../types';
-import { buildGost2104Form2Table, buildGost2104Form2aTable } from './gostFrameBuilder';
+import {
+  buildGost2104Form2Table,
+  buildGost2104Form2aTable,
+  buildEskdFrameHeader,
+  FRAME_LEFT_MM,
+} from './gostFrameBuilder';
 import { DEFAULT_GOST34_PROFILE, getDocumentHeadings } from '../standards';
 import { getLayoutProfile } from './layout';
 
@@ -43,41 +46,26 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
     bottom: convertMillimetersToTwip(layoutProfile.margins.bottomMm),
     left: convertMillimetersToTwip(layoutProfile.margins.leftMm),
     right: convertMillimetersToTwip(layoutProfile.margins.rightMm),
+    header: convertMillimetersToTwip(5),
+    footer: convertMillimetersToTwip(5),
   };
 
-  // Outer GOST Page Frame Border (used when showEskdFrames is enabled)
-  const gostBordersConfig = layoutProfile.showEskdFrames
-    ? {
-        pageBorders: {
-          display: PageBorderDisplay.ALL_PAGES,
-          offsetFrom: PageBorderOffsetFrom.PAGE,
-        },
-        pageBorderTop: {
-          style: BorderStyle.SINGLE,
-          size: 12,
-          color: '000000',
-          space: 14,
-        },
-        pageBorderBottom: {
-          style: BorderStyle.SINGLE,
-          size: 12,
-          color: '000000',
-          space: 14,
-        },
-        pageBorderLeft: {
-          style: BorderStyle.SINGLE,
-          size: 12,
-          color: '000000',
-          space: 31,
-        },
-        pageBorderRight: {
-          style: BorderStyle.SINGLE,
-          size: 12,
-          color: '000000',
-          space: 14,
-        },
-      }
-    : undefined;
+  /**
+   * Рамка ЕСКД рисуется VML-фигурой в колонтитуле, а не через `w:pgBorders`:
+   * Word не даёт отодвинуть границу страницы дальше 31 пункта от края, из-за
+   * чего левое поле подшивки 20 мм по `pgBorders` недостижимо.
+   */
+  let frameInstance = 0;
+  const makeFrameHeaders = () =>
+    layoutProfile.showEskdFrames
+      ? {
+          default: new Header({ children: [buildEskdFrameHeader(frameInstance++)] }),
+          first: new Header({ children: [buildEskdFrameHeader(frameInstance++)] }),
+        }
+      : undefined;
+
+  // Штампы прижимаются к левой линии рамки, а текст отступает от неё внутрь.
+  const stampIndentMm = FRAME_LEFT_MM - layoutProfile.margins.leftMm;
 
   // Title Page Elements
   const titlePageChildren: (Paragraph | Table)[] = [
@@ -390,10 +378,10 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
   const footersConfig = layoutProfile.showEskdFrames
     ? {
         first: new Footer({
-          children: [buildGost2104Form2Table(meta, standardProfile)],
+          children: [buildGost2104Form2Table(meta, standardProfile, stampIndentMm)],
         }),
         default: new Footer({
-          children: [buildGost2104Form2aTable(meta)],
+          children: [buildGost2104Form2aTable(meta, stampIndentMm)],
         }),
       }
     : {
@@ -432,14 +420,14 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
   // Build Word Document
   const doc = new Document({
     sections: [
-      // Title Section
+      // Title Section — рамка есть, основной надписи (штампа) на титуле нет
       {
         properties: {
           page: {
             margin: titleMargin,
-            borders: gostBordersConfig as any,
           },
         },
+        headers: makeFrameHeaders(),
         children: titlePageChildren,
       },
       // Main Body Section
@@ -455,9 +443,9 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
               footer: convertMillimetersToTwip(5),
               header: convertMillimetersToTwip(5),
             },
-            borders: gostBordersConfig as any,
           },
         },
+        headers: makeFrameHeaders(),
         footers: footersConfig,
         children: docBodyElements,
       },
