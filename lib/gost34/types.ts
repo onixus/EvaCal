@@ -153,4 +153,6 @@ export interface Gost34InputPayload {
   applicability?: ApplicabilityResult[];
   /** Замечания GOST Validator к набору требований. Не блокирует генерацию. */
   validation?: ValidationReport;
+  /** Предварительно рассчитанные или вручную отредактированные связи трассировки (Traceability Engine, PR-07). */
+  traceability?: import('./traceability/types').TraceabilityResult;
 }
