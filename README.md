@@ -107,6 +107,7 @@ npm run dev
 - `npm run format` — автоматически отформатирует код с помощью Prettier.
 - `npm run lint` — проверит код линтером ESLint.
 - `npm run prepare` — выполнит `format` и `lint` последовательно (используется в CI).
+- `npm audit` — проверяет уязвимости; после обновления `nanoid` запустите `npm install` для применения исправления.
 
 Хук `pre-commit` от Husky автоматически запускает `npm run format && npm run lint` перед каждым коммитом.
 
