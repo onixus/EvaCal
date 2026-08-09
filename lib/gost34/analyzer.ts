@@ -16,6 +16,7 @@ import {
 } from './requirements';
 import { buildProjectContext } from './context/builder';
 import { ProjectContext } from './context/types';
+import { validateRequirements } from './validation';
 
 /**
  * Normalizes input from EvaCal Calculation model or direct external API input
@@ -190,5 +191,6 @@ export function analyzeAndNormalizeInput(input: {
     requirementsV2,
     vendorSourceFiles: input.vendorFiles || [],
     projectContext,
+    validation: validateRequirements(requirementsV2),
   };
 }

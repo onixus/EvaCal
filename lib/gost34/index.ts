@@ -7,6 +7,7 @@ import { ProjectContext } from './context/types';
 export * from './types';
 export * from './standards';
 export * from './context';
+export * from './validation';
 export { getEnrichedGostRequirements } from './enricher';
 export { analyzeAndNormalizeInput } from './analyzer';
 export { buildGost34DocumentAST } from './generator';

@@ -3,6 +3,7 @@ import { requireApiRole } from '@/lib/auth';
 import { normalizeRequirementsWithLlm } from '@/lib/gost34/parser/llmNormalizer';
 import { EndpointNotAllowedError } from '@/lib/gost34/llm/endpointGuard';
 import { resolveLlmProvider } from '@/lib/gost34/llm/providers';
+import { validateRequirements } from '@/lib/gost34/validation';
 import { GOST34_LLM_ROLES } from '../roles';
 
 export async function POST(req: NextRequest) {
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       requirements: result.requirements,
       requirementsV2: result.requirementsV2,
+      validation: validateRequirements(result.requirementsV2),
       usedLlm: result.usedLlm,
       modelUsed: result.modelUsed,
       providerUsed: result.providerUsed,

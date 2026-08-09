@@ -70,6 +70,17 @@ describe('analyzer requirement assembly', () => {
     }
   });
 
+  it('attaches a validation report without blocking on library requirements', () => {
+    const { validation } = analyze(true);
+
+    expect(validation).toBeDefined();
+    // "Собрать требования." carries no obligation wording — completeness catches it.
+    expect(validation!.byRequirement['req-1'].some((f) => f.rule === 'completeness')).toBe(true);
+    // Canned regulatory text is not editable here, so it may warn but never block.
+    const libraryFindings = validation!.findings.filter((f) => f.requirementCode?.startsWith('ТР-БЕЗ-2'));
+    expect(libraryFindings.every((f) => f.severity !== 'ERROR')).toBe(true);
+  });
+
   it('appends enrichment after the project requirements', () => {
     const withoutEnrichment = analyze(false).customRequirements!;
     const withEnrichment = analyze(true).customRequirements!;
