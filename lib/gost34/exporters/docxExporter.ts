@@ -14,38 +14,47 @@ import {
   BorderStyle,
   PageBorderOffsetFrom,
   PageBorderDisplay,
+  PageNumber,
+  TableOfContents,
 } from 'docx';
 import { Gost34DocumentAST, Gost34Section } from '../types';
 import { buildGost2104Form2Table, buildGost2104Form2aTable } from './gostFrameBuilder';
 import { DEFAULT_GOST34_PROFILE, getDocumentHeadings } from '../standards';
+import { getLayoutProfile } from './layout';
 
 /**
  * Renders a GOST 34 Document AST into a Microsoft Word (.docx) binary buffer
- * using strict GOST 7.32-2017 / GOST 2.104-2006 / GOST 2.105-95 formatting rules:
- * - Title Page Margins: Left 20mm, Right 10mm, Top 15mm, Bottom 15mm
- * - Main Body Margins: Left 20mm, Right 10mm, Top 15mm, Bottom 45mm (leaves room for Form 2/2a stamps)
- * - Outer GOST page frame: offsetFrom PAGE with valid point offsets
- * - Typography: Times New Roman, 14pt (28 dxa), 1.5 line spacing, 1.25cm indent
- * - GOST 2.104 Form 2 (Sheet 1 bottom footer) & Form 2a (Subsequent sheets bottom footer)
+ * supporting Layout Profiles (gost34-modern, gost34-eskd-frame, plain-corporate).
  */
 export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer> {
   const meta = ast.metadata;
   const sigs = meta.signatures;
 
+  const layoutProfile = getLayoutProfile(meta.layoutProfileId);
   const standardProfile = ast.standardProfile ?? DEFAULT_GOST34_PROFILE;
   const { title: docTitleText, subtitle: docSubtitleText } = getDocumentHeadings(standardProfile, meta.docType);
 
-  // Outer GOST Page Frame Border (offsetFrom PAGE with valid OpenXML point spaces: 14pt ~ 5mm, 31pt ~ 11mm)
-  const gostBordersConfig = {
-    pageBorders: {
-      display: PageBorderDisplay.ALL_PAGES,
-      offsetFrom: PageBorderOffsetFrom.PAGE,
-    },
-    pageBorderTop: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 14 },
-    pageBorderBottom: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 14 },
-    pageBorderLeft: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 31 },
-    pageBorderRight: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 14 },
+  // Margins in twips from layoutProfile
+  const titleMargin = {
+    top: convertMillimetersToTwip(layoutProfile.margins.topMm),
+    bottom: convertMillimetersToTwip(layoutProfile.margins.bottomMm),
+    left: convertMillimetersToTwip(layoutProfile.margins.leftMm),
+    right: convertMillimetersToTwip(layoutProfile.margins.rightMm),
   };
+
+  // Outer GOST Page Frame Border (used when showEskdFrames is enabled)
+  const gostBordersConfig = layoutProfile.showEskdFrames
+    ? {
+        pageBorders: {
+          display: PageBorderDisplay.ALL_PAGES,
+          offsetFrom: PageBorderOffsetFrom.PAGE,
+        },
+        pageBorderTop: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 14 },
+        pageBorderBottom: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 14 },
+        pageBorderLeft: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 31 },
+        pageBorderRight: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 14 },
+      }
+    : undefined;
 
   // Title Page Elements
   const titlePageChildren: (Paragraph | Table)[] = [
@@ -311,50 +320,108 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
     }
   };
 
+  // Add Table of Contents if enabled in Layout Profile
+  if (layoutProfile.includeTOC) {
+    docBodyElements.unshift(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_1,
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 200, after: 300 },
+        children: [
+          new TextRun({
+            text: 'СОДЕРЖАНИЕ',
+            bold: true,
+            font: layoutProfile.fontFamily,
+            size: 32,
+          }),
+        ],
+      }),
+      new TableOfContents('СОДЕРЖАНИЕ', {
+        hyperlink: true,
+        headingStyleRange: '1-3',
+      }) as any,
+      new Paragraph({
+        spacing: { before: 400, after: 400 },
+        children: [],
+      })
+    );
+  }
+
   ast.sections.forEach((sec) => renderSection(sec));
 
-  // Build Word Document with exact GOST 2.104 frames and section page properties
+  // Determine Footers based on Layout Profile
+  const footersConfig = layoutProfile.showEskdFrames
+    ? {
+        first: new Footer({
+          children: [buildGost2104Form2Table(meta, standardProfile)],
+        }),
+        default: new Footer({
+          children: [buildGost2104Form2aTable(meta)],
+        }),
+      }
+    : {
+        default: new Footer({
+          children: [
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              spacing: { before: 100 },
+              children: [
+                new TextRun({
+                  text: 'Страница ',
+                  font: layoutProfile.fontFamily,
+                  size: 20,
+                }),
+                new TextRun({
+                  children: [PageNumber.CURRENT],
+                  font: layoutProfile.fontFamily,
+                  size: 20,
+                }),
+                new TextRun({
+                  text: ' из ',
+                  font: layoutProfile.fontFamily,
+                  size: 20,
+                }),
+                new TextRun({
+                  children: [PageNumber.TOTAL_PAGES],
+                  font: layoutProfile.fontFamily,
+                  size: 20,
+                }),
+              ],
+            }),
+          ],
+        }),
+      };
+
+  // Build Word Document
   const doc = new Document({
     sections: [
-      // Title Section (No Stamp Footer)
+      // Title Section
       {
         properties: {
           page: {
-            margin: {
-              top: convertMillimetersToTwip(15),
-              bottom: convertMillimetersToTwip(15),
-              left: convertMillimetersToTwip(20),
-              right: convertMillimetersToTwip(10),
-            },
+            margin: titleMargin,
             borders: gostBordersConfig as any,
           },
         },
         children: titlePageChildren,
       },
-      // Main Body Section (Form 2 on Sheet 1, Form 2a on subsequent sheets)
+      // Main Body Section
       {
         properties: {
-          titlePage: true, // Enables different first page header/footer!
+          titlePage: layoutProfile.showEskdFrames, // Enables different first page footer only if ESKD frames are on
           page: {
             margin: {
-              top: convertMillimetersToTwip(15),
-              bottom: convertMillimetersToTwip(45), // 45mm bottom margin leaves room for 40mm Form 2 stamp
-              left: convertMillimetersToTwip(20),
-              right: convertMillimetersToTwip(10),
+              top: convertMillimetersToTwip(layoutProfile.margins.topMm),
+              bottom: convertMillimetersToTwip(layoutProfile.margins.bottomMm),
+              left: convertMillimetersToTwip(layoutProfile.margins.leftMm),
+              right: convertMillimetersToTwip(layoutProfile.margins.rightMm),
               footer: convertMillimetersToTwip(5),
               header: convertMillimetersToTwip(5),
             },
             borders: gostBordersConfig as any,
           },
         },
-        footers: {
-          first: new Footer({
-            children: [buildGost2104Form2Table(meta, standardProfile)],
-          }),
-          default: new Footer({
-            children: [buildGost2104Form2aTable(meta)],
-          }),
-        },
+        footers: footersConfig,
         children: docBodyElements,
       },
     ],

@@ -57,6 +57,7 @@ export interface Gost34DocMetadata {
   enrichRequirements?: boolean; // Флаг нормативного авто-обогащения
   enrichmentOptions?: Gost34EnrichmentOptions; // Выбранные стандарты нормативного обогащения
   standardProfileId?: string; // Идентификатор нормативного профиля (по умолчанию legacy)
+  layoutProfileId?: import('./exporters/layout/types').LayoutProfileId; // Профиль визуального оформления DOCX
 }
 
 export type RequirementCategory =
