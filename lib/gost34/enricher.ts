@@ -1,7 +1,13 @@
 import { Gost34RequirementItem, Gost34EnrichmentOptions } from './types';
+import type { ProjectContext } from './context/types';
+import {
+  evaluateApplicability,
+  toEnrichmentOptions,
+  type OverrideInput,
+} from './applicability';
 
 /**
- * Returns standard GOST 34 / RF regulatory requirements based on selected options for each order/standard:
+ * Returns standard GOST 34 / RF regulatory requirements based on selected options or ProjectContext evaluation:
  * - FSTEK Order No. 21 (ISPDn)
  * - FSTEK Order No. 117 + GOST R 56939-2016 (Secure Development)
  * - FSTEK Order No. 239 (KII Security)
@@ -14,7 +20,7 @@ import { Gost34RequirementItem, Gost34EnrichmentOptions } from './types';
  * - Federal Law No. 152-FZ / 242-FZ (Personal Data Localization in RF)
  * - Federal Law No. 188-FZ (Russian Software Registry, Astra Linux/PostgreSQL)
  * - SLA 99.9% Reliability (RTO ≤ 15 min, RPO ≤ 5 min)
- * - GOST R 52872-2019 / WCAG 2.1 AA (Web Accessibility)
+ * - GOST Р 52872-2019 / WCAG 2.1 AA (Web Accessibility)
  */
 /** Every enrichment flag, in UI order. Single source of truth for the option count. */
 export const ENRICHMENT_OPTION_KEYS: Array<keyof Gost34EnrichmentOptions> = [
@@ -34,18 +40,26 @@ export const ENRICHMENT_OPTION_KEYS: Array<keyof Gost34EnrichmentOptions> = [
 ];
 
 export function getEnrichedGostRequirements(
-  options?: Gost34EnrichmentOptions
+  options?: Gost34EnrichmentOptions,
+  context?: ProjectContext,
+  overrides?: OverrideInput
 ): Gost34RequirementItem[] {
+  let opts: Gost34EnrichmentOptions;
+
+  if (context) {
+    const applicability = evaluateApplicability(context, overrides ?? options);
+    opts = toEnrichmentOptions(applicability);
+  } else if (options) {
+    opts = options;
+  } else {
+    opts = {};
+  }
+
   const reqs: Gost34RequirementItem[] = [];
-
-  // Default: if options is undefined, enable all
-  const opts: Gost34EnrichmentOptions =
-    options || Object.fromEntries(ENRICHMENT_OPTION_KEYS.map((key) => [key, true]));
-
   let idx = 1;
 
   // 1. Приказ ФСТЭК России № 21 (ИСПДн)
-  if (opts.fstek_21 !== false) {
+  if (opts.fstek_21 === true) {
     reqs.push({
       id: `req-norm-${idx++}`,
       code: 'ТР-БЕЗ-21',
@@ -57,7 +71,7 @@ export function getEnrichedGostRequirements(
   }
 
   // 2. Приказ ФСТЭК России № 117 + ГОСТ Р 56939-2016 (Безопасная разработка ПО)
-  if (opts.fstek_117 !== false) {
+  if (opts.fstek_117 === true) {
     reqs.push({
       id: `req-norm-${idx++}`,
       code: 'ТР-БЕЗ-117',
@@ -69,7 +83,7 @@ export function getEnrichedGostRequirements(
   }
 
   // 3. Приказ ФСТЭК России № 239 (Безопасность объектов КИИ)
-  if (opts.fstek_239 !== false) {
+  if (opts.fstek_239 === true) {
     reqs.push({
       id: `req-norm-${idx++}`,
       code: 'ТР-БЕЗ-239',
@@ -81,7 +95,7 @@ export function getEnrichedGostRequirements(
   }
 
   // 4. ГОСТ Р 57580.1-2017 / СТО БР ИББС (Безопасность финансовых операций)
-  if (opts.gost_57580 !== false) {
+  if (opts.gost_57580 === true) {
     reqs.push({
       id: `req-norm-${idx++}`,
       code: 'ТР-БЕЗ-57580',
@@ -93,7 +107,7 @@ export function getEnrichedGostRequirements(
   }
 
   // 5. Положение ЦБ РФ № 683-П (Безопасность ПО кредитных организаций)
-  if (opts.cb_683p !== false) {
+  if (opts.cb_683p === true) {
     reqs.push({
       id: `req-norm-${idx++}`,
       code: 'ТР-БЕЗ-683П',
@@ -105,7 +119,7 @@ export function getEnrichedGostRequirements(
   }
 
   // 6. Положение ЦБ РФ № 757-П (Безопасность НФО)
-  if (opts.cb_757p !== false) {
+  if (opts.cb_757p === true) {
     reqs.push({
       id: `req-norm-${idx++}`,
       code: 'ТР-БЕЗ-757П',
@@ -117,7 +131,7 @@ export function getEnrichedGostRequirements(
   }
 
   // 7. Положение ЦБ РФ № 719-П (Антифрод и электронная подпись)
-  if (opts.cb_719p !== false) {
+  if (opts.cb_719p === true) {
     reqs.push({
       id: `req-norm-${idx++}`,
       code: 'ТР-БЕЗ-719П',
@@ -129,7 +143,7 @@ export function getEnrichedGostRequirements(
   }
 
   // 8. Приказ ФСБ России № 282 (Взаимодействие с ГосСОПКА / НКЦКИ)
-  if (opts.fsb_282_gossopka !== false) {
+  if (opts.fsb_282_gossopka === true) {
     reqs.push({
       id: `req-norm-${idx++}`,
       code: 'ТР-БЕЗ-282',
@@ -141,7 +155,7 @@ export function getEnrichedGostRequirements(
   }
 
   // 9. 187-ФЗ (О безопасности КИИ РФ)
-  if (opts.fz_187_kii !== false) {
+  if (opts.fz_187_kii === true) {
     reqs.push({
       id: `req-norm-${idx++}`,
       code: 'ТР-БЕЗ-187ФЗ',
@@ -153,7 +167,7 @@ export function getEnrichedGostRequirements(
   }
 
   // 10. 152-ФЗ / 242-ФЗ (Локализация баз данных персональных данных в РФ)
-  if (opts.fz_152 !== false) {
+  if (opts.fz_152 === true) {
     reqs.push({
       id: `req-norm-${idx++}`,
       code: 'ТР-БЕЗ-152ФЗ',
@@ -165,7 +179,7 @@ export function getEnrichedGostRequirements(
   }
 
   // 11. 188-ФЗ (Реестр отечественного ПО, Astra Linux/PostgreSQL)
-  if (opts.fz_188_reestr !== false) {
+  if (opts.fz_188_reestr === true) {
     reqs.push({
       id: `req-norm-${idx++}`,
       code: 'ТР-ТЕХ-188ФЗ',
@@ -177,7 +191,7 @@ export function getEnrichedGostRequirements(
   }
 
   // 12. SLA 99.9% (RTO ≤ 15 мин, RPO ≤ 5 мин)
-  if (opts.sla_999 !== false) {
+  if (opts.sla_999 === true) {
     reqs.push({
       id: `req-norm-${idx++}`,
       code: 'ТР-НАД-SLA',
@@ -189,7 +203,7 @@ export function getEnrichedGostRequirements(
   }
 
   // 13. ГОСТ Р 52872-2019 / WCAG 2.1 AA (Доступность веб-интерфейсов)
-  if (opts.wcag_52872 !== false) {
+  if (opts.wcag_52872 === true) {
     reqs.push({
       id: `req-norm-${idx++}`,
       code: 'ТР-ЭРГ-WCAG',

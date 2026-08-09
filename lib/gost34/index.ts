@@ -8,6 +8,7 @@ export * from './types';
 export * from './standards';
 export * from './context';
 export * from './validation';
+export * from './applicability';
 export { getEnrichedGostRequirements } from './enricher';
 export { analyzeAndNormalizeInput } from './analyzer';
 export { buildGost34DocumentAST } from './generator';

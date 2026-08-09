@@ -17,6 +17,7 @@ import {
 import { buildProjectContext } from './context/builder';
 import { ProjectContext } from './context/types';
 import { validateRequirements } from './validation';
+import { evaluateApplicability } from './applicability';
 
 /**
  * Normalizes input from EvaCal Calculation model or direct external API input
@@ -146,23 +147,12 @@ export function analyzeAndNormalizeInput(input: {
 
   requirementsV2.push(...fromGost34RequirementItems(input.rawRequirements || []));
 
-  // Apply normative enrichment if flag is active
-  if (metadata.enrichRequirements) {
-    // Canned regulatory text, not a machine proposal — it needs no review.
-    requirementsV2.push(
-      ...fromGost34RequirementItems(getEnrichedGostRequirements(metadata.enrichmentOptions), {
-        type: 'regulatory',
-        status: 'APPROVED',
-      })
-    );
-  }
-
-  const customRequirements = toGost34RequirementItems(requirementsV2, { preferNormalized: true });
-
   const totalStageHours = stages.reduce((sum, s) => sum + s.hours, 0);
   const totalRiskHours = risks.reduce((sum, r) => sum + r.hours, 0);
   const pmHours = calc?.pmHours || 0;
   const totalLaborHours = totalStageHours + totalRiskHours + pmHours;
+
+  const baseCustomRequirements = toGost34RequirementItems(requirementsV2, { preferNormalized: true });
 
   const projectContext = buildProjectContext({
     systemName,
@@ -170,11 +160,27 @@ export function analyzeAndNormalizeInput(input: {
     answers: parsedAnswers,
     stages,
     risks,
-    requirements: customRequirements,
+    requirements: baseCustomRequirements,
     totalLaborHours,
     vendorSourceFiles: input.vendorFiles || [],
     override: input.projectContext,
   });
+
+  const applicability = evaluateApplicability(projectContext, metadata.enrichmentOptions);
+
+  // Apply normative enrichment if flag is active
+  if (metadata.enrichRequirements) {
+    // Canned regulatory text, evaluated from ProjectContext & overrides
+    const enriched = getEnrichedGostRequirements(metadata.enrichmentOptions, projectContext);
+    requirementsV2.push(
+      ...fromGost34RequirementItems(enriched, {
+        type: 'regulatory',
+        status: 'APPROVED',
+      })
+    );
+  }
+
+  const customRequirements = toGost34RequirementItems(requirementsV2, { preferNormalized: true });
 
   return {
     metadata,
@@ -191,6 +197,7 @@ export function analyzeAndNormalizeInput(input: {
     requirementsV2,
     vendorSourceFiles: input.vendorFiles || [],
     projectContext,
+    applicability,
     validation: validateRequirements(requirementsV2),
   };
 }
