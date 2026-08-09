@@ -1,11 +1,7 @@
-import type { Gost34RequirementV2 } from "../requirements";
-import { getRequirementEffectiveText } from "../requirements";
-import { hasMeasurableValue, findVagueTerms, MODAL_PATTERN } from "./lexicon";
-import type {
-  ValidationFinding,
-  ValidationRuleId,
-  ValidationSeverity,
-} from "./types";
+import type { Gost34RequirementV2 } from '../requirements';
+import { getRequirementEffectiveText } from '../requirements';
+import { hasMeasurableValue, findVagueTerms, MODAL_PATTERN } from './lexicon';
+import type { ValidationFinding, ValidationRuleId, ValidationSeverity } from './types';
 
 /** Предрасчёт по одному требованию: правила не должны разбирать текст повторно. */
 export interface RequirementCheck {
@@ -31,7 +27,7 @@ export function buildCheck(requirement: Gost34RequirementV2): RequirementCheck {
     hasModal: MODAL_PATTERN.test(text),
     measurable: hasMeasurableValue(text),
     vagueTerms: findVagueTerms(text),
-    isLibrary: requirement.type === "regulatory" && !requirement.source,
+    isLibrary: requirement.type === 'regulatory' && !requirement.source,
   };
 }
 
@@ -52,8 +48,7 @@ export function finding(
   };
 
   if (suggestion) result.suggestion = suggestion;
-  if (relatedRequirementIds?.length)
-    result.relatedRequirementIds = relatedRequirementIds;
+  if (relatedRequirementIds?.length) result.relatedRequirementIds = relatedRequirementIds;
 
   return result;
 }

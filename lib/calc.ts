@@ -1,12 +1,12 @@
-import { prisma } from "./prisma";
+import { prisma } from './prisma';
 import {
   expandWithApprovals,
   scheduleItems,
   PrimaryStageInput,
   ScheduleConfig,
   DEFAULT_SCHEDULE_CONFIG,
-} from "./scheduling";
-import { computePmHours } from "./pm";
+} from './scheduling';
+import { computePmHours } from './pm';
 
 /** Wipes and regenerates every Stage row for a calculation from an ordered list of primary stages. */
 export async function rebuildStages(
@@ -15,11 +15,7 @@ export async function rebuildStages(
   startDate: Date,
   config: ScheduleConfig = DEFAULT_SCHEDULE_CONFIG,
 ) {
-  const scheduled = scheduleItems(
-    expandWithApprovals(primary),
-    startDate,
-    config,
-  );
+  const scheduled = scheduleItems(expandWithApprovals(primary), startDate, config);
 
   await prisma.stage.deleteMany({ where: { calculationId } });
 
@@ -48,7 +44,7 @@ export async function rebuildStages(
 
   return prisma.stage.findMany({
     where: { calculationId },
-    orderBy: { order: "asc" },
+    orderBy: { order: 'asc' },
   });
 }
 
@@ -87,9 +83,7 @@ export function primaryStagesFromTemplate(
   return [...stageTemplates]
     .sort((a, b) => a.order - b.order)
     .map((st) => {
-      const driverValue = st.driverFieldKey
-        ? Number(answers[st.driverFieldKey] ?? 0) || 0
-        : 0;
+      const driverValue = st.driverFieldKey ? Number(answers[st.driverFieldKey] ?? 0) || 0 : 0;
       return {
         name: st.name,
         role: st.role,

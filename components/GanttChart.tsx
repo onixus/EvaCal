@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { roleLabel } from "@/lib/roles";
+import { roleLabel } from '@/lib/roles';
 
 export interface GanttStage {
   id: string;
@@ -16,27 +16,25 @@ export interface GanttStage {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  consultant: "bg-sky-500",
-  developer: "bg-violet-500",
-  engineer: "bg-orange-500",
-  analyst: "bg-teal-500",
-  architect: "bg-indigo-500",
-  customer: "bg-amber-400",
-  other: "bg-slate-400",
+  consultant: 'bg-sky-500',
+  developer: 'bg-violet-500',
+  engineer: 'bg-orange-500',
+  analyst: 'bg-teal-500',
+  architect: 'bg-indigo-500',
+  customer: 'bg-amber-400',
+  other: 'bg-slate-400',
 };
 
 function fmtDate(d: string | Date): string {
-  return new Date(d).toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
+  return new Date(d).toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
   });
 }
 
 export default function GanttChart({ stages }: { stages: GanttStage[] }) {
   if (stages.length === 0) {
-    return (
-      <p className="text-sm text-slate-500">Нет этапов для отображения.</p>
-    );
+    return <p className="text-sm text-slate-500">Нет этапов для отображения.</p>;
   }
 
   const starts = stages.map((s) => new Date(s.startDate).getTime());
@@ -68,21 +66,21 @@ export default function GanttChart({ stages }: { stages: GanttStage[] }) {
                   className="w-56 shrink-0 truncate text-sm text-slate-700 dark:text-nord-4"
                   title={stage.name}
                 >
-                  {stage.isApprovalTask ? "⏳ " : ""}
-                  {stage.parallel ? "∥ " : ""}
+                  {stage.isApprovalTask ? '⏳ ' : ''}
+                  {stage.parallel ? '∥ ' : ''}
                   {stage.name}
                 </div>
                 <div className="relative h-6 flex-1 rounded bg-slate-100 dark:bg-nord-1">
                   <div
                     className={`absolute h-6 rounded ${
                       stage.isApprovalTask
-                        ? "bg-amber-400/70 border border-dashed border-amber-500 dark:bg-nord-yellow/40 dark:border-nord-yellow"
-                        : (ROLE_COLORS[stage.role] ?? "bg-slate-400")
-                    } ${stage.parallel ? "ring-2 ring-sky-400 dark:ring-nord-frost2" : ""}`}
+                        ? 'bg-amber-400/70 border border-dashed border-amber-500 dark:bg-nord-yellow/40 dark:border-nord-yellow'
+                        : (ROLE_COLORS[stage.role] ?? 'bg-slate-400')
+                    } ${stage.parallel ? 'ring-2 ring-sky-400 dark:ring-nord-frost2' : ''}`}
                     style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                     title={`${fmtDate(stage.startDate)} — ${fmtDate(stage.endDate)}${
-                      stage.isApprovalTask ? "" : ` · ${stage.hours} ч`
-                    }${stage.requirements ? `\n${stage.requirements}` : ""}`}
+                      stage.isApprovalTask ? '' : ` · ${stage.hours} ч`
+                    }${stage.requirements ? `\n${stage.requirements}` : ''}`}
                   />
                 </div>
                 <div className="w-28 shrink-0 text-right text-xs text-slate-500 dark:text-nord-muted">

@@ -1,16 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireApiRole } from "@/lib/auth";
-import { checkLocalLlmAvailability } from "@/lib/gost34/parser/llmNormalizer";
-import { EndpointNotAllowedError } from "@/lib/gost34/llm/endpointGuard";
-import { resolveLlmProvider } from "@/lib/gost34/llm/providers";
-import { GOST34_LLM_ROLES } from "../roles";
+import { NextRequest, NextResponse } from 'next/server';
+import { requireApiRole } from '@/lib/auth';
+import { checkLocalLlmAvailability } from '@/lib/gost34/parser/llmNormalizer';
+import { EndpointNotAllowedError } from '@/lib/gost34/llm/endpointGuard';
+import { resolveLlmProvider } from '@/lib/gost34/llm/providers';
+import { GOST34_LLM_ROLES } from '../roles';
 
 export async function GET(req: NextRequest) {
   const session = await requireApiRole(GOST34_LLM_ROLES);
   if (session instanceof NextResponse) return session;
 
   // The caller names a provider; it never supplies a URL.
-  const providerId = req.nextUrl.searchParams.get("providerId") || undefined;
+  const providerId = req.nextUrl.searchParams.get('providerId') || undefined;
 
   let provider;
   try {
@@ -22,10 +22,7 @@ export async function GET(req: NextRequest) {
     throw e;
   }
 
-  const status = await checkLocalLlmAvailability(
-    provider.endpoint,
-    provider.kind,
-  );
+  const status = await checkLocalLlmAvailability(provider.endpoint, provider.kind);
 
   // Note: the endpoint is deliberately absent from the response.
   return NextResponse.json({

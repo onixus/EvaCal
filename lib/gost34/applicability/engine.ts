@@ -1,17 +1,10 @@
-import type { ProjectContext } from "../context/types";
-import type { Gost34EnrichmentOptions } from "../types";
-import {
-  ApplicabilityResult,
-  ApplicabilityStatus,
-  ApplicabilityOverride,
-} from "./types";
-import { APPLICABILITY_RULES } from "./rules";
+import type { ProjectContext } from '../context/types';
+import type { Gost34EnrichmentOptions } from '../types';
+import { ApplicabilityResult, ApplicabilityStatus, ApplicabilityOverride } from './types';
+import { APPLICABILITY_RULES } from './rules';
 
 export type OverrideInput =
-  | Record<
-      string,
-      ApplicabilityOverride | ApplicabilityStatus | boolean | undefined
-    >
+  | Record<string, ApplicabilityOverride | ApplicabilityStatus | boolean | undefined>
   | Gost34EnrichmentOptions;
 
 /**
@@ -21,22 +14,20 @@ function normalizeOverride(
   override?: ApplicabilityOverride | ApplicabilityStatus | boolean,
 ): ApplicabilityOverride | undefined {
   if (override === undefined || override === null) return undefined;
-  if (typeof override === "boolean") {
+  if (typeof override === 'boolean') {
     return {
-      status: override ? "APPLICABLE" : "NOT_APPLICABLE",
-      confirmedBy: "Ручной выбор",
-      reason: override ? "Включено пользователем" : "Отключено пользователем",
+      status: override ? 'APPLICABLE' : 'NOT_APPLICABLE',
+      confirmedBy: 'Ручной выбор',
+      reason: override ? 'Включено пользователем' : 'Отключено пользователем',
     };
   }
-  if (typeof override === "string") {
-    if (override === "APPLICABLE" || override === "NOT_APPLICABLE") {
+  if (typeof override === 'string') {
+    if (override === 'APPLICABLE' || override === 'NOT_APPLICABLE') {
       return {
         status: override,
-        confirmedBy: "Ручной выбор",
+        confirmedBy: 'Ручной выбор',
         reason:
-          override === "APPLICABLE"
-            ? "Подтверждено пользователем"
-            : "Отклонено пользователем",
+          override === 'APPLICABLE' ? 'Подтверждено пользователем' : 'Отклонено пользователем',
       };
     }
     return undefined;
@@ -54,9 +45,7 @@ export function evaluateApplicability(
 ): ApplicabilityResult[] {
   return APPLICABILITY_RULES.map((rule) => {
     const evaluation = rule.evaluate(context);
-    const normalizedOverride = normalizeOverride(
-      (overrides as Record<string, any>)?.[rule.id],
-    );
+    const normalizedOverride = normalizeOverride((overrides as Record<string, any>)?.[rule.id]);
 
     const finalStatus: ApplicabilityStatus = normalizedOverride
       ? normalizedOverride.status
@@ -65,11 +54,9 @@ export function evaluateApplicability(
     const reasons = [...evaluation.reasons];
     if (normalizedOverride) {
       reasons.push(
-        `Ручное решение: ${normalizedOverride.status === "APPLICABLE" ? "Применимо" : "Не применимо"}${
-          normalizedOverride.confirmedBy
-            ? ` (${normalizedOverride.confirmedBy})`
-            : ""
-        }${normalizedOverride.reason ? `: ${normalizedOverride.reason}` : ""}`,
+        `Ручное решение: ${normalizedOverride.status === 'APPLICABLE' ? 'Применимо' : 'Не применимо'}${
+          normalizedOverride.confirmedBy ? ` (${normalizedOverride.confirmedBy})` : ''
+        }${normalizedOverride.reason ? `: ${normalizedOverride.reason}` : ''}`,
       );
     }
 
@@ -109,11 +96,9 @@ export function evaluateStandardApplicability(
   const reasons = [...evaluation.reasons];
   if (normalizedOverride) {
     reasons.push(
-      `Ручное решение: ${normalizedOverride.status === "APPLICABLE" ? "Применимо" : "Не применимо"}${
-        normalizedOverride.confirmedBy
-          ? ` (${normalizedOverride.confirmedBy})`
-          : ""
-      }${normalizedOverride.reason ? `: ${normalizedOverride.reason}` : ""}`,
+      `Ручное решение: ${normalizedOverride.status === 'APPLICABLE' ? 'Применимо' : 'Не применимо'}${
+        normalizedOverride.confirmedBy ? ` (${normalizedOverride.confirmedBy})` : ''
+      }${normalizedOverride.reason ? `: ${normalizedOverride.reason}` : ''}`,
     );
   }
 
@@ -136,52 +121,36 @@ export function evaluateStandardApplicability(
  * Преобразует результаты оценки применимости в набор флагов Gost34EnrichmentOptions.
  * Флаг true ставится ТОЛЬКО для стандартов с finalStatus === 'APPLICABLE'.
  */
-export function toEnrichmentOptions(
-  results: ApplicabilityResult[],
-): Gost34EnrichmentOptions {
+export function toEnrichmentOptions(results: ApplicabilityResult[]): Gost34EnrichmentOptions {
   const options: Record<string, boolean> = {};
   for (const item of results) {
-    options[item.standardId] = item.finalStatus === "APPLICABLE";
+    options[item.standardId] = item.finalStatus === 'APPLICABLE';
   }
   return options as Gost34EnrichmentOptions;
 }
 
 /** Возвращает только подтверждённые применимые стандарты. */
-export function getApplicableStandards(
-  results: ApplicabilityResult[],
-): ApplicabilityResult[] {
-  return results.filter((r) => r.finalStatus === "APPLICABLE");
+export function getApplicableStandards(results: ApplicabilityResult[]): ApplicabilityResult[] {
+  return results.filter((r) => r.finalStatus === 'APPLICABLE');
 }
 
 /** Возвращает стандарты, требующие подтверждения у Заказчика (UNKNOWN). */
-export function getUnknownStandards(
-  results: ApplicabilityResult[],
-): ApplicabilityResult[] {
-  return results.filter((r) => r.finalStatus === "UNKNOWN");
+export function getUnknownStandards(results: ApplicabilityResult[]): ApplicabilityResult[] {
+  return results.filter((r) => r.finalStatus === 'UNKNOWN');
 }
 
 /** Возвращает стандарты, признанные неприменимыми (NOT_APPLICABLE). */
-export function getNotApplicableStandards(
-  results: ApplicabilityResult[],
-): ApplicabilityResult[] {
-  return results.filter((r) => r.finalStatus === "NOT_APPLICABLE");
+export function getNotApplicableStandards(results: ApplicabilityResult[]): ApplicabilityResult[] {
+  return results.filter((r) => r.finalStatus === 'NOT_APPLICABLE');
 }
 
 /** Сводная статистика применимости для UI и валидации. */
 export function getApplicabilitySummary(results: ApplicabilityResult[]) {
-  const applicable = results.filter(
-    (r) => r.finalStatus === "APPLICABLE",
-  ).length;
-  const unknown = results.filter((r) => r.finalStatus === "UNKNOWN").length;
-  const notApplicable = results.filter(
-    (r) => r.finalStatus === "NOT_APPLICABLE",
-  ).length;
-  const confidenceSum = results.reduce(
-    (sum, r) => sum + (r.confidence ?? 0),
-    0,
-  );
-  const confidenceAverage =
-    results.length > 0 ? confidenceSum / results.length : 0;
+  const applicable = results.filter((r) => r.finalStatus === 'APPLICABLE').length;
+  const unknown = results.filter((r) => r.finalStatus === 'UNKNOWN').length;
+  const notApplicable = results.filter((r) => r.finalStatus === 'NOT_APPLICABLE').length;
+  const confidenceSum = results.reduce((sum, r) => sum + (r.confidence ?? 0), 0);
+  const confidenceAverage = results.length > 0 ? confidenceSum / results.length : 0;
 
   return {
     total: results.length,

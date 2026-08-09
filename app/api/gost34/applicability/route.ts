@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireApiRole } from "@/lib/auth";
-import { buildProjectContext } from "@/lib/gost34/context";
+import { NextRequest, NextResponse } from 'next/server';
+import { requireApiRole } from '@/lib/auth';
+import { buildProjectContext } from '@/lib/gost34/context';
 import {
   evaluateApplicability,
   getApplicabilitySummary,
   toEnrichmentOptions,
-} from "@/lib/gost34/applicability";
-import { GOST34_LLM_ROLES } from "../roles";
+} from '@/lib/gost34/applicability';
+import { GOST34_LLM_ROLES } from '../roles';
 
 /**
  * Оценка применимости нормативных актов и стандартов (Applicability Engine, PR-05).
@@ -18,14 +18,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { projectContext, answers, overrides, systemName, customerName } =
-      body;
+    const { projectContext, answers, overrides, systemName, customerName } = body;
 
     const context =
       projectContext ||
       buildProjectContext({
-        systemName: systemName || "Автоматизированная система",
-        customerName: customerName || "Заказчик",
+        systemName: systemName || 'Автоматизированная система',
+        customerName: customerName || 'Заказчик',
         answers: answers || {},
       });
 
@@ -39,9 +38,9 @@ export async function POST(req: NextRequest) {
       options,
     });
   } catch (err: any) {
-    console.error("Error in GOST 34 applicability endpoint:", err);
+    console.error('Error in GOST 34 applicability endpoint:', err);
     return NextResponse.json(
-      { error: err?.message || "Applicability evaluation failed" },
+      { error: err?.message || 'Applicability evaluation failed' },
       { status: 500 },
     );
   }

@@ -6,4 +6,4 @@
  * PDF / XLSX / JSON routes — only the endpoints that spend server resources or
  * reach out to a network service require a session.
  */
-export const GOST34_LLM_ROLES = ["architect", "admin"];
+export const GOST34_LLM_ROLES = ['architect', 'admin'];

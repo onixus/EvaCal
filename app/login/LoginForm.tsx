@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/";
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const next = searchParams.get('next') || '/';
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -17,17 +17,17 @@ export default function LoginForm() {
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Не удалось войти");
-      router.push(data.mustChangePassword ? "/account" : next);
+      if (!res.ok) throw new Error(data.error ?? 'Не удалось войти');
+      router.push(data.mustChangePassword ? '/account' : next);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError(err instanceof Error ? err.message : 'Ошибка');
     } finally {
       setSubmitting(false);
     }
@@ -55,12 +55,8 @@ export default function LoginForm() {
         />
       </div>
       {error && <p className="text-sm text-rose-600">{error}</p>}
-      <button
-        type="submit"
-        className="btn-primary w-full"
-        disabled={submitting}
-      >
-        {submitting ? "Вход…" : "Войти"}
+      <button type="submit" className="btn-primary w-full" disabled={submitting}>
+        {submitting ? 'Вход…' : 'Войти'}
       </button>
     </form>
   );

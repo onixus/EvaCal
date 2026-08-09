@@ -1,11 +1,11 @@
-import { Gost34RequirementItem } from "../types";
+import { Gost34RequirementItem } from '../types';
 import {
   Gost34RequirementV2,
   fromGost34RequirementItems,
   toGost34RequirementItems,
-} from "../requirements";
-import { normalizeRequirementItemsV2 } from "./requirementSanitizer";
-import { LlmProvider, getProviderApiKey } from "../llm/providers";
+} from '../requirements';
+import { normalizeRequirementItemsV2 } from './requirementSanitizer';
+import { LlmProvider, getProviderApiKey } from '../llm/providers';
 
 export interface LlmNormalizerOptions {
   /**
@@ -23,19 +23,19 @@ export interface LlmNormalizerOptions {
  * Checks availability of Ollama or LM Studio / OpenAI-compatible endpoint.
  */
 export async function checkLocalLlmAvailability(
-  endpoint: string = "http://localhost:11434",
-  provider: "ollama" | "openai_compatible" = "ollama",
+  endpoint: string = 'http://localhost:11434',
+  provider: 'ollama' | 'openai_compatible' = 'ollama',
 ): Promise<{ available: boolean; provider: string; models: string[] }> {
-  const cleanEndpoint = endpoint.replace(/\/+$/, "");
+  const cleanEndpoint = endpoint.replace(/\/+$/, '');
 
   // 1. Try Ollama Native API (/api/tags)
-  if (provider === "ollama" || !provider) {
+  if (provider === 'ollama' || !provider) {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2500);
 
       const res = await fetch(`${cleanEndpoint}/api/tags`, {
-        method: "GET",
+        method: 'GET',
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -43,7 +43,7 @@ export async function checkLocalLlmAvailability(
       if (res.ok) {
         const data = await res.json();
         const models = (data.models || []).map((m: any) => m.name || m.model);
-        return { available: true, provider: "ollama", models };
+        return { available: true, provider: 'ollama', models };
       }
     } catch (e) {
       // Ignore and try OpenAI / LM Studio endpoint
@@ -55,12 +55,12 @@ export async function checkLocalLlmAvailability(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2500);
 
-    const modelsUrl = cleanEndpoint.endsWith("/v1")
+    const modelsUrl = cleanEndpoint.endsWith('/v1')
       ? `${cleanEndpoint}/models`
       : `${cleanEndpoint}/v1/models`;
 
     const res = await fetch(modelsUrl, {
-      method: "GET",
+      method: 'GET',
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
@@ -68,7 +68,7 @@ export async function checkLocalLlmAvailability(
     if (res.ok) {
       const data = await res.json();
       const models = (data.data || []).map((m: any) => m.id || m.name);
-      return { available: true, provider: "openai_compatible", models };
+      return { available: true, provider: 'openai_compatible', models };
     }
   } catch (e) {
     // Both failed
@@ -78,12 +78,12 @@ export async function checkLocalLlmAvailability(
 }
 
 const LLM_CATEGORIES = [
-  "functional",
-  "security",
-  "reliability",
-  "performance",
-  "ergonomics",
-  "technical",
+  'functional',
+  'security',
+  'reliability',
+  'performance',
+  'ergonomics',
+  'technical',
 ];
 
 /**
@@ -110,28 +110,24 @@ function buildLlmProposals(
   return parsedJson.map((item: any, idx: number) => {
     // Match the reply back to its input by code, else positionally.
     const source = (item.code && byCode.get(item.code)) || rawItems[idx];
-    const proposedText = item.description || item.title || "";
+    const proposedText = item.description || item.title || '';
 
     const proposal: Gost34RequirementV2 = {
       id: source?.id || `${idPrefix}-${stamp}-${idx}`,
-      code:
-        item.code ||
-        source?.code ||
-        `ТР-ГОСТ-${String(idx + 1).padStart(2, "0")}`,
+      code: item.code || source?.code || `ТР-ГОСТ-${String(idx + 1).padStart(2, '0')}`,
       category: LLM_CATEGORIES.includes(item.category)
         ? item.category
-        : source?.category || "functional",
-      type: "system",
-      title: item.title || item.code || "Требование ГОСТ 34",
+        : source?.category || 'functional',
+      type: 'system',
+      title: item.title || item.code || 'Требование ГОСТ 34',
       originalText: source?.originalText ?? source?.description ?? proposedText,
       normalizedText: proposedText,
-      approval: { status: "PROPOSED" },
+      approval: { status: 'PROPOSED' },
       legacy: { normalizedBy: `ИИ-Нормализация (${targetModel})` },
     };
 
     if (source?.sourceFile) proposal.source = { filename: source.sourceFile };
-    if (typeof item.confidence === "number")
-      proposal.confidence = item.confidence;
+    if (typeof item.confidence === 'number') proposal.confidence = item.confidence;
     if (source?.stageName) proposal.legacy!.stageName = source.stageName;
     if (source?.stageRole) proposal.legacy!.stageRole = source.stageRole;
 
@@ -140,12 +136,8 @@ function buildLlmProposals(
 }
 
 /** Rule-based normalization, used whenever the LLM is unavailable or unusable. */
-function rulesFallback(
-  rawItems: Gost34RequirementItem[],
-): LlmNormalizationResult {
-  const normalized = normalizeRequirementItemsV2(
-    fromGost34RequirementItems(rawItems),
-  );
+function rulesFallback(rawItems: Gost34RequirementItem[]): LlmNormalizationResult {
+  const normalized = normalizeRequirementItemsV2(fromGost34RequirementItems(rawItems));
   return {
     requirements: toGost34RequirementItems(normalized, {
       preferNormalized: true,
@@ -173,7 +165,7 @@ export async function normalizeRequirementsWithLlm(
   options: LlmNormalizerOptions,
 ): Promise<LlmNormalizationResult> {
   const provider = options.provider.kind;
-  const endpoint = options.provider.endpoint.replace(/\/+$/, "");
+  const endpoint = options.provider.endpoint.replace(/\/+$/, '');
   const apiKey = getProviderApiKey(options.provider);
   const fallbackToRules = options.fallbackToRules !== false;
 
@@ -195,23 +187,21 @@ export async function normalizeRequirementsWithLlm(
   }
 
   const preferredModels = [
-    "qwen2.5",
-    "llama3.2",
-    "llama3",
-    "mistral",
-    "deepseek-r1",
-    "gemma2",
-    "local-model",
+    'qwen2.5',
+    'llama3.2',
+    'llama3',
+    'mistral',
+    'deepseek-r1',
+    'gemma2',
+    'local-model',
   ];
   let targetModel = options.model || options.provider.defaultModel;
 
   if (!targetModel) {
     targetModel =
-      models.find((m) =>
-        preferredModels.some((pref) => m.toLowerCase().includes(pref)),
-      ) ||
+      models.find((m) => preferredModels.some((pref) => m.toLowerCase().includes(pref))) ||
       models[0] ||
-      "llama3.2";
+      'llama3.2';
   }
 
   const systemPrompt = `Ты — ведущий системный архитектор и специалист по ГОСТ 34.602-89.
@@ -246,12 +236,9 @@ export async function normalizeRequirementsWithLlm(
   );
 
   // 2. Request via LM Studio / OpenAI Chat Completions API
-  if (
-    detectedProvider === "openai_compatible" ||
-    provider === "openai_compatible"
-  ) {
+  if (detectedProvider === 'openai_compatible' || provider === 'openai_compatible') {
     try {
-      const chatUrl = endpoint.endsWith("/v1")
+      const chatUrl = endpoint.endsWith('/v1')
         ? `${endpoint}/chat/completions`
         : `${endpoint}/v1/chat/completions`;
 
@@ -259,22 +246,22 @@ export async function normalizeRequirementsWithLlm(
       const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       const headers: Record<string, string> = {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       };
       if (apiKey) {
-        headers["Authorization"] = `Bearer ${apiKey}`;
+        headers['Authorization'] = `Bearer ${apiKey}`;
       }
 
       const res = await fetch(chatUrl, {
-        method: "POST",
+        method: 'POST',
         headers,
         signal: controller.signal,
         body: JSON.stringify({
           model: targetModel,
           messages: [
-            { role: "system", content: systemPrompt },
+            { role: 'system', content: systemPrompt },
             {
-              role: "user",
+              role: 'user',
               content: `Исходные требования вендора для нормализации:\n${userContent}`,
             },
           ],
@@ -293,12 +280,7 @@ export async function normalizeRequirementsWithLlm(
           const parsedJson = JSON.parse(jsonString);
 
           if (Array.isArray(parsedJson) && parsedJson.length > 0) {
-            const proposals = buildLlmProposals(
-              parsedJson,
-              rawItems,
-              targetModel,
-              "req-lmstudio",
-            );
+            const proposals = buildLlmProposals(parsedJson, rawItems, targetModel, 'req-lmstudio');
 
             return {
               requirements: toGost34RequirementItems(proposals, {
@@ -307,7 +289,7 @@ export async function normalizeRequirementsWithLlm(
               requirementsV2: proposals,
               usedLlm: true,
               modelUsed: targetModel,
-              providerUsed: "LM Studio / OpenAI",
+              providerUsed: 'LM Studio / OpenAI',
             };
           }
         }
@@ -325,16 +307,16 @@ export async function normalizeRequirementsWithLlm(
     const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     const res = await fetch(`${endpoint}/api/generate`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       signal: controller.signal,
       body: JSON.stringify({
         model: targetModel,
         prompt: `${systemPrompt}\n\nИсходные требования вендора для нормализации:\n${userContent}\n\nJSON-ответ:`,
         stream: false,
-        format: "json",
+        format: 'json',
       }),
     });
     clearTimeout(timeoutId);
@@ -349,12 +331,7 @@ export async function normalizeRequirementsWithLlm(
         const parsedJson = JSON.parse(jsonString);
 
         if (Array.isArray(parsedJson) && parsedJson.length > 0) {
-          const proposals = buildLlmProposals(
-            parsedJson,
-            rawItems,
-            targetModel,
-            "req-ollama",
-          );
+          const proposals = buildLlmProposals(parsedJson, rawItems, targetModel, 'req-ollama');
 
           return {
             requirements: toGost34RequirementItems(proposals, {
@@ -363,15 +340,13 @@ export async function normalizeRequirementsWithLlm(
             requirementsV2: proposals,
             usedLlm: true,
             modelUsed: targetModel,
-            providerUsed: "Ollama",
+            providerUsed: 'Ollama',
           };
         }
       }
     }
   } catch (e: any) {
-    console.warn(
-      `Ollama native API call failed (${e?.message}). Falling back to heuristic rules.`,
-    );
+    console.warn(`Ollama native API call failed (${e?.message}). Falling back to heuristic rules.`);
   }
 
   // Fallback to rules if LLM parsing failed

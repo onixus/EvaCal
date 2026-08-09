@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { roleLabel } from "@/lib/roles";
-import StatusBadge from "./StatusBadge";
+import { roleLabel } from '@/lib/roles';
+import StatusBadge from './StatusBadge';
 
 export interface StageRow {
   id: string;
@@ -19,10 +19,10 @@ export interface StageRow {
 }
 
 function fmt(d: string | Date): string {
-  return new Date(d).toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
+  return new Date(d).toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
   });
 }
 
@@ -46,13 +46,11 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
             <tr
               key={stage.id}
               className={`border-b border-slate-100 dark:border-nord-3 ${
-                stage.isApprovalTask
-                  ? "bg-amber-50/50 dark:bg-nord-yellow/10"
-                  : ""
+                stage.isApprovalTask ? 'bg-amber-50/50 dark:bg-nord-yellow/10' : ''
               }`}
             >
               <td className="py-2 pr-4">
-                {stage.isApprovalTask ? "⏳ " : ""}
+                {stage.isApprovalTask ? '⏳ ' : ''}
                 {stage.parallel && (
                   <span
                     className="mr-1 rounded bg-sky-100 px-1 text-[10px] font-medium text-sky-700 dark:bg-nord-frost4/20 dark:text-nord-frost2"
@@ -68,17 +66,11 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
                   </div>
                 )}
               </td>
-              <td className="py-2 pr-4 text-slate-600 dark:text-nord-4">
-                {roleLabel(stage.role)}
-              </td>
-              <td className="py-2 pr-4">
-                {stage.isApprovalTask ? "—" : stage.hours}
-              </td>
+              <td className="py-2 pr-4 text-slate-600 dark:text-nord-4">{roleLabel(stage.role)}</td>
+              <td className="py-2 pr-4">{stage.isApprovalTask ? '—' : stage.hours}</td>
               <td className="py-2 pr-4">{fmt(stage.startDate)}</td>
               <td className="py-2 pr-4">{fmt(stage.endDate)}</td>
-              <td className="py-2 pr-4">
-                {stage.dueDate ? fmt(stage.dueDate) : "—"}
-              </td>
+              <td className="py-2 pr-4">{stage.dueDate ? fmt(stage.dueDate) : '—'}</td>
               <td className="py-2 pr-4">
                 <StatusBadge status={stage.status} />
               </td>
@@ -91,9 +83,7 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
               Итого по этапам
             </td>
             <td className="pt-2 pr-4 font-medium">
-              {stages
-                .filter((s) => !s.isApprovalTask)
-                .reduce((sum, s) => sum + s.hours, 0)}
+              {stages.filter((s) => !s.isApprovalTask).reduce((sum, s) => sum + s.hours, 0)}
             </td>
             <td colSpan={4} />
           </tr>

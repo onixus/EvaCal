@@ -322,7 +322,7 @@ Normative Requirements
 interface ApplicabilityResult {
   standardId: string;
 
-  status: "APPLICABLE" | "NOT_APPLICABLE" | "UNKNOWN";
+  status: 'APPLICABLE' | 'NOT_APPLICABLE' | 'UNKNOWN';
 
   reasons: string[];
   evidence: Evidence[];
@@ -380,7 +380,7 @@ DuplicationValidator
 
 ```ts
 interface ValidationFinding {
-  severity: "ERROR" | "WARNING" | "INFO";
+  severity: 'ERROR' | 'WARNING' | 'INFO';
 
   requirementId?: string;
   rule: string;
@@ -444,7 +444,7 @@ interface TraceLink {
 
   relation: TraceRelation;
 
-  method: "MANUAL" | "RULE" | "LLM";
+  method: 'MANUAL' | 'RULE' | 'LLM';
 
   confidence?: number;
   approved: boolean;

@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface User {
   id: string;
@@ -12,14 +12,14 @@ interface User {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  architect: "Архитектор",
-  admin: "Администратор",
+  architect: 'Архитектор',
+  admin: 'Администратор',
 };
 
 export default function UsersManager({ users }: { users: User[] }) {
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [role, setRole] = useState("architect");
+  const [username, setUsername] = useState('');
+  const [role, setRole] = useState('architect');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{
@@ -34,23 +34,22 @@ export default function UsersManager({ users }: { users: User[] }) {
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, role }),
       });
       const data = await res.json();
-      if (!res.ok)
-        throw new Error(data.error ?? "Не удалось создать пользователя");
+      if (!res.ok) throw new Error(data.error ?? 'Не удалось создать пользователя');
       setCreated({
         username: data.username,
         role: data.role,
         password: data.password,
       });
-      setUsername("");
+      setUsername('');
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError(err instanceof Error ? err.message : 'Ошибка');
     } finally {
       setSubmitting(false);
     }
@@ -60,10 +59,10 @@ export default function UsersManager({ users }: { users: User[] }) {
     if (!confirm(`Удалить пользователя «${user.username}»?`)) return;
     setBusyId(user.id);
     try {
-      const res = await fetch(`/api/users/${user.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/users/${user.id}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        alert(data.error ?? "Не удалось удалить пользователя");
+        alert(data.error ?? 'Не удалось удалить пользователя');
       }
       router.refresh();
     } finally {
@@ -76,21 +75,17 @@ export default function UsersManager({ users }: { users: User[] }) {
       {created && (
         <div className="card border-emerald-300 bg-emerald-50 p-4 text-sm dark:border-nord-green/50 dark:bg-nord-green/10">
           <p className="font-medium">
-            Пользователь «{created.username}» ({ROLE_LABELS[created.role]})
-            создан.
+            Пользователь «{created.username}» ({ROLE_LABELS[created.role]}) создан.
           </p>
           <p className="mt-1">
-            Пароль:{" "}
+            Пароль:{' '}
             <code className="rounded bg-white px-1.5 py-0.5 dark:bg-nord-2">
               {created.password}
-            </code>{" "}
-            — показывается один раз, сохраните и передайте пользователю. При
-            первом входе стоит сменить пароль в «Аккаунт».
+            </code>{' '}
+            — показывается один раз, сохраните и передайте пользователю. При первом входе стоит
+            сменить пароль в «Аккаунт».
           </p>
-          <button
-            className="btn-secondary mt-2"
-            onClick={() => setCreated(null)}
-          >
+          <button className="btn-secondary mt-2" onClick={() => setCreated(null)}>
             Понятно
           </button>
         </div>
@@ -98,10 +93,7 @@ export default function UsersManager({ users }: { users: User[] }) {
 
       <div className="card p-6">
         <h2 className="mb-3 font-medium">Новый пользователь</h2>
-        <form
-          onSubmit={handleSubmit}
-          className="flex flex-wrap items-end gap-3"
-        >
+        <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[200px]">
             <label className="label">Логин</label>
             <input
@@ -113,17 +105,13 @@ export default function UsersManager({ users }: { users: User[] }) {
           </div>
           <div>
             <label className="label">Роль</label>
-            <select
-              className="input w-48"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-            >
+            <select className="input w-48" value={role} onChange={(e) => setRole(e.target.value)}>
               <option value="architect">Архитектор</option>
               <option value="admin">Администратор</option>
             </select>
           </div>
           <button type="submit" className="btn-primary" disabled={submitting}>
-            {submitting ? "Создание…" : "Создать"}
+            {submitting ? 'Создание…' : 'Создать'}
           </button>
         </form>
         {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
@@ -153,12 +141,10 @@ export default function UsersManager({ users }: { users: User[] }) {
                   <td className="py-2 pr-4 font-medium">{u.username}</td>
                   <td className="py-2 pr-4">{ROLE_LABELS[u.role] ?? u.role}</td>
                   <td className="py-2 pr-4 text-slate-500 dark:text-nord-muted">
-                    {u.mustChangePassword
-                      ? "выдан, ещё не менялся"
-                      : "изменён пользователем"}
+                    {u.mustChangePassword ? 'выдан, ещё не менялся' : 'изменён пользователем'}
                   </td>
                   <td className="py-2 pr-4 text-slate-500 dark:text-nord-muted">
-                    {new Date(u.createdAt).toLocaleDateString("ru-RU")}
+                    {new Date(u.createdAt).toLocaleDateString('ru-RU')}
                   </td>
                   <td className="py-2 pr-4">
                     <button

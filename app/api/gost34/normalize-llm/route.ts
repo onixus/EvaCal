@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireApiRole } from "@/lib/auth";
-import { normalizeRequirementsWithLlm } from "@/lib/gost34/parser/llmNormalizer";
-import { EndpointNotAllowedError } from "@/lib/gost34/llm/endpointGuard";
-import { resolveLlmProvider } from "@/lib/gost34/llm/providers";
-import { validateRequirements } from "@/lib/gost34/validation";
-import { GOST34_LLM_ROLES } from "../roles";
+import { NextRequest, NextResponse } from 'next/server';
+import { requireApiRole } from '@/lib/auth';
+import { normalizeRequirementsWithLlm } from '@/lib/gost34/parser/llmNormalizer';
+import { EndpointNotAllowedError } from '@/lib/gost34/llm/endpointGuard';
+import { resolveLlmProvider } from '@/lib/gost34/llm/providers';
+import { validateRequirements } from '@/lib/gost34/validation';
+import { GOST34_LLM_ROLES } from '../roles';
 
 export async function POST(req: NextRequest) {
   const session = await requireApiRole(GOST34_LLM_ROLES);
@@ -16,10 +16,7 @@ export async function POST(req: NextRequest) {
     const { requirements = [], providerId, model, temperature } = body;
 
     if (!Array.isArray(requirements) || requirements.length === 0) {
-      return NextResponse.json(
-        { error: "Requirements array is empty" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: 'Requirements array is empty' }, { status: 400 });
     }
 
     let provider;
@@ -47,10 +44,7 @@ export async function POST(req: NextRequest) {
       providerUsed: result.providerUsed,
     });
   } catch (err: any) {
-    console.error("Error in LLM normalization endpoint:", err);
-    return NextResponse.json(
-      { error: err?.message || "Normalization failed" },
-      { status: 500 },
-    );
+    console.error('Error in LLM normalization endpoint:', err);
+    return NextResponse.json({ error: err?.message || 'Normalization failed' }, { status: 500 });
   }
 }

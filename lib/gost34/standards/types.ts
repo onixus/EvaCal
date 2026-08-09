@@ -1,4 +1,4 @@
-import type { GostDocumentType } from "../types";
+import type { GostDocumentType } from '../types';
 
 export interface StandardReference {
   id: string;
@@ -38,15 +38,15 @@ export interface DocumentProfile {
  * (what the citation is for), never the standard number itself.
  */
 export type CitationKey =
-  | "primary"
-  | "documentsClassifier"
-  | "projectDocumentation"
-  | "testing"
+  | 'primary'
+  | 'documentsClassifier'
+  | 'projectDocumentation'
+  | 'testing'
   /** Standards the equipment/software specification is drawn up under, incl. clause. */
-  | "specificationBasis"
-  | "referencesList"
-  | "frameFallbackTitle"
-  | "documentationSetSentence";
+  | 'specificationBasis'
+  | 'referencesList'
+  | 'frameFallbackTitle'
+  | 'documentationSetSentence';
 
 export interface StandardProfile {
   id: string;
@@ -57,7 +57,7 @@ export interface StandardProfile {
    * `preview` means the profile's citations are current but the document
    * structure has not been migrated yet — it must not be offered in the UI.
    */
-  status: "stable" | "preview";
+  status: 'stable' | 'preview';
   primaryStandard: StandardReference;
   documentStandards: StandardReference[];
   lifecycleStandards: StandardReference[];

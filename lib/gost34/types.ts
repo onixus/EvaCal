@@ -2,16 +2,16 @@
  * GOST 34 / GOST 2.104-2006 / GOST 2.105-95 Domain Types
  */
 
-import type { StandardProfile } from "./standards/types";
-import type { Gost34RequirementV2 } from "./requirements/v2";
-import type { ProjectContext } from "./context/types";
-import type { ValidationReport } from "./validation/types";
-import type { ApplicabilityResult } from "./applicability/types";
+import type { StandardProfile } from './standards/types';
+import type { Gost34RequirementV2 } from './requirements/v2';
+import type { ProjectContext } from './context/types';
+import type { ValidationReport } from './validation/types';
+import type { ApplicabilityResult } from './applicability/types';
 
-export type GostDocumentType = "TZ" | "PZ" | "AF" | "PMI" | "SPEC";
+export type GostDocumentType = 'TZ' | 'PZ' | 'AF' | 'PMI' | 'SPEC';
 
 /** What an export request may ask for: one document, or the full batch as a ZIP. */
-export type GostExportType = GostDocumentType | "ZIP";
+export type GostExportType = GostDocumentType | 'ZIP';
 
 export interface Gost2104Signatures {
   developer: string; // Разработал (ФИО)
@@ -57,18 +57,18 @@ export interface Gost34DocMetadata {
   enrichRequirements?: boolean; // Флаг нормативного авто-обогащения
   enrichmentOptions?: Gost34EnrichmentOptions; // Выбранные стандарты нормативного обогащения
   standardProfileId?: string; // Идентификатор нормативного профиля (по умолчанию legacy)
-  layoutProfileId?: import("./exporters/layout/types").LayoutProfileId; // Профиль визуального оформления DOCX
+  layoutProfileId?: import('./exporters/layout/types').LayoutProfileId; // Профиль визуального оформления DOCX
 }
 
 export type RequirementCategory =
-  | "functional"
-  | "performance"
-  | "security"
-  | "reliability"
-  | "ergonomics"
-  | "technical"
-  | "software"
-  | "organizational";
+  | 'functional'
+  | 'performance'
+  | 'security'
+  | 'reliability'
+  | 'ergonomics'
+  | 'technical'
+  | 'software'
+  | 'organizational';
 
 export interface Gost34RequirementItem {
   id: string;
@@ -155,5 +155,5 @@ export interface Gost34InputPayload {
   /** Замечания GOST Validator к набору требований. Не блокирует генерацию. */
   validation?: ValidationReport;
   /** Предварительно рассчитанные или вручную отредактированные связи трассировки (Traceability Engine, PR-07). */
-  traceability?: import("./traceability/types").TraceabilityResult;
+  traceability?: import('./traceability/types').TraceabilityResult;
 }

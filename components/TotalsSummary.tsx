@@ -1,5 +1,5 @@
-import { totalLaborHours } from "@/lib/scheduling";
-import { risksTotalHours } from "@/lib/totals";
+import { totalLaborHours } from '@/lib/scheduling';
+import { risksTotalHours } from '@/lib/totals';
 
 export interface RiskRow {
   id: string;
@@ -27,9 +27,7 @@ export default function TotalsSummary({ stages, pmHours, risks }: Props) {
         <dd>{stagesHours} ч</dd>
       </div>
       <div>
-        <dt className="text-xs uppercase tracking-wide text-slate-500 dark:text-nord-muted">
-          РП
-        </dt>
+        <dt className="text-xs uppercase tracking-wide text-slate-500 dark:text-nord-muted">РП</dt>
         <dd>{pmHours} ч</dd>
       </div>
       <div>

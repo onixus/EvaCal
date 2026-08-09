@@ -1,13 +1,13 @@
-import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import { grandTotalHours } from "@/lib/totals";
-import StatusBadge from "@/components/StatusBadge";
+import Link from 'next/link';
+import { prisma } from '@/lib/prisma';
+import { grandTotalHours } from '@/lib/totals';
+import StatusBadge from '@/components/StatusBadge';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const calculations = await prisma.calculation.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: 'desc' },
     include: {
       template: { select: { name: true } },
       stages: true,
@@ -62,15 +62,11 @@ export default async function HomePage() {
                   </td>
                   <td className="p-3">{c.customer}</td>
                   <td className="p-3 text-slate-600">{c.template.name}</td>
-                  <td className="p-3">
-                    {grandTotalHours(c.stages, c.pmHours, c.risks)}
-                  </td>
+                  <td className="p-3">{grandTotalHours(c.stages, c.pmHours, c.risks)}</td>
                   <td className="p-3">
                     <StatusBadge status={c.status} />
                   </td>
-                  <td className="p-3 text-slate-500">
-                    {c.createdAt.toLocaleDateString("ru-RU")}
-                  </td>
+                  <td className="p-3 text-slate-500">{c.createdAt.toLocaleDateString('ru-RU')}</td>
                 </tr>
               ))}
             </tbody>

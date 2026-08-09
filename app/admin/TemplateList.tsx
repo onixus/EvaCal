@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 interface Template {
   id: string;
@@ -20,7 +20,7 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
   async function activate(id: string) {
     setBusy(id);
     try {
-      await fetch(`/api/templates/${id}/activate`, { method: "POST" });
+      await fetch(`/api/templates/${id}/activate`, { method: 'POST' });
       router.refresh();
     } finally {
       setBusy(null);
@@ -33,8 +33,8 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
     setBusy(id);
     try {
       await fetch(`/api/templates/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim() }),
       });
       router.refresh();
@@ -47,13 +47,13 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
     setBusy(id);
     try {
       const res = await fetch(`/api/templates/${id}/duplicate`, {
-        method: "POST",
+        method: 'POST',
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         router.push(`/admin/${data.id}`);
       } else {
-        alert(data.error ?? "Ошибка запроса");
+        alert(data.error ?? 'Ошибка запроса');
       }
     } finally {
       setBusy(null);
@@ -88,8 +88,8 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
                   disabled={busy === t.id}
                   onBlur={(e) => rename(t.id, e.target.value, t.name)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") e.currentTarget.blur();
-                    if (e.key === "Escape") setRenamingId(null);
+                    if (e.key === 'Enter') e.currentTarget.blur();
+                    if (e.key === 'Escape') setRenamingId(null);
                   }}
                 />
               ) : (
@@ -109,18 +109,14 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
                   </button>
                 </div>
               )}
-              {t.description && (
-                <p className="text-xs text-slate-500">{t.description}</p>
-              )}
+              {t.description && <p className="text-xs text-slate-500">{t.description}</p>}
             </td>
             <td className="py-2 pr-4">{t._count.fields}</td>
             <td className="py-2 pr-4">{t._count.stageTemplates}</td>
             <td className="py-2 pr-4">{t._count.calculations}</td>
             <td className="py-2 pr-4">
               {t.isActive ? (
-                <span className="badge bg-emerald-100 text-emerald-700">
-                  Активен
-                </span>
+                <span className="badge bg-emerald-100 text-emerald-700">Активен</span>
               ) : (
                 <button
                   className="btn-secondary px-2 py-1 text-xs"
@@ -133,10 +129,7 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
             </td>
             <td className="py-2 pr-4">
               <div className="flex items-center gap-2">
-                <Link
-                  href={`/admin/${t.id}`}
-                  className="btn-secondary px-3 py-1 text-xs"
-                >
+                <Link href={`/admin/${t.id}`} className="btn-secondary px-3 py-1 text-xs">
                   Редактировать
                 </Link>
                 <button

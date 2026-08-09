@@ -101,13 +101,14 @@ npm run db:push     # создаёт SQLite-схему
 npm run db:seed     # демо-шаблон, расчёт и пароли architect/admin
 npm run dev
 ```
+
 ### Форматирование и линт
+
 - `npm run format` — автоматически отформатирует код с помощью Prettier.
 - `npm run lint` — проверит код линтером ESLint.
 - `npm run prepare` — выполнит `format` и `lint` последовательно (используется в CI).
 
 Хук `pre-commit` от Husky автоматически запускает `npm run format && npm run lint` перед каждым коммитом.
-
 
 Приложение будет доступно на `http://localhost:3000`.
 

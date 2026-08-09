@@ -1,4 +1,4 @@
-export type TraceMethod = "MANUAL" | "RULE" | "LLM";
+export type TraceMethod = 'MANUAL' | 'RULE' | 'LLM';
 
 export interface TraceLink {
   sourceId: string; // ID of Gost34RequirementV2

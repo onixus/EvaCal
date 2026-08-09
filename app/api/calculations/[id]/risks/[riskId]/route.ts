@@ -1,16 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requireApiRole } from "@/lib/auth";
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { requireApiRole } from '@/lib/auth';
 
 async function assertEditable(calculationId: string) {
   const calculation = await prisma.calculation.findUnique({
     where: { id: calculationId },
   });
-  if (!calculation)
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (calculation.status === "approved") {
+  if (!calculation) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  if (calculation.status === 'approved') {
     return NextResponse.json(
-      { error: "Расчёт уже утверждён и не может быть изменён" },
+      { error: 'Расчёт уже утверждён и не может быть изменён' },
       { status: 409 },
     );
   }
@@ -22,7 +21,7 @@ export async function PUT(
   props: { params: Promise<{ id: string; riskId: string }> },
 ) {
   const params = await props.params;
-  const auth = await requireApiRole("architect");
+  const auth = await requireApiRole('architect');
   if (auth instanceof NextResponse) return auth;
 
   const blocked = await assertEditable(params.id);
@@ -32,9 +31,7 @@ export async function PUT(
   const risk = await prisma.risk.update({
     where: { id: params.riskId },
     data: {
-      ...(body.description !== undefined
-        ? { description: body.description }
-        : {}),
+      ...(body.description !== undefined ? { description: body.description } : {}),
       ...(body.hours !== undefined ? { hours: Number(body.hours) || 0 } : {}),
     },
   });
@@ -46,7 +43,7 @@ export async function DELETE(
   props: { params: Promise<{ id: string; riskId: string }> },
 ) {
   const params = await props.params;
-  const auth = await requireApiRole("architect");
+  const auth = await requireApiRole('architect');
   if (auth instanceof NextResponse) return auth;
 
   const blocked = await assertEditable(params.id);

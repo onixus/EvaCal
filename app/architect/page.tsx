@@ -1,13 +1,13 @@
-import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import StatusBadge from "@/components/StatusBadge";
-import { grandTotalHours } from "@/lib/totals";
+import Link from 'next/link';
+import { prisma } from '@/lib/prisma';
+import StatusBadge from '@/components/StatusBadge';
+import { grandTotalHours } from '@/lib/totals';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export default async function ArchitectPage() {
   const calculations = await prisma.calculation.findMany({
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     include: {
       stages: true,
       risks: true,
@@ -15,16 +15,15 @@ export default async function ArchitectPage() {
     },
   });
 
-  const pending = calculations.filter((c) => c.status === "pending_approval");
-  const others = calculations.filter((c) => c.status !== "pending_approval");
+  const pending = calculations.filter((c) => c.status === 'pending_approval');
+  const others = calculations.filter((c) => c.status !== 'pending_approval');
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold">Интерфейс архитектора</h1>
         <p className="text-sm text-slate-500">
-          Правьте этапы, добавляйте новые и утверждайте расчёты, подготовленные
-          пресейлом.
+          Правьте этапы, добавляйте новые и утверждайте расчёты, подготовленные пресейлом.
         </p>
       </div>
 
@@ -33,11 +32,7 @@ export default async function ArchitectPage() {
         items={pending}
         empty="Нет расчётов, ожидающих согласования."
       />
-      <Section
-        title="Остальные расчёты"
-        items={others}
-        empty="Пока нет других расчётов."
-      />
+      <Section title="Остальные расчёты" items={others} empty="Пока нет других расчётов." />
     </div>
   );
 
@@ -81,12 +76,8 @@ export default async function ArchitectPage() {
                     </Link>
                   </td>
                   <td className="py-2 pr-4">{c.customer}</td>
-                  <td className="py-2 pr-4 text-slate-600">
-                    {c.template.name}
-                  </td>
-                  <td className="py-2 pr-4">
-                    {grandTotalHours(c.stages, c.pmHours, c.risks)}
-                  </td>
+                  <td className="py-2 pr-4 text-slate-600">{c.template.name}</td>
+                  <td className="py-2 pr-4">{grandTotalHours(c.stages, c.pmHours, c.risks)}</td>
                   <td className="py-2 pr-4">
                     <StatusBadge status={c.status} />
                   </td>

@@ -1,13 +1,9 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import VendorSpecUploadModal from "./gost34/VendorSpecUploadModal";
+import { useState } from 'react';
+import VendorSpecUploadModal from './gost34/VendorSpecUploadModal';
 
-export default function ExportLinks({
-  calculationId,
-}: {
-  calculationId: string;
-}) {
+export default function ExportLinks({ calculationId }: { calculationId: string }) {
   const [isGostModalOpen, setIsGostModalOpen] = useState(false);
 
   return (
@@ -21,22 +17,13 @@ export default function ExportLinks({
         >
           ГОСТ 34 Конструктор
         </button>
-        <a
-          href={`/api/calculations/${calculationId}/pdf`}
-          className="btn-secondary"
-        >
+        <a href={`/api/calculations/${calculationId}/pdf`} className="btn-secondary">
           PDF
         </a>
-        <a
-          href={`/api/calculations/${calculationId}/xlsx`}
-          className="btn-secondary"
-        >
+        <a href={`/api/calculations/${calculationId}/xlsx`} className="btn-secondary">
           XLSX
         </a>
-        <a
-          href={`/api/calculations/${calculationId}/json`}
-          className="btn-secondary"
-        >
+        <a href={`/api/calculations/${calculationId}/json`} className="btn-secondary">
           JSON
         </a>
       </div>

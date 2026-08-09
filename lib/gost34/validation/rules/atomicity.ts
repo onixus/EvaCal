@@ -1,6 +1,6 @@
-import { MODAL_PATTERN_GLOBAL } from "../lexicon";
-import { finding, RequirementCheck } from "../context";
-import type { ValidationFinding } from "../types";
+import { MODAL_PATTERN_GLOBAL } from '../lexicon';
+import { finding, RequirementCheck } from '../context';
+import type { ValidationFinding } from '../types';
 
 /** Перечисление внутри требования: пункты списка или разделение через «;». */
 const ENUMERATION_PATTERN = /(?:;)|(?:(?:^|\s)[-–—•]\s)|(?:(?:^|\s)\d[).]\s)/u;
@@ -18,10 +18,10 @@ export function checkAtomicity(check: RequirementCheck): ValidationFinding[] {
     findings.push(
       finding(
         check,
-        "atomicity",
-        "WARNING",
+        'atomicity',
+        'WARNING',
         `Требование содержит ${modals.length} обязывающих утверждений и не является единичным.`,
-        "Разделить на отдельные требования, по одному проверяемому утверждению в каждом.",
+        'Разделить на отдельные требования, по одному проверяемому утверждению в каждом.',
       ),
     );
   }
@@ -30,10 +30,10 @@ export function checkAtomicity(check: RequirementCheck): ValidationFinding[] {
     findings.push(
       finding(
         check,
-        "atomicity",
-        "WARNING",
-        "Требование содержит перечисление: каждый пункт придётся проверять отдельно.",
-        "Вынести пункты перечисления в самостоятельные требования либо оформить как приложение.",
+        'atomicity',
+        'WARNING',
+        'Требование содержит перечисление: каждый пункт придётся проверять отдельно.',
+        'Вынести пункты перечисления в самостоятельные требования либо оформить как приложение.',
       ),
     );
   }

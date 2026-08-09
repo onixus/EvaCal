@@ -1,5 +1,5 @@
-import { finding, RequirementCheck } from "../context";
-import type { ValidationFinding } from "../types";
+import { finding, RequirementCheck } from '../context';
+import type { ValidationFinding } from '../types';
 
 /** Минимальная осмысленная длина формулировки требования. */
 const MIN_TEXT_LENGTH = 15;
@@ -11,9 +11,7 @@ const MISSING_SUBJECT_PATTERN =
 /**
  * Полнота: у требования должны быть идентификатор, субъект и обязывающая формулировка.
  */
-export function checkCompleteness(
-  check: RequirementCheck,
-): ValidationFinding[] {
+export function checkCompleteness(check: RequirementCheck): ValidationFinding[] {
   const findings: ValidationFinding[] = [];
   const { requirement, text } = check;
 
@@ -21,10 +19,10 @@ export function checkCompleteness(
     findings.push(
       finding(
         check,
-        "completeness",
-        "ERROR",
-        "У требования нет обозначения (кода), на него нельзя сослаться.",
-        "Присвоить код вида «ТР-ФУНК-01».",
+        'completeness',
+        'ERROR',
+        'У требования нет обозначения (кода), на него нельзя сослаться.',
+        'Присвоить код вида «ТР-ФУНК-01».',
       ),
     );
   }
@@ -33,10 +31,10 @@ export function checkCompleteness(
     findings.push(
       finding(
         check,
-        "completeness",
-        "ERROR",
-        "Текст требования пуст.",
-        "Заполнить формулировку требования или удалить запись.",
+        'completeness',
+        'ERROR',
+        'Текст требования пуст.',
+        'Заполнить формулировку требования или удалить запись.',
       ),
     );
     return findings;
@@ -46,10 +44,10 @@ export function checkCompleteness(
     findings.push(
       finding(
         check,
-        "completeness",
-        "ERROR",
+        'completeness',
+        'ERROR',
         `Формулировка слишком короткая (${text.length} симв.) и не описывает требование.`,
-        "Указать субъект, действие и условие: «Система должна … при …».",
+        'Указать субъект, действие и условие: «Система должна … при …».',
       ),
     );
   }
@@ -58,20 +56,20 @@ export function checkCompleteness(
     findings.push(
       finding(
         check,
-        "completeness",
-        "ERROR",
-        "Текст не выражен как требование: отсутствует обязывающая формулировка («должна», «обязана»).",
-        "Переформулировать в виде «Система должна …» либо перенести текст в пояснительную часть.",
+        'completeness',
+        'ERROR',
+        'Текст не выражен как требование: отсутствует обязывающая формулировка («должна», «обязана»).',
+        'Переформулировать в виде «Система должна …» либо перенести текст в пояснительную часть.',
       ),
     );
   } else if (MISSING_SUBJECT_PATTERN.test(text)) {
     findings.push(
       finding(
         check,
-        "completeness",
-        "WARNING",
-        "Не указан субъект требования: непонятно, к чему предъявляется требование.",
-        "Начать формулировку с субъекта: «Система должна …», «Подсистема мониторинга должна …».",
+        'completeness',
+        'WARNING',
+        'Не указан субъект требования: непонятно, к чему предъявляется требование.',
+        'Начать формулировку с субъекта: «Система должна …», «Подсистема мониторинга должна …».',
       ),
     );
   }
@@ -80,10 +78,10 @@ export function checkCompleteness(
     findings.push(
       finding(
         check,
-        "completeness",
-        "WARNING",
-        "У требования нет заголовка.",
-        "Добавить краткий заголовок для оглавления и таблиц трассируемости.",
+        'completeness',
+        'WARNING',
+        'У требования нет заголовка.',
+        'Добавить краткий заголовок для оглавления и таблиц трассируемости.',
       ),
     );
   }

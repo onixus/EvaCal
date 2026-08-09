@@ -1,22 +1,17 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import {
-  applyTheme,
-  resolveTheme,
-  THEME_STORAGE_KEY,
-  Theme,
-} from "@/lib/theme";
+import { useEffect, useState } from 'react';
+import { applyTheme, resolveTheme, THEME_STORAGE_KEY, Theme } from '@/lib/theme';
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
     setTheme(resolveTheme());
   }, []);
 
   function toggle() {
-    const next: Theme = theme === "dark" ? "light" : "dark";
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
     localStorage.setItem(THEME_STORAGE_KEY, next);
     applyTheme(next);
@@ -25,15 +20,11 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      aria-label={
-        theme === "dark"
-          ? "Переключить на светлую тему"
-          : "Переключить на тёмную тему"
-      }
-      title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
+      aria-label={theme === 'dark' ? 'Переключить на светлую тему' : 'Переключить на тёмную тему'}
+      title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
       className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-nord-4 dark:hover:bg-nord-3"
     >
-      {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+      {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
     </button>
   );
 }

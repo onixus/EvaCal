@@ -1,35 +1,33 @@
-import type { StandardReference } from "../standards";
-import type { RequirementCategory } from "../types";
+import type { StandardReference } from '../standards';
+import type { RequirementCategory } from '../types';
 
 // Re-exported rather than redeclared: a second copy of this union drifts.
-export type { RequirementCategory } from "../types";
+export type { RequirementCategory } from '../types';
 
 export type RequirementType =
-  | "business"
-  | "stakeholder"
-  | "system"
-  | "functional"
-  | "nonfunctional"
-  | "constraint"
-  | "interface"
-  | "data"
-  | "regulatory";
+  | 'business'
+  | 'stakeholder'
+  | 'system'
+  | 'functional'
+  | 'nonfunctional'
+  | 'constraint'
+  | 'interface'
+  | 'data'
+  | 'regulatory';
 
-export type RequirementStatus =
-  "DRAFT" | "PROPOSED" | "APPROVED" | "REJECTED" | "SUPERSEDED";
+export type RequirementStatus = 'DRAFT' | 'PROPOSED' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
 
-export type VerificationMethod =
-  "INSPECTION" | "ANALYSIS" | "DEMONSTRATION" | "TEST";
+export type VerificationMethod = 'INSPECTION' | 'ANALYSIS' | 'DEMONSTRATION' | 'TEST';
 
 export type RequirementRelationType =
-  | "DERIVES_FROM"
-  | "REFINES"
-  | "DEPENDS_ON"
-  | "CONFLICTS_WITH"
-  | "DUPLICATES"
-  | "VERIFIED_BY"
-  | "IMPLEMENTED_BY"
-  | "TRACES_TO";
+  | 'DERIVES_FROM'
+  | 'REFINES'
+  | 'DEPENDS_ON'
+  | 'CONFLICTS_WITH'
+  | 'DUPLICATES'
+  | 'VERIFIED_BY'
+  | 'IMPLEMENTED_BY'
+  | 'TRACES_TO';
 
 export interface RequirementSource {
   documentId?: string;
@@ -100,21 +98,14 @@ export interface Gost34RequirementV2 {
   };
 }
 
-export function getRequirementEffectiveText(
-  requirement: Gost34RequirementV2,
-): string {
-  if (
-    requirement.approval.status === "APPROVED" &&
-    requirement.normalizedText?.trim()
-  ) {
+export function getRequirementEffectiveText(requirement: Gost34RequirementV2): string {
+  if (requirement.approval.status === 'APPROVED' && requirement.normalizedText?.trim()) {
     return requirement.normalizedText.trim();
   }
 
   return requirement.originalText.trim();
 }
 
-export function isRequirementApproved(
-  requirement: Gost34RequirementV2,
-): boolean {
-  return requirement.approval.status === "APPROVED";
+export function isRequirementApproved(requirement: Gost34RequirementV2): boolean {
+  return requirement.approval.status === 'APPROVED';
 }

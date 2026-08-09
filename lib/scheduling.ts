@@ -1,4 +1,4 @@
-import { APPROVAL_BUSINESS_DAYS, APPROVAL_REQUIRED_ROLES, Role } from "./roles";
+import { APPROVAL_BUSINESS_DAYS, APPROVAL_REQUIRED_ROLES, Role } from './roles';
 
 const WORK_START_HOUR = 9;
 
@@ -17,10 +17,7 @@ export const DEFAULT_SCHEDULE_CONFIG: ScheduleConfig = {
 
 export function clampWorkDayHours(hours: number): number {
   if (!Number.isFinite(hours)) return DEFAULT_SCHEDULE_CONFIG.workDayHours;
-  return Math.min(
-    MAX_WORK_DAY_HOURS,
-    Math.max(MIN_WORK_DAY_HOURS, Math.round(hours)),
-  );
+  return Math.min(MAX_WORK_DAY_HOURS, Math.max(MIN_WORK_DAY_HOURS, Math.round(hours)));
 }
 
 function isWeekend(d: Date): boolean {
@@ -63,11 +60,7 @@ function nextWorkMoment(d: Date, config: ScheduleConfig): Date {
 }
 
 /** Advances `hours` of actual work time from `start`, skipping nights/weekends per config. */
-function addWorkHours(
-  start: Date,
-  hours: number,
-  config: ScheduleConfig,
-): Date {
+function addWorkHours(start: Date, hours: number, config: ScheduleConfig): Date {
   const workEndHour = WORK_START_HOUR + config.workDayHours;
   let cursor = nextWorkMoment(start, config);
   let remaining = hours;
@@ -79,21 +72,14 @@ function addWorkHours(
       remaining = 0;
     } else {
       remaining -= availableHours;
-      cursor = nextWorkMoment(
-        atHour(addDays(cursor, 1), WORK_START_HOUR),
-        config,
-      );
+      cursor = nextWorkMoment(atHour(addDays(cursor, 1), WORK_START_HOUR), config);
     }
   }
   return cursor;
 }
 
 /** Advances `days` whole business days (used for the customer approval SLA). */
-function addBusinessDays(
-  start: Date,
-  days: number,
-  config: ScheduleConfig,
-): Date {
+function addBusinessDays(start: Date, days: number, config: ScheduleConfig): Date {
   let cursor = nextWorkMoment(start, config);
   let count = 0;
   while (count < days) {
@@ -132,9 +118,7 @@ export interface ScheduledItem extends StagePlanItem {
 }
 
 /** Inserts an automatic customer approval task after every stage run by a role that requires sign-off. */
-export function expandWithApprovals(
-  primary: PrimaryStageInput[],
-): StagePlanItem[] {
+export function expandWithApprovals(primary: PrimaryStageInput[]): StagePlanItem[] {
   const items: StagePlanItem[] = [];
   for (const p of primary) {
     items.push({
@@ -149,7 +133,7 @@ export function expandWithApprovals(
     if (APPROVAL_REQUIRED_ROLES.includes(p.role as Role)) {
       items.push({
         name: `Согласование заказчиком: «${p.name}»`,
-        role: "customer",
+        role: 'customer',
         hours: 0,
         isApprovalTask: true,
         requirements: null,
@@ -188,11 +172,7 @@ export function scheduleItems(
     }
 
     const end = item.isApprovalTask
-      ? addBusinessDays(
-          start,
-          item.approvalDays ?? APPROVAL_BUSINESS_DAYS,
-          config,
-        )
+      ? addBusinessDays(start, item.approvalDays ?? APPROVAL_BUSINESS_DAYS, config)
       : item.hours > 0
         ? addWorkHours(start, item.hours, config)
         : start;
@@ -210,10 +190,6 @@ export function scheduleItems(
   });
 }
 
-export function totalLaborHours(
-  items: { hours: number; isApprovalTask: boolean }[],
-): number {
-  return items
-    .filter((i) => !i.isApprovalTask)
-    .reduce((sum, i) => sum + i.hours, 0);
+export function totalLaborHours(items: { hours: number; isApprovalTask: boolean }[]): number {
+  return items.filter((i) => !i.isApprovalTask).reduce((sum, i) => sum + i.hours, 0);
 }

@@ -1,12 +1,8 @@
-import { RiskRow } from "./TotalsSummary";
+import { RiskRow } from './TotalsSummary';
 
 export default function RiskList({ risks }: { risks: RiskRow[] }) {
   if (risks.length === 0) {
-    return (
-      <p className="text-sm text-slate-500 dark:text-nord-muted">
-        Риски не зафиксированы.
-      </p>
-    );
+    return <p className="text-sm text-slate-500 dark:text-nord-muted">Риски не зафиксированы.</p>;
   }
   return (
     <ul className="space-y-1.5 text-sm">

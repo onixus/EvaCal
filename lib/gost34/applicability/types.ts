@@ -1,4 +1,4 @@
-import type { ProjectContext } from "../context/types";
+import type { ProjectContext } from '../context/types';
 
 /**
  * Статус применимости нормативного акта или стандарта.
@@ -6,7 +6,7 @@ import type { ProjectContext } from "../context/types";
  * - NOT_APPLICABLE: стандарт явно неприменим (например, нет ПДн или КИИ).
  * - UNKNOWN: данных недостаточно, требуется подтверждение у Заказчика.
  */
-export type ApplicabilityStatus = "APPLICABLE" | "NOT_APPLICABLE" | "UNKNOWN";
+export type ApplicabilityStatus = 'APPLICABLE' | 'NOT_APPLICABLE' | 'UNKNOWN';
 
 /** Доказательство / факт, найденный в проектном контексте. */
 export interface Evidence {
@@ -20,8 +20,7 @@ export interface ApplicabilityResult {
   /** Идентификатор стандарта (соответствует ключам ENRICHMENT_OPTION_KEYS). */
   standardId: string;
   title: string;
-  category:
-    "security" | "technical" | "reliability" | "ergonomics" | "regulatory";
+  category: 'security' | 'technical' | 'reliability' | 'ergonomics' | 'regulatory';
   /** Статус, рассчитанный движком правил. */
   calculatedStatus: ApplicabilityStatus;
   /** Итоговый статус с учётом ручного подтверждения / override. */
@@ -33,7 +32,7 @@ export interface ApplicabilityResult {
   /** Оценка уверенности (0.0 .. 1.0). */
   confidence?: number;
   /** Ручное решение (override / подтверждение). */
-  confirmedStatus?: "APPLICABLE" | "NOT_APPLICABLE";
+  confirmedStatus?: 'APPLICABLE' | 'NOT_APPLICABLE';
   /** Кто подтвердил (ФИО / роль). */
   confirmedBy?: string;
   /** Обоснование ручного решения. */
@@ -42,7 +41,7 @@ export interface ApplicabilityResult {
 
 /** Структура ручного переопределения статуса применимости. */
 export interface ApplicabilityOverride {
-  status: "APPLICABLE" | "NOT_APPLICABLE";
+  status: 'APPLICABLE' | 'NOT_APPLICABLE';
   confirmedBy?: string;
   reason?: string;
 }
@@ -51,8 +50,7 @@ export interface ApplicabilityOverride {
 export interface ApplicabilityRule {
   id: string;
   title: string;
-  category:
-    "security" | "technical" | "reliability" | "ergonomics" | "regulatory";
+  category: 'security' | 'technical' | 'reliability' | 'ergonomics' | 'regulatory';
   evaluate: (context: ProjectContext) => {
     status: ApplicabilityStatus;
     reasons: string[];

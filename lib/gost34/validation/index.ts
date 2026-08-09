@@ -1,34 +1,34 @@
-import type { Gost34RequirementV2 } from "../requirements";
-import { buildCheck, RequirementCheck } from "./context";
-import { checkAtomicity } from "./rules/atomicity";
-import { checkAmbiguity } from "./rules/ambiguity";
-import { checkMeasurability } from "./rules/measurability";
-import { checkCompleteness } from "./rules/completeness";
-import { checkTestability } from "./rules/testability";
-import { checkSource } from "./rules/source";
-import { checkConflicts } from "./rules/conflict";
+import type { Gost34RequirementV2 } from '../requirements';
+import { buildCheck, RequirementCheck } from './context';
+import { checkAtomicity } from './rules/atomicity';
+import { checkAmbiguity } from './rules/ambiguity';
+import { checkMeasurability } from './rules/measurability';
+import { checkCompleteness } from './rules/completeness';
+import { checkTestability } from './rules/testability';
+import { checkSource } from './rules/source';
+import { checkConflicts } from './rules/conflict';
 import type {
   ValidationFinding,
   ValidationOptions,
   ValidationReport,
   ValidationRuleId,
   ValidationSeverity,
-} from "./types";
+} from './types';
 
-export * from "./types";
-export type { RequirementCheck } from "./context";
+export * from './types';
+export type { RequirementCheck } from './context';
 
 /** Проверки, работающие по одному требованию. */
 const PER_REQUIREMENT_RULES: Array<{
   id: ValidationRuleId;
   run: (check: RequirementCheck) => ValidationFinding[];
 }> = [
-  { id: "completeness", run: checkCompleteness },
-  { id: "atomicity", run: checkAtomicity },
-  { id: "ambiguity", run: checkAmbiguity },
-  { id: "measurability", run: checkMeasurability },
-  { id: "testability", run: checkTestability },
-  { id: "source", run: checkSource },
+  { id: 'completeness', run: checkCompleteness },
+  { id: 'atomicity', run: checkAtomicity },
+  { id: 'ambiguity', run: checkAmbiguity },
+  { id: 'measurability', run: checkMeasurability },
+  { id: 'testability', run: checkTestability },
+  { id: 'source', run: checkSource },
 ];
 
 const SEVERITY_ORDER: Record<ValidationSeverity, number> = {
@@ -37,10 +37,7 @@ const SEVERITY_ORDER: Record<ValidationSeverity, number> = {
   INFO: 2,
 };
 
-function isRuleEnabled(
-  options: ValidationOptions,
-  rule: ValidationRuleId,
-): boolean {
+function isRuleEnabled(options: ValidationOptions, rule: ValidationRuleId): boolean {
   return options.rules?.[rule] !== false;
 }
 
@@ -48,13 +45,10 @@ function isRuleEnabled(
  * Текст требований из встроенной нормативной библиотеки не редактируется
  * пользователем, поэтому его замечания не должны блокировать выпуск документа.
  */
-function capLibrarySeverity(
-  finding: ValidationFinding,
-  isLibrary: boolean,
-): ValidationFinding {
-  if (!isLibrary || finding.severity !== "ERROR") return finding;
+function capLibrarySeverity(finding: ValidationFinding, isLibrary: boolean): ValidationFinding {
+  if (!isLibrary || finding.severity !== 'ERROR') return finding;
 
-  return { ...finding, severity: "WARNING" };
+  return { ...finding, severity: 'WARNING' };
 }
 
 export function validateRequirements(
@@ -68,31 +62,21 @@ export function validateRequirements(
     PER_REQUIREMENT_RULES.forEach((rule) => {
       if (!isRuleEnabled(options, rule.id)) return;
 
-      rule
-        .run(check)
-        .forEach((item) =>
-          findings.push(capLibrarySeverity(item, check.isLibrary)),
-        );
+      rule.run(check).forEach((item) => findings.push(capLibrarySeverity(item, check.isLibrary)));
     });
   });
 
-  if (isRuleEnabled(options, "conflict")) {
-    const libraryIds = new Set(
-      checks.filter((c) => c.isLibrary).map((c) => c.requirement.id),
-    );
+  if (isRuleEnabled(options, 'conflict')) {
+    const libraryIds = new Set(checks.filter((c) => c.isLibrary).map((c) => c.requirement.id));
     checkConflicts(checks).forEach((item) =>
-      findings.push(
-        capLibrarySeverity(item, libraryIds.has(item.requirementId || "")),
-      ),
+      findings.push(capLibrarySeverity(item, libraryIds.has(item.requirementId || ''))),
     );
   }
 
   const orderById = new Map(requirements.map((req, index) => [req.id, index]));
   findings.sort((a, b) => {
-    const orderA =
-      orderById.get(a.requirementId || "") ?? Number.MAX_SAFE_INTEGER;
-    const orderB =
-      orderById.get(b.requirementId || "") ?? Number.MAX_SAFE_INTEGER;
+    const orderA = orderById.get(a.requirementId || '') ?? Number.MAX_SAFE_INTEGER;
+    const orderB = orderById.get(b.requirementId || '') ?? Number.MAX_SAFE_INTEGER;
     if (orderA !== orderB) return orderA - orderB;
 
     return SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
@@ -108,7 +92,7 @@ export function validateRequirements(
   findings.forEach((item) => {
     counts[item.severity] += 1;
 
-    const key = item.requirementId || "";
+    const key = item.requirementId || '';
     (byRequirement[key] ||= []).push(item);
   });
 
@@ -130,10 +114,8 @@ export function validateRequirement(
 
 /** Однострочное представление замечания для логов и текстовых отчётов. */
 export function formatValidationFinding(finding: ValidationFinding): string {
-  const code = finding.requirementCode ? `${finding.requirementCode}: ` : "";
-  const suggestion = finding.suggestion
-    ? ` Рекомендация: ${finding.suggestion}`
-    : "";
+  const code = finding.requirementCode ? `${finding.requirementCode}: ` : '';
+  const suggestion = finding.suggestion ? ` Рекомендация: ${finding.suggestion}` : '';
 
   return `${finding.severity} [${finding.rule}] ${code}${finding.message}${suggestion}`;
 }

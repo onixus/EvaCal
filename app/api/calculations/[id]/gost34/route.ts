@@ -1,10 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import JSZip from "jszip";
-import {
-  loadCalculationForExport,
-  safeFileName,
-  contentDisposition,
-} from "@/lib/export";
+import { NextRequest, NextResponse } from 'next/server';
+import JSZip from 'jszip';
+import { loadCalculationForExport, safeFileName, contentDisposition } from '@/lib/export';
 import {
   generateGost34Document,
   GostDocumentType,
@@ -12,37 +8,34 @@ import {
   Gost34RequirementItem,
   getZipEntries,
   resolveGost34Profile,
-} from "@/lib/gost34";
+} from '@/lib/gost34';
 
 /**
  * Fallback signatories used when the caller supplies none. Single source of
  * truth: the GET, POST and batch-ZIP paths must not drift apart.
  */
 const DEFAULT_SIGNATURES = {
-  developer: "Иванов А.В.",
-  checker: "Петров С.Н.",
-  techControl: "Сидоров К.М.",
-  normControl: "Васильева Е.И.",
-  approver: "Михайлов Д.П.",
-  customerApprover: "Александров И.В.",
-  invSubl: "ИНВ-102938",
+  developer: 'Иванов А.В.',
+  checker: 'Петров С.Н.',
+  techControl: 'Сидоров К.М.',
+  normControl: 'Васильева Е.И.',
+  approver: 'Михайлов Д.П.',
+  customerApprover: 'Александров И.В.',
+  invSubl: 'ИНВ-102938',
 };
 
-export async function GET(
-  req: NextRequest,
-  props: { params: Promise<{ id: string }> },
-) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const calc = await loadCalculationForExport(params.id);
-  if (!calc) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (!calc) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
   const searchParams = req.nextUrl.searchParams;
-  const docType = (searchParams.get("docType") || "TZ") as GostDocumentType;
-  const contractNumber = searchParams.get("contractNumber") || undefined;
-  const city = searchParams.get("city") || undefined;
-  const enrich = searchParams.get("enrich") !== "false";
+  const docType = (searchParams.get('docType') || 'TZ') as GostDocumentType;
+  const contractNumber = searchParams.get('contractNumber') || undefined;
+  const city = searchParams.get('city') || undefined;
+  const enrich = searchParams.get('enrich') !== 'false';
 
-  const standardProfileId = searchParams.get("profile") || undefined;
+  const standardProfileId = searchParams.get('profile') || undefined;
 
   const { buffer, filename } = await generateGost34Document({
     calculation: calc,
@@ -54,46 +47,38 @@ export async function GET(
       standardProfileId,
       signatures: {
         ...DEFAULT_SIGNATURES,
-        developer:
-          searchParams.get("developer") || DEFAULT_SIGNATURES.developer,
-        checker: searchParams.get("checker") || DEFAULT_SIGNATURES.checker,
-        normControl:
-          searchParams.get("normControl") || DEFAULT_SIGNATURES.normControl,
-        approver: searchParams.get("approver") || DEFAULT_SIGNATURES.approver,
+        developer: searchParams.get('developer') || DEFAULT_SIGNATURES.developer,
+        checker: searchParams.get('checker') || DEFAULT_SIGNATURES.checker,
+        normControl: searchParams.get('normControl') || DEFAULT_SIGNATURES.normControl,
+        approver: searchParams.get('approver') || DEFAULT_SIGNATURES.approver,
         customerApprover:
-          searchParams.get("customerApprover") ||
-          DEFAULT_SIGNATURES.customerApprover,
-        signDate: new Date().toLocaleDateString("ru-RU"),
+          searchParams.get('customerApprover') || DEFAULT_SIGNATURES.customerApprover,
+        signDate: new Date().toLocaleDateString('ru-RU'),
       },
     },
   });
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
-      "Content-Type":
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "Content-Disposition": contentDisposition(
-        safeFileName(filename.replace(/\.docx$/, "")),
-        "docx",
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'Content-Disposition': contentDisposition(
+        safeFileName(filename.replace(/\.docx$/, '')),
+        'docx',
       ),
-      "Content-Length": String(buffer.length),
+      'Content-Length': String(buffer.length),
     },
   });
 }
 
-export async function POST(
-  req: NextRequest,
-  props: { params: Promise<{ id: string }> },
-) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   try {
     const params = await props.params;
     const calc = await loadCalculationForExport(params.id);
-    if (!calc)
-      return NextResponse.json({ error: "not found" }, { status: 404 });
+    if (!calc) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
     const body = await req.json();
     const {
-      docType = "TZ",
+      docType = 'TZ',
       isBatchZip = false,
       contractNumber,
       city,
@@ -115,11 +100,11 @@ export async function POST(
       normControl,
       approver,
       customerApprover,
-      signDate: new Date().toLocaleDateString("ru-RU"),
+      signDate: new Date().toLocaleDateString('ru-RU'),
     };
 
     // If batch ZIP export is requested
-    if (isBatchZip || (docType as GostExportType) === "ZIP") {
+    if (isBatchZip || (docType as GostExportType) === 'ZIP') {
       const zip = new JSZip();
 
       const zipEntries = getZipEntries(resolveGost34Profile(standardProfileId));
@@ -148,17 +133,14 @@ export async function POST(
         zip.file(doc.filename, doc.buffer);
       }
 
-      const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+      const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
       const zipFilename = `GOST34_Full_Package_${safeFileName(calc.name)}.zip`;
 
       return new NextResponse(new Uint8Array(zipBuffer), {
         headers: {
-          "Content-Type": "application/zip",
-          "Content-Disposition": contentDisposition(
-            zipFilename.replace(/\.zip$/, ""),
-            "zip",
-          ),
-          "Content-Length": String(zipBuffer.length),
+          'Content-Type': 'application/zip',
+          'Content-Disposition': contentDisposition(zipFilename.replace(/\.zip$/, ''), 'zip'),
+          'Content-Length': String(zipBuffer.length),
         },
       });
     }
@@ -180,20 +162,16 @@ export async function POST(
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
-        "Content-Type":
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": contentDisposition(
-          safeFileName(filename.replace(/\.docx$/, "")),
-          "docx",
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'Content-Disposition': contentDisposition(
+          safeFileName(filename.replace(/\.docx$/, '')),
+          'docx',
         ),
-        "Content-Length": String(buffer.length),
+        'Content-Length': String(buffer.length),
       },
     });
   } catch (err: any) {
-    console.error("Error in GOST 34 POST export:", err);
-    return NextResponse.json(
-      { error: err?.message || "Export error" },
-      { status: 500 },
-    );
+    console.error('Error in GOST 34 POST export:', err);
+    return NextResponse.json({ error: err?.message || 'Export error' }, { status: 500 });
   }
 }

@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requireApiRole } from "@/lib/auth";
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { requireApiRole } from '@/lib/auth';
 
 export async function GET() {
   const templates = await prisma.formTemplate.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: 'desc' },
     include: {
       _count: {
         select: { fields: true, stageTemplates: true, calculations: true },
@@ -15,12 +15,12 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireApiRole("admin");
+  const auth = await requireApiRole('admin');
   if (auth instanceof NextResponse) return auth;
 
   const body = await req.json();
-  if (!body.name || typeof body.name !== "string") {
-    return NextResponse.json({ error: "name is required" }, { status: 400 });
+  if (!body.name || typeof body.name !== 'string') {
+    return NextResponse.json({ error: 'name is required' }, { status: 400 });
   }
   const template = await prisma.formTemplate.create({
     data: { name: body.name, description: body.description ?? null },

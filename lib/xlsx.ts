@@ -1,15 +1,15 @@
-import * as XLSX from "xlsx";
-import { CalculationForExport } from "./export";
-import { roleLabel, STATUS_LABELS } from "./roles";
-import { totalLaborHours } from "./scheduling";
-import { risksTotalHours } from "./totals";
+import * as XLSX from 'xlsx';
+import { CalculationForExport } from './export';
+import { roleLabel, STATUS_LABELS } from './roles';
+import { totalLaborHours } from './scheduling';
+import { risksTotalHours } from './totals';
 
 function fmtDate(d: Date | null): string {
-  if (!d) return "";
-  return new Date(d).toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
+  if (!d) return '';
+  return new Date(d).toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
   });
 }
 
@@ -21,54 +21,54 @@ export function renderCalculationXlsx(calc: CalculationForExport): Buffer {
   const wb = XLSX.utils.book_new();
 
   const overviewSheet = XLSX.utils.aoa_to_sheet([
-    ["Название", calc.name],
-    ["Заказчик", calc.customer],
-    ["Шаблон", calc.templateName],
-    ["Статус", STATUS_LABELS[calc.status] ?? calc.status],
-    ["Дата старта", fmtDate(calc.startDate)],
+    ['Название', calc.name],
+    ['Заказчик', calc.customer],
+    ['Шаблон', calc.templateName],
+    ['Статус', STATUS_LABELS[calc.status] ?? calc.status],
+    ['Дата старта', fmtDate(calc.startDate)],
     [],
-    ["Трудозатраты, этапы, ч", stagesHours],
-    ["Трудозатраты, РП, ч", calc.pmHours],
-    ["Трудозатраты, риски, ч", risksHours],
-    ["Трудозатраты, итого, ч", grandTotal],
+    ['Трудозатраты, этапы, ч', stagesHours],
+    ['Трудозатраты, РП, ч', calc.pmHours],
+    ['Трудозатраты, риски, ч', risksHours],
+    ['Трудозатраты, итого, ч', grandTotal],
   ]);
-  overviewSheet["!cols"] = [{ wch: 24 }, { wch: 40 }];
-  XLSX.utils.book_append_sheet(wb, overviewSheet, "Расчёт");
+  overviewSheet['!cols'] = [{ wch: 24 }, { wch: 40 }];
+  XLSX.utils.book_append_sheet(wb, overviewSheet, 'Расчёт');
 
   if (calc.fields.length > 0) {
     const answersSheet = XLSX.utils.aoa_to_sheet([
-      ["Вопрос", "Ответ"],
-      ...calc.fields.map((f) => [f.label, String(calc.answers[f.key] ?? "")]),
+      ['Вопрос', 'Ответ'],
+      ...calc.fields.map((f) => [f.label, String(calc.answers[f.key] ?? '')]),
     ]);
-    answersSheet["!cols"] = [{ wch: 32 }, { wch: 40 }];
-    XLSX.utils.book_append_sheet(wb, answersSheet, "Ответы");
+    answersSheet['!cols'] = [{ wch: 32 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(wb, answersSheet, 'Ответы');
   }
 
   const stagesSheet = XLSX.utils.aoa_to_sheet([
     [
-      "Этап",
-      "Роль",
-      "Параллельно",
-      "Часы",
-      "Начало",
-      "Окончание",
-      "Срок согласования",
-      "Статус",
-      "Требования",
+      'Этап',
+      'Роль',
+      'Параллельно',
+      'Часы',
+      'Начало',
+      'Окончание',
+      'Срок согласования',
+      'Статус',
+      'Требования',
     ],
     ...calc.stages.map((s) => [
       s.name,
       roleLabel(s.role),
-      s.parallel ? "Да" : "",
-      s.isApprovalTask ? "" : s.hours,
+      s.parallel ? 'Да' : '',
+      s.isApprovalTask ? '' : s.hours,
       fmtDate(s.startDate),
       fmtDate(s.endDate),
       fmtDate(s.dueDate),
       STATUS_LABELS[s.status] ?? s.status,
-      s.requirements ?? "",
+      s.requirements ?? '',
     ]),
   ]);
-  stagesSheet["!cols"] = [
+  stagesSheet['!cols'] = [
     { wch: 34 },
     { wch: 14 },
     { wch: 12 },
@@ -79,16 +79,16 @@ export function renderCalculationXlsx(calc: CalculationForExport): Buffer {
     { wch: 14 },
     { wch: 40 },
   ];
-  XLSX.utils.book_append_sheet(wb, stagesSheet, "Этапы");
+  XLSX.utils.book_append_sheet(wb, stagesSheet, 'Этапы');
 
   if (calc.risks.length > 0) {
     const risksSheet = XLSX.utils.aoa_to_sheet([
-      ["Описание", "Часы"],
+      ['Описание', 'Часы'],
       ...calc.risks.map((r) => [r.description, r.hours]),
     ]);
-    risksSheet["!cols"] = [{ wch: 70 }, { wch: 10 }];
-    XLSX.utils.book_append_sheet(wb, risksSheet, "Риски");
+    risksSheet['!cols'] = [{ wch: 70 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, risksSheet, 'Риски');
   }
 
-  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 }

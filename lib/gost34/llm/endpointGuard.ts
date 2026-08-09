@@ -21,13 +21,13 @@ export const DEFAULT_ENDPOINT_POLICY: EndpointPolicy = {
 export class EndpointNotAllowedError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "EndpointNotAllowedError";
+    this.name = 'EndpointNotAllowedError';
   }
 }
 
 function isLoopbackHost(host: string): boolean {
-  if (host === "localhost" || host.endsWith(".localhost")) return true;
-  if (host === "::1" || host === "[::1]") return true;
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (host === '::1' || host === '[::1]') return true;
   return /^127\./.test(host);
 }
 
@@ -60,21 +60,17 @@ export function assertAllowedEndpoint(
   try {
     url = new URL(rawEndpoint);
   } catch {
-    throw new EndpointNotAllowedError(
-      `Некорректный адрес LLM-провайдера: ${rawEndpoint}`,
-    );
+    throw new EndpointNotAllowedError(`Некорректный адрес LLM-провайдера: ${rawEndpoint}`);
   }
 
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new EndpointNotAllowedError(
       `Недопустимый протокол ${url.protocol} в адресе LLM-провайдера.`,
     );
   }
 
   if (url.username || url.password) {
-    throw new EndpointNotAllowedError(
-      "Учётные данные в URL LLM-провайдера не допускаются.",
-    );
+    throw new EndpointNotAllowedError('Учётные данные в URL LLM-провайдера не допускаются.');
   }
 
   const host = url.hostname.toLowerCase();
@@ -97,19 +93,14 @@ export function assertAllowedEndpoint(
   }
 
   // Plain http is only tolerated for a local model; anything remote must be TLS.
-  if (url.protocol === "http:" && !loopback && !isPrivateHost(host)) {
-    throw new EndpointNotAllowedError(
-      "Удалённые LLM-провайдеры допускаются только по HTTPS.",
-    );
+  if (url.protocol === 'http:' && !loopback && !isPrivateHost(host)) {
+    throw new EndpointNotAllowedError('Удалённые LLM-провайдеры допускаются только по HTTPS.');
   }
 
-  return rawEndpoint.replace(/\/+$/, "");
+  return rawEndpoint.replace(/\/+$/, '');
 }
 
-export function isAllowedEndpoint(
-  rawEndpoint: string,
-  policy?: EndpointPolicy,
-): boolean {
+export function isAllowedEndpoint(rawEndpoint: string, policy?: EndpointPolicy): boolean {
   try {
     assertAllowedEndpoint(rawEndpoint, policy);
     return true;

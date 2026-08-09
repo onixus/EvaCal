@@ -1,18 +1,13 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import {
-  ROLES,
-  APPROVAL_REQUIRED_ROLES,
-  APPROVAL_BUSINESS_DAYS,
-  Role,
-} from "@/lib/roles";
-import StageTable, { StageRow } from "@/components/StageTable";
-import GanttChart from "@/components/GanttChart";
-import StatusBadge from "@/components/StatusBadge";
-import TotalsSummary, { RiskRow } from "@/components/TotalsSummary";
-import ExportLinks from "@/components/ExportLinks";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ROLES, APPROVAL_REQUIRED_ROLES, APPROVAL_BUSINESS_DAYS, Role } from '@/lib/roles';
+import StageTable, { StageRow } from '@/components/StageTable';
+import GanttChart from '@/components/GanttChart';
+import StatusBadge from '@/components/StatusBadge';
+import TotalsSummary, { RiskRow } from '@/components/TotalsSummary';
+import ExportLinks from '@/components/ExportLinks';
 
 interface Calculation {
   id: string;
@@ -42,11 +37,7 @@ function nextKey() {
   return `new-${uid}`;
 }
 
-export default function ArchitectEditor({
-  calculation,
-}: {
-  calculation: Calculation;
-}) {
+export default function ArchitectEditor({ calculation }: { calculation: Calculation }) {
   const router = useRouter();
   const [stages, setStages] = useState<EditableStage[]>(
     calculation.stages
@@ -56,47 +47,43 @@ export default function ArchitectEditor({
         name: s.name,
         role: s.role,
         hours: s.hours,
-        requirements: s.requirements ?? "",
+        requirements: s.requirements ?? '',
         parallel: s.parallel ?? false,
         approvalDays: s.approvalDays ?? APPROVAL_BUSINESS_DAYS,
       })),
   );
-  const [startDate, setStartDate] = useState(
-    calculation.startDate.slice(0, 10),
-  );
+  const [startDate, setStartDate] = useState(calculation.startDate.slice(0, 10));
   const [saving, setSaving] = useState(false);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [riskBusy, setRiskBusy] = useState(false);
-  const [newRiskDescription, setNewRiskDescription] = useState("");
+  const [newRiskDescription, setNewRiskDescription] = useState('');
   const [newRiskHours, setNewRiskHours] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const locked = calculation.status === "approved";
+  const locked = calculation.status === 'approved';
 
   async function saveSchedule() {
     setScheduleSaving(true);
     setError(null);
     try {
       const res = await fetch(`/api/calculations/${calculation.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ startDate }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Не удалось сохранить");
+        throw new Error(data.error ?? 'Не удалось сохранить');
       }
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError(err instanceof Error ? err.message : 'Ошибка');
     } finally {
       setScheduleSaving(false);
     }
   }
 
   function updateStage(key: string, patch: Partial<EditableStage>) {
-    setStages((prev) =>
-      prev.map((s) => (s.key === key ? { ...s, ...patch } : s)),
-    );
+    setStages((prev) => prev.map((s) => (s.key === key ? { ...s, ...patch } : s)));
   }
 
   function addStage() {
@@ -104,10 +91,10 @@ export default function ArchitectEditor({
       ...prev,
       {
         key: nextKey(),
-        name: "Новый этап",
-        role: "developer",
+        name: 'Новый этап',
+        role: 'developer',
         hours: 8,
-        requirements: "",
+        requirements: '',
         parallel: false,
         approvalDays: APPROVAL_BUSINESS_DAYS,
       },
@@ -133,8 +120,8 @@ export default function ArchitectEditor({
     setError(null);
     try {
       const res = await fetch(`/api/calculations/${calculation.id}/stages`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           stages: stages.map((s) => ({
             name: s.name,
@@ -150,11 +137,11 @@ export default function ArchitectEditor({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Не удалось сохранить этапы");
+        throw new Error(data.error ?? 'Не удалось сохранить этапы');
       }
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError(err instanceof Error ? err.message : 'Ошибка');
     } finally {
       setSaving(false);
     }
@@ -164,7 +151,7 @@ export default function ArchitectEditor({
     setSaving(true);
     try {
       await fetch(`/api/calculations/${calculation.id}/approve`, {
-        method: "POST",
+        method: 'POST',
       });
       router.refresh();
     } finally {
@@ -177,15 +164,15 @@ export default function ArchitectEditor({
     setRiskBusy(true);
     try {
       const res = await fetch(`/api/calculations/${calculation.id}/risks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: newRiskDescription,
           hours: newRiskHours,
         }),
       });
       if (res.ok) {
-        setNewRiskDescription("");
+        setNewRiskDescription('');
         setNewRiskHours(0);
         router.refresh();
       }
@@ -194,15 +181,12 @@ export default function ArchitectEditor({
     }
   }
 
-  async function updateRisk(
-    risk: RiskRow,
-    patch: { description?: string; hours?: number },
-  ) {
+  async function updateRisk(risk: RiskRow, patch: { description?: string; hours?: number }) {
     setRiskBusy(true);
     try {
       await fetch(`/api/calculations/${calculation.id}/risks/${risk.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       });
       router.refresh();
@@ -215,7 +199,7 @@ export default function ArchitectEditor({
     setRiskBusy(true);
     try {
       await fetch(`/api/calculations/${calculation.id}/risks/${risk.id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       router.refresh();
     } finally {
@@ -229,8 +213,7 @@ export default function ArchitectEditor({
         <div>
           <h1 className="text-xl font-semibold">{calculation.name}</h1>
           <p className="text-sm text-slate-500">
-            Заказчик: {calculation.customer} · Шаблон:{" "}
-            {calculation.template.name}
+            Заказчик: {calculation.customer} · Шаблон: {calculation.template.name}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -242,9 +225,8 @@ export default function ArchitectEditor({
       <div className="card p-6">
         <h2 className="mb-1 font-medium">Дата старта проекта</h2>
         <p className="mb-3 text-xs text-slate-500">
-          Архитектор может менять дату старта даже если она зафиксирована
-          шаблоном для пресейла. Изменение сдвигает весь график, сохраняя
-          текущие трудозатраты этапов.
+          Архитектор может менять дату старта даже если она зафиксирована шаблоном для пресейла.
+          Изменение сдвигает весь график, сохраняя текущие трудозатраты этапов.
         </p>
         <div className="max-w-xs">
           <input
@@ -260,7 +242,7 @@ export default function ArchitectEditor({
           disabled={scheduleSaving || locked}
           onClick={saveSchedule}
         >
-          {scheduleSaving ? "Сохранение…" : "Сохранить и пересчитать график"}
+          {scheduleSaving ? 'Сохранение…' : 'Сохранить и пересчитать график'}
         </button>
       </div>
 
@@ -274,12 +256,11 @@ export default function ArchitectEditor({
           )}
         </div>
         <p className="mb-3 text-xs text-slate-500">
-          Для этапов с исполнителем «консультант», «разработчик», «инженер» или
-          «аналитик» система автоматически добавит задачу согласования на
-          заказчика — длительность можно изменить для каждого этапа отдельно (по
-          умолчанию 3 рабочих дня). Отметьте «параллельно», чтобы этап начинался
-          одновременно с предыдущим, а не после его окончания. РП в этапах не
-          отображается — учитывается только в итоговых трудозатратах.
+          Для этапов с исполнителем «консультант», «разработчик», «инженер» или «аналитик» система
+          автоматически добавит задачу согласования на заказчика — длительность можно изменить для
+          каждого этапа отдельно (по умолчанию 3 рабочих дня). Отметьте «параллельно», чтобы этап
+          начинался одновременно с предыдущим, а не после его окончания. РП в этапах не отображается
+          — учитывается только в итоговых трудозатратах.
         </p>
 
         <div className="space-y-2">
@@ -313,9 +294,7 @@ export default function ArchitectEditor({
                   className="input w-28"
                   disabled={locked}
                   value={s.hours}
-                  onChange={(e) =>
-                    updateStage(s.key, { hours: e.target.valueAsNumber || 0 })
-                  }
+                  onChange={(e) => updateStage(s.key, { hours: e.target.valueAsNumber || 0 })}
                 />
                 <span className="text-xs text-slate-500">ч</span>
                 {!locked && (
@@ -349,9 +328,7 @@ export default function ArchitectEditor({
                 placeholder="Требования и ограничения по этапу"
                 disabled={locked}
                 value={s.requirements}
-                onChange={(e) =>
-                  updateStage(s.key, { requirements: e.target.value })
-                }
+                onChange={(e) => updateStage(s.key, { requirements: e.target.value })}
               />
               <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-nord-4">
@@ -359,9 +336,7 @@ export default function ArchitectEditor({
                     type="checkbox"
                     disabled={locked}
                     checked={s.parallel}
-                    onChange={(e) =>
-                      updateStage(s.key, { parallel: e.target.checked })
-                    }
+                    onChange={(e) => updateStage(s.key, { parallel: e.target.checked })}
                   />
                   Параллельно с предыдущим этапом
                 </label>
@@ -376,8 +351,7 @@ export default function ArchitectEditor({
                       value={s.approvalDays}
                       onChange={(e) =>
                         updateStage(s.key, {
-                          approvalDays:
-                            e.target.valueAsNumber || APPROVAL_BUSINESS_DAYS,
+                          approvalDays: e.target.valueAsNumber || APPROVAL_BUSINESS_DAYS,
                         })
                       }
                     />
@@ -387,9 +361,7 @@ export default function ArchitectEditor({
             </div>
           ))}
           {stages.length === 0 && (
-            <p className="text-sm text-slate-500">
-              Нет этапов. Добавьте хотя бы один.
-            </p>
+            <p className="text-sm text-slate-500">Нет этапов. Добавьте хотя бы один.</p>
           )}
         </div>
 
@@ -401,13 +373,11 @@ export default function ArchitectEditor({
             disabled={saving || locked || stages.length === 0}
             onClick={save}
           >
-            {saving ? "Сохранение…" : "Сохранить и пересчитать график"}
+            {saving ? 'Сохранение…' : 'Сохранить и пересчитать график'}
           </button>
           <button
             className="btn-secondary"
-            disabled={
-              saving || locked || calculation.status !== "pending_approval"
-            }
+            disabled={saving || locked || calculation.status !== 'pending_approval'}
             onClick={approve}
           >
             Утвердить расчёт
@@ -438,9 +408,7 @@ export default function ArchitectEditor({
                 className="input w-28"
                 disabled={locked}
                 defaultValue={risk.hours}
-                onBlur={(e) =>
-                  updateRisk(risk, { hours: e.target.valueAsNumber || 0 })
-                }
+                onBlur={(e) => updateRisk(risk, { hours: e.target.valueAsNumber || 0 })}
               />
               <span className="text-xs text-slate-500">ч</span>
               {!locked && (
@@ -471,7 +439,7 @@ export default function ArchitectEditor({
               min={0}
               className="input w-28"
               placeholder="ч"
-              value={newRiskHours || ""}
+              value={newRiskHours || ''}
               onChange={(e) => setNewRiskHours(e.target.valueAsNumber || 0)}
             />
             <button

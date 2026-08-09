@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import DynamicForm, { FormFieldDef } from "@/components/DynamicForm";
-import StageTable, { StageRow } from "@/components/StageTable";
-import GanttChart from "@/components/GanttChart";
-import StatusBadge from "@/components/StatusBadge";
-import TotalsSummary, { RiskRow } from "@/components/TotalsSummary";
-import RiskList from "@/components/RiskList";
-import ExportLinks from "@/components/ExportLinks";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import DynamicForm, { FormFieldDef } from '@/components/DynamicForm';
+import StageTable, { StageRow } from '@/components/StageTable';
+import GanttChart from '@/components/GanttChart';
+import StatusBadge from '@/components/StatusBadge';
+import TotalsSummary, { RiskRow } from '@/components/TotalsSummary';
+import RiskList from '@/components/RiskList';
+import ExportLinks from '@/components/ExportLinks';
 
 interface Calculation {
   id: string;
@@ -28,21 +28,15 @@ interface Calculation {
   risks: RiskRow[];
 }
 
-export default function PresaleCalculationEditor({
-  calculation,
-}: {
-  calculation: Calculation;
-}) {
+export default function PresaleCalculationEditor({ calculation }: { calculation: Calculation }) {
   const router = useRouter();
   const [name, setName] = useState(calculation.name);
   const [customer, setCustomer] = useState(calculation.customer);
-  const [startDate, setStartDate] = useState(
-    calculation.startDate.slice(0, 10),
-  );
+  const [startDate, setStartDate] = useState(calculation.startDate.slice(0, 10));
   const [answers, setAnswers] = useState(calculation.answers);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const locked = calculation.status === "approved";
+  const locked = calculation.status === 'approved';
   const startDateLocked = locked || !!calculation.template.defaultStartDate;
 
   async function save() {
@@ -50,17 +44,17 @@ export default function PresaleCalculationEditor({
     setError(null);
     try {
       const res = await fetch(`/api/calculations/${calculation.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, customer, answers, startDate }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Не удалось сохранить");
+        throw new Error(data.error ?? 'Не удалось сохранить');
       }
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError(err instanceof Error ? err.message : 'Ошибка');
     } finally {
       setSaving(false);
     }
@@ -70,7 +64,7 @@ export default function PresaleCalculationEditor({
     setSaving(true);
     try {
       await fetch(`/api/calculations/${calculation.id}/submit`, {
-        method: "POST",
+        method: 'POST',
       });
       router.refresh();
     } finally {
@@ -112,9 +106,7 @@ export default function PresaleCalculationEditor({
             <label className="label">
               Дата старта проекта
               {startDateLocked && (
-                <span className="ml-1 text-xs text-slate-400">
-                  (зафиксирована)
-                </span>
+                <span className="ml-1 text-xs text-slate-400">(зафиксирована)</span>
               )}
             </label>
             <input
@@ -135,9 +127,7 @@ export default function PresaleCalculationEditor({
             <DynamicForm
               fields={calculation.template.fields}
               values={answers}
-              onChange={(key, value) =>
-                setAnswers((prev) => ({ ...prev, [key]: value }))
-              }
+              onChange={(key, value) => setAnswers((prev) => ({ ...prev, [key]: value }))}
             />
           </fieldset>
         </div>
@@ -145,18 +135,12 @@ export default function PresaleCalculationEditor({
         {error && <p className="text-sm text-rose-600">{error}</p>}
 
         <div className="flex gap-3">
-          <button
-            className="btn-primary"
-            disabled={saving || locked}
-            onClick={save}
-          >
-            {saving ? "Сохранение…" : "Пересчитать"}
+          <button className="btn-primary" disabled={saving || locked} onClick={save}>
+            {saving ? 'Сохранение…' : 'Пересчитать'}
           </button>
           <button
             className="btn-secondary"
-            disabled={
-              saving || locked || calculation.status === "pending_approval"
-            }
+            disabled={saving || locked || calculation.status === 'pending_approval'}
             onClick={submitForApproval}
           >
             Отправить архитектору на согласование

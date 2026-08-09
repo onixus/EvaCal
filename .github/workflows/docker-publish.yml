@@ -6,7 +6,7 @@ on:
       - main
       - fix/docker-migrate-perms-and-seed
     tags:
-      - "v*"
+      - 'v*'
   pull_request:
     branches:
       - main

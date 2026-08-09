@@ -1,13 +1,9 @@
-export * from "./types";
-export * from "./profiles";
+export * from './types';
+export * from './profiles';
 
-import type { GostDocumentType } from "../types";
-import type { DocumentProfile, StandardProfile } from "./types";
-import {
-  GOST34_2020_PROFILE,
-  GOST34_LEGACY_PROFILE,
-  GOST34_PROFILES,
-} from "./profiles";
+import type { GostDocumentType } from '../types';
+import type { DocumentProfile, StandardProfile } from './types';
+import { GOST34_2020_PROFILE, GOST34_LEGACY_PROFILE, GOST34_PROFILES } from './profiles';
 
 export const LEGACY_GOST34_PROFILE_ID = GOST34_LEGACY_PROFILE.id;
 export const CURRENT_GOST34_PROFILE_ID = GOST34_2020_PROFILE.id;
@@ -39,7 +35,7 @@ export function getDocumentProfile(
 ): DocumentProfile {
   return (
     profile.documentTypes.find((d) => d.docType === docType) ||
-    profile.documentTypes.find((d) => d.docType === "TZ") ||
+    profile.documentTypes.find((d) => d.docType === 'TZ') ||
     profile.documentTypes[0]
   );
 }
@@ -61,6 +57,6 @@ export function getZipEntries(
     .sort((a, b) => a.zipOrder - b.zipOrder)
     .map((doc) => ({
       docType: doc.docType,
-      filename: `${String(doc.zipOrder).padStart(2, "0")}_${doc.docType}_${doc.filenameBase}.docx`,
+      filename: `${String(doc.zipOrder).padStart(2, '0')}_${doc.docType}_${doc.filenameBase}.docx`,
     }));
 }

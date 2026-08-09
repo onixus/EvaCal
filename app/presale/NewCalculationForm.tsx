@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import DynamicForm, { FormFieldDef } from "@/components/DynamicForm";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import DynamicForm, { FormFieldDef } from '@/components/DynamicForm';
 
 interface Template {
   id: string;
@@ -15,20 +15,12 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function NewCalculationForm({
-  template,
-}: {
-  template: Template;
-}) {
+export default function NewCalculationForm({ template }: { template: Template }) {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [customer, setCustomer] = useState("");
-  const [startDate, setStartDate] = useState(
-    template.defaultStartDate?.slice(0, 10) ?? todayIso(),
-  );
-  const [answers, setAnswers] = useState<
-    Record<string, string | number | boolean>
-  >({});
+  const [name, setName] = useState('');
+  const [customer, setCustomer] = useState('');
+  const [startDate, setStartDate] = useState(template.defaultStartDate?.slice(0, 10) ?? todayIso());
+  const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const startDateLocked = !!template.defaultStartDate;
@@ -38,9 +30,9 @@ export default function NewCalculationForm({
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/calculations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/calculations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
           customer,
@@ -51,12 +43,12 @@ export default function NewCalculationForm({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Не удалось создать расчёт");
+        throw new Error(data.error ?? 'Не удалось создать расчёт');
       }
       const data = await res.json();
       router.push(`/presale/${data.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError(err instanceof Error ? err.message : 'Ошибка');
     } finally {
       setSubmitting(false);
     }
@@ -87,9 +79,7 @@ export default function NewCalculationForm({
           <label className="label">
             Дата старта проекта
             {startDateLocked && (
-              <span className="ml-1 text-xs text-slate-400">
-                (зафиксирована шаблоном)
-              </span>
+              <span className="ml-1 text-xs text-slate-400">(зафиксирована шаблоном)</span>
             )}
           </label>
           <input
@@ -104,22 +94,18 @@ export default function NewCalculationForm({
       </div>
 
       <div>
-        <h3 className="mb-2 text-sm font-medium text-slate-700">
-          Опросник «{template.name}»
-        </h3>
+        <h3 className="mb-2 text-sm font-medium text-slate-700">Опросник «{template.name}»</h3>
         <DynamicForm
           fields={template.fields}
           values={answers}
-          onChange={(key, value) =>
-            setAnswers((prev) => ({ ...prev, [key]: value }))
-          }
+          onChange={(key, value) => setAnswers((prev) => ({ ...prev, [key]: value }))}
         />
       </div>
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
       <button type="submit" className="btn-primary" disabled={submitting}>
-        {submitting ? "Расчёт…" : "Рассчитать трудозатраты"}
+        {submitting ? 'Расчёт…' : 'Рассчитать трудозатраты'}
       </button>
     </form>
   );

@@ -16,29 +16,26 @@ import {
   PageBorderDisplay,
   PageNumber,
   TableOfContents,
-} from "docx";
-import { Gost34DocumentAST, Gost34Section } from "../types";
-import {
-  buildGost2104Form2Table,
-  buildGost2104Form2aTable,
-} from "./gostFrameBuilder";
-import { DEFAULT_GOST34_PROFILE, getDocumentHeadings } from "../standards";
-import { getLayoutProfile } from "./layout";
+} from 'docx';
+import { Gost34DocumentAST, Gost34Section } from '../types';
+import { buildGost2104Form2Table, buildGost2104Form2aTable } from './gostFrameBuilder';
+import { DEFAULT_GOST34_PROFILE, getDocumentHeadings } from '../standards';
+import { getLayoutProfile } from './layout';
 
 /**
  * Renders a GOST 34 Document AST into a Microsoft Word (.docx) binary buffer
  * supporting Layout Profiles (gost34-modern, gost34-eskd-frame, plain-corporate).
  */
-export async function exportGost34ToDocx(
-  ast: Gost34DocumentAST,
-): Promise<Buffer> {
+export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer> {
   const meta = ast.metadata;
   const sigs = meta.signatures;
 
   const layoutProfile = getLayoutProfile(meta.layoutProfileId);
   const standardProfile = ast.standardProfile ?? DEFAULT_GOST34_PROFILE;
-  const { title: docTitleText, subtitle: docSubtitleText } =
-    getDocumentHeadings(standardProfile, meta.docType);
+  const { title: docTitleText, subtitle: docSubtitleText } = getDocumentHeadings(
+    standardProfile,
+    meta.docType,
+  );
 
   // Margins in twips from layoutProfile
   const titleMargin = {
@@ -58,25 +55,25 @@ export async function exportGost34ToDocx(
         pageBorderTop: {
           style: BorderStyle.SINGLE,
           size: 12,
-          color: "000000",
+          color: '000000',
           space: 14,
         },
         pageBorderBottom: {
           style: BorderStyle.SINGLE,
           size: 12,
-          color: "000000",
+          color: '000000',
           space: 14,
         },
         pageBorderLeft: {
           style: BorderStyle.SINGLE,
           size: 12,
-          color: "000000",
+          color: '000000',
           space: 31,
         },
         pageBorderRight: {
           style: BorderStyle.SINGLE,
           size: 12,
-          color: "000000",
+          color: '000000',
           space: 14,
         },
       }
@@ -90,9 +87,9 @@ export async function exportGost34ToDocx(
       spacing: { before: 200, after: 100 },
       children: [
         new TextRun({
-          text: "УТВЕРЖДАЮ",
+          text: 'УТВЕРЖДАЮ',
           bold: true,
-          font: "Times New Roman",
+          font: 'Times New Roman',
           size: 24,
         }),
       ],
@@ -103,7 +100,7 @@ export async function exportGost34ToDocx(
       children: [
         new TextRun({
           text: `Заказчик: ${meta.customerName}`,
-          font: "Times New Roman",
+          font: 'Times New Roman',
           size: 24,
         }),
       ],
@@ -113,8 +110,8 @@ export async function exportGost34ToDocx(
       spacing: { before: 0, after: 100 },
       children: [
         new TextRun({
-          text: `_________________ / ${sigs.customerApprover || "И.И. Иванов"} /`,
-          font: "Times New Roman",
+          text: `_________________ / ${sigs.customerApprover || 'И.И. Иванов'} /`,
+          font: 'Times New Roman',
           size: 24,
         }),
       ],
@@ -125,7 +122,7 @@ export async function exportGost34ToDocx(
       children: [
         new TextRun({
           text: `«_____» ________________ ${meta.year} г.`,
-          font: "Times New Roman",
+          font: 'Times New Roman',
           size: 24,
         }),
       ],
@@ -139,7 +136,7 @@ export async function exportGost34ToDocx(
         new TextRun({
           text: meta.documentCode,
           bold: true,
-          font: "Times New Roman",
+          font: 'Times New Roman',
           size: 28,
         }),
       ],
@@ -151,7 +148,7 @@ export async function exportGost34ToDocx(
         new TextRun({
           text: meta.fullSystemName.toUpperCase(),
           bold: true,
-          font: "Times New Roman",
+          font: 'Times New Roman',
           size: 32,
         }),
       ],
@@ -163,12 +160,12 @@ export async function exportGost34ToDocx(
         new TextRun({
           text: docTitleText,
           bold: true,
-          font: "Times New Roman",
+          font: 'Times New Roman',
           size: 36,
         }),
         new TextRun({
           text: `\n${docSubtitleText}`,
-          font: "Times New Roman",
+          font: 'Times New Roman',
           size: 24,
         }),
       ],
@@ -180,9 +177,9 @@ export async function exportGost34ToDocx(
       spacing: { before: 600, after: 100 },
       children: [
         new TextRun({
-          text: "СОГЛАСОВАНО:",
+          text: 'СОГЛАСОВАНО:',
           bold: true,
-          font: "Times New Roman",
+          font: 'Times New Roman',
           size: 24,
         }),
       ],
@@ -193,7 +190,7 @@ export async function exportGost34ToDocx(
       children: [
         new TextRun({
           text: `Разработчик: ${meta.developerName}`,
-          font: "Times New Roman",
+          font: 'Times New Roman',
           size: 24,
         }),
       ],
@@ -203,8 +200,8 @@ export async function exportGost34ToDocx(
       spacing: { before: 0, after: 100 },
       children: [
         new TextRun({
-          text: `_________________ / ${sigs.approver || "П.П. Петров"} /`,
-          font: "Times New Roman",
+          text: `_________________ / ${sigs.approver || 'П.П. Петров'} /`,
+          font: 'Times New Roman',
           size: 24,
         }),
       ],
@@ -215,7 +212,7 @@ export async function exportGost34ToDocx(
       children: [
         new TextRun({
           text: `«_____» ________________ ${meta.year} г.`,
-          font: "Times New Roman",
+          font: 'Times New Roman',
           size: 24,
         }),
       ],
@@ -228,7 +225,7 @@ export async function exportGost34ToDocx(
       children: [
         new TextRun({
           text: `${meta.city} — ${meta.year}`,
-          font: "Times New Roman",
+          font: 'Times New Roman',
           size: 24,
         }),
       ],
@@ -244,7 +241,7 @@ export async function exportGost34ToDocx(
       children: [
         new TextRun({
           text,
-          font: "Times New Roman",
+          font: 'Times New Roman',
           size: 28, // 14pt
         }),
       ],
@@ -252,11 +249,7 @@ export async function exportGost34ToDocx(
   };
 
   // Helper to build Section Header
-  const makeGostHeader = (
-    title: string,
-    numStr: string,
-    level: number = 1,
-  ): Paragraph => {
+  const makeGostHeader = (title: string, numStr: string, level: number = 1): Paragraph => {
     return new Paragraph({
       heading: level === 1 ? HeadingLevel.HEADING_1 : HeadingLevel.HEADING_2,
       spacing: { before: 360, after: 200 },
@@ -265,7 +258,7 @@ export async function exportGost34ToDocx(
         new TextRun({
           text: `${numStr}. ${title}`,
           bold: true,
-          font: "Times New Roman",
+          font: 'Times New Roman',
           size: level === 1 ? 32 : 28, // 16pt for H1, 14pt for H2
         }),
       ],
@@ -292,7 +285,7 @@ export async function exportGost34ToDocx(
               children: [
                 new TextRun({
                   text: tbl.caption,
-                  font: "Times New Roman",
+                  font: 'Times New Roman',
                   size: 24,
                   bold: true,
                 }),
@@ -315,7 +308,7 @@ export async function exportGost34ToDocx(
                         new TextRun({
                           text: h,
                           bold: true,
-                          font: "Times New Roman",
+                          font: 'Times New Roman',
                           size: 22,
                         }),
                       ],
@@ -338,7 +331,7 @@ export async function exportGost34ToDocx(
                           children: [
                             new TextRun({
                               text: String(val),
-                              font: "Times New Roman",
+                              font: 'Times New Roman',
                               size: 22,
                             }),
                           ],
@@ -373,16 +366,16 @@ export async function exportGost34ToDocx(
         spacing: { before: 200, after: 300 },
         children: [
           new TextRun({
-            text: "СОДЕРЖАНИЕ",
+            text: 'СОДЕРЖАНИЕ',
             bold: true,
             font: layoutProfile.fontFamily,
             size: 32,
           }),
         ],
       }),
-      new TableOfContents("СОДЕРЖАНИЕ", {
+      new TableOfContents('СОДЕРЖАНИЕ', {
         hyperlink: true,
-        headingStyleRange: "1-3",
+        headingStyleRange: '1-3',
       }) as any,
       new Paragraph({
         spacing: { before: 400, after: 400 },
@@ -411,7 +404,7 @@ export async function exportGost34ToDocx(
               spacing: { before: 100 },
               children: [
                 new TextRun({
-                  text: "Страница ",
+                  text: 'Страница ',
                   font: layoutProfile.fontFamily,
                   size: 20,
                 }),
@@ -421,7 +414,7 @@ export async function exportGost34ToDocx(
                   size: 20,
                 }),
                 new TextRun({
-                  text: " из ",
+                  text: ' из ',
                   font: layoutProfile.fontFamily,
                   size: 20,
                 }),
