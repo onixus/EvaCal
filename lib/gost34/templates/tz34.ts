@@ -1,7 +1,8 @@
-import { Gost34InputPayload, Gost34Section } from '../types';
+import { Gost34InputPayload, Gost34RequirementItem, Gost34Section } from '../types';
 import { buildProjectContext } from '../context/builder';
 import { normalizeProjectContextForGeneration } from '../context/normalize';
 import { ContextGap } from '../context/types';
+import { toGost34RequirementItems } from '../requirements/adapters';
 import { LEGACY_GOST34_PROFILE_ID } from '../standards';
 import { renderDocumentSchema, validateSchemaCoverage } from '../schema/renderer';
 import { SchemaValidationIssue } from '../schema/types';
@@ -14,26 +15,65 @@ export interface TZ34BuildResult {
   issues: SchemaValidationIssue[];
 }
 
+function applyTraceabilityToRequirements(payload: Gost34InputPayload): Gost34InputPayload {
+  const sourceRequirements: Gost34RequirementItem[] =
+    payload.customRequirements?.length
+      ? payload.customRequirements
+      : payload.requirementsV2?.length
+        ? toGost34RequirementItems(payload.requirementsV2)
+        : [];
+
+  if (sourceRequirements.length === 0) return payload;
+
+  const stagesById = new Map(payload.stages.map((stage) => [stage.id, stage]));
+  const linksByRequirementId = new Map(
+    (payload.traceability?.links || [])
+      .filter((link) => stagesById.has(link.targetId))
+      .map((link) => [link.sourceId, link])
+  );
+
+  const customRequirements = sourceRequirements.map((requirement) => {
+    const link = linksByRequirementId.get(requirement.id);
+    if (!link) return requirement;
+
+    const stage = stagesById.get(link.targetId)!;
+    return {
+      ...requirement,
+      mappedStageId: stage.id,
+      mappedStageName: stage.name,
+      mappedRole: stage.role,
+    };
+  });
+
+  return { ...payload, customRequirements };
+}
+
 export function buildTZ34Document(payload: Gost34InputPayload): TZ34BuildResult {
-  if (payload.standardProfile.id === LEGACY_GOST34_PROFILE_ID) {
-    return { sections: buildTZ34LegacySections(payload), gaps: [], issues: [] };
+  const effectivePayload = applyTraceabilityToRequirements(payload);
+
+  if (effectivePayload.standardProfile.id === LEGACY_GOST34_PROFILE_ID) {
+    return { sections: buildTZ34LegacySections(effectivePayload), gaps: [], issues: [] };
   }
 
   const rawContext =
-    payload.projectContext ||
+    effectivePayload.projectContext ||
     buildProjectContext({
-      systemName: payload.systemName,
-      customerName: payload.customerName,
-      answers: payload.answers,
-      stages: payload.stages,
-      risks: payload.risks,
-      requirements: payload.customRequirements,
-      totalLaborHours: payload.totalLaborHours,
-      vendorSourceFiles: payload.vendorSourceFiles,
+      systemName: effectivePayload.systemName,
+      customerName: effectivePayload.customerName,
+      answers: effectivePayload.answers,
+      stages: effectivePayload.stages,
+      risks: effectivePayload.risks,
+      requirements: effectivePayload.customRequirements,
+      totalLaborHours: effectivePayload.totalLaborHours,
+      vendorSourceFiles: effectivePayload.vendorSourceFiles,
     });
 
-  const context = normalizeProjectContextForGeneration(rawContext, payload.stages);
-  const rendered = renderDocumentSchema(TZ_SCHEMA_2020, { payload, context, schema: TZ_SCHEMA_2020 });
+  const context = normalizeProjectContextForGeneration(rawContext, effectivePayload.stages);
+  const rendered = renderDocumentSchema(TZ_SCHEMA_2020, {
+    payload: effectivePayload,
+    context,
+    schema: TZ_SCHEMA_2020,
+  });
   const coverageIssues = validateSchemaCoverage(TZ_SCHEMA_2020, rendered.sections);
 
   return {
