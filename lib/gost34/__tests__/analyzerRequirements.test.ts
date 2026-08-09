@@ -26,7 +26,11 @@ function analyze(enrich: boolean) {
   return analyzeAndNormalizeInput({
     calculation,
     rawRequirements: [vendorRequirement],
-    metadataOverride: { docType: 'TZ', enrichRequirements: enrich },
+    metadataOverride: {
+      docType: 'TZ',
+      enrichRequirements: enrich,
+      enrichmentOptions: enrich ? { fstek_21: true, fstek_239: true } : undefined,
+    },
   });
 }
 

@@ -2,11 +2,11 @@
  * GOST 34 / GOST 2.104-2006 / GOST 2.105-95 Domain Types
  */
 
-// Type-only import: standards/types.ts imports GostDocumentType back from here.
 import type { StandardProfile } from './standards/types';
 import type { Gost34RequirementV2 } from './requirements/v2';
 import type { ProjectContext } from './context/types';
 import type { ValidationReport } from './validation/types';
+import type { ApplicabilityResult } from './applicability/types';
 
 export type GostDocumentType = 'TZ' | 'PZ' | 'AF' | 'PMI' | 'SPEC';
 
@@ -149,6 +149,8 @@ export interface Gost34InputPayload {
   vendorSourceFiles?: string[];
   /** Проектный контекст: источник сведений о системе вместо жёстко заданных значений в шаблонах. */
   projectContext?: ProjectContext;
+  /** Результаты оценки применимости нормативных актов (Applicability Engine, PR-05). */
+  applicability?: ApplicabilityResult[];
   /** Замечания GOST Validator к набору требований. Не блокирует генерацию. */
   validation?: ValidationReport;
 }
