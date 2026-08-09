@@ -1,5 +1,6 @@
 import { Gost34InputPayload, Gost34Section } from '../types';
-import { generateTraceabilityTable } from '../traceability';
+import { buildTraceability, generateTraceabilityTable } from '../traceability/engine';
+import { Gost34RequirementV2 } from '../requirements/v2';
 
 export function buildTZ34Sections(payload: Gost34InputPayload): Gost34Section[] {
   const meta = payload.metadata;
@@ -8,7 +9,20 @@ export function buildTZ34Sections(payload: Gost34InputPayload): Gost34Section[] 
   const reqs = payload.customRequirements || [];
   const citations = payload.standardProfile.citations;
 
-  const traceabilityTable = generateTraceabilityTable(reqs, stages);
+  // Use provided V2 requirements or map legacy ones to V2 on the fly
+  const reqsV2: Gost34RequirementV2[] = payload.requirementsV2 || reqs.map((r) => ({
+    id: r.id,
+    code: r.code,
+    category: r.category,
+    type: 'business',
+    title: r.title,
+    originalText: r.description,
+    approval: { status: 'APPROVED' },
+    source: { filename: r.sourceFile }
+  }));
+
+  const traceabilityResult = payload.traceability || buildTraceability(reqsV2, stages);
+  const traceabilityTable = generateTraceabilityTable(reqsV2, stages, traceabilityResult);
 
   const sections: Gost34Section[] = [
     {
