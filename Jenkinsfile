@@ -2,7 +2,6 @@ pipeline {
     agent {
         docker {
             image 'node:20-alpine'
-            // Запускаем от root, чтобы избежать проблем с правами в workspace Jenkins
             args '-u root:root'
         }
     }
@@ -34,31 +33,13 @@ pipeline {
 
         stage('Security Audit') {
             steps {
-                // Пока не блокируем сборку из-за уже известных уязвимостей,
-                // но оставляем аудит видимым в логе Jenkins.
                 sh 'npm audit --audit-level=high || true'
             }
         }
 
         stage('Lint') {
             steps {
-                script {
-                    def hasEslintConfig = fileExists('eslint.config.js') ||
-                        fileExists('eslint.config.mjs') ||
-                        fileExists('eslint.config.cjs') ||
-                        fileExists('.eslintrc') ||
-                        fileExists('.eslintrc.js') ||
-                        fileExists('.eslintrc.cjs') ||
-                        fileExists('.eslintrc.json') ||
-                        fileExists('.eslintrc.yml') ||
-                        fileExists('.eslintrc.yaml')
-
-                    if (hasEslintConfig) {
-                        sh 'npm run lint'
-                    } else {
-                        echo 'ESLint config not found. Lint stage skipped to avoid interactive next lint setup in CI.'
-                    }
-                }
+                sh 'npm run lint'
             }
         }
 
