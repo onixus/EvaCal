@@ -1,3 +1,4 @@
+import { TZ_2020_SECTION_TITLES } from '../schema/tz34-2020-sections';
 import { DocumentProfile, StandardProfile } from './types';
 
 /**
@@ -81,6 +82,8 @@ const CURRENT_DOCUMENT_TYPES: DocumentProfile[] = [
     id: 'gost34-2020-tz',
     standardCitation: 'ГОСТ 34.602-2020',
     filenameBase: 'Техническое_задание_ГОСТ_34.602-2020',
+    // Обязательные разделы ТЗ действующей редакции — из схемы документа (PR-03).
+    sections: TZ_2020_SECTION_TITLES,
   },
   {
     ...LEGACY_DOCUMENT_TYPES[1],
@@ -115,8 +118,8 @@ export const GOST34_2020_PROFILE: StandardProfile = {
   name: 'Актуальный профиль ГОСТ 34',
   version: '2020',
   effectiveFrom: '2022-01-01',
-  // Citations are current, but the TZ section structure is still the 1989 one.
-  status: 'preview',
+  // TZ уже строится по структуре 2020 года (PR-03) на проектном контексте (PR-04).
+  status: 'stable',
   primaryStandard: {
     id: 'gost-34.602-2020',
     title: 'ГОСТ 34.602-2020 Техническое задание на создание автоматизированной системы',
@@ -158,6 +161,7 @@ export const GOST34_2020_PROFILE: StandardProfile = {
     primary: 'ГОСТ 34.602-2020',
     documentsClassifier: 'ГОСТ 34.201-2020',
     projectDocumentation: 'ГОСТ Р 59795-2021',
+    lifecycle: 'ГОСТ Р 59793-2021',
     testing: 'ГОСТ Р 59792-2021',
     // TODO(PR-03): no verified clause-level successor to РД 50-34.698-90 п.2.8 yet.
     specificationBasis: 'ГОСТ 34.201-2020 и ГОСТ Р 59795-2021',
@@ -216,6 +220,7 @@ export const GOST34_LEGACY_PROFILE: StandardProfile = {
     primary: 'ГОСТ 34.602-89',
     documentsClassifier: 'ГОСТ 34.201-89',
     projectDocumentation: 'РД 50-34.698-90',
+    lifecycle: 'ГОСТ 34.601-90',
     testing: 'РД 50-34.698-90 п.2.7',
     specificationBasis: 'ГОСТ 34.201-89 и РД 50-34.698-90 (п. 2.8)',
     referencesList:

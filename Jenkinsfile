@@ -2,9 +2,19 @@ pipeline {
     agent {
         docker {
             image 'node:20-alpine'
-            // Запускаем от root, чтобы избежать проблем с правами в workspace Jenkins
             args '-u root:root'
         }
+    }
+
+    environment {
+        CI = 'true'
+        NEXT_TELEMETRY_DISABLED = '1'
+        NPM_CONFIG_UPDATE_NOTIFIER = 'false'
+    }
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
     }
 
     stages {
@@ -17,15 +27,12 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh 'npm ci'
-                // Генерируем клиент Prisma, так как он может понадобиться для тестов
                 sh 'npx prisma generate'
             }
         }
 
         stage('Security Audit') {
             steps {
-                // Проверка уязвимостей в зависимостях (уровень high и выше)
-                // Используем || true, чтобы временно не блокировать сборку из-за уже известных уязвимостей
                 sh 'npm audit --audit-level=high || true'
             }
         }
@@ -47,11 +54,16 @@ pipeline {
                 sh 'npm run test'
             }
         }
+
+        stage('Build') {
+            steps {
+                sh 'npm run build'
+            }
+        }
     }
 
     post {
         always {
-            // Очистка workspace после выполнения
             cleanWs()
         }
     }
