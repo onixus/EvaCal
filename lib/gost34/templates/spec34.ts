@@ -2,7 +2,13 @@ import { Gost34InputPayload, Gost34Section } from '../types';
 
 export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[] {
   const meta = payload.metadata;
+  const ctx = payload.projectContext;
   const citations = payload.standardProfile.citations;
+
+  const platforms = ctx?.infrastructure?.platforms || ['Серверная ОС Linux', 'Реляционная СУБД', 'Сервер приложений'];
+  const computeResources = ctx?.infrastructure?.computeResources || 'Не менее 4 vCPU, 8 ГБ RAM';
+  const storage = ctx?.infrastructure?.storage || 'Не менее 100 ГБ Storage';
+  const network = ctx?.infrastructure?.network || '1000 Mbps Ethernet';
 
   return [
     {
@@ -22,13 +28,10 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
       tables: [
         {
           caption: 'Таблица 1 — Спецификация программных средств и компонент',
-          headers: ['№', 'Наименование ПО', 'Версия', 'Назначение / Тип лицензии', 'Количество'],
+          headers: ['№', 'Наименование ПО / Компонента', 'Назначение / Тип лицензии', 'Количество'],
           rows: [
-            [1, 'Операционная система Linux (Ubuntu/Astra Linux)', '22.04 LTS / 1.7', 'Серверная ОС / Open-source / Коммерческая', '1 серв.'],
-            [2, 'СУБД PostgreSQL', '15.x / 16.x', 'Реляционная система управления БД / Open-source', '1 инст.'],
-            [3, 'Платформа выполнения Node.js', '20.x LTS', 'Серверная среда выполнения JavaScript / Open-source', '1 инст.'],
-            [4, 'Прикладное веб-приложение EvaCal', '1.0', 'Ядро системы расчёта трудозатрат и ГОСТ 34 / Собственная', '1 лиц.'],
-            [5, 'Веб-сервер и обратный прокси Nginx', '1.24+', 'Маршрутизация и TLS-терминация / Open-source', '1 инст.'],
+            ...platforms.map((p, idx) => [idx + 1, p, 'Общесистемное ПО / Прикладной компонент', '1 инст.']),
+            [platforms.length + 1, `Прикладное ПО системы «${meta.systemName}»`, 'Собственная / Лицензия Заказчика', '1 лиц.'],
           ],
         },
       ],
@@ -43,11 +46,9 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
           caption: 'Таблица 2 — Спецификация серверных вычислительных ресурсов',
           headers: ['№', 'Наименование элемента', 'Минимальные технические характеристики', 'Количество'],
           rows: [
-            [1, 'Процессор (vCPU)', 'Не менее 4 ядер (x86_64, 2.5 GHz+)', '1 шт.'],
-            [2, 'Оперативная память (RAM)', 'Не менее 8 ГБ DDR4/DDR5 ECC', '1 шт.'],
-            [3, 'Дисковая подсистема (Storage)', 'Не менее 100 ГБ NVMe/SSD (RAID 1/10)', '1 шт.'],
-            [4, 'Сетевой интерфейс (NIC)', '1000 Mbps Ethernet (1 Gbps)', '2 шт.'],
-            [5, 'Источник бесперебойного питания', 'UPS c поддержкой RTO < 2 часов', '1 комплект'],
+            [1, 'Вычислительные ресурсы (CPU / RAM)', computeResources, '1 комплект'],
+            [2, 'Дисковая подсистема (Storage)', storage, '1 комплект'],
+            [3, 'Сетевой интерфейс (NIC / Network)', network, '1 комплект'],
           ],
         },
       ],
@@ -62,8 +63,8 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
           caption: 'Таблица 3 — Спецификация рабочих мест (АРМ)',
           headers: ['№', 'Тип АРМ', 'Минимальная конфигурация ПК', 'Программное окружение'],
           rows: [
-            [1, 'АРМ Пресейла / Архитектора', 'Core i3 / 8 ГБ RAM / Дисплей 1920x1080', 'Windows 10/11 или Linux, Yandex Browser/Chrome'],
-            [2, 'АРМ Администратора', 'Core i5 / 16 ГБ RAM / Дисплей Full HD', 'Linux/Windows, SSH клиент, Yandex Browser'],
+            [1, 'АРМ Пользователя', 'Стандартный ПК / Дисплей Full HD', 'Современный веб-браузер'],
+            [2, 'АРМ Администратора', 'Производительный ПК / Дисплей Full HD', 'Веб-браузер, SSH-клиент'],
           ],
         },
       ],
