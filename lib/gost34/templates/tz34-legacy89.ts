@@ -57,7 +57,9 @@ export function buildTZ34LegacySections(payload: Gost34InputPayload): Gost34Sect
       id: 'sec-4',
       numStr: '4',
       title: 'ТРЕБОВАНИЯ К СИСТЕМЕ',
-      paragraphs: ['Совокупность требований к структуре, функциям и видам обеспечения проектируемой системы.'],
+      paragraphs: [
+        'Совокупность требований к структуре, функциям и видам обеспечения проектируемой системы.',
+      ],
       subsections: [
         {
           id: 'sec-4-1',
@@ -106,8 +108,20 @@ export function buildTZ34LegacySections(payload: Gost34InputPayload): Gost34Sect
       tables: [
         {
           caption: 'Таблица 2 — Календарный план и состав этапов работ',
-          headers: ['№', 'Наименование этапа', 'Роль исполнителя', 'Трудозатраты (ч)', 'Требования и ограничения'],
-          rows: stages.map((stg) => [stg.order, stg.name, stg.role, stg.hours, stg.requirements || '—']),
+          headers: [
+            '№',
+            'Наименование этапа',
+            'Роль исполнителя',
+            'Трудозатраты (ч)',
+            'Требования и ограничения',
+          ],
+          rows: stages.map((stg) => [
+            stg.order,
+            stg.name,
+            stg.role,
+            stg.hours,
+            stg.requirements || '—',
+          ]),
         },
         traceabilityTable,
       ],
@@ -125,7 +139,9 @@ export function buildTZ34LegacySections(payload: Gost34InputPayload): Gost34Sect
       id: 'sec-7',
       numStr: '7',
       title: 'ТРЕБОВАНИЯ К ПОДГОТОВКЕ ОБЪЕКТА АВТОМАТИЗАЦИИ К ВВОДУ СИСТЕМЫ В ЭКСПЛУАТАЦИЮ',
-      paragraphs: ['7.1 Подготовка серверной инфраструктуры и назначение администраторов Заказчика.'],
+      paragraphs: [
+        '7.1 Подготовка серверной инфраструктуры и назначение администраторов Заказчика.',
+      ],
     },
     {
       id: 'sec-8',

@@ -79,13 +79,13 @@ function isRequirementV2(requirement: TraceabilityRequirement): requirement is G
 
 function normalizeRequirements(requirements: TraceabilityRequirement[]): Gost34RequirementV2[] {
   return requirements.map((requirement) =>
-    isRequirementV2(requirement) ? requirement : fromGost34RequirementItem(requirement)
+    isRequirementV2(requirement) ? requirement : fromGost34RequirementItem(requirement),
   );
 }
 
 function legacyManualLinks(
   requirements: TraceabilityRequirement[],
-  stages: Gost34StageItem[]
+  stages: Gost34StageItem[],
 ): TraceLink[] {
   const stageIds = new Set(stages.map((stage) => stage.id));
 
@@ -112,7 +112,8 @@ export function generateTraceabilityTable(
 ): Gost34TableData {
   const normalizedRequirements = normalizeRequirements(requirements);
   const resolvedResult =
-    result ?? buildTraceability(normalizedRequirements, stages, legacyManualLinks(requirements, stages));
+    result ??
+    buildTraceability(normalizedRequirements, stages, legacyManualLinks(requirements, stages));
 
   const rows: (string | number)[][] = [];
 

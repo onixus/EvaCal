@@ -16,12 +16,11 @@ export interface TZ34BuildResult {
 }
 
 function applyTraceabilityToRequirements(payload: Gost34InputPayload): Gost34InputPayload {
-  const sourceRequirements: Gost34RequirementItem[] =
-    payload.customRequirements?.length
-      ? payload.customRequirements
-      : payload.requirementsV2?.length
-        ? toGost34RequirementItems(payload.requirementsV2)
-        : [];
+  const sourceRequirements: Gost34RequirementItem[] = payload.customRequirements?.length
+    ? payload.customRequirements
+    : payload.requirementsV2?.length
+      ? toGost34RequirementItems(payload.requirementsV2)
+      : [];
 
   if (sourceRequirements.length === 0) return payload;
 
@@ -29,7 +28,7 @@ function applyTraceabilityToRequirements(payload: Gost34InputPayload): Gost34Inp
   const linksByRequirementId = new Map(
     (payload.traceability?.links || [])
       .filter((link) => stagesById.has(link.targetId))
-      .map((link) => [link.sourceId, link])
+      .map((link) => [link.sourceId, link]),
   );
 
   const customRequirements = sourceRequirements.map((requirement) => {
@@ -50,7 +49,7 @@ function applyTraceabilityToRequirements(payload: Gost34InputPayload): Gost34Inp
 
 function reconcileRenderedSections(
   sections: Gost34Section[],
-  payload: Gost34InputPayload
+  payload: Gost34InputPayload,
 ): Gost34Section[] {
   if (payload.stages.length > 0) return sections;
 
@@ -60,9 +59,11 @@ function reconcileRenderedSections(
     return {
       ...section,
       paragraphs: section.paragraphs.map((paragraph) =>
-        paragraph.includes('Перечень стадий и этапов работ, их содержание и трудоёмкость приведены в таблице')
+        paragraph.includes(
+          'Перечень стадий и этапов работ, их содержание и трудоёмкость приведены в таблице',
+        )
           ? `${section.numStr}.1 Состав стадий и этапов работ — ${CONTEXT_GAP_PLACEHOLDER}.`
-          : paragraph
+          : paragraph,
       ),
     };
   });

@@ -15,7 +15,24 @@ import {
   SectionContent,
 } from './types';
 
-const APPENDIX_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'И', 'К', 'Л', 'М', 'Н', 'П', 'Р', 'С', 'Т'];
+const APPENDIX_LETTERS = [
+  'А',
+  'Б',
+  'В',
+  'Г',
+  'Д',
+  'Е',
+  'Ж',
+  'И',
+  'К',
+  'Л',
+  'М',
+  'Н',
+  'П',
+  'Р',
+  'С',
+  'Т',
+];
 
 export interface RenderResult {
   sections: Gost34Section[];
@@ -24,7 +41,10 @@ export interface RenderResult {
   issues: SchemaValidationIssue[];
 }
 
-export function renderDocumentSchema(schema: DocumentSchema, ctx: DocumentBuildContext): RenderResult {
+export function renderDocumentSchema(
+  schema: DocumentSchema,
+  ctx: DocumentBuildContext,
+): RenderResult {
   const gaps: ContextGap[] = [];
   const issues: SchemaValidationIssue[] = [];
 
@@ -67,7 +87,7 @@ function renderNode(
   numStr: string,
   ctx: DocumentBuildContext,
   gaps: ContextGap[],
-  issues: SchemaValidationIssue[]
+  issues: SchemaValidationIssue[],
 ): Gost34Section {
   const content: SectionContent = node.build ? node.build(ctx) : {};
   const paragraphs: string[] = [...(content.paragraphs || [])];
@@ -79,7 +99,9 @@ function renderNode(
   if (content.gaps && content.gaps.length > 0) {
     gaps.push(...content.gaps);
     for (const g of content.gaps) {
-      paragraphs.push(`${g.label} — ${CONTEXT_GAP_PLACEHOLDER}${g.hint ? ` (источник данных: ${g.hint})` : ''}.`);
+      paragraphs.push(
+        `${g.label} — ${CONTEXT_GAP_PLACEHOLDER}${g.hint ? ` (источник данных: ${g.hint})` : ''}.`,
+      );
     }
   }
 
@@ -126,7 +148,10 @@ function renderNode(
  * Проверяет, что построенный документ содержит все обязательные разделы
  * схемы в объявленном порядке.
  */
-export function validateSchemaCoverage(schema: DocumentSchema, sections: Gost34Section[]): SchemaValidationIssue[] {
+export function validateSchemaCoverage(
+  schema: DocumentSchema,
+  sections: Gost34Section[],
+): SchemaValidationIssue[] {
   const issues: SchemaValidationIssue[] = [];
   const renderedIds = sections.map((s) => s.id);
 

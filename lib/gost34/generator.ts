@@ -18,7 +18,7 @@ export interface Gost34BuildDiagnostics {
  * Builds the complete document AST according to GOST 34 / RD 50-34.698-90
  */
 export function buildGost34DocumentAST(
-  payload: Gost34InputPayload
+  payload: Gost34InputPayload,
 ): Gost34DocumentAST & { diagnostics: Gost34BuildDiagnostics } {
   const meta = payload.metadata;
   const docType = meta.docType || 'TZ';

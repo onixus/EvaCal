@@ -20,7 +20,9 @@ function cite(c: DocumentBuildContext, key: CitationKey): string {
 
 /** Пробелы контекста, относящиеся к перечисленным полям. */
 function gapsFor(context: ProjectContext, prefixes: string[]): ContextGap[] {
-  return (context.gaps || []).filter((g) => prefixes.some((p) => g.path === p || g.path.startsWith(`${p}.`) || g.path.startsWith(`${p}[`)));
+  return (context.gaps || []).filter((g) =>
+    prefixes.some((p) => g.path === p || g.path.startsWith(`${p}.`) || g.path.startsWith(`${p}[`)),
+  );
 }
 
 function listOrGap(values: string[] | undefined, label: string): string[] {
@@ -44,7 +46,7 @@ const sectionGeneralInfo: SchemaNode = {
     items.push(
       meta.contractNumber
         ? `Основание для проведения работ: ${meta.contractNumber}.`
-        : 'Основание для проведения работ: договор между Заказчиком и Разработчиком (реквизиты уточняются при заключении).'
+        : 'Основание для проведения работ: договор между Заказчиком и Разработчиком (реквизиты уточняются при заключении).',
     );
 
     const start = context.lifecycle?.startDate;
@@ -53,10 +55,12 @@ const sectionGeneralInfo: SchemaNode = {
       items.push(
         `Плановые сроки выполнения работ: ${start ? `начало — ${start}` : 'начало уточняется'}, ${
           end ? `окончание — ${end}` : 'окончание уточняется'
-        }.`
+        }.`,
       );
     }
-    items.push('Порядок оформления и предъявления Заказчику результатов работ определён разделом «Порядок контроля и приёмки АС» настоящего ТЗ.');
+    items.push(
+      'Порядок оформления и предъявления Заказчику результатов работ определён разделом «Порядок контроля и приёмки АС» настоящего ТЗ.',
+    );
 
     return { items, gaps: start || end ? [] : gapsFor(context, ['lifecycle']) };
   },
@@ -100,13 +104,17 @@ const sectionGoals: SchemaNode = {
       build: ({ context }): SectionContent => {
         const items: string[] = [];
         if (context.systemPurpose) items.push(`Назначение системы: ${context.systemPurpose}.`);
-        if (context.automationObject) items.push(`Автоматизируемая деятельность: ${context.automationObject}.`);
+        if (context.automationObject)
+          items.push(`Автоматизируемая деятельность: ${context.automationObject}.`);
         const users = context.users || [];
         if (users.length > 0) {
           items.push(
             `Пользователи системы: ${users
-              .map((u) => `${u.name}${u.approximateCount !== undefined ? ` (${u.approximateCount})` : ''}`)
-              .join('; ')}.`
+              .map(
+                (u) =>
+                  `${u.name}${u.approximateCount !== undefined ? ` (${u.approximateCount})` : ''}`,
+              )
+              .join('; ')}.`,
           );
         }
         return { items, gaps: gapsFor(context, ['systemPurpose', 'automationObject', 'users']) };
@@ -122,8 +130,15 @@ const sectionAutomationObject: SchemaNode = {
   build: ({ context }): SectionContent => {
     const items: string[] = [];
     if (context.automationObject) items.push(`Объект автоматизации: ${context.automationObject}.`);
-    items.push(...listOrGap(context.dataClasses?.map((d) => d.name), 'Классы обрабатываемых данных'));
-    items.push(...listOrGap(context.architecture?.externalSystems, 'Смежные системы объекта автоматизации'));
+    items.push(
+      ...listOrGap(
+        context.dataClasses?.map((d) => d.name),
+        'Классы обрабатываемых данных',
+      ),
+    );
+    items.push(
+      ...listOrGap(context.architecture?.externalSystems, 'Смежные системы объекта автоматизации'),
+    );
     items.push(...(context.architecture?.notes || []));
 
     const users = context.users || [];
@@ -153,12 +168,20 @@ const sectionRequirements: SchemaNode = {
       required: true,
       build: ({ context }): SectionContent => {
         const items: string[] = [];
-        if (context.architecture?.style) items.push(`Архитектура системы: ${context.architecture.style}.`);
-        items.push(...listOrGap(context.architecture?.components, 'Состав подсистем и компонентов'));
+        if (context.architecture?.style)
+          items.push(`Архитектура системы: ${context.architecture.style}.`);
+        items.push(
+          ...listOrGap(context.architecture?.components, 'Состав подсистем и компонентов'),
+        );
         if (context.deploymentModel && context.deploymentModel !== 'unknown') {
           items.push(`Модель размещения системы: ${DEPLOYMENT_LABELS[context.deploymentModel]}.`);
         }
-        items.push(...listOrGap(context.roles?.map((r) => r.name), 'Ролевая модель'));
+        items.push(
+          ...listOrGap(
+            context.roles?.map((r) => r.name),
+            'Ролевая модель',
+          ),
+        );
 
         const integrations = context.integrations || [];
         const tables =
@@ -202,8 +225,20 @@ const sectionRequirements: SchemaNode = {
           tables: [
             {
               caption: 'Спецификация требований к системе',
-              headers: ['Код требования', 'Категория', 'Наименование', 'Содержание требования', 'Источник'],
-              rows: reqs.map((r) => [r.code, r.category, r.title, r.description, r.sourceFile || 'Проектное требование']),
+              headers: [
+                'Код требования',
+                'Категория',
+                'Наименование',
+                'Содержание требования',
+                'Источник',
+              ],
+              rows: reqs.map((r) => [
+                r.code,
+                r.category,
+                r.title,
+                r.description,
+                r.sourceFile || 'Проектное требование',
+              ]),
             },
           ],
         };
@@ -215,8 +250,18 @@ const sectionRequirements: SchemaNode = {
       required: true,
       build: ({ context }): SectionContent => {
         const items: string[] = [];
-        items.push(...listOrGap(context.dataClasses?.map((d) => d.name), 'Информационное обеспечение — состав данных'));
-        items.push(...listOrGap(context.infrastructure?.platforms, 'Программное обеспечение — платформы, заданные Заказчиком'));
+        items.push(
+          ...listOrGap(
+            context.dataClasses?.map((d) => d.name),
+            'Информационное обеспечение — состав данных',
+          ),
+        );
+        items.push(
+          ...listOrGap(
+            context.infrastructure?.platforms,
+            'Программное обеспечение — платформы, заданные Заказчиком',
+          ),
+        );
         if (context.infrastructure?.computeResources) {
           items.push(`Техническое обеспечение: ${context.infrastructure.computeResources}.`);
         }
@@ -224,10 +269,15 @@ const sectionRequirements: SchemaNode = {
           items.push(
             context.infrastructure.importSubstitution
               ? 'Программное обеспечение подлежит выбору из единого реестра российских программ для ЭВМ и баз данных.'
-              : 'Требование о применении программного обеспечения из единого реестра российских программ не предъявляется.'
+              : 'Требование о применении программного обеспечения из единого реестра российских программ не предъявляется.',
           );
         }
-        items.push(...listOrGap(context.roles?.map((r) => r.name), 'Организационное обеспечение — роли эксплуатирующего персонала'));
+        items.push(
+          ...listOrGap(
+            context.roles?.map((r) => r.name),
+            'Организационное обеспечение — роли эксплуатирующего персонала',
+          ),
+        );
 
         return {
           items,
@@ -242,15 +292,21 @@ const sectionRequirements: SchemaNode = {
       build: ({ context }): SectionContent => {
         const items: string[] = [];
         const a = context.availability;
-        if (a?.availabilityTargetPercent !== undefined) items.push(`Коэффициент доступности системы: не менее ${a.availabilityTargetPercent} %.`);
-        if (a?.rtoMinutes !== undefined) items.push(`Допустимое время восстановления (RTO): не более ${a.rtoMinutes} мин.`);
-        if (a?.rpoMinutes !== undefined) items.push(`Допустимый объём потери данных (RPO): не более ${a.rpoMinutes} мин.`);
+        if (a?.availabilityTargetPercent !== undefined)
+          items.push(`Коэффициент доступности системы: не менее ${a.availabilityTargetPercent} %.`);
+        if (a?.rtoMinutes !== undefined)
+          items.push(`Допустимое время восстановления (RTO): не более ${a.rtoMinutes} мин.`);
+        if (a?.rpoMinutes !== undefined)
+          items.push(`Допустимый объём потери данных (RPO): не более ${a.rpoMinutes} мин.`);
         if (a?.serviceWindow) items.push(`Регламентное окно обслуживания: ${a.serviceWindow}.`);
 
         const p = context.performance;
-        if (p?.concurrentUsers !== undefined) items.push(`Число одновременно работающих пользователей: не менее ${p.concurrentUsers}.`);
-        if (p?.maxResponseTimeMs !== undefined) items.push(`Время отклика системы: не более ${p.maxResponseTimeMs} мс.`);
-        if (p?.peakRequestsPerSecond !== undefined) items.push(`Пиковая нагрузка: не менее ${p.peakRequestsPerSecond} запросов в секунду.`);
+        if (p?.concurrentUsers !== undefined)
+          items.push(`Число одновременно работающих пользователей: не менее ${p.concurrentUsers}.`);
+        if (p?.maxResponseTimeMs !== undefined)
+          items.push(`Время отклика системы: не более ${p.maxResponseTimeMs} мс.`);
+        if (p?.peakRequestsPerSecond !== undefined)
+          items.push(`Пиковая нагрузка: не менее ${p.peakRequestsPerSecond} запросов в секунду.`);
         if (p?.dataVolume) items.push(`Объём обрабатываемых данных: ${p.dataVolume}.`);
 
         const s = context.security;
@@ -258,19 +314,25 @@ const sectionRequirements: SchemaNode = {
           items.push(
             s.personalDataProcessed
               ? 'Система обрабатывает персональные данные; состав мер защиты определяется по результатам анализа применимости нормативных требований.'
-              : 'Обработка персональных данных в системе не осуществляется.'
+              : 'Обработка персональных данных в системе не осуществляется.',
           );
         }
         if (s?.kiiObject !== undefined) {
           items.push(
             s.kiiObject
               ? 'Система относится к объектам критической информационной инфраструктуры; требования определяются по результатам категорирования.'
-              : 'Система не отнесена к объектам критической информационной инфраструктуры.'
+              : 'Система не отнесена к объектам критической информационной инфраструктуры.',
           );
         }
-        if (s?.securityClass) items.push(`Класс (уровень) защищённости системы: ${s.securityClass}.`);
+        if (s?.securityClass)
+          items.push(`Класс (уровень) защищённости системы: ${s.securityClass}.`);
         items.push(...listOrGap(s?.authentication, 'Требования к аутентификации пользователей'));
-        items.push(...listOrGap(s?.regulatoryScope, 'Нормативные требования, применимость которых подтверждена'));
+        items.push(
+          ...listOrGap(
+            s?.regulatoryScope,
+            'Нормативные требования, применимость которых подтверждена',
+          ),
+        );
 
         return { items, gaps: gapsFor(context, ['availability', 'performance', 'security']) };
       },
@@ -287,7 +349,9 @@ const sectionWorkScope: SchemaNode = {
     const risks = payload.risks || [];
     const reqs = payload.customRequirements || [];
 
-    const items = ['Перечень стадий и этапов работ, их содержание и трудоёмкость приведены в таблице настоящего раздела.'];
+    const items = [
+      'Перечень стадий и этапов работ, их содержание и трудоёмкость приведены в таблице настоящего раздела.',
+    ];
     if (reqs.length > 0 && stages.length > 0) {
       items.push('Соответствие требований этапам работ приведено в матрице прослеживаемости.');
     }
@@ -299,7 +363,13 @@ const sectionWorkScope: SchemaNode = {
     if (stages.length > 0) {
       tables.push({
         caption: 'Состав и содержание работ по созданию системы',
-        headers: ['№', 'Наименование этапа', 'Роль исполнителя', 'Трудоёмкость, ч', 'Содержание работ'],
+        headers: [
+          '№',
+          'Наименование этапа',
+          'Роль исполнителя',
+          'Трудоёмкость, ч',
+          'Содержание работ',
+        ],
         rows: stages.map((s) => [s.order, s.name, s.role, s.hours, s.requirements || '—']),
       });
     }
@@ -334,7 +404,9 @@ const sectionDevelopmentOrder: SchemaNode = {
     if (context.lifecycle?.totalLaborHours !== undefined) {
       items.push(`Суммарная плановая трудоёмкость работ: ${context.lifecycle.totalLaborHours} ч.`);
     }
-    items.push('Изменения настоящего ТЗ вносятся дополнением, подписываемым Заказчиком и Разработчиком.');
+    items.push(
+      'Изменения настоящего ТЗ вносятся дополнением, подписываемым Заказчиком и Разработчиком.',
+    );
     return { items, gaps: gapsFor(context, ['lifecycle']) };
   },
 };
@@ -351,7 +423,9 @@ const sectionAcceptance: SchemaNode = {
       'Результаты приёмочных испытаний оформляются двусторонним актом.',
     ];
 
-    const withCriteria = (payload.customRequirements || []).filter((r) => r.description && r.description.trim().length > 0);
+    const withCriteria = (payload.customRequirements || []).filter(
+      (r) => r.description && r.description.trim().length > 0,
+    );
     const tables =
       withCriteria.length > 0
         ? [
@@ -374,17 +448,31 @@ const sectionPreparation: SchemaNode = {
   build: ({ context }): SectionContent => {
     const items: string[] = [];
     if (context.infrastructure?.computeResources) {
-      items.push(`Заказчик обеспечивает вычислительные ресурсы: ${context.infrastructure.computeResources}.`);
-    }
-    items.push(...listOrGap(context.infrastructure?.platforms, 'Заказчик обеспечивает наличие программных платформ'));
-    if ((context.users || []).length > 0) {
       items.push(
-        `Заказчик обеспечивает выделение и обучение персонала по группам пользователей: ${(context.users || [])
-          .map((u) => u.name)
-          .join('; ')}.`
+        `Заказчик обеспечивает вычислительные ресурсы: ${context.infrastructure.computeResources}.`,
       );
     }
-    items.push(...listOrGap(context.roles?.map((r) => r.name), 'Заказчик назначает ответственных по ролям'));
+    items.push(
+      ...listOrGap(
+        context.infrastructure?.platforms,
+        'Заказчик обеспечивает наличие программных платформ',
+      ),
+    );
+    if ((context.users || []).length > 0) {
+      items.push(
+        `Заказчик обеспечивает выделение и обучение персонала по группам пользователей: ${(
+          context.users || []
+        )
+          .map((u) => u.name)
+          .join('; ')}.`,
+      );
+    }
+    items.push(
+      ...listOrGap(
+        context.roles?.map((r) => r.name),
+        'Заказчик назначает ответственных по ролям',
+      ),
+    );
 
     return { items, gaps: gapsFor(context, ['infrastructure', 'users', 'roles']) };
   },
@@ -407,13 +495,19 @@ const sectionDocumentation: SchemaNode = {
             {
               caption: 'Комплект документации, разрабатываемой по проекту',
               headers: ['Обозначение', 'Наименование документа', 'Нормативное основание'],
-              rows: docs.map((d) => [d.code, d.name, d.standardReference || cite(c, 'documentsClassifier')]),
+              rows: docs.map((d) => [
+                d.code,
+                d.name,
+                d.standardReference || cite(c, 'documentsClassifier'),
+              ]),
             },
           ]
         : undefined;
 
     if (docs.length === 0) {
-      items.push('Состав комплекта документации согласовывается Заказчиком и Разработчиком до начала стадии технического проектирования.');
+      items.push(
+        'Состав комплекта документации согласовывается Заказчиком и Разработчиком до начала стадии технического проектирования.',
+      );
     }
 
     return { items, tables, gaps: gapsFor(context, ['documentationRequirements']) };
@@ -428,9 +522,11 @@ const sectionSources: SchemaNode = {
     const profile = payload.standardProfile;
     const items: string[] = [
       `${profile.primaryStandard.title}.`,
-      ...[...profile.documentStandards, ...profile.lifecycleStandards, ...profile.testingStandards].map(
-        (s) => `${s.title}.`
-      ),
+      ...[
+        ...profile.documentStandards,
+        ...profile.lifecycleStandards,
+        ...profile.testingStandards,
+      ].map((s) => `${s.title}.`),
     ];
 
     const vendorFiles = payload.vendorSourceFiles || [];
@@ -459,7 +555,11 @@ const appendixGaps: SchemaNode = {
       {
         caption: 'Перечень сведений, требующих уточнения',
         headers: ['Поле проектного контекста', 'Значимость', 'Источник данных'],
-        rows: (context.gaps || []).map((g) => [g.label, SEVERITY_LABELS[g.severity], g.hint || '—']),
+        rows: (context.gaps || []).map((g) => [
+          g.label,
+          SEVERITY_LABELS[g.severity],
+          g.hint || '—',
+        ]),
       },
     ],
   }),

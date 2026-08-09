@@ -30,10 +30,12 @@ const calc = {
   ],
 };
 
-function basePayload(options: {
-  calculation?: typeof calc;
-  projectContext?: Parameters<typeof analyzeAndNormalizeInput>[0]['projectContext'];
-} = {}): Gost34InputPayload {
+function basePayload(
+  options: {
+    calculation?: typeof calc;
+    projectContext?: Parameters<typeof analyzeAndNormalizeInput>[0]['projectContext'];
+  } = {},
+): Gost34InputPayload {
   return analyzeAndNormalizeInput({
     calculation: options.calculation ?? calc,
     metadataOverride: {
@@ -104,7 +106,7 @@ describe('ГОСТ34 regression: traceability and context normalization', () => 
         projectContext: {
           infrastructure: { deploymentModel: 'cloud' },
         },
-      })
+      }),
     );
 
     const text = result.sections

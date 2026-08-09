@@ -3,7 +3,12 @@ import { analyzeAndNormalizeInput } from '../analyzer';
 import { buildTZ34Document } from '../templates/tz34';
 import { TZ_2020_SECTION_TITLES, TZ_SCHEMA_2020 } from '../schema/tz34-2020';
 import { validateSchemaCoverage } from '../schema/renderer';
-import { CURRENT_GOST34_PROFILE_ID, LEGACY_GOST34_PROFILE_ID, getDocumentProfile, resolveGost34Profile } from '../standards';
+import {
+  CURRENT_GOST34_PROFILE_ID,
+  LEGACY_GOST34_PROFILE_ID,
+  getDocumentProfile,
+  resolveGost34Profile,
+} from '../standards';
 import { Gost34Section } from '../types';
 
 const sampleCalc = {
@@ -24,10 +29,26 @@ const sampleCalc = {
     персональные_данные: 'да',
   }),
   stages: [
-    { id: 's1', order: 1, name: 'Обследование', role: 'аналитик', hours: 56, requirements: 'Обследование объекта автоматизации.' },
-    { id: 's2', order: 2, name: 'Разработка', role: 'разработчик', hours: 120, requirements: 'Реализация функций планирования ТО.' },
+    {
+      id: 's1',
+      order: 1,
+      name: 'Обследование',
+      role: 'аналитик',
+      hours: 56,
+      requirements: 'Обследование объекта автоматизации.',
+    },
+    {
+      id: 's2',
+      order: 2,
+      name: 'Разработка',
+      role: 'разработчик',
+      hours: 120,
+      requirements: 'Реализация функций планирования ТО.',
+    },
   ],
-  risks: [{ id: 'r1', description: 'Задержка предоставления доступа к смежным системам', hours: 20 }],
+  risks: [
+    { id: 'r1', description: 'Задержка предоставления доступа к смежным системам', hours: 20 },
+  ],
 };
 
 function currentProfilePayload(calculation: any = sampleCalc) {
@@ -43,7 +64,13 @@ function flatten(sections: Gost34Section[]): Gost34Section[] {
 
 function allText(sections: Gost34Section[]): string {
   return flatten(sections)
-    .map((s) => [s.title, ...s.paragraphs, ...(s.tables || []).flatMap((t) => t.rows.flat().map(String))].join('\n'))
+    .map((s) =>
+      [
+        s.title,
+        ...s.paragraphs,
+        ...(s.tables || []).flatMap((t) => t.rows.flat().map(String)),
+      ].join('\n'),
+    )
     .join('\n');
 }
 
@@ -90,7 +117,7 @@ describe('содержимое ТЗ строится из проектного �
     'не содержит жёстко заданного «%s»',
     (forbidden) => {
       expect(text).not.toContain(forbidden);
-    }
+    },
   );
 
   it('цитирует стандарты действующего профиля, а не legacy', () => {
@@ -107,7 +134,13 @@ describe('содержимое ТЗ строится из проектного �
 
 describe('неподтверждённые сведения', () => {
   const result = buildTZ34Document(
-    currentProfilePayload({ id: 'calc-empty', name: 'АС без опросника', customer: 'Заказчик', answers: '{}', stages: [] })
+    currentProfilePayload({
+      id: 'calc-empty',
+      name: 'АС без опросника',
+      customer: 'Заказчик',
+      answers: '{}',
+      stages: [],
+    }),
   );
 
   it('помечаются как требующие уточнения, а не выдумываются', () => {
@@ -133,7 +166,17 @@ describe('legacy-профиль', () => {
     });
     const legacy = buildTZ34Document(payload);
 
-    expect(legacy.sections.map((s) => s.numStr)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+    expect(legacy.sections.map((s) => s.numStr)).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9',
+    ]);
     expect(allText(legacy.sections)).toContain('ГОСТ 34.602-89');
     expect(legacy.gaps).toEqual([]);
   });
