@@ -22,6 +22,20 @@ pipeline {
             }
         }
 
+        stage('Security Audit') {
+            steps {
+                // Проверка уязвимостей в зависимостях (уровень high и выше)
+                // Используем || true, чтобы временно не блокировать сборку из-за уже известных уязвимостей
+                sh 'npm audit --audit-level=high || true'
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                sh 'npm run lint'
+            }
+        }
+
         stage('Typecheck') {
             steps {
                 sh 'npm run typecheck'
