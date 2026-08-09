@@ -8,17 +8,24 @@ import { GOST34_2020_PROFILE, GOST34_LEGACY_PROFILE, GOST34_PROFILES } from './p
 export const LEGACY_GOST34_PROFILE_ID = GOST34_LEGACY_PROFILE.id;
 export const CURRENT_GOST34_PROFILE_ID = GOST34_2020_PROFILE.id;
 
-/** Current profile is the default for new exports. Legacy remains explicit and reproducible. */
-export const DEFAULT_GOST34_PROFILE = GOST34_2020_PROFILE;
+/** Compatibility fallback for hand-built/profile-less ASTs and previously issued documents. */
+export const DEFAULT_GOST34_PROFILE = GOST34_LEGACY_PROFILE;
+
+/** Default profile for newly normalized/generated documents. */
+export const DEFAULT_NEW_GOST34_PROFILE = GOST34_2020_PROFILE;
 
 export function getGost34Profile(id: string) {
   return GOST34_PROFILES.find((profile) => profile.id === id);
 }
 
-/** Unknown ids fall back to the current stable profile. */
+/**
+ * Resolves an explicitly requested profile. New exports without an explicit
+ * profile use the current stable profile, while the exporter may still use
+ * DEFAULT_GOST34_PROFILE as a compatibility fallback for profile-less ASTs.
+ */
 export function resolveGost34Profile(id?: string | null): StandardProfile {
-  if (!id) return DEFAULT_GOST34_PROFILE;
-  return getGost34Profile(id) || DEFAULT_GOST34_PROFILE;
+  if (!id) return DEFAULT_NEW_GOST34_PROFILE;
+  return getGost34Profile(id) || DEFAULT_NEW_GOST34_PROFILE;
 }
 
 export function getDocumentProfile(profile: StandardProfile, docType: GostDocumentType): DocumentProfile {
