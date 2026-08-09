@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { GostDocumentType, Gost34RequirementItem } from "@/lib/gost34/types";
 import { normalizeRequirementItems } from "@/lib/gost34/parser/requirementSanitizer";
 import { DEFAULT_GOST34_PROFILE } from "@/lib/gost34/standards";
@@ -101,29 +101,32 @@ export default function VendorSpecUploadModal({
     }
   }, []);
 
-  const handleCheckLlmStatus = async (providerId = llmProviderId) => {
-    if (!providerId) return false;
-    try {
-      const query = new URLSearchParams({ providerId });
-      const res = await fetch(`/api/gost34/llm-status?${query.toString()}`);
-      const data = await res.json();
-      if (!res.ok) {
+  const handleCheckLlmStatus = useCallback(
+    async (providerId = llmProviderId) => {
+      if (!providerId) return false;
+      try {
+        const query = new URLSearchParams({ providerId });
+        const res = await fetch(`/api/gost34/llm-status?${query.toString()}`);
+        const data = await res.json();
+        if (!res.ok) {
+          setLlmAvailable(false);
+          setLlmError(data?.error || "Не удалось проверить доступность ИИ-сервера.");
+          return false;
+        }
+        setLlmError("");
+        setLlmAvailable(Boolean(data.available));
+        setLlmModels(data.models || []);
+        if (data.models?.length > 0 && !llmSelectedModel) {
+          setLlmSelectedModel(data.models[0]);
+        }
+        return data.available;
+      } catch {
         setLlmAvailable(false);
-        setLlmError(data?.error || "Не удалось проверить доступность ИИ-сервера.");
         return false;
       }
-      setLlmError("");
-      setLlmAvailable(Boolean(data.available));
-      setLlmModels(data.models || []);
-      if (data.models?.length > 0 && !llmSelectedModel) {
-        setLlmSelectedModel(data.models[0]);
-      }
-      return data.available;
-    } catch {
-      setLlmAvailable(false);
-      return false;
-    }
-  };
+    },
+    [llmProviderId, llmSelectedModel]
+  );
 
   // Load the server-side provider list when the modal opens.
   useEffect(() => {
@@ -155,7 +158,7 @@ export default function VendorSpecUploadModal({
   useEffect(() => {
     if (!isOpen || !llmProviderId) return;
     handleCheckLlmStatus(llmProviderId);
-  }, [isOpen, llmProviderId]);
+  }, [isOpen, llmProviderId, handleCheckLlmStatus]);
 
   const handleNormalizeAll = () => {
     setExtractedReqs((prev) => normalizeRequirementItems(prev));
