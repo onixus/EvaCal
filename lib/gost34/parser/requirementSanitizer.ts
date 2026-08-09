@@ -17,7 +17,10 @@ export interface CleaningStats {
  * Cleans unstructured Russian text by stripping binary artifacts, zero-width spaces,
  * header/footer boilerplate, and normalizing tabs/whitespace.
  */
-export function sanitizeRawText(rawText: string): { text: string; stats: CleaningStats } {
+export function sanitizeRawText(rawText: string): {
+  text: string;
+  stats: CleaningStats;
+} {
   const originalLength = rawText.length;
 
   // 1. Remove control characters, zero-width spaces, BOM, soft hyphens
@@ -33,7 +36,8 @@ export function sanitizeRawText(rawText: string): { text: string; stats: Cleanin
   const lines = text.split(/\r?\n/);
   let removedBoilerplateCount = 0;
 
-  const boilerplateRegex = /^(стр\.?\s*\d+\s*(из|\/)\s*\d+|конфиденциально|черновик|draft\s*v?\d+|коммерческая\s*тайна|дисклеймер|страница\s*\d+)$/i;
+  const boilerplateRegex =
+    /^(стр\.?\s*\d+\s*(из|\/)\s*\d+|конфиденциально|черновик|draft\s*v?\d+|коммерческая\s*тайна|дисклеймер|страница\s*\d+)$/i;
 
   const cleanedLines = lines.filter((line) => {
     const trimmed = line.trim();
@@ -147,9 +151,7 @@ export function detectRequirementCategory(text: string): Gost34RequirementItem['
  * - Trims whitespace and strips lead bullets (•, -, 1.1., etc.)
  * - Auto-detects requirement category
  */
-export function normalizeRequirementItems(
-  items: Gost34RequirementItem[]
-): Gost34RequirementItem[] {
+export function normalizeRequirementItems(items: Gost34RequirementItem[]): Gost34RequirementItem[] {
   const normalized = normalizeRequirementItemsV2(fromGost34RequirementItems(items));
   // The cleaned wording has not been reviewed by anybody yet, so it lives in
   // normalizedText and has to be requested explicitly.
@@ -161,7 +163,7 @@ export function normalizeRequirementItems(
  * and `originalText` is left exactly as it came out of the source document.
  */
 export function normalizeRequirementItemsV2(
-  requirements: Gost34RequirementV2[]
+  requirements: Gost34RequirementV2[],
 ): Gost34RequirementV2[] {
   const categoryCounters: Record<string, number> = {
     functional: 1,

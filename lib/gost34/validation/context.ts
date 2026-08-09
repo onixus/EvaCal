@@ -37,7 +37,7 @@ export function finding(
   severity: ValidationSeverity,
   message: string,
   suggestion?: string,
-  relatedRequirementIds?: string[]
+  relatedRequirementIds?: string[],
 ): ValidationFinding {
   const result: ValidationFinding = {
     severity,

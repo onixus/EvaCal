@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import VendorSpecUploadModal from "./gost34/VendorSpecUploadModal";
+import { useState } from 'react';
+import VendorSpecUploadModal from './gost34/VendorSpecUploadModal';
 
 export default function ExportLinks({ calculationId }: { calculationId: string }) {
   const [isGostModalOpen, setIsGostModalOpen] = useState(false);

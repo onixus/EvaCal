@@ -3,7 +3,8 @@ import { LayoutProfile } from '../types';
 export const GOST34_MODERN_LAYOUT: LayoutProfile = {
   id: 'gost34-modern',
   name: 'ГОСТ 34 — Современный стиль (без штампов ЕСКД)',
-  description: 'Современное аккуратное корпоративное оформление по ГОСТ 34.602-2020 без устаревших чертежных рамок ЕСКД',
+  description:
+    'Современное аккуратное корпоративное оформление по ГОСТ 34.602-2020 без устаревших чертежных рамок ЕСКД',
   showEskdFrames: false,
   margins: {
     topMm: 20,

@@ -91,12 +91,21 @@ function record(state: BuildState, path: string, source: ContextSource, evidence
   state.provenance.push({ path, source, evidence });
 }
 
-function gap(state: BuildState, path: string, label: string, severity: ContextGapSeverity, hint?: string) {
+function gap(
+  state: BuildState,
+  path: string,
+  label: string,
+  severity: ContextGapSeverity,
+  hint?: string,
+) {
   state.gaps.push({ path, label, severity, hint });
 }
 
 /** Ищет первый ответ опросника, ключ которого соответствует шаблону. */
-function findAnswer(answers: Record<string, any>, pattern: RegExp): { key: string; value: any } | undefined {
+function findAnswer(
+  answers: Record<string, any>,
+  pattern: RegExp,
+): { key: string; value: any } | undefined {
   for (const [key, value] of Object.entries(answers)) {
     if (value === null || value === undefined || value === '') continue;
     if (pattern.test(key)) return { key, value };
@@ -118,7 +127,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     ctx.automationObject = toText(objectAnswer.value);
     record(state, 'automationObject', 'questionnaire', objectAnswer.key);
   } else {
-    gap(state, 'automationObject', 'Объект автоматизации', 'blocking', 'Опросник: характеристика автоматизируемых процессов Заказчика');
+    gap(
+      state,
+      'automationObject',
+      'Объект автоматизации',
+      'blocking',
+      'Опросник: характеристика автоматизируемых процессов Заказчика',
+    );
   }
 
   const purposeAnswer = findAnswer(answers, /purpose|назначен|цель_систем/i);
@@ -126,7 +141,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     ctx.systemPurpose = toText(purposeAnswer.value);
     record(state, 'systemPurpose', 'questionnaire', purposeAnswer.key);
   } else {
-    gap(state, 'systemPurpose', 'Назначение системы', 'blocking', 'Опросник или согласованные требования Заказчика');
+    gap(
+      state,
+      'systemPurpose',
+      'Назначение системы',
+      'blocking',
+      'Опросник или согласованные требования Заказчика',
+    );
   }
 
   // ── Цели и измеримые критерии ────────────────────────────────────────
@@ -140,21 +161,48 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     }));
     record(state, 'goals', 'questionnaire', goalsAnswer!.key);
   } else {
-    gap(state, 'goals', 'Цели создания системы', 'blocking', 'Опросник: цели проекта, согласованные с Заказчиком');
+    gap(
+      state,
+      'goals',
+      'Цели создания системы',
+      'blocking',
+      'Опросник: цели проекта, согласованные с Заказчиком',
+    );
   }
   // Измеримые критерии целей задаются только вручную: выводить их из опросника нельзя.
-  gap(state, 'measurableGoalCriteria', 'Измеримые критерии достижения целей', 'major', 'Согласуются с Заказчиком при утверждении целей');
+  gap(
+    state,
+    'measurableGoalCriteria',
+    'Измеримые критерии достижения целей',
+    'major',
+    'Согласуются с Заказчиком при утверждении целей',
+  );
 
   // ── Пользователи и роли ──────────────────────────────────────────────
   const usersAnswer = findAnswer(answers, /users?_?count|пользоват/i);
   const usersCount = usersAnswer ? toNumber(usersAnswer.value) : undefined;
   if (usersCount !== undefined) {
-    const group: UserGroup = { name: 'Пользователи системы', approximateCount: usersCount };
+    const group: UserGroup = {
+      name: 'Пользователи системы',
+      approximateCount: usersCount,
+    };
     ctx.users = [group];
     record(state, 'users', 'questionnaire', usersAnswer!.key);
-    gap(state, 'users[].composition', 'Состав групп пользователей', 'major', 'Известна только общая численность пользователей');
+    gap(
+      state,
+      'users[].composition',
+      'Состав групп пользователей',
+      'major',
+      'Известна только общая численность пользователей',
+    );
   } else {
-    gap(state, 'users', 'Группы пользователей', 'major', 'Опросник: категории и численность пользователей');
+    gap(
+      state,
+      'users',
+      'Группы пользователей',
+      'major',
+      'Опросник: категории и численность пользователей',
+    );
   }
 
   const rolesAnswer = findAnswer(answers, /roles?|рол/i);
@@ -163,7 +211,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     ctx.roles = rolesList.map<SystemRole>((name) => ({ name }));
     record(state, 'roles', 'questionnaire', rolesAnswer!.key);
   } else {
-    gap(state, 'roles', 'Ролевая модель системы', 'major', 'Опросник: перечень ролей и их полномочий');
+    gap(
+      state,
+      'roles',
+      'Ролевая модель системы',
+      'major',
+      'Опросник: перечень ролей и их полномочий',
+    );
   }
 
   // ── Архитектура и интеграции ─────────────────────────────────────────
@@ -175,7 +229,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     architecture.style = toText(styleAnswer.value);
     record(state, 'architecture.style', 'questionnaire', styleAnswer.key);
   } else {
-    gap(state, 'architecture.style', 'Архитектура системы', 'major', 'Опросник или проектные решения Заказчика');
+    gap(
+      state,
+      'architecture.style',
+      'Архитектура системы',
+      'major',
+      'Опросник или проектные решения Заказчика',
+    );
   }
 
   const screensAnswer = findAnswer(answers, /screens?_?count|экран|форм/i);
@@ -203,35 +263,62 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   const namedIntegrations = integrationsList?.filter((item) => !/^\d+$/.test(item));
 
   if (namedIntegrations && namedIntegrations.length > 0) {
-    ctx.integrations = namedIntegrations.map<IntegrationContext>((name) => ({ name, direction: 'unknown' }));
+    ctx.integrations = namedIntegrations.map<IntegrationContext>((name) => ({
+      name,
+      direction: 'unknown',
+    }));
     record(state, 'integrations', 'questionnaire', integrationsAnswer!.key);
   } else if (integrationsCount !== undefined && integrationsCount > 0) {
     // Известно только количество: перечень смежных систем остаётся к уточнению.
-    architecture.notes = [...(architecture.notes || []), `Заявленное количество интеграций: ${integrationsCount}.`];
+    architecture.notes = [
+      ...(architecture.notes || []),
+      `Заявленное количество интеграций: ${integrationsCount}.`,
+    ];
     ctx.architecture = architecture;
     record(state, 'architecture.notes', 'questionnaire', integrationsAnswer!.key);
-    gap(state, 'integrations', 'Перечень интегрируемых систем', 'major', 'В опроснике указано только количество интеграций');
+    gap(
+      state,
+      'integrations',
+      'Перечень интегрируемых систем',
+      'major',
+      'В опроснике указано только количество интеграций',
+    );
   } else {
-    gap(state, 'integrations', 'Интеграции со смежными системами', 'major', 'Опросник: перечень смежных систем и протоколов обмена');
+    gap(
+      state,
+      'integrations',
+      'Интеграции со смежными системами',
+      'major',
+      'Опросник: перечень смежных систем и протоколов обмена',
+    );
   }
 
   // ── Инфраструктура ───────────────────────────────────────────────────
   const infrastructure: InfrastructureContext = {};
 
   const deploymentAnswer = findAnswer(answers, /deployment|размещен|облак|cloud|хостинг/i);
-  const deploymentText = deploymentAnswer ? toText(deploymentAnswer.value)?.toLowerCase() : undefined;
+  const deploymentText = deploymentAnswer
+    ? toText(deploymentAnswer.value)?.toLowerCase()
+    : undefined;
   let deploymentModel: DeploymentModel | undefined;
   if (deploymentText) {
     if (/гибрид|hybrid/.test(deploymentText)) deploymentModel = 'hybrid';
     else if (/облак|cloud/.test(deploymentText)) deploymentModel = 'cloud';
-    else if (/локальн|on-?prem|собствен|заказчик/.test(deploymentText)) deploymentModel = 'on-premise';
+    else if (/локальн|on-?prem|собствен|заказчик/.test(deploymentText))
+      deploymentModel = 'on-premise';
   }
   if (deploymentModel) {
     infrastructure.deploymentModel = deploymentModel;
     ctx.deploymentModel = deploymentModel;
     record(state, 'deploymentModel', 'questionnaire', deploymentAnswer!.key);
   } else {
-    gap(state, 'deploymentModel', 'Модель размещения системы', 'major', 'Опросник: локальное размещение, облако или гибрид');
+    gap(
+      state,
+      'deploymentModel',
+      'Модель размещения системы',
+      'major',
+      'Опросник: локальное размещение, облако или гибрид',
+    );
   }
 
   const platformsAnswer = findAnswer(answers, /platform|платформ|стек|субд|операционн|os_/i);
@@ -240,7 +327,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     infrastructure.platforms = platformsList;
     record(state, 'infrastructure.platforms', 'questionnaire', platformsAnswer!.key);
   } else {
-    gap(state, 'infrastructure.platforms', 'Программные платформы', 'major', 'Технические требования Заказчика; выбор стека не определяется исполнителем в одностороннем порядке');
+    gap(
+      state,
+      'infrastructure.platforms',
+      'Программные платформы',
+      'major',
+      'Технические требования Заказчика; выбор стека не определяется исполнителем в одностороннем порядке',
+    );
   }
 
   const resourcesAnswer = findAnswer(answers, /cpu|ram|ресурс|мощност|сервер/i);
@@ -248,7 +341,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     infrastructure.computeResources = toText(resourcesAnswer.value);
     record(state, 'infrastructure.computeResources', 'questionnaire', resourcesAnswer.key);
   } else {
-    gap(state, 'infrastructure.computeResources', 'Требования к вычислительным ресурсам', 'major', 'Рассчитываются на стадии эскизного проекта либо задаются Заказчиком');
+    gap(
+      state,
+      'infrastructure.computeResources',
+      'Требования к вычислительным ресурсам',
+      'major',
+      'Рассчитываются на стадии эскизного проекта либо задаются Заказчиком',
+    );
   }
 
   const importAnswer = findAnswer(answers, /импортозамещ|реестр|отечествен|188/i);
@@ -267,7 +366,12 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   const availability: ProjectContext['availability'] = {};
   if (availabilityAnswer) {
     availability.availabilityTargetPercent = toNumber(availabilityAnswer.value);
-    record(state, 'availability.availabilityTargetPercent', 'questionnaire', availabilityAnswer.key);
+    record(
+      state,
+      'availability.availabilityTargetPercent',
+      'questionnaire',
+      availabilityAnswer.key,
+    );
   }
   if (rtoAnswer) {
     availability.rtoMinutes = toNumber(rtoAnswer.value);
@@ -280,7 +384,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (Object.keys(availability).length > 0) {
     ctx.availability = availability;
   } else {
-    gap(state, 'availability', 'Требования к надёжности (доступность, RTO, RPO)', 'blocking', 'Согласуются с Заказчиком; универсальные значения не применяются');
+    gap(
+      state,
+      'availability',
+      'Требования к надёжности (доступность, RTO, RPO)',
+      'blocking',
+      'Согласуются с Заказчиком; универсальные значения не применяются',
+    );
   }
 
   const performance: ProjectContext['performance'] = {};
@@ -302,7 +412,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (Object.keys(performance).length > 0) {
     ctx.performance = performance;
   } else {
-    gap(state, 'performance', 'Требования к производительности', 'major', 'Опросник: одновременные пользователи, время отклика, объёмы данных');
+    gap(
+      state,
+      'performance',
+      'Требования к производительности',
+      'major',
+      'Опросник: одновременные пользователи, время отклика, объёмы данных',
+    );
   }
 
   // ── Безопасность и классы данных ─────────────────────────────────────
@@ -333,7 +449,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (Object.keys(security).length > 0) {
     ctx.security = security;
   } else {
-    gap(state, 'security', 'Требования к защите информации', 'blocking', 'Определяются по результатам анализа применимости (обработка ПДн, КИИ, отраслевые требования)');
+    gap(
+      state,
+      'security',
+      'Требования к защите информации',
+      'blocking',
+      'Определяются по результатам анализа применимости (обработка ПДн, КИИ, отраслевые требования)',
+    );
   }
 
   const dataAnswer = findAnswer(answers, /классы данных|data_?class|состав данных/i);
@@ -342,7 +464,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     ctx.dataClasses = dataList.map<DataClass>((name) => ({ name }));
     record(state, 'dataClasses', 'questionnaire', dataAnswer!.key);
   } else {
-    gap(state, 'dataClasses', 'Классы обрабатываемых данных', 'major', 'Опросник или обследование объекта автоматизации');
+    gap(
+      state,
+      'dataClasses',
+      'Классы обрабатываемых данных',
+      'major',
+      'Опросник или обследование объекта автоматизации',
+    );
   }
 
   // ── Жизненный цикл (из расчёта) ──────────────────────────────────────
@@ -355,7 +483,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     };
     record(state, 'lifecycle', 'calculation', 'stages');
   } else {
-    gap(state, 'lifecycle', 'Состав стадий и этапов работ', 'blocking', 'Расчёт трудозатрат EvaCal');
+    gap(
+      state,
+      'lifecycle',
+      'Состав стадий и этапов работ',
+      'blocking',
+      'Расчёт трудозатрат EvaCal',
+    );
   }
 
   // ── Ручной ввод перекрывает выведенные значения ──────────────────────

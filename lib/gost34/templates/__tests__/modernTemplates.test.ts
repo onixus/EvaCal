@@ -29,9 +29,23 @@ describe('Modern Document Generators (PZ, AF, PMI, SPEC)', () => {
     standardProfile: GOST34_2020_PROFILE,
     systemName: 'ФинСистема',
     customerName: 'ПАО Банк',
-    stages: [{ id: 's1', order: 1, name: 'Разработка БД', role: 'Архитектор', hours: 40 }],
+    stages: [
+      {
+        id: 's1',
+        order: 1,
+        name: 'Разработка БД',
+        role: 'Архитектор',
+        hours: 40,
+      },
+    ],
     customRequirements: [
-      { id: 'r1', code: 'ТР-01', category: 'security', title: 'Авторизация', description: 'Двухфакторная авторизация' },
+      {
+        id: 'r1',
+        code: 'ТР-01',
+        category: 'security',
+        title: 'Авторизация',
+        description: 'Двухфакторная авторизация',
+      },
     ],
     projectContext: {
       architecture: {

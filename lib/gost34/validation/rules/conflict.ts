@@ -57,8 +57,8 @@ function declaredConflicts(checks: RequirementCheck[]): ValidationFinding[] {
           'ERROR',
           `Объявлено противоречие с требованием ${otherCode}.`,
           'Снять противоречие: уточнить область действия одного из требований либо отменить одно из них.',
-          [relation.targetRequirementId]
-        )
+          [relation.targetRequirementId],
+        ),
       );
     }
   }
@@ -88,9 +88,19 @@ function indicatorConflicts(checks: RequirementCheck[]): ValidationFinding[] {
 
         if (a.upper && b.upper && comparable(a.upper, b.upper) && a.upper.value !== b.upper.value) {
           reason = `заданы разные верхние границы (${a.upper.value} и ${b.upper.value})`;
-        } else if (a.upper && b.lower && comparable(a.upper, b.lower) && b.lower.value > a.upper.value) {
+        } else if (
+          a.upper &&
+          b.lower &&
+          comparable(a.upper, b.lower) &&
+          b.lower.value > a.upper.value
+        ) {
           reason = `нижняя граница ${b.lower.value} превышает верхнюю границу ${a.upper.value}`;
-        } else if (b.upper && a.lower && comparable(b.upper, a.lower) && a.lower.value > b.upper.value) {
+        } else if (
+          b.upper &&
+          a.lower &&
+          comparable(b.upper, a.lower) &&
+          a.lower.value > b.upper.value
+        ) {
           reason = `нижняя граница ${a.lower.value} превышает верхнюю границу ${b.upper.value}`;
         }
 
@@ -103,8 +113,8 @@ function indicatorConflicts(checks: RequirementCheck[]): ValidationFinding[] {
             'ERROR',
             `Противоречие с требованием ${b.check.requirement.code} по показателю «${indicator.label}»: ${reason}.`,
             'Согласовать единое значение показателя либо явно разграничить условия применения требований.',
-            [b.check.requirement.id]
-          )
+            [b.check.requirement.id],
+          ),
         );
       }
     }
@@ -143,8 +153,8 @@ function negationConflicts(checks: RequirementCheck[]): ValidationFinding[] {
           'ERROR',
           `Требование прямо противоречит ${negated.map((n) => n.requirement.code).join(', ')}: одно и то же утверждение задано с отрицанием и без него.`,
           'Оставить одну формулировку либо разграничить условия применения.',
-          negated.map((n) => n.requirement.id)
-        )
+          negated.map((n) => n.requirement.id),
+        ),
       );
     }
   }
@@ -157,5 +167,9 @@ function negationConflicts(checks: RequirementCheck[]): ValidationFinding[] {
  * а не по одному требованию.
  */
 export function checkConflicts(checks: RequirementCheck[]): ValidationFinding[] {
-  return [...declaredConflicts(checks), ...indicatorConflicts(checks), ...negationConflicts(checks)];
+  return [
+    ...declaredConflicts(checks),
+    ...indicatorConflicts(checks),
+    ...negationConflicts(checks),
+  ];
 }

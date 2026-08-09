@@ -138,8 +138,8 @@ export function analyzeAndNormalizeInput(input: {
             stageName: stg.name,
             stageRole: stg.role,
           },
-          { sourceSection: stg.name }
-        )
+          { sourceSection: stg.name },
+        ),
       );
       reqCounter++;
     }
@@ -152,7 +152,9 @@ export function analyzeAndNormalizeInput(input: {
   const pmHours = calc?.pmHours || 0;
   const totalLaborHours = totalStageHours + totalRiskHours + pmHours;
 
-  const baseCustomRequirements = toGost34RequirementItems(requirementsV2, { preferNormalized: true });
+  const baseCustomRequirements = toGost34RequirementItems(requirementsV2, {
+    preferNormalized: true,
+  });
 
   const projectContext = buildProjectContext({
     systemName,
@@ -176,11 +178,13 @@ export function analyzeAndNormalizeInput(input: {
       ...fromGost34RequirementItems(enriched, {
         type: 'regulatory',
         status: 'APPROVED',
-      })
+      }),
     );
   }
 
-  const customRequirements = toGost34RequirementItems(requirementsV2, { preferNormalized: true });
+  const customRequirements = toGost34RequirementItems(requirementsV2, {
+    preferNormalized: true,
+  });
 
   return {
     metadata,

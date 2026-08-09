@@ -1,9 +1,9 @@
-import crypto from "node:crypto";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { NextResponse } from "next/server";
+import crypto from 'node:crypto';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { NextResponse } from 'next/server';
 
-export const SESSION_COOKIE_NAME = "evacal_session";
+export const SESSION_COOKIE_NAME = 'evacal_session';
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8; // 8h
 
 export interface SessionPayload {
@@ -15,12 +15,12 @@ export interface SessionPayload {
 
 function getSecret(): string {
   const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("SESSION_SECRET is not set. Add it to your .env file.");
+  if (!secret) throw new Error('SESSION_SECRET is not set. Add it to your .env file.');
   return secret;
 }
 
 function sign(data: string): string {
-  return crypto.createHmac("sha256", getSecret()).update(data).digest("base64url");
+  return crypto.createHmac('sha256', getSecret()).update(data).digest('base64url');
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -37,17 +37,17 @@ export function createSessionToken(user: { id: string; username: string; role: s
     role: user.role,
     exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
   };
-  const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
   return `${data}.${sign(data)}`;
 }
 
 export function verifySessionToken(token: string | undefined | null): SessionPayload | null {
   if (!token) return null;
-  const [data, signature] = token.split(".");
+  const [data, signature] = token.split('.');
   if (!data || !signature || !safeEqual(signature, sign(data))) return null;
   try {
-    const payload = JSON.parse(Buffer.from(data, "base64url").toString()) as SessionPayload;
-    if (typeof payload.exp !== "number" || payload.exp < Date.now()) return null;
+    const payload = JSON.parse(Buffer.from(data, 'base64url').toString()) as SessionPayload;
+    if (typeof payload.exp !== 'number' || payload.exp < Date.now()) return null;
     return payload;
   } catch {
     return null;
@@ -74,12 +74,14 @@ export async function requireRole(role: string): Promise<SessionPayload> {
  * immediately. Accepts several acceptable roles — a route that an architect may
  * call is usually one an admin may call too.
  */
-export async function requireApiRole(role: string | string[]): Promise<SessionPayload | NextResponse> {
+export async function requireApiRole(
+  role: string | string[],
+): Promise<SessionPayload | NextResponse> {
   const allowed = Array.isArray(role) ? role : [role];
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Требуется вход в систему" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: 'Требуется вход в систему' }, { status: 401 });
   if (!allowed.includes(session.role)) {
-    return NextResponse.json({ error: "Недостаточно прав" }, { status: 403 });
+    return NextResponse.json({ error: 'Недостаточно прав' }, { status: 403 });
   }
   return session;
 }

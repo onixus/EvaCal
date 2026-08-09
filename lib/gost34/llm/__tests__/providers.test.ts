@@ -60,7 +60,13 @@ describe('built-in local providers', () => {
 describe('EVACAL_LLM_PROVIDERS', () => {
   it('adds a remote provider with a key held in the environment', () => {
     process.env.EVACAL_LLM_PROVIDERS = JSON.stringify([
-      { id: 'corp', label: 'Corp LLM', kind: 'openai_compatible', endpoint: 'https://llm.example.com/v1', apiKeyEnv: 'CORP_LLM_KEY' },
+      {
+        id: 'corp',
+        label: 'Corp LLM',
+        kind: 'openai_compatible',
+        endpoint: 'https://llm.example.com/v1',
+        apiKeyEnv: 'CORP_LLM_KEY',
+      },
     ]);
     process.env.CORP_LLM_KEY = 'secret-value';
 
@@ -110,7 +116,13 @@ describe('resolveLlmProvider', () => {
 describe('listPublicLlmProviders', () => {
   it('never leaks the endpoint or the key env name to the client', () => {
     process.env.EVACAL_LLM_PROVIDERS = JSON.stringify([
-      { id: 'corp', label: 'Corp', kind: 'openai_compatible', endpoint: 'https://llm.example.com/v1', apiKeyEnv: 'CORP_LLM_KEY' },
+      {
+        id: 'corp',
+        label: 'Corp',
+        kind: 'openai_compatible',
+        endpoint: 'https://llm.example.com/v1',
+        apiKeyEnv: 'CORP_LLM_KEY',
+      },
     ]);
 
     for (const provider of listPublicLlmProviders()) {

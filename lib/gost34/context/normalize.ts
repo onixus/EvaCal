@@ -35,7 +35,7 @@ function resolveDeploymentModel(context: ProjectContext): DeploymentModel | unde
  */
 export function normalizeProjectContextForGeneration(
   context: ProjectContext,
-  stages: Gost34StageItem[] = []
+  stages: Gost34StageItem[] = [],
 ): ProjectContext {
   const normalized: ProjectContext = {
     ...context,
@@ -56,7 +56,7 @@ export function normalizeProjectContextForGeneration(
     normalized.gaps = removeGap(
       normalized.gaps || [],
       'deploymentModel',
-      'infrastructure.deploymentModel'
+      'infrastructure.deploymentModel',
     );
   }
 

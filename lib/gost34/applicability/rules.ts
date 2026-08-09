@@ -5,7 +5,7 @@ import type { ApplicabilityRule, Evidence, ApplicabilityStatus } from './types';
 function inRegulatoryScope(context: ProjectContext, ids: string[]): boolean {
   if (!context.security?.regulatoryScope) return false;
   return context.security.regulatoryScope.some((s) =>
-    ids.some((id) => s.toLowerCase().includes(id.toLowerCase()))
+    ids.some((id) => s.toLowerCase().includes(id.toLowerCase())),
   );
 }
 
@@ -47,13 +47,17 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           details: 'В системе подтверждена обработка персональных данных',
           value: true,
         });
-        reasons.push('Система обрабатывает персональные данные, требуется выполнение мер защиты ИСПДн по Приказу ФСТЭК № 21.');
+        reasons.push(
+          'Система обрабатывает персональные данные, требуется выполнение мер защиты ИСПДн по Приказу ФСТЭК № 21.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.95 };
       }
 
       // Проверка классов данных на наличие ПДн
       const pdDataClass = context.dataClasses?.find((d) =>
-        /персональн|пдн|паспорт|фио|клиент|пользовател|снилс|инн/i.test(`${d.name} ${d.sensitivity || ''}`)
+        /персональн|пдн|паспорт|фио|клиент|пользовател|снилс|инн/i.test(
+          `${d.name} ${d.sensitivity || ''}`,
+        ),
       );
       if (pdDataClass) {
         evidence.push({
@@ -72,10 +76,17 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           value: false,
         });
         reasons.push('В системе явно не обрабатываются персональные данные.');
-        return { status: 'NOT_APPLICABLE', reasons, evidence, confidence: 0.95 };
+        return {
+          status: 'NOT_APPLICABLE',
+          reasons,
+          evidence,
+          confidence: 0.95,
+        };
       }
 
-      reasons.push('Наличие персональных данных не определено. Требуется подтверждение у Заказчика.');
+      reasons.push(
+        'Наличие персональных данных не определено. Требуется подтверждение у Заказчика.',
+      );
       return { status: 'UNKNOWN', reasons, evidence, confidence: 0.0 };
     },
   },
@@ -105,12 +116,14 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           details: 'В системе подтверждена обработка персональных данных граждан РФ',
           value: true,
         });
-        reasons.push('При обработке персональных данных граждан РФ закон требует их обязательной локализации на территории РФ.');
+        reasons.push(
+          'При обработке персональных данных граждан РФ закон требует их обязательной локализации на территории РФ.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.95 };
       }
 
       const pdDataClass = context.dataClasses?.find((d) =>
-        /персональн|пдн|паспорт|фио|клиент|пользовател/i.test(`${d.name} ${d.sensitivity || ''}`)
+        /персональн|пдн|паспорт|фио|клиент|пользовател/i.test(`${d.name} ${d.sensitivity || ''}`),
       );
       if (pdDataClass) {
         evidence.push({
@@ -118,7 +131,9 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           details: `Обнаружен класс данных, содержащий персональные данные: «${pdDataClass.name}»`,
           value: pdDataClass,
         });
-        reasons.push('В системе присутствуют персональные данные, подпадающие под 152-ФЗ / 242-ФЗ.');
+        reasons.push(
+          'В системе присутствуют персональные данные, подпадающие под 152-ФЗ / 242-ФЗ.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.9 };
       }
 
@@ -129,10 +144,17 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           value: false,
         });
         reasons.push('Персональные данные не обрабатываются.');
-        return { status: 'NOT_APPLICABLE', reasons, evidence, confidence: 0.95 };
+        return {
+          status: 'NOT_APPLICABLE',
+          reasons,
+          evidence,
+          confidence: 0.95,
+        };
       }
 
-      reasons.push('Не указано, обрабатываются ли персональные данные. Применимость 152-ФЗ требует уточнения.');
+      reasons.push(
+        'Не указано, обрабатываются ли персональные данные. Применимость 152-ФЗ требует уточнения.',
+      );
       return { status: 'UNKNOWN', reasons, evidence, confidence: 0.0 };
     },
   },
@@ -162,17 +184,25 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           details: 'Система отнесена к объектам КИИ РФ',
           value: true,
         });
-        reasons.push('Система является объектом критической информационной инфраструктуры по 187-ФЗ.');
+        reasons.push(
+          'Система является объектом критической информационной инфраструктуры по 187-ФЗ.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.95 };
       }
 
       const corpus = getProjectDomainCorpus(context);
-      if (/кии|критическ\w*\s+информационн|значим\w*\s+объект|энергетик\w*|транспорт\w*\s+инфраструктур|оборонн\w*|здравоохран\w*\s+инфраструктур/i.test(corpus)) {
+      if (
+        /кии|критическ\w*\s+информационн|значим\w*\s+объект|энергетик\w*|транспорт\w*\s+инфраструктур|оборонн\w*|здравоохран\w*\s+инфраструктур/i.test(
+          corpus,
+        )
+      ) {
         evidence.push({
           source: 'projectDomain',
           details: 'Контекст системы указывает на принадлежность к субъектам/сферам КИИ',
         });
-        reasons.push('Контекст объекта автоматизации содержит признаки критической информационной инфраструктуры.');
+        reasons.push(
+          'Контекст объекта автоматизации содержит признаки критической информационной инфраструктуры.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.85 };
       }
 
@@ -183,7 +213,12 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           value: false,
         });
         reasons.push('Система явно не является объектом КИИ.');
-        return { status: 'NOT_APPLICABLE', reasons, evidence, confidence: 0.95 };
+        return {
+          status: 'NOT_APPLICABLE',
+          reasons,
+          evidence,
+          confidence: 0.95,
+        };
       }
 
       reasons.push('Статус объекта КИИ не определён. Требуется процедура категорирования.');
@@ -216,7 +251,9 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           details: 'Система отнесена к объектам КИИ РФ',
           value: true,
         });
-        reasons.push('Для объектов КИИ обязателен состав мер защиты по Приказу ФСТЭК № 239 для категорий значимости 1, 2, 3.');
+        reasons.push(
+          'Для объектов КИИ обязателен состав мер защиты по Приказу ФСТЭК № 239 для категорий значимости 1, 2, 3.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.95 };
       }
 
@@ -227,7 +264,12 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           value: false,
         });
         reasons.push('Система не является объектом КИИ.');
-        return { status: 'NOT_APPLICABLE', reasons, evidence, confidence: 0.95 };
+        return {
+          status: 'NOT_APPLICABLE',
+          reasons,
+          evidence,
+          confidence: 0.95,
+        };
       }
 
       reasons.push('Статус значимого объекта КИИ не определён. Требуется подтверждение.');
@@ -254,19 +296,26 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
         return { status: 'APPLICABLE', reasons, evidence, confidence: 1.0 };
       }
 
-      const isProtectedSystem = context.security?.kiiObject === true || context.security?.personalDataProcessed === true;
-      const hasCustomDevelopment = (context.lifecycle?.stages && context.lifecycle.stages.length > 0) || (context.lifecycle?.totalLaborHours && context.lifecycle.totalLaborHours > 0);
+      const isProtectedSystem =
+        context.security?.kiiObject === true || context.security?.personalDataProcessed === true;
+      const hasCustomDevelopment =
+        (context.lifecycle?.stages && context.lifecycle.stages.length > 0) ||
+        (context.lifecycle?.totalLaborHours && context.lifecycle.totalLaborHours > 0);
 
       if (isProtectedSystem && hasCustomDevelopment) {
         evidence.push({
           source: 'lifecycle + security',
           details: 'Заказная разработка ПО для защищаемой информационной системы (КИИ / ИСПДн)',
         });
-        reasons.push('Для разрабатываемого ПО защищаемых систем обязательно применение практик безопасной разработки (SAST/DAST/SCA) по Приказу ФСТЭК № 117.');
+        reasons.push(
+          'Для разрабатываемого ПО защищаемых систем обязательно применение практик безопасной разработки (SAST/DAST/SCA) по Приказу ФСТЭК № 117.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.85 };
       }
 
-      reasons.push('Применимость обязательных процедур безопасной разработки по ФСТЭК № 117 требует согласования с Заказчиком.');
+      reasons.push(
+        'Применимость обязательных процедур безопасной разработки по ФСТЭК № 117 требует согласования с Заказчиком.',
+      );
       return { status: 'UNKNOWN', reasons, evidence, confidence: 0.0 };
     },
   },
@@ -293,15 +342,20 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
       if (context.infrastructure?.importSubstitution === true) {
         evidence.push({
           source: 'infrastructure.importSubstitution',
-          details: 'Задано явное требование импортозамещения и совместимости с Реестром российского ПО',
+          details:
+            'Задано явное требование импортозамещения и совместимости с Реестром российского ПО',
           value: true,
         });
-        reasons.push('В проектном контексте зафиксировано требование совместимости с отечественным стеком по 188-ФЗ.');
+        reasons.push(
+          'В проектном контексте зафиксировано требование совместимости с отечественным стеком по 188-ФЗ.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.95 };
       }
 
       const ruPlatforms = context.infrastructure?.platforms?.filter((p) =>
-        /astra|alt\s*linux|альт|red\s*os|redos|ред\s*ос|postgres\s*pro|роса|базальт|эльбрус|кибербэкап/i.test(p)
+        /astra|alt\s*linux|альт|red\s*os|redos|ред\s*ос|postgres\s*pro|роса|базальт|эльбрус|кибербэкап/i.test(
+          p,
+        ),
       );
       if (ruPlatforms && ruPlatforms.length > 0) {
         evidence.push({
@@ -309,7 +363,9 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           details: `Указаны отечественные платформенные компоненты: ${ruPlatforms.join(', ')}`,
           value: ruPlatforms,
         });
-        reasons.push('Инфраструктура системы строится на программном обеспечении из Единого реестра российского ПО.');
+        reasons.push(
+          'Инфраструктура системы строится на программном обеспечении из Единого реестра российского ПО.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.9 };
       }
 
@@ -320,7 +376,12 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           value: false,
         });
         reasons.push('Требования импортозамещения к системе не предъявляются.');
-        return { status: 'NOT_APPLICABLE', reasons, evidence, confidence: 0.95 };
+        return {
+          status: 'NOT_APPLICABLE',
+          reasons,
+          evidence,
+          confidence: 0.95,
+        };
       }
 
       reasons.push('Не определено, входит ли система в контур импортозамещения по 188-ФЗ.');
@@ -348,16 +409,25 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
       }
 
       const corpus = getProjectDomainCorpus(context);
-      if (/банк\w*|кредитн\w*\s+организаци|финансов\w*\s+организаци|эквайринг|дбо|платежн\w*\s+систем/i.test(corpus)) {
+      if (
+        /банк\w*|кредитн\w*\s+организаци|финансов\w*\s+организаци|эквайринг|дбо|платежн\w*\s+систем/i.test(
+          corpus,
+        )
+      ) {
         evidence.push({
           source: 'projectDomain',
-          details: 'В описании объекта или целей автоматизации идентифицирована финансовая/банковская сфера',
+          details:
+            'В описании объекта или целей автоматизации идентифицирована финансовая/банковская сфера',
         });
-        reasons.push('Система осуществляет обработку финансовых операций или создается для финансовой организации.');
+        reasons.push(
+          'Система осуществляет обработку финансовых операций или создается для финансовой организации.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.85 };
       }
 
-      reasons.push('Принадлежность системы к сфере финансовых (банковских) операций не подтверждена.');
+      reasons.push(
+        'Принадлежность системы к сфере финансовых (банковских) операций не подтверждена.',
+      );
       return { status: 'UNKNOWN', reasons, evidence, confidence: 0.0 };
     },
   },
@@ -416,7 +486,11 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
       }
 
       const corpus = getProjectDomainCorpus(context);
-      if (/нфо|некредитн\w*\s+финансов|страхов\w*\s+компан|брокер|микрофинанс|мфо|негосударственн\w*\s+пенсионн|депозитари/i.test(corpus)) {
+      if (
+        /нфо|некредитн\w*\s+финансов|страхов\w*\s+компан|брокер|микрофинанс|мфо|негосударственн\w*\s+пенсионн|депозитари/i.test(
+          corpus,
+        )
+      ) {
         evidence.push({
           source: 'projectDomain',
           details: 'Обнаружены признаки некредитной финансовой организации (НФО)',
@@ -450,12 +524,19 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
       }
 
       const corpus = getProjectDomainCorpus(context);
-      if (/антифрод|электронн\w*\s+подпис|скзи|двухуровнев\w*\s+журналир|платежн\w*\s+распоряжен|платежн\w*\s+поручен/i.test(corpus)) {
+      if (
+        /антифрод|электронн\w*\s+подпис|скзи|двухуровнев\w*\s+журналир|платежн\w*\s+распоряжен|платежн\w*\s+поручен/i.test(
+          corpus,
+        )
+      ) {
         evidence.push({
           source: 'projectDomain',
-          details: 'Обнаружены требования к антифрод-мониторингу, электронным подписям или финансовым транзакциям',
+          details:
+            'Обнаружены требования к антифрод-мониторингу, электронным подписям или финансовым транзакциям',
         });
-        reasons.push('В системе предусмотрена обработка электронных платежных сообщений или применение СКЗИ/ЭП по 719-П.');
+        reasons.push(
+          'В системе предусмотрена обработка электронных платежных сообщений или применение СКЗИ/ЭП по 719-П.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.85 };
       }
 
@@ -486,10 +567,13 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
       if (context.security?.kiiObject === true) {
         evidence.push({
           source: 'security.kiiObject',
-          details: 'Субъекты КИИ обязаны передавать данные об инцидентах ИБ в ГосСОПКА (Приказ ФСБ № 282)',
+          details:
+            'Субъекты КИИ обязаны передавать данные об инцидентах ИБ в ГосСОПКА (Приказ ФСБ № 282)',
           value: true,
         });
-        reasons.push('Для объектов КИИ передача сведений об инцидентах в НКЦКИ / ГосСОПКА обязательна по закону.');
+        reasons.push(
+          'Для объектов КИИ передача сведений об инцидентах в НКЦКИ / ГосСОПКА обязательна по закону.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.9 };
       }
 
@@ -510,7 +594,12 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           value: false,
         });
         reasons.push('Обязанность взаимодействия с ГосСОПКА отсутствует.');
-        return { status: 'NOT_APPLICABLE', reasons, evidence, confidence: 0.85 };
+        return {
+          status: 'NOT_APPLICABLE',
+          reasons,
+          evidence,
+          confidence: 0.85,
+        };
       }
 
       reasons.push('Обязанность передачи сведений в ГосСОПКА не определена.');
@@ -547,7 +636,9 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           details: `Задано допустимое время восстановления RTO ≤ ${rto} мин`,
           value: rto,
         });
-        reasons.push(`Установлено жесткое требование к восстановлению после сбоев (RTO ≤ ${rto} мин).`);
+        reasons.push(
+          `Установлено жесткое требование к восстановлению после сбоев (RTO ≤ ${rto} мин).`,
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.9 };
       }
 
@@ -586,7 +677,7 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
       }
 
       const uiComponent = context.architecture?.components?.find((c) =>
-        /web|веб|frontend|интерфейс|ui|портал|лк|личный кабинет|мобильн/i.test(c)
+        /web|веб|frontend|интерфейс|ui|портал|лк|личный кабинет|мобильн/i.test(c),
       );
       if (uiComponent) {
         evidence.push({
@@ -594,12 +685,14 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           details: `В составе архитектуры системы присутствует пользовательский компонент: «${uiComponent}»`,
           value: uiComponent,
         });
-        reasons.push('Система включает пользовательский веб-интерфейс, требуется соблюдение требований доступности по ГОСТ Р 52872-2019.');
+        reasons.push(
+          'Система включает пользовательский веб-интерфейс, требуется соблюдение требований доступности по ГОСТ Р 52872-2019.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.85 };
       }
 
       const citizenGroup = context.users?.find((u) =>
-        /граждан|клиент|публичн|внешн|пользовател/i.test(`${u.name} ${u.description || ''}`)
+        /граждан|клиент|публичн|внешн|пользовател/i.test(`${u.name} ${u.description || ''}`),
       );
       if (citizenGroup) {
         evidence.push({
@@ -607,12 +700,19 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           details: `Система ориентирована на широкую аудиторию пользователей: «${citizenGroup.name}»`,
           value: citizenGroup,
         });
-        reasons.push('Система предназначена для взаимодействия с внешними пользователями / гражданами.');
+        reasons.push(
+          'Система предназначена для взаимодействия с внешними пользователями / гражданами.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.85 };
       }
 
-      const isHeadless = context.architecture?.style && /headless|backend|сервис-сервис|api-only|микросервис/i.test(context.architecture.style);
-      if (isHeadless && (!context.architecture?.components || context.architecture.components.length === 0)) {
+      const isHeadless =
+        context.architecture?.style &&
+        /headless|backend|сервис-сервис|api-only|микросервис/i.test(context.architecture.style);
+      if (
+        isHeadless &&
+        (!context.architecture?.components || context.architecture.components.length === 0)
+      ) {
         evidence.push({
           source: 'architecture.style',
           details: `Система является серверной: «${context.architecture?.style}» без пользовательского интерфейса`,
@@ -622,7 +722,9 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
         return { status: 'NOT_APPLICABLE', reasons, evidence, confidence: 0.9 };
       }
 
-      reasons.push('Наличие пользовательского веб-интерфейса и требования доступности не определены.');
+      reasons.push(
+        'Наличие пользовательского веб-интерфейса и требования доступности не определены.',
+      );
       return { status: 'UNKNOWN', reasons, evidence, confidence: 0.0 };
     },
   },

@@ -59,7 +59,9 @@ describe('Applicability Engine (PR-05)', () => {
 
       expect(fstek21?.finalStatus).toBe('APPLICABLE');
       expect(fstek21?.confidence).toBeGreaterThanOrEqual(0.9);
-      expect(fstek21?.evidence.some((e) => e.source === 'security.personalDataProcessed')).toBe(true);
+      expect(fstek21?.evidence.some((e) => e.source === 'security.personalDataProcessed')).toBe(
+        true,
+      );
 
       expect(fz152?.finalStatus).toBe('APPLICABLE');
       expect(fz152?.confidence).toBeGreaterThanOrEqual(0.9);
@@ -72,7 +74,10 @@ describe('Applicability Engine (PR-05)', () => {
     it('identifies personal data from dataClasses', () => {
       const context: ProjectContext = {
         dataClasses: [
-          { name: 'Паспортные данные и ФИО пользователей', sensitivity: 'персональные данные' },
+          {
+            name: 'Паспортные данные и ФИО пользователей',
+            sensitivity: 'персональные данные',
+          },
         ],
       };
 
@@ -208,7 +213,8 @@ describe('Applicability Engine (PR-05)', () => {
 
     it('triggers 719-П when antifraud and electronic signatures are required', () => {
       const context: ProjectContext = {
-        systemPurpose: 'Проведение платежных поручений с использованием СКЗИ и двухфакторной электронной подписи, модуль антифрод',
+        systemPurpose:
+          'Проведение платежных поручений с использованием СКЗИ и двухфакторной электронной подписи, модуль антифрод',
       };
 
       const cb719p = evaluateStandardApplicability('cb_719p', context);
@@ -251,7 +257,10 @@ describe('Applicability Engine (PR-05)', () => {
           components: ['Web-портал', 'API Gateway', 'База данных'],
         },
         users: [
-          { name: 'Граждане и внешние клиенты', description: 'Подача заявлений через публичный веб-интерфейс' },
+          {
+            name: 'Граждане и внешние клиенты',
+            description: 'Подача заявлений через публичный веб-интерфейс',
+          },
         ],
       };
 

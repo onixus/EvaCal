@@ -32,10 +32,10 @@ function inferRequirementType(item: Gost34RequirementItem): RequirementType {
 
 export function toGost34RequirementItem(
   requirement: Gost34RequirementV2,
-  opts: ToItemOptions = {}
+  opts: ToItemOptions = {},
 ): Gost34RequirementItem {
   const description = opts.preferNormalized
-    ? (requirement.normalizedText?.trim() || requirement.originalText.trim())
+    ? requirement.normalizedText?.trim() || requirement.originalText.trim()
     : getRequirementEffectiveText(requirement);
 
   const item: Gost34RequirementItem = {
@@ -48,11 +48,14 @@ export function toGost34RequirementItem(
   };
 
   if (requirement.source?.filename !== undefined) item.sourceFile = requirement.source.filename;
-  if (requirement.legacy?.normalizedBy !== undefined) item.normalizedBy = requirement.legacy.normalizedBy;
+  if (requirement.legacy?.normalizedBy !== undefined)
+    item.normalizedBy = requirement.legacy.normalizedBy;
   if (requirement.legacy?.stageName !== undefined) item.stageName = requirement.legacy.stageName;
   if (requirement.legacy?.stageRole !== undefined) item.stageRole = requirement.legacy.stageRole;
-  if (requirement.legacy?.mappedStageId !== undefined) item.mappedStageId = requirement.legacy.mappedStageId;
-  if (requirement.legacy?.mappedStageName !== undefined) item.mappedStageName = requirement.legacy.mappedStageName;
+  if (requirement.legacy?.mappedStageId !== undefined)
+    item.mappedStageId = requirement.legacy.mappedStageId;
+  if (requirement.legacy?.mappedStageName !== undefined)
+    item.mappedStageName = requirement.legacy.mappedStageName;
   if (requirement.legacy?.mappedRole !== undefined) item.mappedRole = requirement.legacy.mappedRole;
 
   return item;
@@ -60,7 +63,7 @@ export function toGost34RequirementItem(
 
 export function fromGost34RequirementItem(
   item: Gost34RequirementItem,
-  opts: FromItemOptions = {}
+  opts: FromItemOptions = {},
 ): Gost34RequirementV2 {
   // Never overwrite an original that survived an earlier conversion.
   const originalText = item.originalText ?? item.description;
@@ -98,14 +101,14 @@ export function fromGost34RequirementItem(
 
 export function toGost34RequirementItems(
   requirements: Gost34RequirementV2[],
-  opts: ToItemOptions = {}
+  opts: ToItemOptions = {},
 ): Gost34RequirementItem[] {
   return requirements.map((r) => toGost34RequirementItem(r, opts));
 }
 
 export function fromGost34RequirementItems(
   items: Gost34RequirementItem[],
-  opts: FromItemOptions = {}
+  opts: FromItemOptions = {},
 ): Gost34RequirementV2[] {
   return items.map((item) => fromGost34RequirementItem(item, opts));
 }

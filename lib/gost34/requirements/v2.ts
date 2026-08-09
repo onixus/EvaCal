@@ -15,18 +15,9 @@ export type RequirementType =
   | 'data'
   | 'regulatory';
 
-export type RequirementStatus =
-  | 'DRAFT'
-  | 'PROPOSED'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'SUPERSEDED';
+export type RequirementStatus = 'DRAFT' | 'PROPOSED' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
 
-export type VerificationMethod =
-  | 'INSPECTION'
-  | 'ANALYSIS'
-  | 'DEMONSTRATION'
-  | 'TEST';
+export type VerificationMethod = 'INSPECTION' | 'ANALYSIS' | 'DEMONSTRATION' | 'TEST';
 
 export type RequirementRelationType =
   | 'DERIVES_FROM'

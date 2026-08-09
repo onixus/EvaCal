@@ -24,7 +24,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Requirements array is empty' }, { status: 400 });
     }
 
-    return NextResponse.json({ validation: validateRequirements(toValidate, { rules }) });
+    return NextResponse.json({
+      validation: validateRequirements(toValidate, { rules }),
+    });
   } catch (err: any) {
     console.error('Error in GOST 34 validation endpoint:', err);
     return NextResponse.json({ error: err?.message || 'Validation failed' }, { status: 500 });

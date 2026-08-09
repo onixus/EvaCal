@@ -6,7 +6,7 @@ import { TraceLink, TraceabilityResult } from './types';
 export function buildTraceability(
   requirements: Gost34RequirementV2[],
   stages: Gost34StageItem[],
-  manualLinks: TraceLink[] = []
+  manualLinks: TraceLink[] = [],
 ): TraceabilityResult {
   const stageIds = new Set(stages.map((stage) => stage.id));
   const links: TraceLink[] = manualLinks.filter((link) => stageIds.has(link.targetId));
@@ -30,7 +30,8 @@ export function buildTraceability(
   const mappedRequirements = new Set(links.map((l) => l.sourceId)).size;
   const totalRequirements = requirements.length;
   const unmappedRequirements = totalRequirements - mappedRequirements;
-  const coveragePercentage = totalRequirements > 0 ? (mappedRequirements / totalRequirements) * 100 : 0;
+  const coveragePercentage =
+    totalRequirements > 0 ? (mappedRequirements / totalRequirements) * 100 : 0;
 
   return {
     links,
@@ -43,7 +44,10 @@ export function buildTraceability(
   };
 }
 
-function matchStageByRules(req: Gost34RequirementV2, stages: Gost34StageItem[]): Gost34StageItem | null {
+function matchStageByRules(
+  req: Gost34RequirementV2,
+  stages: Gost34StageItem[],
+): Gost34StageItem | null {
   if (!stages || stages.length === 0) return null;
 
   const lowerDesc = `${req.title} ${getRequirementEffectiveText(req)}`.toLowerCase();
@@ -55,7 +59,9 @@ function matchStageByRules(req: Gost34RequirementV2, stages: Gost34StageItem[]):
     return stages.find((s) => /бд|данн|архитект|разработ/i.test(`${s.name} ${s.role}`)) || null;
   }
   if (/интерфейс|веб|дизайн|экран|форма|wcag/i.test(lowerDesc)) {
-    return stages.find((s) => /интерфейс|фронт|разработ|дизайн/i.test(`${s.name} ${s.role}`)) || null;
+    return (
+      stages.find((s) => /интерфейс|фронт|разработ|дизайн/i.test(`${s.name} ${s.role}`)) || null
+    );
   }
   if (/испытан|пми|приемк|тестиров/i.test(lowerDesc)) {
     return stages.find((s) => /тест|испытан|аналитик/i.test(`${s.name} ${s.role}`)) || null;
@@ -73,13 +79,13 @@ function isRequirementV2(requirement: TraceabilityRequirement): requirement is G
 
 function normalizeRequirements(requirements: TraceabilityRequirement[]): Gost34RequirementV2[] {
   return requirements.map((requirement) =>
-    isRequirementV2(requirement) ? requirement : fromGost34RequirementItem(requirement)
+    isRequirementV2(requirement) ? requirement : fromGost34RequirementItem(requirement),
   );
 }
 
 function legacyManualLinks(
   requirements: TraceabilityRequirement[],
-  stages: Gost34StageItem[]
+  stages: Gost34StageItem[],
 ): TraceLink[] {
   const stageIds = new Set(stages.map((stage) => stage.id));
 
@@ -102,11 +108,12 @@ function legacyManualLinks(
 export function generateTraceabilityTable(
   requirements: TraceabilityRequirement[],
   stages: Gost34StageItem[],
-  result?: TraceabilityResult
+  result?: TraceabilityResult,
 ): Gost34TableData {
   const normalizedRequirements = normalizeRequirements(requirements);
   const resolvedResult =
-    result ?? buildTraceability(normalizedRequirements, stages, legacyManualLinks(requirements, stages));
+    result ??
+    buildTraceability(normalizedRequirements, stages, legacyManualLinks(requirements, stages));
 
   const rows: (string | number)[][] = [];
 
@@ -125,7 +132,13 @@ export function generateTraceabilityTable(
 
   return {
     caption: 'Таблица — Матрица прослеживаемости требований и этапов проекта',
-    headers: ['Код требования', 'Вендорское требование', 'Ответственный этап работ', 'Роль исполнителя', 'Источник'],
+    headers: [
+      'Код требования',
+      'Вендорское требование',
+      'Ответственный этап работ',
+      'Роль исполнителя',
+      'Источник',
+    ],
     rows,
   };
 }

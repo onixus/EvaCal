@@ -29,13 +29,19 @@ describe('getRequirementEffectiveText', () => {
   });
 
   it('falls back to the original when the approved normalized text is blank', () => {
-    const req = makeRequirement({ normalizedText: '   ', approval: { status: 'APPROVED' } });
+    const req = makeRequirement({
+      normalizedText: '   ',
+      approval: { status: 'APPROVED' },
+    });
     expect(getRequirementEffectiveText(req)).toBe('исходный текст');
   });
 
   it('returns the original while the requirement is not approved', () => {
     for (const status of ['DRAFT', 'PROPOSED', 'REJECTED', 'SUPERSEDED'] as RequirementStatus[]) {
-      const req = makeRequirement({ normalizedText: 'нормализованный текст', approval: { status } });
+      const req = makeRequirement({
+        normalizedText: 'нормализованный текст',
+        approval: { status },
+      });
       expect(getRequirementEffectiveText(req), status).toBe('исходный текст');
     }
   });

@@ -1,13 +1,19 @@
-import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import UsersManager from "./UsersManager";
+import Link from 'next/link';
+import { prisma } from '@/lib/prisma';
+import UsersManager from './UsersManager';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export default async function AdminUsersPage() {
   const users = await prisma.user.findMany({
-    orderBy: { createdAt: "desc" },
-    select: { id: true, username: true, role: true, mustChangePassword: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      username: true,
+      role: true,
+      mustChangePassword: true,
+      createdAt: true,
+    },
   });
 
   return (

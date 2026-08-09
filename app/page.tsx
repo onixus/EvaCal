@@ -1,14 +1,18 @@
-import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import { grandTotalHours } from "@/lib/totals";
-import StatusBadge from "@/components/StatusBadge";
+import Link from 'next/link';
+import { prisma } from '@/lib/prisma';
+import { grandTotalHours } from '@/lib/totals';
+import StatusBadge from '@/components/StatusBadge';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const calculations = await prisma.calculation.findMany({
-    orderBy: { createdAt: "desc" },
-    include: { template: { select: { name: true } }, stages: true, risks: true },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      template: { select: { name: true } },
+      stages: true,
+      risks: true,
+    },
   });
 
   return (
@@ -16,7 +20,9 @@ export default async function HomePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Все расчёты</h1>
-          <p className="text-sm text-slate-500">Архив доступен всем — включая старые и утверждённые расчёты.</p>
+          <p className="text-sm text-slate-500">
+            Архив доступен всем — включая старые и утверждённые расчёты.
+          </p>
         </div>
         <Link href="/presale" className="btn-primary">
           + Новый расчёт
@@ -42,9 +48,15 @@ export default async function HomePage() {
             </thead>
             <tbody>
               {calculations.map((c) => (
-                <tr key={c.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                <tr
+                  key={c.id}
+                  className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
+                >
                   <td className="p-3">
-                    <Link href={`/calculations/${c.id}`} className="font-medium text-brand-700 hover:underline">
+                    <Link
+                      href={`/calculations/${c.id}`}
+                      className="font-medium text-brand-700 hover:underline"
+                    >
                       {c.name}
                     </Link>
                   </td>
@@ -54,9 +66,7 @@ export default async function HomePage() {
                   <td className="p-3">
                     <StatusBadge status={c.status} />
                   </td>
-                  <td className="p-3 text-slate-500">
-                    {c.createdAt.toLocaleDateString("ru-RU")}
-                  </td>
+                  <td className="p-3 text-slate-500">{c.createdAt.toLocaleDateString('ru-RU')}</td>
                 </tr>
               ))}
             </tbody>

@@ -32,7 +32,10 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
 
   const layoutProfile = getLayoutProfile(meta.layoutProfileId);
   const standardProfile = ast.standardProfile ?? DEFAULT_GOST34_PROFILE;
-  const { title: docTitleText, subtitle: docSubtitleText } = getDocumentHeadings(standardProfile, meta.docType);
+  const { title: docTitleText, subtitle: docSubtitleText } = getDocumentHeadings(
+    standardProfile,
+    meta.docType,
+  );
 
   // Margins in twips from layoutProfile
   const titleMargin = {
@@ -49,10 +52,30 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
           display: PageBorderDisplay.ALL_PAGES,
           offsetFrom: PageBorderOffsetFrom.PAGE,
         },
-        pageBorderTop: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 14 },
-        pageBorderBottom: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 14 },
-        pageBorderLeft: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 31 },
-        pageBorderRight: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 14 },
+        pageBorderTop: {
+          style: BorderStyle.SINGLE,
+          size: 12,
+          color: '000000',
+          space: 14,
+        },
+        pageBorderBottom: {
+          style: BorderStyle.SINGLE,
+          size: 12,
+          color: '000000',
+          space: 14,
+        },
+        pageBorderLeft: {
+          style: BorderStyle.SINGLE,
+          size: 12,
+          color: '000000',
+          space: 31,
+        },
+        pageBorderRight: {
+          style: BorderStyle.SINGLE,
+          size: 12,
+          color: '000000',
+          space: 14,
+        },
       }
     : undefined;
 
@@ -62,7 +85,14 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
     new Paragraph({
       alignment: AlignmentType.RIGHT,
       spacing: { before: 200, after: 100 },
-      children: [new TextRun({ text: 'УТВЕРЖДАЮ', bold: true, font: 'Times New Roman', size: 24 })],
+      children: [
+        new TextRun({
+          text: 'УТВЕРЖДАЮ',
+          bold: true,
+          font: 'Times New Roman',
+          size: 24,
+        }),
+      ],
     }),
     new Paragraph({
       alignment: AlignmentType.RIGHT,
@@ -145,7 +175,14 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
     new Paragraph({
       alignment: AlignmentType.LEFT,
       spacing: { before: 600, after: 100 },
-      children: [new TextRun({ text: 'СОГЛАСОВАНО:', bold: true, font: 'Times New Roman', size: 24 })],
+      children: [
+        new TextRun({
+          text: 'СОГЛАСОВАНО:',
+          bold: true,
+          font: 'Times New Roman',
+          size: 24,
+        }),
+      ],
     }),
     new Paragraph({
       alignment: AlignmentType.LEFT,
@@ -253,7 +290,7 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
                   bold: true,
                 }),
               ],
-            })
+            }),
           );
         }
 
@@ -277,7 +314,7 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
                       ],
                     }),
                   ],
-                })
+                }),
             ),
           }),
           // Data Rows
@@ -300,9 +337,9 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
                           ],
                         }),
                       ],
-                    })
+                    }),
                 ),
-              })
+              }),
           ),
         ];
 
@@ -310,7 +347,7 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
           new Table({
             width: { size: convertMillimetersToTwip(185), type: WidthType.DXA },
             rows: tableRows,
-          })
+          }),
         );
       });
     }
@@ -343,7 +380,7 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
       new Paragraph({
         spacing: { before: 400, after: 400 },
         children: [],
-      })
+      }),
     );
   }
 

@@ -6,15 +6,17 @@ export function buildPMI34Sections(payload: Gost34InputPayload): Gost34Section[]
   const stages = payload.stages;
   const citations = payload.standardProfile.citations;
   const reqs = payload.customRequirements || [];
-  const reqsV2: Gost34RequirementV2[] = payload.requirementsV2 || reqs.map((r) => ({
-    id: r.id,
-    code: r.code,
-    category: r.category,
-    type: 'functional',
-    title: r.title,
-    originalText: r.description,
-    approval: { status: 'APPROVED' },
-  }));
+  const reqsV2: Gost34RequirementV2[] =
+    payload.requirementsV2 ||
+    reqs.map((r) => ({
+      id: r.id,
+      code: r.code,
+      category: r.category,
+      type: 'functional',
+      title: r.title,
+      originalText: r.description,
+      approval: { status: 'APPROVED' },
+    }));
 
   return [
     {
@@ -44,10 +46,17 @@ export function buildPMI34Sections(payload: Gost34InputPayload): Gost34Section[]
       tables: [
         {
           caption: 'Таблица 1 — Набор тестовых проверок по требованиям ТЗ',
-          headers: ['№', 'Код', 'Проверяемая функция / Требование', 'Метод проверки', 'Критерии приемки / Ожидаемый результат'],
+          headers: [
+            '№',
+            'Код',
+            'Проверяемая функция / Требование',
+            'Метод проверки',
+            'Критерии приемки / Ожидаемый результат',
+          ],
           rows: reqsV2.map((r, idx) => {
             const method = r.verificationMethod || 'TEST';
-            const criteria = r.acceptanceCriteria?.join('; ') || 'Успешное выполнение проверки без ошибок';
+            const criteria =
+              r.acceptanceCriteria?.join('; ') || 'Успешное выполнение проверки без ошибок';
             const text = getRequirementEffectiveText(r);
             return [
               idx + 1,
@@ -68,11 +77,18 @@ export function buildPMI34Sections(payload: Gost34InputPayload): Gost34Section[]
       tables: [
         {
           caption: 'Таблица 2 — Проверки по этапам работ',
-          headers: ['№', 'Наименование этапа', 'Критерий успешности приемки этапа', 'Ответственная роль'],
+          headers: [
+            '№',
+            'Наименование этапа',
+            'Критерий успешности приемки этапа',
+            'Ответственная роль',
+          ],
           rows: stages.map((s) => [
             s.order,
             s.name,
-            s.requirements ? `Выполнение требования: ${s.requirements}` : 'Сдача результатов этапа без замечаний',
+            s.requirements
+              ? `Выполнение требования: ${s.requirements}`
+              : 'Сдача результатов этапа без замечаний',
             s.role,
           ]),
         },

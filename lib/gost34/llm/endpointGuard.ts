@@ -54,7 +54,7 @@ function isPrivateHost(host: string): boolean {
  */
 export function assertAllowedEndpoint(
   rawEndpoint: string,
-  policy: EndpointPolicy = DEFAULT_ENDPOINT_POLICY
+  policy: EndpointPolicy = DEFAULT_ENDPOINT_POLICY,
 ): string {
   let url: URL;
   try {
@@ -64,7 +64,9 @@ export function assertAllowedEndpoint(
   }
 
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new EndpointNotAllowedError(`Недопустимый протокол ${url.protocol} в адресе LLM-провайдера.`);
+    throw new EndpointNotAllowedError(
+      `Недопустимый протокол ${url.protocol} в адресе LLM-провайдера.`,
+    );
   }
 
   if (url.username || url.password) {
@@ -79,12 +81,14 @@ export function assertAllowedEndpoint(
 
   const loopback = isLoopbackHost(host);
   if (loopback && !policy.allowLoopback) {
-    throw new EndpointNotAllowedError(`Обращение к loopback-адресу ${host} запрещено конфигурацией.`);
+    throw new EndpointNotAllowedError(
+      `Обращение к loopback-адресу ${host} запрещено конфигурацией.`,
+    );
   }
 
   if (!loopback && isPrivateHost(host) && !policy.allowPrivateNetwork) {
     throw new EndpointNotAllowedError(
-      `Обращение к адресу внутренней сети ${host} запрещено конфигурацией.`
+      `Обращение к адресу внутренней сети ${host} запрещено конфигурацией.`,
     );
   }
 

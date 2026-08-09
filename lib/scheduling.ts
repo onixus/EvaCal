@@ -1,4 +1,4 @@
-import { APPROVAL_BUSINESS_DAYS, APPROVAL_REQUIRED_ROLES, Role } from "./roles";
+import { APPROVAL_BUSINESS_DAYS, APPROVAL_REQUIRED_ROLES, Role } from './roles';
 
 const WORK_START_HOUR = 9;
 
@@ -10,7 +10,10 @@ export interface ScheduleConfig {
   includeWeekends: boolean; // if true, Saturday/Sunday count as working days too
 }
 
-export const DEFAULT_SCHEDULE_CONFIG: ScheduleConfig = { workDayHours: 6, includeWeekends: false };
+export const DEFAULT_SCHEDULE_CONFIG: ScheduleConfig = {
+  workDayHours: 6,
+  includeWeekends: false,
+};
 
 export function clampWorkDayHours(hours: number): number {
   if (!Number.isFinite(hours)) return DEFAULT_SCHEDULE_CONFIG.workDayHours;
@@ -130,7 +133,7 @@ export function expandWithApprovals(primary: PrimaryStageInput[]): StagePlanItem
     if (APPROVAL_REQUIRED_ROLES.includes(p.role as Role)) {
       items.push({
         name: `Согласование заказчиком: «${p.name}»`,
-        role: "customer",
+        role: 'customer',
         hours: 0,
         isApprovalTask: true,
         requirements: null,
@@ -151,7 +154,7 @@ export function expandWithApprovals(primary: PrimaryStageInput[]): StagePlanItem
 export function scheduleItems(
   items: StagePlanItem[],
   startDate: Date,
-  config: ScheduleConfig = DEFAULT_SCHEDULE_CONFIG
+  config: ScheduleConfig = DEFAULT_SCHEDULE_CONFIG,
 ): ScheduledItem[] {
   let cursor = nextWorkMoment(startDate, config); // where the next non-parallel stage may start
   let anchorStart = cursor; // start time shared by any stage flagged parallel

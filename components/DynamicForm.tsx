@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { COMPLEXITY_OPTIONS } from "@/lib/pm";
+import { COMPLEXITY_OPTIONS } from '@/lib/pm';
 
 export interface FormFieldDef {
   id: string;
@@ -26,7 +26,7 @@ export default function DynamicForm({ fields, values, onChange }: Props) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {fields.map((field) => {
-        const value = values[field.key] ?? "";
+        const value = values[field.key] ?? '';
         const options: string[] = field.options ? JSON.parse(field.options) : [];
         return (
           <div key={field.id}>
@@ -34,7 +34,7 @@ export default function DynamicForm({ fields, values, onChange }: Props) {
               {field.label}
               {field.required ? <span className="text-rose-500"> *</span> : null}
             </label>
-            {field.type === "number" && (
+            {field.type === 'number' && (
               <input
                 type="number"
                 className="input"
@@ -43,7 +43,7 @@ export default function DynamicForm({ fields, values, onChange }: Props) {
                 onChange={(e) => onChange(field.key, e.target.valueAsNumber || 0)}
               />
             )}
-            {field.type === "text" && (
+            {field.type === 'text' && (
               <input
                 type="text"
                 className="input"
@@ -52,7 +52,7 @@ export default function DynamicForm({ fields, values, onChange }: Props) {
                 onChange={(e) => onChange(field.key, e.target.value)}
               />
             )}
-            {field.type === "textarea" && (
+            {field.type === 'textarea' && (
               <textarea
                 className="input"
                 rows={3}
@@ -61,7 +61,7 @@ export default function DynamicForm({ fields, values, onChange }: Props) {
                 onChange={(e) => onChange(field.key, e.target.value)}
               />
             )}
-            {field.type === "select" && (
+            {field.type === 'select' && (
               <select
                 className="input"
                 required={field.required}
@@ -76,7 +76,7 @@ export default function DynamicForm({ fields, values, onChange }: Props) {
                 ))}
               </select>
             )}
-            {field.type === "complexity" && (
+            {field.type === 'complexity' && (
               <select
                 className="input"
                 required={field.required}
@@ -91,7 +91,7 @@ export default function DynamicForm({ fields, values, onChange }: Props) {
                 ))}
               </select>
             )}
-            {field.type === "checkbox" && (
+            {field.type === 'checkbox' && (
               <input
                 type="checkbox"
                 className="h-5 w-5 rounded border-slate-300"

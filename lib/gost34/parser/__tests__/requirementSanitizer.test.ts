@@ -21,7 +21,7 @@ describe('sanitizeRawText', () => {
 
   it('drops header/footer boilerplate lines', () => {
     const { text, stats } = sanitizeRawText(
-      ['Требование 1', 'Стр. 1 из 45', 'Конфиденциально', 'Страница 7', 'Требование 2'].join('\n')
+      ['Требование 1', 'Стр. 1 из 45', 'Конфиденциально', 'Страница 7', 'Требование 2'].join('\n'),
     );
     expect(text).toBe('Требование 1\nТребование 2');
     expect(stats.removedBoilerplateLines).toBe(3);
@@ -73,7 +73,12 @@ describe('normalizeRequirementItems', () => {
   it('cleans titles and descriptions and renumbers vendor codes by category', () => {
     const out = normalizeRequirementItems(rawItems);
     expect(out.map((r) => [r.code, r.category, r.title, r.description])).toEqual([
-      ['ТР-БЕЗ-01', 'security', 'Ведение журнала', 'Система должна вести журнал событий безопасности.'],
+      [
+        'ТР-БЕЗ-01',
+        'security',
+        'Ведение журнала',
+        'Система должна вести журнал событий безопасности.',
+      ],
       ['ТР-ПРОИЗ-01', 'performance', 'Отклик', 'Время отклика под нагрузкой не более 2 с.'],
       // an already-structured code is left alone
       ['ТР-ФУНК-99', 'functional', 'Печать договора', 'Формирование печатной формы договора.'],

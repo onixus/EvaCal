@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from 'next/link';
 
 export default function AuthBar({ username, roleLabel }: { username: string; roleLabel: string }) {
   return (

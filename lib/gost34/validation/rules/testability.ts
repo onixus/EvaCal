@@ -22,7 +22,7 @@ export function checkTestability(check: RequirementCheck): ValidationFinding[] {
         'testability',
         'ERROR',
         'Требование непроверяемо: формулировка оценочная, измеримый показатель не задан.',
-        'Задать измеримый показатель либо критерии приёмки и метод верификации (INSPECTION / ANALYSIS / DEMONSTRATION / TEST).'
+        'Задать измеримый показатель либо критерии приёмки и метод верификации (INSPECTION / ANALYSIS / DEMONSTRATION / TEST).',
       ),
     ];
   }
@@ -34,7 +34,7 @@ export function checkTestability(check: RequirementCheck): ValidationFinding[] {
         'testability',
         'INFO',
         'Не указан метод верификации, хотя показатель задан численно.',
-        'Указать метод верификации, чтобы требование попало в программу и методику испытаний.'
+        'Указать метод верификации, чтобы требование попало в программу и методику испытаний.',
       ),
     ];
   }
@@ -45,7 +45,7 @@ export function checkTestability(check: RequirementCheck): ValidationFinding[] {
       'testability',
       'WARNING',
       'Не заданы ни метод верификации, ни критерии приёмки.',
-      'Указать метод верификации и критерии приёмки для включения требования в ПМИ.'
+      'Указать метод верификации и критерии приёмки для включения требования в ПМИ.',
     ),
   ];
 }

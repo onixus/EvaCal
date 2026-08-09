@@ -50,29 +50,29 @@ body {
    NOT used as text anywhere (measured ~1.2-1.7:1 against nord0-2, effectively invisible),
    only as a border/divider tone; muted text uses the custom `nord.muted` instead. */
 .dark .text-slate-900 {
-  color: theme("colors.nord.6");
+  color: theme('colors.nord.6');
 }
 .dark .text-slate-700,
 .dark .text-slate-600 {
-  color: theme("colors.nord.4");
+  color: theme('colors.nord.4');
 }
 .dark .text-slate-500,
 .dark .text-slate-400 {
-  color: theme("colors.nord.muted");
+  color: theme('colors.nord.muted');
 }
 .dark .bg-slate-50 {
-  background-color: theme("colors.nord.0");
+  background-color: theme('colors.nord.0');
 }
 .dark .bg-slate-100,
 .dark .hover\:bg-slate-100:hover,
 .dark .hover\:bg-slate-50:hover {
-  background-color: theme("colors.nord.3");
+  background-color: theme('colors.nord.3');
 }
 .dark .border-slate-100,
 .dark .border-slate-200,
 .dark .border-slate-300 {
-  border-color: theme("colors.nord.3");
+  border-color: theme('colors.nord.3');
 }
 .dark .text-brand-700 {
-  color: theme("colors.nord.frost2");
+  color: theme('colors.nord.frost2');
 }

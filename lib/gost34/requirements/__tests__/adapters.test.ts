@@ -66,7 +66,9 @@ describe('fromGost34RequirementItem', () => {
     expect(v2.normalizedText).toBe(cleaned.description);
 
     // and a second trip through the adapters still does not clobber it
-    const twice = fromGost34RequirementItem(toGost34RequirementItem(v2, { preferNormalized: true }));
+    const twice = fromGost34RequirementItem(
+      toGost34RequirementItem(v2, { preferNormalized: true }),
+    );
     expect(twice.originalText).toBe(cleaned.originalText);
   });
 
@@ -79,7 +81,12 @@ describe('fromGost34RequirementItem', () => {
   it('accepts explicit status, type and source overrides', () => {
     const v2 = fromGost34RequirementItem(
       { ...fullItem, sourceFile: undefined },
-      { status: 'APPROVED', type: 'regulatory', sourceFilename: 'enricher', sourceSection: 'Этап 1' }
+      {
+        status: 'APPROVED',
+        type: 'regulatory',
+        sourceFilename: 'enricher',
+        sourceSection: 'Этап 1',
+      },
     );
     expect(v2.approval.status).toBe('APPROVED');
     expect(v2.type).toBe('regulatory');
@@ -100,12 +107,14 @@ describe('toGost34RequirementItem', () => {
 
   it('uses the normalized text when preferNormalized is set', () => {
     expect(toGost34RequirementItem(proposed, { preferNormalized: true }).description).toBe(
-      'нормализованная формулировка'
+      'нормализованная формулировка',
     );
   });
 
   it('falls back to the original when preferNormalized finds nothing normalized', () => {
     const plain = fromGost34RequirementItem(fullItem);
-    expect(toGost34RequirementItem(plain, { preferNormalized: true }).description).toBe(fullItem.description);
+    expect(toGost34RequirementItem(plain, { preferNormalized: true }).description).toBe(
+      fullItem.description,
+    );
   });
 });

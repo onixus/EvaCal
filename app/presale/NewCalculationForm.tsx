@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import DynamicForm, { FormFieldDef } from "@/components/DynamicForm";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import DynamicForm, { FormFieldDef } from '@/components/DynamicForm';
 
 interface Template {
   id: string;
@@ -17,8 +17,8 @@ function todayIso(): string {
 
 export default function NewCalculationForm({ template }: { template: Template }) {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [customer, setCustomer] = useState("");
+  const [name, setName] = useState('');
+  const [customer, setCustomer] = useState('');
   const [startDate, setStartDate] = useState(template.defaultStartDate?.slice(0, 10) ?? todayIso());
   const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -30,19 +30,25 @@ export default function NewCalculationForm({ template }: { template: Template })
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/calculations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, customer, templateId: template.id, answers, startDate }),
+      const res = await fetch('/api/calculations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          customer,
+          templateId: template.id,
+          answers,
+          startDate,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Не удалось создать расчёт");
+        throw new Error(data.error ?? 'Не удалось создать расчёт');
       }
       const data = await res.json();
       router.push(`/presale/${data.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError(err instanceof Error ? err.message : 'Ошибка');
     } finally {
       setSubmitting(false);
     }
@@ -53,15 +59,28 @@ export default function NewCalculationForm({ template }: { template: Template })
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label">Название проекта</label>
-          <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            className="input"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
         <div>
           <label className="label">Заказчик</label>
-          <input className="input" required value={customer} onChange={(e) => setCustomer(e.target.value)} />
+          <input
+            className="input"
+            required
+            value={customer}
+            onChange={(e) => setCustomer(e.target.value)}
+          />
         </div>
         <div>
           <label className="label">
-            Дата старта проекта{startDateLocked && <span className="ml-1 text-xs text-slate-400">(зафиксирована шаблоном)</span>}
+            Дата старта проекта
+            {startDateLocked && (
+              <span className="ml-1 text-xs text-slate-400">(зафиксирована шаблоном)</span>
+            )}
           </label>
           <input
             type="date"
@@ -86,7 +105,7 @@ export default function NewCalculationForm({ template }: { template: Template })
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
       <button type="submit" className="btn-primary" disabled={submitting}>
-        {submitting ? "Расчёт…" : "Рассчитать трудозатраты"}
+        {submitting ? 'Расчёт…' : 'Рассчитать трудозатраты'}
       </button>
     </form>
   );

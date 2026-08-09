@@ -4,15 +4,17 @@ import { Gost34RequirementV2, getRequirementEffectiveText } from '../requirement
 export function buildAF34Sections(payload: Gost34InputPayload): Gost34Section[] {
   const meta = payload.metadata;
   const reqs = payload.customRequirements || [];
-  const reqsV2: Gost34RequirementV2[] = payload.requirementsV2 || reqs.map((r) => ({
-    id: r.id,
-    code: r.code,
-    category: r.category,
-    type: 'functional',
-    title: r.title,
-    originalText: r.description,
-    approval: { status: 'APPROVED' },
-  }));
+  const reqsV2: Gost34RequirementV2[] =
+    payload.requirementsV2 ||
+    reqs.map((r) => ({
+      id: r.id,
+      code: r.code,
+      category: r.category,
+      type: 'functional',
+      title: r.title,
+      originalText: r.description,
+      approval: { status: 'APPROVED' },
+    }));
 
   return [
     {
@@ -32,7 +34,12 @@ export function buildAF34Sections(payload: Gost34InputPayload): Gost34Section[] 
       tables: [
         {
           caption: 'Таблица 1 — Реестр автоматизируемых функций АС',
-          headers: ['Код функции', 'Наименование функции', 'Категория / Подсистема', 'Описание алгоритма'],
+          headers: [
+            'Код функции',
+            'Наименование функции',
+            'Категория / Подсистема',
+            'Описание алгоритма',
+          ],
           rows: reqsV2.map((r) => [r.code, r.title, r.category, getRequirementEffectiveText(r)]),
         },
       ],

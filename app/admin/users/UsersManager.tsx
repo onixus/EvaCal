@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface User {
   id: string;
@@ -12,17 +12,21 @@ interface User {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  architect: "Архитектор",
-  admin: "Администратор",
+  architect: 'Архитектор',
+  admin: 'Администратор',
 };
 
 export default function UsersManager({ users }: { users: User[] }) {
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [role, setRole] = useState("architect");
+  const [username, setUsername] = useState('');
+  const [role, setRole] = useState('architect');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<{ username: string; role: string; password: string } | null>(null);
+  const [created, setCreated] = useState<{
+    username: string;
+    role: string;
+    password: string;
+  } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -30,18 +34,22 @@ export default function UsersManager({ users }: { users: User[] }) {
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, role }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Не удалось создать пользователя");
-      setCreated({ username: data.username, role: data.role, password: data.password });
-      setUsername("");
+      if (!res.ok) throw new Error(data.error ?? 'Не удалось создать пользователя');
+      setCreated({
+        username: data.username,
+        role: data.role,
+        password: data.password,
+      });
+      setUsername('');
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError(err instanceof Error ? err.message : 'Ошибка');
     } finally {
       setSubmitting(false);
     }
@@ -51,10 +59,10 @@ export default function UsersManager({ users }: { users: User[] }) {
     if (!confirm(`Удалить пользователя «${user.username}»?`)) return;
     setBusyId(user.id);
     try {
-      const res = await fetch(`/api/users/${user.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/users/${user.id}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        alert(data.error ?? "Не удалось удалить пользователя");
+        alert(data.error ?? 'Не удалось удалить пользователя');
       }
       router.refresh();
     } finally {
@@ -70,9 +78,12 @@ export default function UsersManager({ users }: { users: User[] }) {
             Пользователь «{created.username}» ({ROLE_LABELS[created.role]}) создан.
           </p>
           <p className="mt-1">
-            Пароль: <code className="rounded bg-white px-1.5 py-0.5 dark:bg-nord-2">{created.password}</code> —
-            показывается один раз, сохраните и передайте пользователю. При первом входе стоит сменить пароль в
-            «Аккаунт».
+            Пароль:{' '}
+            <code className="rounded bg-white px-1.5 py-0.5 dark:bg-nord-2">
+              {created.password}
+            </code>{' '}
+            — показывается один раз, сохраните и передайте пользователю. При первом входе стоит
+            сменить пароль в «Аккаунт».
           </p>
           <button className="btn-secondary mt-2" onClick={() => setCreated(null)}>
             Понятно
@@ -85,7 +96,12 @@ export default function UsersManager({ users }: { users: User[] }) {
         <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[200px]">
             <label className="label">Логин</label>
-            <input className="input" required value={username} onChange={(e) => setUsername(e.target.value)} />
+            <input
+              className="input"
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Роль</label>
@@ -95,7 +111,7 @@ export default function UsersManager({ users }: { users: User[] }) {
             </select>
           </div>
           <button type="submit" className="btn-primary" disabled={submitting}>
-            {submitting ? "Создание…" : "Создать"}
+            {submitting ? 'Создание…' : 'Создать'}
           </button>
         </form>
         {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
@@ -118,14 +134,17 @@ export default function UsersManager({ users }: { users: User[] }) {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="border-b border-slate-100 last:border-0 dark:border-nord-3">
+                <tr
+                  key={u.id}
+                  className="border-b border-slate-100 last:border-0 dark:border-nord-3"
+                >
                   <td className="py-2 pr-4 font-medium">{u.username}</td>
                   <td className="py-2 pr-4">{ROLE_LABELS[u.role] ?? u.role}</td>
                   <td className="py-2 pr-4 text-slate-500 dark:text-nord-muted">
-                    {u.mustChangePassword ? "выдан, ещё не менялся" : "изменён пользователем"}
+                    {u.mustChangePassword ? 'выдан, ещё не менялся' : 'изменён пользователем'}
                   </td>
                   <td className="py-2 pr-4 text-slate-500 dark:text-nord-muted">
-                    {new Date(u.createdAt).toLocaleDateString("ru-RU")}
+                    {new Date(u.createdAt).toLocaleDateString('ru-RU')}
                   </td>
                   <td className="py-2 pr-4">
                     <button

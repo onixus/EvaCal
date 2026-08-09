@@ -35,8 +35,20 @@ describe('Traceability Engine v2', () => {
   };
 
   const stages: Gost34StageItem[] = [
-    { id: 's1', order: 1, name: 'Этап безопасности', role: 'Инженер ИБ', hours: 10 },
-    { id: 's2', order: 2, name: 'Проектирование БД', role: 'Архитектор', hours: 20 },
+    {
+      id: 's1',
+      order: 1,
+      name: 'Этап безопасности',
+      role: 'Инженер ИБ',
+      hours: 10,
+    },
+    {
+      id: 's2',
+      order: 2,
+      name: 'Проектирование БД',
+      role: 'Архитектор',
+      hours: 20,
+    },
   ];
 
   it('should map requirements based on keywords and rules', () => {
@@ -48,13 +60,13 @@ describe('Traceability Engine v2', () => {
     expect(result.metrics.coveragePercentage).toBe(100);
 
     expect(result.links).toHaveLength(2);
-    
-    const link1 = result.links.find(l => l.sourceId === 'r1');
+
+    const link1 = result.links.find((l) => l.sourceId === 'r1');
     expect(link1?.targetId).toBe('s1');
     expect(link1?.method).toBe('RULE');
     expect(link1?.approved).toBe(false);
 
-    const link2 = result.links.find(l => l.sourceId === 'r2');
+    const link2 = result.links.find((l) => l.sourceId === 'r2');
     expect(link2?.targetId).toBe('s2');
   });
 
@@ -90,11 +102,11 @@ describe('Traceability Engine v2', () => {
     const table = generateTraceabilityTable([req1, reqUnmapped], stages, result);
 
     expect(table.rows).toHaveLength(2);
-    
+
     // req1 row
     expect(table.rows[0][0]).toBe('REQ-01');
     expect(table.rows[0][2]).toBe('Этап безопасности'); // mapped
-    
+
     // reqUnmapped row
     expect(table.rows[1][0]).toBe('REQ-03');
     expect(table.rows[1][2]).toBe('[НЕ РАСПРЕДЕЛЕНО]'); // unmapped

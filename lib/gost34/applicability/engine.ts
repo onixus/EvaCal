@@ -1,10 +1,6 @@
 import type { ProjectContext } from '../context/types';
 import type { Gost34EnrichmentOptions } from '../types';
-import {
-  ApplicabilityResult,
-  ApplicabilityStatus,
-  ApplicabilityOverride,
-} from './types';
+import { ApplicabilityResult, ApplicabilityStatus, ApplicabilityOverride } from './types';
 import { APPLICABILITY_RULES } from './rules';
 
 export type OverrideInput =
@@ -15,7 +11,7 @@ export type OverrideInput =
  * Нормализует переданный override к стандартному формату ApplicabilityOverride.
  */
 function normalizeOverride(
-  override?: ApplicabilityOverride | ApplicabilityStatus | boolean
+  override?: ApplicabilityOverride | ApplicabilityStatus | boolean,
 ): ApplicabilityOverride | undefined {
   if (override === undefined || override === null) return undefined;
   if (typeof override === 'boolean') {
@@ -30,7 +26,8 @@ function normalizeOverride(
       return {
         status: override,
         confirmedBy: 'Ручной выбор',
-        reason: override === 'APPLICABLE' ? 'Подтверждено пользователем' : 'Отклонено пользователем',
+        reason:
+          override === 'APPLICABLE' ? 'Подтверждено пользователем' : 'Отклонено пользователем',
       };
     }
     return undefined;
@@ -44,7 +41,7 @@ function normalizeOverride(
  */
 export function evaluateApplicability(
   context: ProjectContext = {},
-  overrides?: OverrideInput
+  overrides?: OverrideInput,
 ): ApplicabilityResult[] {
   return APPLICABILITY_RULES.map((rule) => {
     const evaluation = rule.evaluate(context);
@@ -59,7 +56,7 @@ export function evaluateApplicability(
       reasons.push(
         `Ручное решение: ${normalizedOverride.status === 'APPLICABLE' ? 'Применимо' : 'Не применимо'}${
           normalizedOverride.confirmedBy ? ` (${normalizedOverride.confirmedBy})` : ''
-        }${normalizedOverride.reason ? `: ${normalizedOverride.reason}` : ''}`
+        }${normalizedOverride.reason ? `: ${normalizedOverride.reason}` : ''}`,
       );
     }
 
@@ -85,7 +82,7 @@ export function evaluateApplicability(
 export function evaluateStandardApplicability(
   standardId: string,
   context: ProjectContext = {},
-  override?: ApplicabilityOverride | ApplicabilityStatus | boolean
+  override?: ApplicabilityOverride | ApplicabilityStatus | boolean,
 ): ApplicabilityResult | undefined {
   const rule = APPLICABILITY_RULES.find((r) => r.id === standardId);
   if (!rule) return undefined;
@@ -101,7 +98,7 @@ export function evaluateStandardApplicability(
     reasons.push(
       `Ручное решение: ${normalizedOverride.status === 'APPLICABLE' ? 'Применимо' : 'Не применимо'}${
         normalizedOverride.confirmedBy ? ` (${normalizedOverride.confirmedBy})` : ''
-      }${normalizedOverride.reason ? `: ${normalizedOverride.reason}` : ''}`
+      }${normalizedOverride.reason ? `: ${normalizedOverride.reason}` : ''}`,
     );
   }
 
@@ -124,9 +121,7 @@ export function evaluateStandardApplicability(
  * Преобразует результаты оценки применимости в набор флагов Gost34EnrichmentOptions.
  * Флаг true ставится ТОЛЬКО для стандартов с finalStatus === 'APPLICABLE'.
  */
-export function toEnrichmentOptions(
-  results: ApplicabilityResult[]
-): Gost34EnrichmentOptions {
+export function toEnrichmentOptions(results: ApplicabilityResult[]): Gost34EnrichmentOptions {
   const options: Record<string, boolean> = {};
   for (const item of results) {
     options[item.standardId] = item.finalStatus === 'APPLICABLE';
@@ -135,23 +130,17 @@ export function toEnrichmentOptions(
 }
 
 /** Возвращает только подтверждённые применимые стандарты. */
-export function getApplicableStandards(
-  results: ApplicabilityResult[]
-): ApplicabilityResult[] {
+export function getApplicableStandards(results: ApplicabilityResult[]): ApplicabilityResult[] {
   return results.filter((r) => r.finalStatus === 'APPLICABLE');
 }
 
 /** Возвращает стандарты, требующие подтверждения у Заказчика (UNKNOWN). */
-export function getUnknownStandards(
-  results: ApplicabilityResult[]
-): ApplicabilityResult[] {
+export function getUnknownStandards(results: ApplicabilityResult[]): ApplicabilityResult[] {
   return results.filter((r) => r.finalStatus === 'UNKNOWN');
 }
 
 /** Возвращает стандарты, признанные неприменимыми (NOT_APPLICABLE). */
-export function getNotApplicableStandards(
-  results: ApplicabilityResult[]
-): ApplicabilityResult[] {
+export function getNotApplicableStandards(results: ApplicabilityResult[]): ApplicabilityResult[] {
   return results.filter((r) => r.finalStatus === 'NOT_APPLICABLE');
 }
 

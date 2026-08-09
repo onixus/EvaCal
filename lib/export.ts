@@ -1,4 +1,4 @@
-import { prisma } from "./prisma";
+import { prisma } from './prisma';
 
 export interface StageForExport {
   name: string;
@@ -42,9 +42,9 @@ export async function loadCalculationForExport(id: string): Promise<CalculationF
   const calculation = await prisma.calculation.findUnique({
     where: { id },
     include: {
-      template: { include: { fields: { orderBy: { order: "asc" } } } },
-      stages: { orderBy: { order: "asc" } },
-      risks: { orderBy: { order: "asc" } },
+      template: { include: { fields: { orderBy: { order: 'asc' } } } },
+      stages: { orderBy: { order: 'asc' } },
+      risks: { orderBy: { order: 'asc' } },
     },
   });
   if (!calculation) return null;
@@ -64,11 +64,11 @@ export async function loadCalculationForExport(id: string): Promise<CalculationF
 }
 
 export function safeFileName(name: string): string {
-  return name.replace(/[^\p{L}\p{N}\- _]/gu, "").trim() || "calculation";
+  return name.replace(/[^\p{L}\p{N}\- _]/gu, '').trim() || 'calculation';
 }
 
 export function contentDisposition(safeName: string, extension: string): string {
   return `attachment; filename="calculation.${extension}"; filename*=UTF-8''${encodeURIComponent(
-    safeName
+    safeName,
   )}.${extension}`;
 }

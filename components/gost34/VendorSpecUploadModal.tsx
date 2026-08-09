@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { GostDocumentType, Gost34RequirementItem } from "@/lib/gost34/types";
-import { normalizeRequirementItems } from "@/lib/gost34/parser/requirementSanitizer";
-import { DEFAULT_GOST34_PROFILE } from "@/lib/gost34/standards";
-import { ENRICHMENT_OPTION_KEYS } from "@/lib/gost34/enricher";
-import type { PublicLlmProvider } from "@/lib/gost34/llm/providers";
+import { useState, useEffect, useCallback } from 'react';
+import { GostDocumentType, Gost34RequirementItem } from '@/lib/gost34/types';
+import { normalizeRequirementItems } from '@/lib/gost34/parser/requirementSanitizer';
+import { DEFAULT_GOST34_PROFILE } from '@/lib/gost34/standards';
+import { ENRICHMENT_OPTION_KEYS } from '@/lib/gost34/enricher';
+import type { PublicLlmProvider } from '@/lib/gost34/llm/providers';
 
 /**
  * The modal exports under the default (legacy) profile. The current profile is
@@ -13,15 +13,19 @@ import type { PublicLlmProvider } from "@/lib/gost34/llm/providers";
  */
 const EXPORT_PROFILE = DEFAULT_GOST34_PROFILE;
 
-const DOCUMENT_TYPE_CARDS: Array<{ type: GostDocumentType; title: string; gost: string; desc: string }> =
-  [...EXPORT_PROFILE.documentTypes]
-    .sort((a, b) => a.zipOrder - b.zipOrder)
-    .map((doc) => ({
-      type: doc.docType,
-      title: doc.uiTitle,
-      gost: doc.standardCitation,
-      desc: doc.uiDescription,
-    }));
+const DOCUMENT_TYPE_CARDS: Array<{
+  type: GostDocumentType;
+  title: string;
+  gost: string;
+  desc: string;
+}> = [...EXPORT_PROFILE.documentTypes]
+  .sort((a, b) => a.zipOrder - b.zipOrder)
+  .map((doc) => ({
+    type: doc.docType,
+    title: doc.uiTitle,
+    gost: doc.standardCitation,
+    desc: doc.uiDescription,
+  }));
 
 interface VendorSpecUploadModalProps {
   calculationId: string;
@@ -31,27 +35,27 @@ interface VendorSpecUploadModalProps {
   onClose: () => void;
 }
 
-type TabType = "vendor" | "enrichment" | "signatures" | "export";
+type TabType = 'vendor' | 'enrichment' | 'signatures' | 'export';
 
 export default function VendorSpecUploadModal({
   calculationId,
-  calculationName = "Проект",
-  customerName = "Заказчик",
+  calculationName = 'Проект',
+  customerName = 'Заказчик',
   isOpen,
   onClose,
 }: VendorSpecUploadModalProps) {
   // Navigation tab state
-  const [activeTab, setActiveTab] = useState<TabType>("vendor");
+  const [activeTab, setActiveTab] = useState<TabType>('vendor');
 
   // Document metadata state
-  const [docType, setDocType] = useState<GostDocumentType>("TZ");
-  const [developer, setDeveloper] = useState("Иванов А.В.");
-  const [checker, setChecker] = useState("Петров С.Н.");
-  const [normControl, setNormControl] = useState("Васильева Е.И.");
-  const [approver, setApprover] = useState("Михайлов Д.П.");
-  const [customerApprover, setCustomerApprover] = useState("Александров И.В.");
-  const [contractNumber, setContractNumber] = useState("Договор № 01-ГС/2026");
-  const [city, setCity] = useState("Москва");
+  const [docType, setDocType] = useState<GostDocumentType>('TZ');
+  const [developer, setDeveloper] = useState('Иванов А.В.');
+  const [checker, setChecker] = useState('Петров С.Н.');
+  const [normControl, setNormControl] = useState('Васильева Е.И.');
+  const [approver, setApprover] = useState('Михайлов Д.П.');
+  const [customerApprover, setCustomerApprover] = useState('Александров И.В.');
+  const [contractNumber, setContractNumber] = useState('Договор № 01-ГС/2026');
+  const [city, setCity] = useState('Москва');
 
   // Regulatory enrichment options state
   const [enrich, setEnrich] = useState(true);
@@ -75,10 +79,10 @@ export default function VendorSpecUploadModal({
   const [isParsing, setIsParsing] = useState(false);
 
   // Requirement manual entry form & category filter state
-  const [newReqCode, setNewReqCode] = useState("");
-  const [newReqTitle, setNewReqTitle] = useState("");
-  const [newReqDesc, setNewReqDesc] = useState("");
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+  const [newReqCode, setNewReqCode] = useState('');
+  const [newReqTitle, setNewReqTitle] = useState('');
+  const [newReqDesc, setNewReqDesc] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
 
   /**
    * LLM configuration is server-side: the client picks a provider by id and
@@ -86,44 +90,52 @@ export default function VendorSpecUploadModal({
    */
   const [showLlmSettings, setShowLlmSettings] = useState<boolean>(false);
   const [llmProviders, setLlmProviders] = useState<PublicLlmProvider[]>([]);
-  const [llmProviderId, setLlmProviderId] = useState<string>("");
-  const [llmSelectedModel, setLlmSelectedModel] = useState<string>("");
+  const [llmProviderId, setLlmProviderId] = useState<string>('');
+  const [llmSelectedModel, setLlmSelectedModel] = useState<string>('');
   const [llmAvailable, setLlmAvailable] = useState<boolean>(false);
   const [llmModels, setLlmModels] = useState<string[]>([]);
-  const [llmError, setLlmError] = useState<string>("");
+  const [llmError, setLlmError] = useState<string>('');
   const [isLlmNormalizing, setIsLlmNormalizing] = useState<boolean>(false);
 
   // One-time cleanup: earlier versions kept an API key in localStorage.
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    for (const key of ["gost34_llm_provider", "gost34_llm_endpoint", "gost34_llm_model", "gost34_llm_apikey"]) {
+    if (typeof window === 'undefined') return;
+    for (const key of [
+      'gost34_llm_provider',
+      'gost34_llm_endpoint',
+      'gost34_llm_model',
+      'gost34_llm_apikey',
+    ]) {
       localStorage.removeItem(key);
     }
   }, []);
 
-  const handleCheckLlmStatus = async (providerId = llmProviderId) => {
-    if (!providerId) return false;
-    try {
-      const query = new URLSearchParams({ providerId });
-      const res = await fetch(`/api/gost34/llm-status?${query.toString()}`);
-      const data = await res.json();
-      if (!res.ok) {
+  const handleCheckLlmStatus = useCallback(
+    async (providerId = llmProviderId) => {
+      if (!providerId) return false;
+      try {
+        const query = new URLSearchParams({ providerId });
+        const res = await fetch(`/api/gost34/llm-status?${query.toString()}`);
+        const data = await res.json();
+        if (!res.ok) {
+          setLlmAvailable(false);
+          setLlmError(data?.error || 'Не удалось проверить доступность ИИ-сервера.');
+          return false;
+        }
+        setLlmError('');
+        setLlmAvailable(Boolean(data.available));
+        setLlmModels(data.models || []);
+        if (data.models?.length > 0 && !llmSelectedModel) {
+          setLlmSelectedModel(data.models[0]);
+        }
+        return data.available;
+      } catch {
         setLlmAvailable(false);
-        setLlmError(data?.error || "Не удалось проверить доступность ИИ-сервера.");
         return false;
       }
-      setLlmError("");
-      setLlmAvailable(Boolean(data.available));
-      setLlmModels(data.models || []);
-      if (data.models?.length > 0 && !llmSelectedModel) {
-        setLlmSelectedModel(data.models[0]);
-      }
-      return data.available;
-    } catch {
-      setLlmAvailable(false);
-      return false;
-    }
-  };
+    },
+    [llmProviderId, llmSelectedModel],
+  );
 
   // Load the server-side provider list when the modal opens.
   useEffect(() => {
@@ -132,18 +144,20 @@ export default function VendorSpecUploadModal({
 
     (async () => {
       try {
-        const res = await fetch("/api/gost34/llm-providers");
+        const res = await fetch('/api/gost34/llm-providers');
         const data = await res.json();
         if (cancelled) return;
         if (!res.ok) {
-          setLlmError(data?.error || "ИИ-провайдеры недоступны.");
+          setLlmError(data?.error || 'ИИ-провайдеры недоступны.');
           setLlmProviders([]);
           return;
         }
         setLlmProviders(data.providers || []);
-        setLlmProviderId((current) => current || data.defaultProviderId || data.providers?.[0]?.id || "");
+        setLlmProviderId(
+          (current) => current || data.defaultProviderId || data.providers?.[0]?.id || '',
+        );
       } catch {
-        if (!cancelled) setLlmError("Не удалось получить список ИИ-провайдеров.");
+        if (!cancelled) setLlmError('Не удалось получить список ИИ-провайдеров.');
       }
     })();
 
@@ -155,7 +169,7 @@ export default function VendorSpecUploadModal({
   useEffect(() => {
     if (!isOpen || !llmProviderId) return;
     handleCheckLlmStatus(llmProviderId);
-  }, [isOpen, llmProviderId]);
+  }, [isOpen, llmProviderId, handleCheckLlmStatus]);
 
   const handleNormalizeAll = () => {
     setExtractedReqs((prev) => normalizeRequirementItems(prev));
@@ -165,9 +179,9 @@ export default function VendorSpecUploadModal({
     if (extractedReqs.length === 0) return;
     setIsLlmNormalizing(true);
     try {
-      const res = await fetch("/api/gost34/normalize-llm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/gost34/normalize-llm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requirements: extractedReqs,
           providerId: llmProviderId,
@@ -177,7 +191,7 @@ export default function VendorSpecUploadModal({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || "Ошибка при обработке ИИ-моделью");
+        throw new Error(data?.error || 'Ошибка при обработке ИИ-моделью');
       }
 
       const data = await res.json();
@@ -185,7 +199,7 @@ export default function VendorSpecUploadModal({
         setExtractedReqs(data.requirements);
       }
     } catch (err: any) {
-      alert(`Не удалось выполнить ИИ-нормализацию: ${err?.message || "Ошибка ИИ"}`);
+      alert(`Не удалось выполнить ИИ-нормализацию: ${err?.message || 'Ошибка ИИ'}`);
     } finally {
       setIsLlmNormalizing(false);
     }
@@ -222,16 +236,16 @@ export default function VendorSpecUploadModal({
     try {
       const formData = new FormData();
       for (let i = 0; i < files.length; i++) {
-        formData.append("files", files[i]);
+        formData.append('files', files[i]);
       }
 
-      const res = await fetch("/api/gost34/parse-vendor-doc", {
-        method: "POST",
+      const res = await fetch('/api/gost34/parse-vendor-doc', {
+        method: 'POST',
         body: formData,
       });
 
       if (!res.ok) {
-        throw new Error("Ошибка при обработке документа");
+        throw new Error('Ошибка при обработке документа');
       }
 
       const data = await res.json();
@@ -241,7 +255,7 @@ export default function VendorSpecUploadModal({
       setUploadedFiles((prev) => [...prev, ...parsedFiles]);
       setExtractedReqs((prev) => [...prev, ...newRequirements]);
     } catch (err: any) {
-      alert(`Не удалось распарсить файл: ${err?.message || "Ошибка сервера"}`);
+      alert(`Не удалось распарсить файл: ${err?.message || 'Ошибка сервера'}`);
     } finally {
       setIsParsing(false);
     }
@@ -252,17 +266,17 @@ export default function VendorSpecUploadModal({
 
     const newReq: Gost34RequirementItem = {
       id: `req-manual-${Date.now()}`,
-      code: newReqCode.trim() || `ТР-ВЕНД-${String(extractedReqs.length + 1).padStart(2, "0")}`,
-      category: "functional",
+      code: newReqCode.trim() || `ТР-ВЕНД-${String(extractedReqs.length + 1).padStart(2, '0')}`,
+      category: 'functional',
       title: newReqTitle.trim(),
       description: newReqDesc.trim(),
-      sourceFile: "Ручной ввод",
+      sourceFile: 'Ручной ввод',
     };
 
     setExtractedReqs((prev) => [...prev, newReq]);
-    setNewReqCode("");
-    setNewReqTitle("");
-    setNewReqDesc("");
+    setNewReqCode('');
+    setNewReqTitle('');
+    setNewReqDesc('');
   };
 
   const handleDeleteReq = (id: string) => {
@@ -316,21 +330,21 @@ export default function VendorSpecUploadModal({
       };
 
       const res = await fetch(`/api/calculations/${calculationId}/gost34`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || "Ошибка при генерации документа ГОСТ 34");
+        throw new Error(errorData.error || 'Ошибка при генерации документа ГОСТ 34');
       }
 
       const blob = await res.blob();
       const downloadUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = downloadUrl;
       a.download = `${docType}_GOST34_Document.docx`;
       document.body.appendChild(a);
@@ -340,14 +354,14 @@ export default function VendorSpecUploadModal({
 
       onClose();
     } catch (err: any) {
-      alert(`Не удалось скачать документ: ${err?.message || "Ошибка сервера"}`);
+      alert(`Не удалось скачать документ: ${err?.message || 'Ошибка сервера'}`);
     }
   };
 
   const handleDownloadZip = async () => {
     try {
       const payload = {
-        docType: "ZIP",
+        docType: 'ZIP',
         isBatchZip: true,
         contractNumber,
         city,
@@ -376,21 +390,21 @@ export default function VendorSpecUploadModal({
       };
 
       const res = await fetch(`/api/calculations/${calculationId}/gost34`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || "Ошибка при генерации ZIP комплекта ГОСТ 34");
+        throw new Error(errorData.error || 'Ошибка при генерации ZIP комплекта ГОСТ 34');
       }
 
       const blob = await res.blob();
       const downloadUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = downloadUrl;
       a.download = `GOST34_Full_Package_${calculationName.replace(/\s+/g, '_')}.zip`;
       document.body.appendChild(a);
@@ -400,7 +414,7 @@ export default function VendorSpecUploadModal({
 
       onClose();
     } catch (err: any) {
-      alert(`Не удалось скачать ZIP-архив: ${err?.message || "Ошибка сервера"}`);
+      alert(`Не удалось скачать ZIP-архив: ${err?.message || 'Ошибка сервера'}`);
     }
   };
 
@@ -408,7 +422,6 @@ export default function VendorSpecUploadModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 animate-in fade-in duration-150">
       {/* Main Solid High-Contrast Container */}
       <div className="w-full max-w-5xl rounded-2xl bg-[#1a1d24] border border-[#3b4252] p-6 text-slate-100 shadow-2xl flex flex-col max-h-[90vh]">
-        
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-[#2e3440] pb-4 mb-4">
           <div>
@@ -421,7 +434,8 @@ export default function VendorSpecUploadModal({
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-1">
-              Проект: <strong className="text-white font-semibold">{calculationName}</strong> • Заказчик: <strong className="text-white font-semibold">{customerName}</strong>
+              Проект: <strong className="text-white font-semibold">{calculationName}</strong> •
+              Заказчик: <strong className="text-white font-semibold">{customerName}</strong>
             </p>
           </div>
           <button
@@ -437,30 +451,30 @@ export default function VendorSpecUploadModal({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-5 border-b border-[#2e3440] pb-4">
           {[
             {
-              id: "vendor",
-              title: "1. ТЗ вендора",
+              id: 'vendor',
+              title: '1. ТЗ вендора',
               subtitle: `Загружено ${extractedReqs.length} треб.`,
-              icon: "📄",
+              icon: '📄',
               badge: extractedReqs.length > 0 ? extractedReqs.length : undefined,
             },
             {
-              id: "enrichment",
-              title: "2. Нормы и Приказы ИБ",
+              id: 'enrichment',
+              title: '2. Нормы и Приказы ИБ',
               subtitle: `Выбрано ${countActiveEnrichments()} ст.`,
-              icon: "🛡️",
+              icon: '🛡️',
               badge: countActiveEnrichments(),
             },
             {
-              id: "signatures",
-              title: "3. Штамп ГОСТ 2.104",
-              subtitle: "Подписи и реквизиты",
-              icon: "✍️",
+              id: 'signatures',
+              title: '3. Штамп ГОСТ 2.104',
+              subtitle: 'Подписи и реквизиты',
+              icon: '✍️',
             },
             {
-              id: "export",
-              title: "4. Выпуск и экспорт",
+              id: 'export',
+              title: '4. Выпуск и экспорт',
               subtitle: `Тип: ${docType}`,
-              icon: "🚀",
+              icon: '🚀',
             },
           ].map((tab) => {
             const isActive = activeTab === tab.id;
@@ -471,8 +485,8 @@ export default function VendorSpecUploadModal({
                 onClick={() => setActiveTab(tab.id as TabType)}
                 className={`flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all relative ${
                   isActive
-                    ? "bg-blue-600 border-blue-400 text-white font-bold shadow-lg shadow-blue-600/30 ring-1 ring-blue-300"
-                    : "bg-[#242832] border-[#3b4252] text-slate-300 hover:bg-[#2c313d] hover:text-white"
+                    ? 'bg-blue-600 border-blue-400 text-white font-bold shadow-lg shadow-blue-600/30 ring-1 ring-blue-300'
+                    : 'bg-[#242832] border-[#3b4252] text-slate-300 hover:bg-[#2c313d] hover:text-white'
                 }`}
               >
                 <span className="text-xl">{tab.icon}</span>
@@ -480,14 +494,18 @@ export default function VendorSpecUploadModal({
                   <div className="font-bold text-xs truncate flex items-center justify-between">
                     <span>{tab.title}</span>
                     {tab.badge !== undefined && tab.badge > 0 && (
-                      <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-full ml-1 ${
-                        isActive ? "bg-white text-blue-700" : "bg-blue-500 text-white"
-                      }`}>
+                      <span
+                        className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-full ml-1 ${
+                          isActive ? 'bg-white text-blue-700' : 'bg-blue-500 text-white'
+                        }`}
+                      >
                         {tab.badge}
                       </span>
                     )}
                   </div>
-                  <div className={`text-[11px] truncate mt-0.5 ${isActive ? "text-blue-100 font-medium" : "text-slate-400"}`}>
+                  <div
+                    className={`text-[11px] truncate mt-0.5 ${isActive ? 'text-blue-100 font-medium' : 'text-slate-400'}`}
+                  >
                     {tab.subtitle}
                   </div>
                 </div>
@@ -498,11 +516,9 @@ export default function VendorSpecUploadModal({
 
         {/* Tab Content Box - Solid Dark High-Legibility Background */}
         <div className="flex-1 overflow-y-auto pr-1 space-y-4 min-h-[380px]">
-          
           {/* TAB 1: Vendor Specifications & File Extraction */}
-          {activeTab === "vendor" && (
+          {activeTab === 'vendor' && (
             <div className="space-y-4 animate-in fade-in duration-150">
-              
               {/* Dropzone */}
               <div className="bg-[#242832] p-5 rounded-2xl border border-[#3b4252] space-y-3 shadow-md">
                 <div className="flex items-center justify-between">
@@ -511,7 +527,8 @@ export default function VendorSpecUploadModal({
                       Загрузка исходных спецификаций ТЗ / ФТ / ТТ
                     </h4>
                     <p className="text-xs text-slate-300 mt-1">
-                      Загрузите файлы вендора (.docx, .txt, .md, .json) для авто-извлечения требований
+                      Загрузите файлы вендора (.docx, .txt, .md, .json) для авто-извлечения
+                      требований
                     </p>
                   </div>
                   {uploadedFiles.length > 0 && (
@@ -524,7 +541,9 @@ export default function VendorSpecUploadModal({
                 <label className="cursor-pointer flex flex-col items-center justify-center p-7 rounded-xl border-2 border-dashed border-[#434c5e] hover:border-blue-400 bg-[#1c1f26] hover:bg-[#20242e] transition-all">
                   <span className="text-3xl mb-2">📁</span>
                   <span className="text-sm font-bold text-white">
-                    {isParsing ? "Идёт обработка и анализ документа..." : "Нажмите или перетащите файлы вендорского ТЗ сюда"}
+                    {isParsing
+                      ? 'Идёт обработка и анализ документа...'
+                      : 'Нажмите или перетащите файлы вендорского ТЗ сюда'}
                   </span>
                   <span className="text-xs text-slate-400 mt-1">
                     Поддерживаются исходные форматы MS Word (.docx), спецификации (.txt, .md, .json)
@@ -564,7 +583,7 @@ export default function VendorSpecUploadModal({
                       Список структурных пунктов с авто-классификацией по категориям ГОСТ 34
                     </p>
                   </div>
-                  
+
                   {extractedReqs.length > 0 && (
                     <div className="flex flex-wrap items-center gap-2">
                       <button
@@ -582,16 +601,20 @@ export default function VendorSpecUploadModal({
                         disabled={isLlmNormalizing}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                           llmAvailable
-                            ? "bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-600/30 border border-purple-400/40"
-                            : "bg-[#2e3440] text-slate-400 border border-[#434c5e] hover:bg-[#3b4252]"
+                            ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-600/30 border border-purple-400/40'
+                            : 'bg-[#2e3440] text-slate-400 border border-[#434c5e] hover:bg-[#3b4252]'
                         }`}
                         title={
                           llmAvailable
                             ? `Использовать локальную нейросеть (${llmModels[0] || 'Ollama'}) для смысловой очистки и структурирования по ГОСТ 34`
-                            : "Запустите Ollama локально (ollama run llama3.2) для включения нейросетевой очистки"
+                            : 'Запустите Ollama локально (ollama run llama3.2) для включения нейросетевой очистки'
                         }
                       >
-                        <span>{isLlmNormalizing ? "⏳ Идет обработка ИИ..." : "🤖 ИИ-Нормализация (Ollama)"}</span>
+                        <span>
+                          {isLlmNormalizing
+                            ? '⏳ Идет обработка ИИ...'
+                            : '🤖 ИИ-Нормализация (Ollama)'}
+                        </span>
                         {llmAvailable && !isLlmNormalizing && (
                           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                         )}
@@ -622,11 +645,17 @@ export default function VendorSpecUploadModal({
                   <div className="bg-[#1c1f26] p-4 rounded-xl border border-purple-500/40 space-y-3 animate-in fade-in duration-150">
                     <div className="flex items-center justify-between border-b border-[#3b4252] pb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-purple-400">⚙️ Настройки ИИ-модели (Ollama / LM Studio / OpenAI)</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          llmAvailable ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-red-500/20 text-red-300 border border-red-500/40"
-                        }`}>
-                          {llmAvailable ? "✓ Сервер доступен" : "✕ Сервер недоступен"}
+                        <span className="text-sm font-bold text-purple-400">
+                          ⚙️ Настройки ИИ-модели (Ollama / LM Studio / OpenAI)
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            llmAvailable
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : 'bg-red-500/20 text-red-300 border border-red-500/40'
+                          }`}
+                        >
+                          {llmAvailable ? '✓ Сервер доступен' : '✕ Сервер недоступен'}
                         </span>
                       </div>
                       <button
@@ -654,14 +683,18 @@ export default function VendorSpecUploadModal({
                           value={llmProviderId}
                           onChange={(e) => {
                             setLlmProviderId(e.target.value);
-                            setLlmSelectedModel("");
+                            setLlmSelectedModel('');
                           }}
                           disabled={llmProviders.length === 0}
                           className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-1.5 text-white font-bold focus:border-purple-400 focus:outline-none disabled:opacity-50"
                         >
-                          {llmProviders.length === 0 && <option value="">Нет настроенных провайдеров</option>}
+                          {llmProviders.length === 0 && (
+                            <option value="">Нет настроенных провайдеров</option>
+                          )}
                           {llmProviders.map((p) => (
-                            <option key={p.id} value={p.id}>{p.label}</option>
+                            <option key={p.id} value={p.id}>
+                              {p.label}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -678,7 +711,9 @@ export default function VendorSpecUploadModal({
                             className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-1.5 text-white font-bold focus:border-purple-400 focus:outline-none"
                           >
                             {llmModels.map((m) => (
-                              <option key={m} value={m}>{m}</option>
+                              <option key={m} value={m}>
+                                {m}
+                              </option>
                             ))}
                           </select>
                         ) : (
@@ -697,8 +732,8 @@ export default function VendorSpecUploadModal({
                       Адреса ИИ-серверов и ключи доступа задаются на сервере (переменные окружения
                       <code className="mx-1 text-slate-300">OLLAMA_HOST</code>,
                       <code className="mx-1 text-slate-300">LMSTUDIO_HOST</code>,
-                      <code className="mx-1 text-slate-300">EVACAL_LLM_PROVIDERS</code>)
-                      и в браузер не передаются.
+                      <code className="mx-1 text-slate-300">EVACAL_LLM_PROVIDERS</code>) и в браузер
+                      не передаются.
                     </p>
                   </div>
                 )}
@@ -707,11 +742,31 @@ export default function VendorSpecUploadModal({
                 {extractedReqs.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 pb-1">
                     {[
-                      { id: "all", label: "Все категории", count: extractedReqs.length },
-                      { id: "functional", label: "Функциональные", count: extractedReqs.filter(r => r.category === "functional").length },
-                      { id: "security", label: "ИБ и Безопасность", count: extractedReqs.filter(r => r.category === "security").length },
-                      { id: "reliability", label: "Надежность и SLA", count: extractedReqs.filter(r => r.category === "reliability").length },
-                      { id: "technical", label: "Технические / ПО", count: extractedReqs.filter(r => r.category === "technical").length },
+                      {
+                        id: 'all',
+                        label: 'Все категории',
+                        count: extractedReqs.length,
+                      },
+                      {
+                        id: 'functional',
+                        label: 'Функциональные',
+                        count: extractedReqs.filter((r) => r.category === 'functional').length,
+                      },
+                      {
+                        id: 'security',
+                        label: 'ИБ и Безопасность',
+                        count: extractedReqs.filter((r) => r.category === 'security').length,
+                      },
+                      {
+                        id: 'reliability',
+                        label: 'Надежность и SLA',
+                        count: extractedReqs.filter((r) => r.category === 'reliability').length,
+                      },
+                      {
+                        id: 'technical',
+                        label: 'Технические / ПО',
+                        count: extractedReqs.filter((r) => r.category === 'technical').length,
+                      },
                     ].map((cat) => (
                       <button
                         key={cat.id}
@@ -719,8 +774,8 @@ export default function VendorSpecUploadModal({
                         onClick={() => setSelectedCategoryFilter(cat.id)}
                         className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
                           selectedCategoryFilter === cat.id
-                            ? "bg-blue-600 text-white shadow-sm"
-                            : "bg-[#1c1f26] text-slate-300 hover:bg-[#2e3440] border border-[#3b4252]"
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-[#1c1f26] text-slate-300 hover:bg-[#2e3440] border border-[#3b4252]'
                         }`}
                       >
                         {cat.label} ({cat.count})
@@ -731,7 +786,8 @@ export default function VendorSpecUploadModal({
 
                 {extractedReqs.length === 0 ? (
                   <div className="text-xs text-slate-400 italic p-6 text-center border border-dashed border-[#434c5e] rounded-xl bg-[#1c1f26]">
-                    Требования пока не извлечены. Загрузите файл ТЗ (.docx) выше или добавьте пункты вручную.
+                    Требования пока не извлечены. Загрузите файл ТЗ (.docx) выше или добавьте пункты
+                    вручную.
                   </div>
                 ) : (
                   <div className="max-h-64 overflow-y-auto rounded-xl border border-[#3b4252] bg-[#1c1f26]">
@@ -740,44 +796,64 @@ export default function VendorSpecUploadModal({
                         <tr>
                           <th className="p-3 w-32 font-bold text-blue-300">Код ГОСТ</th>
                           <th className="p-3 w-28 font-bold text-slate-300">Категория</th>
-                          <th className="p-3 font-bold text-white">Полное наименование и текст требования</th>
+                          <th className="p-3 font-bold text-white">
+                            Полное наименование и текст требования
+                          </th>
                           <th className="p-3 w-28 font-bold text-slate-300">Источник</th>
                           <th className="p-3 w-12 text-center font-bold text-slate-300">Удалить</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#2e3440]">
                         {extractedReqs
-                          .filter((r) => selectedCategoryFilter === "all" || r.category === selectedCategoryFilter)
+                          .filter(
+                            (r) =>
+                              selectedCategoryFilter === 'all' ||
+                              r.category === selectedCategoryFilter,
+                          )
                           .map((req) => (
                             <tr key={req.id} className="hover:bg-[#282c37] transition-colors">
                               <td className="p-3 font-mono font-bold text-blue-400 align-top">
                                 {req.code}
                               </td>
                               <td className="p-3 align-top">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                  req.category === 'security'
-                                    ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                    req.category === 'security'
+                                      ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                                      : req.category === 'reliability'
+                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                        : req.category === 'technical'
+                                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                          : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                  }`}
+                                >
+                                  {req.category === 'security'
+                                    ? 'ИБ'
                                     : req.category === 'reliability'
-                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                    : req.category === 'technical'
-                                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                                    : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                }`}>
-                                  {req.category === 'security' ? 'ИБ' : req.category === 'reliability' ? 'НАД' : req.category === 'technical' ? 'ТЕХ' : 'ФУНК'}
+                                      ? 'НАД'
+                                      : req.category === 'technical'
+                                        ? 'ТЕХ'
+                                        : 'ФУНК'}
                                 </span>
                               </td>
                               <td className="p-3 text-slate-100 break-words align-top space-y-1">
                                 <div className="font-semibold text-white">{req.title}</div>
                                 {req.title !== req.description && (
-                                  <div className="text-slate-300 text-[11px] leading-relaxed">{req.description}</div>
+                                  <div className="text-slate-300 text-[11px] leading-relaxed">
+                                    {req.description}
+                                  </div>
                                 )}
                               </td>
                               <td className="p-3 text-slate-400 text-[11px] align-top space-y-1">
-                                <div className="truncate">{req.sourceFile || "—"}</div>
+                                <div className="truncate">{req.sourceFile || '—'}</div>
                                 {req.normalizedBy && (
                                   <div
                                     className="inline-block px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px]"
-                                    title={req.originalText ? `Исходная формулировка: ${req.originalText}` : undefined}
+                                    title={
+                                      req.originalText
+                                        ? `Исходная формулировка: ${req.originalText}`
+                                        : undefined
+                                    }
                                   >
                                     ИИ-предложение
                                   </div>
@@ -840,10 +916,9 @@ export default function VendorSpecUploadModal({
           )}
 
           {/* TAB 2: Regulatory Enrichment Standards Selector */}
-          {activeTab === "enrichment" && (
+          {activeTab === 'enrichment' && (
             <div className="space-y-4 animate-in fade-in duration-150">
               <div className="bg-[#242832] p-5 rounded-2xl border border-[#3b4252] space-y-4 shadow-md">
-                
                 {/* Header Controls */}
                 <div className="flex items-center justify-between border-b border-[#3b4252] pb-3">
                   <div>
@@ -890,7 +965,6 @@ export default function VendorSpecUploadModal({
 
                 {enrich ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
-                    
                     {/* FSTEK Group */}
                     <div className="col-span-full font-bold text-blue-400 uppercase tracking-wider text-[11px] pt-1">
                       1. Приказы ФСТЭК России
@@ -919,7 +993,9 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">Приказ ФСТЭК России № 117</span>
+                        <span className="font-bold text-white block">
+                          Приказ ФСТЭК России № 117
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
                           Безопасная разработка ПО по ГОСТ Р 56939-2016 (SAST, DAST, SCA, НДВ).
                         </span>
@@ -934,7 +1010,9 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">Приказ ФСТЭК России № 239</span>
+                        <span className="font-bold text-white block">
+                          Приказ ФСТЭК России № 239
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
                           Требования безопасности для значимых объектов КИИ (1, 2 и 3 категории).
                         </span>
@@ -1019,7 +1097,9 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">Федеральный закон № 187-ФЗ</span>
+                        <span className="font-bold text-white block">
+                          Федеральный закон № 187-ФЗ
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
                           О безопасности критической информационной инфраструктуры РФ.
                         </span>
@@ -1049,7 +1129,9 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">Федеральный закон № 188-ФЗ</span>
+                        <span className="font-bold text-white block">
+                          Федеральный закон № 188-ФЗ
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
                           Реестр отечественного ПО (совместимость с Astra Linux/PostgreSQL).
                         </span>
@@ -1108,7 +1190,8 @@ export default function VendorSpecUploadModal({
                   </div>
                 ) : (
                   <div className="text-xs text-slate-400 italic p-6 text-center border border-dashed border-[#434c5e] rounded-xl bg-[#1c1f26]">
-                    Авто-обогащение отключено. В документ будут включены только извлеченные требования вендора.
+                    Авто-обогащение отключено. В документ будут включены только извлеченные
+                    требования вендора.
                   </div>
                 )}
               </div>
@@ -1116,7 +1199,7 @@ export default function VendorSpecUploadModal({
           )}
 
           {/* TAB 3: Signatures & GOST 2.104 Frame Requisites */}
-          {activeTab === "signatures" && (
+          {activeTab === 'signatures' && (
             <div className="space-y-4 animate-in fade-in duration-150">
               <div className="bg-[#242832] p-5 rounded-2xl border border-[#3b4252] space-y-4 shadow-md">
                 <div>
@@ -1229,7 +1312,7 @@ export default function VendorSpecUploadModal({
           )}
 
           {/* TAB 4: Document Type Selector & Download Execution */}
-          {activeTab === "export" && (
+          {activeTab === 'export' && (
             <div className="space-y-4 animate-in fade-in duration-150">
               <div className="bg-[#242832] p-5 rounded-2xl border border-[#3b4252] space-y-4 shadow-md">
                 <div>
@@ -1252,21 +1335,29 @@ export default function VendorSpecUploadModal({
                         onClick={() => setDocType(item.type)}
                         className={`p-4 rounded-xl border text-left transition-all ${
                           isSelected
-                            ? "bg-blue-600 border-blue-400 text-white font-bold shadow-xl shadow-blue-600/30 ring-2 ring-blue-300"
-                            : "bg-[#1c1f26] border-[#3b4252] text-slate-300 hover:border-slate-400 hover:text-white"
+                            ? 'bg-blue-600 border-blue-400 text-white font-bold shadow-xl shadow-blue-600/30 ring-2 ring-blue-300'
+                            : 'bg-[#1c1f26] border-[#3b4252] text-slate-300 hover:border-slate-400 hover:text-white'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className={`font-bold text-sm ${isSelected ? "text-white" : "text-slate-100"}`}>
+                          <span
+                            className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-slate-100'}`}
+                          >
                             {item.title}
                           </span>
-                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                            isSelected ? "bg-white text-blue-700" : "bg-[#2e3440] text-blue-300 border border-[#434c5e]"
-                          }`}>
+                          <span
+                            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                              isSelected
+                                ? 'bg-white text-blue-700'
+                                : 'bg-[#2e3440] text-blue-300 border border-[#434c5e]'
+                            }`}
+                          >
                             {item.gost}
                           </span>
                         </div>
-                        <p className={`text-xs mt-2 leading-relaxed ${isSelected ? "text-blue-100" : "text-slate-400"}`}>
+                        <p
+                          className={`text-xs mt-2 leading-relaxed ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}
+                        >
                           {item.desc}
                         </p>
                       </button>
@@ -1277,15 +1368,16 @@ export default function VendorSpecUploadModal({
                 {/* Summary Readiness Card */}
                 <div className="bg-[#1c1f26] p-4.5 rounded-xl border border-[#3b4252] flex flex-col md:flex-row items-center justify-between gap-4 mt-4 shadow-inner">
                   <div className="space-y-1.5 text-xs">
-                    <div className="font-bold text-white">
-                      Сводная готовность к формированию:
-                    </div>
+                    <div className="font-bold text-white">Сводная готовность к формированию:</div>
                     <div className="text-slate-300 leading-relaxed">
-                      • Выбранный документ: <strong className="text-blue-400 font-bold">{docType}</strong>
-                      <br />
-                      • Извлечённых требований вендора: <strong className="text-white font-bold">{extractedReqs.length}</strong>
-                      <br />
-                      • Включённых государственных стандартов: <strong className="text-white font-bold">{countActiveEnrichments()} из {ENRICHMENT_OPTION_KEYS.length}</strong>
+                      • Выбранный документ:{' '}
+                      <strong className="text-blue-400 font-bold">{docType}</strong>
+                      <br />• Извлечённых требований вендора:{' '}
+                      <strong className="text-white font-bold">{extractedReqs.length}</strong>
+                      <br />• Включённых государственных стандартов:{' '}
+                      <strong className="text-white font-bold">
+                        {countActiveEnrichments()} из {ENRICHMENT_OPTION_KEYS.length}
+                      </strong>
                     </div>
                   </div>
 
@@ -1323,13 +1415,13 @@ export default function VendorSpecUploadModal({
           </button>
 
           <div className="flex items-center gap-2.5">
-            {activeTab !== "vendor" && (
+            {activeTab !== 'vendor' && (
               <button
                 type="button"
                 onClick={() => {
-                  if (activeTab === "export") setActiveTab("signatures");
-                  else if (activeTab === "signatures") setActiveTab("enrichment");
-                  else if (activeTab === "enrichment") setActiveTab("vendor");
+                  if (activeTab === 'export') setActiveTab('signatures');
+                  else if (activeTab === 'signatures') setActiveTab('enrichment');
+                  else if (activeTab === 'enrichment') setActiveTab('vendor');
                 }}
                 className="px-4.5 py-2 rounded-xl text-xs font-bold bg-[#2e3440] text-white hover:bg-[#3b4252] border border-[#434c5e] transition-colors"
               >
@@ -1337,13 +1429,13 @@ export default function VendorSpecUploadModal({
               </button>
             )}
 
-            {activeTab !== "export" ? (
+            {activeTab !== 'export' ? (
               <button
                 type="button"
                 onClick={() => {
-                  if (activeTab === "vendor") setActiveTab("enrichment");
-                  else if (activeTab === "enrichment") setActiveTab("signatures");
-                  else if (activeTab === "signatures") setActiveTab("export");
+                  if (activeTab === 'vendor') setActiveTab('enrichment');
+                  else if (activeTab === 'enrichment') setActiveTab('signatures');
+                  else if (activeTab === 'signatures') setActiveTab('export');
                 }}
                 className="px-6 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/30 transition-colors flex items-center gap-1.5"
               >

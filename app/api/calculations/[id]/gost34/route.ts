@@ -51,7 +51,8 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
         checker: searchParams.get('checker') || DEFAULT_SIGNATURES.checker,
         normControl: searchParams.get('normControl') || DEFAULT_SIGNATURES.normControl,
         approver: searchParams.get('approver') || DEFAULT_SIGNATURES.approver,
-        customerApprover: searchParams.get('customerApprover') || DEFAULT_SIGNATURES.customerApprover,
+        customerApprover:
+          searchParams.get('customerApprover') || DEFAULT_SIGNATURES.customerApprover,
         signDate: new Date().toLocaleDateString('ru-RU'),
       },
     },
@@ -60,7 +61,10 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'Content-Disposition': contentDisposition(safeFileName(filename.replace(/\.docx$/, '')), 'docx'),
+      'Content-Disposition': contentDisposition(
+        safeFileName(filename.replace(/\.docx$/, '')),
+        'docx',
+      ),
       'Content-Length': String(buffer.length),
     },
   });
@@ -122,7 +126,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
             },
           });
           return { filename: entry.filename, buffer };
-        })
+        }),
       );
 
       for (const doc of generatedDocs) {
@@ -159,7 +163,10 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'Content-Disposition': contentDisposition(safeFileName(filename.replace(/\.docx$/, '')), 'docx'),
+        'Content-Disposition': contentDisposition(
+          safeFileName(filename.replace(/\.docx$/, '')),
+          'docx',
+        ),
         'Content-Length': String(buffer.length),
       },
     });

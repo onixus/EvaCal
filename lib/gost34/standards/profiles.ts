@@ -14,7 +14,8 @@ const LEGACY_DOCUMENT_TYPES: DocumentProfile[] = [
     standardCitation: 'ГОСТ 34.602-89',
     shortLabel: 'ТЗ',
     uiTitle: 'ТЗ — Техническое задание',
-    uiDescription: 'Главный документ с требованиями к системе, структурой и матрицей прослеживаемости.',
+    uiDescription:
+      'Главный документ с требованиями к системе, структурой и матрицей прослеживаемости.',
     filenameBase: 'Техническое_задание_ГОСТ_34.602-89',
     zipOrder: 1,
     sections: [],
@@ -230,7 +231,4 @@ export const GOST34_LEGACY_PROFILE: StandardProfile = {
   },
 };
 
-export const GOST34_PROFILES = [
-  GOST34_2020_PROFILE,
-  GOST34_LEGACY_PROFILE,
-];
+export const GOST34_PROFILES = [GOST34_2020_PROFILE, GOST34_LEGACY_PROFILE];

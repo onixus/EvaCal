@@ -18,13 +18,13 @@ import { DEFAULT_GOST34_PROFILE, StandardProfile } from '../standards';
  */
 export function buildGost2104Form2Table(
   meta: Gost34DocMetadata,
-  profile: StandardProfile = DEFAULT_GOST34_PROFILE
+  profile: StandardProfile = DEFAULT_GOST34_PROFILE,
 ): Table {
   const sigs = meta.signatures;
 
   const font = 'Times New Roman';
   const smallTextSize = 14; // 7pt
-  const normTextSize = 16;  // 8pt
+  const normTextSize = 16; // 8pt
   const titleTextSize = 20; // 10pt bold
 
   const borderStyle = {
@@ -43,7 +43,7 @@ export function buildGost2104Form2Table(
   const makeCell = (
     text: string,
     widthMm: number,
-    opts: { bold?: boolean; size?: number; align?: any; colSpan?: number } = {}
+    opts: { bold?: boolean; size?: number; align?: any; colSpan?: number } = {},
   ) => {
     const widthDxa = convertMillimetersToTwip(widthMm);
     return new TableCell({
@@ -97,11 +97,21 @@ export function buildGost2104Form2Table(
       new TableRow({
         height: { value: convertMillimetersToTwip(5), rule: 'exact' as any },
         children: [
-          makeCell('Разраб.', 17, { align: AlignmentType.LEFT, size: smallTextSize, colSpan: 2 }),
-          makeCell(sigs.developer || '—', 23, { align: AlignmentType.LEFT, size: smallTextSize }),
+          makeCell('Разраб.', 17, {
+            align: AlignmentType.LEFT,
+            size: smallTextSize,
+            colSpan: 2,
+          }),
+          makeCell(sigs.developer || '—', 23, {
+            align: AlignmentType.LEFT,
+            size: smallTextSize,
+          }),
           makeCell('', 15),
           makeCell('', 10),
-          makeCell(meta.fullSystemName.toUpperCase(), 70, { bold: true, size: normTextSize }),
+          makeCell(meta.fullSystemName.toUpperCase(), 70, {
+            bold: true,
+            size: normTextSize,
+          }),
           makeCell('Р', 15, { bold: true }),
           makeCell('1', 17.5),
           makeCell('X', 17.5),
@@ -111,23 +121,43 @@ export function buildGost2104Form2Table(
       new TableRow({
         height: { value: convertMillimetersToTwip(5), rule: 'exact' as any },
         children: [
-          makeCell('Пров.', 17, { align: AlignmentType.LEFT, size: smallTextSize, colSpan: 2 }),
-          makeCell(sigs.checker || '—', 23, { align: AlignmentType.LEFT, size: smallTextSize }),
+          makeCell('Пров.', 17, {
+            align: AlignmentType.LEFT,
+            size: smallTextSize,
+            colSpan: 2,
+          }),
+          makeCell(sigs.checker || '—', 23, {
+            align: AlignmentType.LEFT,
+            size: smallTextSize,
+          }),
           makeCell('', 15),
           makeCell('', 10),
           makeCell(meta.systemName, 70, { size: normTextSize }),
-          makeCell(meta.developerName, 50, { bold: true, size: smallTextSize, colSpan: 3 }),
+          makeCell(meta.developerName, 50, {
+            bold: true,
+            size: smallTextSize,
+            colSpan: 3,
+          }),
         ],
       }),
       // Row 4: Norm control & City
       new TableRow({
         height: { value: convertMillimetersToTwip(5), rule: 'exact' as any },
         children: [
-          makeCell('Н.контр.', 17, { align: AlignmentType.LEFT, size: smallTextSize, colSpan: 2 }),
-          makeCell(sigs.normControl || '—', 23, { align: AlignmentType.LEFT, size: smallTextSize }),
+          makeCell('Н.контр.', 17, {
+            align: AlignmentType.LEFT,
+            size: smallTextSize,
+            colSpan: 2,
+          }),
+          makeCell(sigs.normControl || '—', 23, {
+            align: AlignmentType.LEFT,
+            size: smallTextSize,
+          }),
           makeCell('', 15),
           makeCell('', 10),
-          makeCell(meta.contractNumber || profile.citations.frameFallbackTitle, 70, { size: smallTextSize }),
+          makeCell(meta.contractNumber || profile.citations.frameFallbackTitle, 70, {
+            size: smallTextSize,
+          }),
           makeCell(meta.city, 50, { size: smallTextSize, colSpan: 3 }),
         ],
       }),
@@ -135,11 +165,22 @@ export function buildGost2104Form2Table(
       new TableRow({
         height: { value: convertMillimetersToTwip(5), rule: 'exact' as any },
         children: [
-          makeCell('Утв.', 17, { align: AlignmentType.LEFT, size: smallTextSize, colSpan: 2 }),
-          makeCell(sigs.approver || '—', 23, { align: AlignmentType.LEFT, size: smallTextSize }),
+          makeCell('Утв.', 17, {
+            align: AlignmentType.LEFT,
+            size: smallTextSize,
+            colSpan: 2,
+          }),
+          makeCell(sigs.approver || '—', 23, {
+            align: AlignmentType.LEFT,
+            size: smallTextSize,
+          }),
           makeCell('', 15),
           makeCell('', 10),
-          makeCell(`Заказчик: ${meta.customerName}`, 120, { align: AlignmentType.LEFT, size: smallTextSize, colSpan: 4 }),
+          makeCell(`Заказчик: ${meta.customerName}`, 120, {
+            align: AlignmentType.LEFT,
+            size: smallTextSize,
+            colSpan: 4,
+          }),
         ],
       }),
     ],
@@ -171,7 +212,7 @@ export function buildGost2104Form2aTable(meta: Gost34DocMetadata): Table {
   const makeCell = (
     text: string,
     widthMm: number,
-    opts: { bold?: boolean; size?: number; align?: any } = {}
+    opts: { bold?: boolean; size?: number; align?: any } = {},
   ) => {
     const widthDxa = convertMillimetersToTwip(widthMm);
     return new TableCell({

@@ -34,11 +34,16 @@ const LLM_REPLY = [
 function stubLmStudio(reply: unknown) {
   const fetchMock = vi.fn(async (url: string) => {
     if (String(url).includes('/models')) {
-      return { ok: true, json: async () => ({ data: [{ id: 'local-model' }] }) } as any;
+      return {
+        ok: true,
+        json: async () => ({ data: [{ id: 'local-model' }] }),
+      } as any;
     }
     return {
       ok: true,
-      json: async () => ({ choices: [{ message: { content: JSON.stringify(reply) } }] }),
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify(reply) } }],
+      }),
     } as any;
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -53,7 +58,9 @@ describe('normalizeRequirementsWithLlm', () => {
   it('keeps the original text and the real source file', async () => {
     stubLmStudio(LLM_REPLY);
 
-    const result = await normalizeRequirementsWithLlm(rawItems, { provider: testProvider });
+    const result = await normalizeRequirementsWithLlm(rawItems, {
+      provider: testProvider,
+    });
 
     expect(result.usedLlm).toBe(true);
     const [proposal] = result.requirementsV2;
@@ -65,13 +72,17 @@ describe('normalizeRequirementsWithLlm', () => {
 
   it('marks LLM output as a proposal, never as approved', async () => {
     stubLmStudio(LLM_REPLY);
-    const result = await normalizeRequirementsWithLlm(rawItems, { provider: testProvider });
+    const result = await normalizeRequirementsWithLlm(rawItems, {
+      provider: testProvider,
+    });
     expect(result.requirementsV2[0].approval.status).toBe('PROPOSED');
   });
 
   it('still shows the model wording in the legacy item, with provenance attached', async () => {
     stubLmStudio(LLM_REPLY);
-    const result = await normalizeRequirementsWithLlm(rawItems, { provider: testProvider });
+    const result = await normalizeRequirementsWithLlm(rawItems, {
+      provider: testProvider,
+    });
     const [item] = result.requirements;
     expect(item.description).toBe(LLM_REPLY[0].description);
     expect(item.originalText).toBe('вести журнал событий безопасности');
@@ -81,17 +92,24 @@ describe('normalizeRequirementsWithLlm', () => {
 
   it('matches a reply positionally when the model changes the code', async () => {
     stubLmStudio([{ ...LLM_REPLY[0], code: 'ТР-НОВЫЙ-77' }]);
-    const result = await normalizeRequirementsWithLlm(rawItems, { provider: testProvider });
+    const result = await normalizeRequirementsWithLlm(rawItems, {
+      provider: testProvider,
+    });
     expect(result.requirementsV2[0].originalText).toBe('вести журнал событий безопасности');
     expect(result.requirementsV2[0].code).toBe('ТР-НОВЫЙ-77');
   });
 
   it('falls back to rules when the endpoint is unreachable, preserving the original', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      throw new Error('ECONNREFUSED');
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('ECONNREFUSED');
+      }),
+    );
 
-    const result = await normalizeRequirementsWithLlm(rawItems, { provider: testProvider });
+    const result = await normalizeRequirementsWithLlm(rawItems, {
+      provider: testProvider,
+    });
     expect(result.usedLlm).toBe(false);
     expect(result.requirementsV2[0].originalText).toBe('вести журнал событий безопасности');
     expect(result.requirements[0].description).toBe('вести журнал событий безопасности');
@@ -100,13 +118,21 @@ describe('normalizeRequirementsWithLlm', () => {
   it('falls back to rules on a malformed reply without throwing', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (String(url).includes('/models')) {
-        return { ok: true, json: async () => ({ data: [{ id: 'local-model' }] }) } as any;
+        return {
+          ok: true,
+          json: async () => ({ data: [{ id: 'local-model' }] }),
+        } as any;
       }
-      return { ok: true, json: async () => ({ choices: [{ message: { content: 'не JSON' } }] }) } as any;
+      return {
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'не JSON' } }] }),
+      } as any;
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await normalizeRequirementsWithLlm(rawItems, { provider: testProvider });
+    const result = await normalizeRequirementsWithLlm(rawItems, {
+      provider: testProvider,
+    });
     expect(result.usedLlm).toBe(false);
     expect(result.requirementsV2[0].originalText).toBe('вести журнал событий безопасности');
   });

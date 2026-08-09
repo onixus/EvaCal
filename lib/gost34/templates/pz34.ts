@@ -6,11 +6,13 @@ export function buildPZ34Sections(payload: Gost34InputPayload): Gost34Section[] 
   const ctx = payload.projectContext;
   const citations = payload.standardProfile.citations;
 
-  const archStyle = ctx?.architecture?.style || 'Трехзвенная веб-архитектура (Client-Server-Database)';
+  const archStyle =
+    ctx?.architecture?.style || 'Трехзвенная веб-архитектура (Client-Server-Database)';
   const componentsText = ctx?.architecture?.components?.join(', ') || 'Модули системы';
-  const platformsText = ctx?.infrastructure?.platforms?.join(', ') || 'Стандартные общесистемные платформы';
+  const platformsText =
+    ctx?.infrastructure?.platforms?.join(', ') || 'Стандартные общесистемные платформы';
 
-  const availabilityText = ctx?.availability?.availabilityTargetPercent 
+  const availabilityText = ctx?.availability?.availabilityTargetPercent
     ? `Коэффициент доступности: ${ctx.availability.availabilityTargetPercent}%, RTO ≤ ${ctx.availability.rtoMinutes || 120} мин, RPO ≤ ${ctx.availability.rpoMinutes || 15} мин.`
     : 'Резервное копирование выполняется регулярно. Время восстановления соответствуют требованиям проекта.';
 
@@ -50,7 +52,9 @@ export function buildPZ34Sections(payload: Gost34InputPayload): Gost34Section[] 
       id: 'sec-4',
       numStr: '4',
       title: 'ОПИСАНИЕ КОМПЛЕКСОВ ЗАДАЧ И ЭТАПОВ РЕАЛИЗАЦИИ',
-      paragraphs: ['4.1 Распределение этапов создания системы и трудозатрат представлено в Таблице 1.'],
+      paragraphs: [
+        '4.1 Распределение этапов создания системы и трудозатрат представлено в Таблице 1.',
+      ],
       tables: [
         {
           caption: 'Таблица 1 — Состав этапов работ и трудозатраты проекта',

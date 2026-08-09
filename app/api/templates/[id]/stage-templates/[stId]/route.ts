@@ -1,10 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requireApiRole } from "@/lib/auth";
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { requireApiRole } from '@/lib/auth';
 
-export async function PUT(req: NextRequest, props: { params: Promise<{ id: string; stId: string }> }) {
+export async function PUT(
+  req: NextRequest,
+  props: { params: Promise<{ id: string; stId: string }> },
+) {
   const params = await props.params;
-  const auth = await requireApiRole("admin");
+  const auth = await requireApiRole('admin');
   if (auth instanceof NextResponse) return auth;
 
   const body = await req.json();
@@ -25,10 +28,10 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
 
 export async function DELETE(
   _req: NextRequest,
-  props: { params: Promise<{ id: string; stId: string }> }
+  props: { params: Promise<{ id: string; stId: string }> },
 ) {
   const params = await props.params;
-  const auth = await requireApiRole("admin");
+  const auth = await requireApiRole('admin');
   if (auth instanceof NextResponse) return auth;
 
   await prisma.stageTemplate.delete({ where: { id: params.stId } });

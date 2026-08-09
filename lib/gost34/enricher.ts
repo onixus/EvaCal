@@ -1,10 +1,6 @@
 import { Gost34RequirementItem, Gost34EnrichmentOptions } from './types';
 import type { ProjectContext } from './context/types';
-import {
-  evaluateApplicability,
-  toEnrichmentOptions,
-  type OverrideInput,
-} from './applicability';
+import { evaluateApplicability, toEnrichmentOptions, type OverrideInput } from './applicability';
 
 /**
  * Returns standard GOST 34 / RF regulatory requirements based on selected options or ProjectContext evaluation:
@@ -42,7 +38,7 @@ export const ENRICHMENT_OPTION_KEYS: Array<keyof Gost34EnrichmentOptions> = [
 export function getEnrichedGostRequirements(
   options?: Gost34EnrichmentOptions,
   context?: ProjectContext,
-  overrides?: OverrideInput
+  overrides?: OverrideInput,
 ): Gost34RequirementItem[] {
   let opts: Gost34EnrichmentOptions;
 

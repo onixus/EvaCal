@@ -1,22 +1,27 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requireApiRole } from "@/lib/auth";
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { requireApiRole } from '@/lib/auth';
 
 async function assertEditable(calculationId: string) {
-  const calculation = await prisma.calculation.findUnique({ where: { id: calculationId } });
-  if (!calculation) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (calculation.status === "approved") {
-    return NextResponse.json({ error: "Расчёт уже утверждён и не может быть изменён" }, { status: 409 });
+  const calculation = await prisma.calculation.findUnique({
+    where: { id: calculationId },
+  });
+  if (!calculation) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  if (calculation.status === 'approved') {
+    return NextResponse.json(
+      { error: 'Расчёт уже утверждён и не может быть изменён' },
+      { status: 409 },
+    );
   }
   return null;
 }
 
 export async function PUT(
   req: NextRequest,
-  props: { params: Promise<{ id: string; riskId: string }> }
+  props: { params: Promise<{ id: string; riskId: string }> },
 ) {
   const params = await props.params;
-  const auth = await requireApiRole("architect");
+  const auth = await requireApiRole('architect');
   if (auth instanceof NextResponse) return auth;
 
   const blocked = await assertEditable(params.id);
@@ -35,10 +40,10 @@ export async function PUT(
 
 export async function DELETE(
   _req: NextRequest,
-  props: { params: Promise<{ id: string; riskId: string }> }
+  props: { params: Promise<{ id: string; riskId: string }> },
 ) {
   const params = await props.params;
-  const auth = await requireApiRole("architect");
+  const auth = await requireApiRole('architect');
   if (auth instanceof NextResponse) return auth;
 
   const blocked = await assertEditable(params.id);

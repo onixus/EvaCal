@@ -36,14 +36,20 @@ describe('assertAllowedEndpoint', () => {
 
   it('allows private addresses when the policy opts in', () => {
     const policy = { ...DEFAULT_ENDPOINT_POLICY, allowPrivateNetwork: true };
-    expect(assertAllowedEndpoint('http://10.0.0.5:8000/v1', policy)).toBe('http://10.0.0.5:8000/v1');
+    expect(assertAllowedEndpoint('http://10.0.0.5:8000/v1', policy)).toBe(
+      'http://10.0.0.5:8000/v1',
+    );
     // link-local stays blocked regardless of the policy
-    expect(() => assertAllowedEndpoint('http://169.254.169.254/', policy)).toThrow(EndpointNotAllowedError);
+    expect(() => assertAllowedEndpoint('http://169.254.169.254/', policy)).toThrow(
+      EndpointNotAllowedError,
+    );
   });
 
   it('rejects loopback when the policy forbids it', () => {
     const policy = { ...DEFAULT_ENDPOINT_POLICY, allowLoopback: false };
-    expect(() => assertAllowedEndpoint('http://localhost:11434', policy)).toThrow(EndpointNotAllowedError);
+    expect(() => assertAllowedEndpoint('http://localhost:11434', policy)).toThrow(
+      EndpointNotAllowedError,
+    );
   });
 
   it('rejects plain http for a remote host', () => {
@@ -54,11 +60,13 @@ describe('assertAllowedEndpoint', () => {
     'rejects the non-http(s) target %s',
     (endpoint) => {
       expect(() => assertAllowedEndpoint(endpoint)).toThrow(EndpointNotAllowedError);
-    }
+    },
   );
 
   it('rejects credentials embedded in the URL', () => {
-    expect(() => assertAllowedEndpoint('https://user:pass@api.example.com/v1')).toThrow(EndpointNotAllowedError);
+    expect(() => assertAllowedEndpoint('https://user:pass@api.example.com/v1')).toThrow(
+      EndpointNotAllowedError,
+    );
   });
 });
 

@@ -1,18 +1,18 @@
-import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import NewCalculationForm from "./NewCalculationForm";
+import Link from 'next/link';
+import { prisma } from '@/lib/prisma';
+import NewCalculationForm from './NewCalculationForm';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export default async function PresalePage() {
   const template = await prisma.formTemplate.findFirst({
     where: { isActive: true },
-    include: { fields: { orderBy: { order: "asc" } } },
+    include: { fields: { orderBy: { order: 'asc' } } },
   });
 
   const drafts = await prisma.calculation.findMany({
-    where: { createdBy: "presale" },
-    orderBy: { createdAt: "desc" },
+    where: { createdBy: 'presale' },
+    orderBy: { createdAt: 'desc' },
     take: 10,
     include: { stages: true },
   });
@@ -28,7 +28,7 @@ export default async function PresalePage() {
 
       {!template ? (
         <div className="card p-6 text-slate-600">
-          Нет активного шаблона опросника. Создайте и активируйте шаблон в{" "}
+          Нет активного шаблона опросника. Создайте и активируйте шаблон в{' '}
           <Link href="/admin" className="text-brand-700 underline">
             интерфейсе администратора
           </Link>

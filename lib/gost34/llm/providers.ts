@@ -44,7 +44,7 @@ export function getEndpointPolicy(): EndpointPolicy {
     allowLoopback: envFlag('EVACAL_LLM_ALLOW_LOOPBACK', DEFAULT_ENDPOINT_POLICY.allowLoopback),
     allowPrivateNetwork: envFlag(
       'EVACAL_LLM_ALLOW_PRIVATE_NETWORK',
-      DEFAULT_ENDPOINT_POLICY.allowPrivateNetwork
+      DEFAULT_ENDPOINT_POLICY.allowPrivateNetwork,
     ),
   };
 }
@@ -119,7 +119,10 @@ export function listLlmProviders(): LlmProvider[] {
 
   for (const provider of [...builtinProviders(), ...configuredProviders()]) {
     try {
-      byId.set(provider.id, { ...provider, endpoint: assertAllowedEndpoint(provider.endpoint, policy) });
+      byId.set(provider.id, {
+        ...provider,
+        endpoint: assertAllowedEndpoint(provider.endpoint, policy),
+      });
     } catch (e: any) {
       console.warn(`LLM provider "${provider.id}" is disabled: ${e?.message}`);
     }

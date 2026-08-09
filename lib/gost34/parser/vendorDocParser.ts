@@ -12,7 +12,7 @@ export interface ParsedVendorDocument {
  */
 export async function parseVendorDocument(
   buffer: Buffer,
-  filename: string
+  filename: string,
 ): Promise<ParsedVendorDocument> {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
   let rawText = '';
@@ -57,7 +57,7 @@ export async function parseVendorDocument(
  */
 export function extractRequirementsFromText(
   text: string,
-  sourceFile: string
+  sourceFile: string,
 ): Gost34RequirementItem[] {
   const lines = text
     .split(/\r?\n/)

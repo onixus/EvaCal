@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import ThemeToggle from "./ThemeToggle";
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import ThemeToggle from './ThemeToggle';
 
 const LINKS = [
-  { href: "/", label: "Расчёты" },
-  { href: "/presale", label: "Пресейл" },
-  { href: "/architect", label: "Архитектор" },
-  { href: "/admin", label: "Админ" },
+  { href: '/', label: 'Расчёты' },
+  { href: '/presale', label: 'Пресейл' },
+  { href: '/architect', label: 'Архитектор' },
+  { href: '/admin', label: 'Админ' },
 ];
 
 interface Session {
@@ -23,16 +23,16 @@ export default function Nav() {
   const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/me")
+    fetch('/api/auth/me')
       .then((res) => res.json())
       .then((data) => setSession(data.session))
       .catch(() => setSession(null));
   }, [pathname]);
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch('/api/auth/logout', { method: 'POST' });
     setSession(null);
-    router.push("/");
+    router.push('/');
     router.refresh();
   }
 
@@ -47,15 +47,15 @@ export default function Nav() {
         </Link>
         <nav className="flex flex-1 gap-1">
           {LINKS.map((link) => {
-            const active = link.href === "/" ? pathname === "/" : pathname?.startsWith(link.href);
+            const active = link.href === '/' ? pathname === '/' : pathname?.startsWith(link.href);
             return (
               <Link
                 key={link.href}
                 href={link.href}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
                   active
-                    ? "bg-brand-50 text-brand-700 shadow-[inset_0_-2px_0_#ff3ea5] dark:bg-nord-3 dark:text-nord-frost2 dark:shadow-[inset_0_-2px_0_#88c0d0]"
-                    : "text-slate-600 hover:bg-slate-100 dark:text-nord-4 dark:hover:bg-nord-3"
+                    ? 'bg-brand-50 text-brand-700 shadow-[inset_0_-2px_0_#ff3ea5] dark:bg-nord-3 dark:text-nord-frost2 dark:shadow-[inset_0_-2px_0_#88c0d0]'
+                    : 'text-slate-600 hover:bg-slate-100 dark:text-nord-4 dark:hover:bg-nord-3'
                 }`}
               >
                 {link.label}
@@ -66,9 +66,12 @@ export default function Nav() {
         {session ? (
           <div className="flex items-center gap-3 text-sm">
             <span className="text-slate-500 dark:text-nord-muted">
-              {session.username} · {session.role === "admin" ? "администратор" : "архитектор"}
+              {session.username} · {session.role === 'admin' ? 'администратор' : 'архитектор'}
             </span>
-            <button onClick={logout} className="text-rose-600 hover:underline dark:text-nord-redText">
+            <button
+              onClick={logout}
+              className="text-rose-600 hover:underline dark:text-nord-redText"
+            >
               Выйти
             </button>
           </div>

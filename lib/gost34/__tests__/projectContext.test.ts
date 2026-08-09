@@ -21,7 +21,7 @@ describe('buildProjectContext: пустой опросник', () => {
     'фиксирует пробел «%s»',
     (path) => {
       expect(gapPaths(ctx.gaps)).toContain(path);
-    }
+    },
   );
 
   it('сообщает о блокирующих пробелах', () => {
@@ -44,8 +44,22 @@ describe('buildProjectContext: маппинг опросника и расчёт
       rpo: '15',
     },
     stages: [
-      { id: 's1', order: 1, name: 'Обследование', role: 'аналитик', hours: 40, startDate: '01.09.2026' },
-      { id: 's2', order: 2, name: 'Внедрение', role: 'инженер', hours: 80, endDate: '20.12.2026' },
+      {
+        id: 's1',
+        order: 1,
+        name: 'Обследование',
+        role: 'аналитик',
+        hours: 40,
+        startDate: '01.09.2026',
+      },
+      {
+        id: 's2',
+        order: 2,
+        name: 'Внедрение',
+        role: 'инженер',
+        hours: 80,
+        endDate: '20.12.2026',
+      },
     ],
     totalLaborHours: 120,
   });
@@ -55,7 +69,11 @@ describe('buildProjectContext: маппинг опросника и расчёт
     expect(ctx.deploymentModel).toBe('on-premise');
     expect(ctx.infrastructure?.platforms).toEqual(['Astra Linux', 'PostgreSQL 16']);
     expect(ctx.security?.personalDataProcessed).toBe(true);
-    expect(ctx.availability).toEqual({ availabilityTargetPercent: 99.5, rtoMinutes: 60, rpoMinutes: 15 });
+    expect(ctx.availability).toEqual({
+      availabilityTargetPercent: 99.5,
+      rtoMinutes: 60,
+      rpoMinutes: 15,
+    });
   });
 
   it('берёт жизненный цикл из расчёта', () => {
@@ -84,7 +102,11 @@ describe('buildProjectContext: ручной ввод', () => {
     stages: [],
     override: {
       systemPurpose: 'Учёт договоров лизинга',
-      availability: { availabilityTargetPercent: 99.9, rtoMinutes: 30, rpoMinutes: 5 },
+      availability: {
+        availabilityTargetPercent: 99.9,
+        rtoMinutes: 30,
+        rpoMinutes: 5,
+      },
     },
   });
 
@@ -96,7 +118,11 @@ describe('buildProjectContext: ручной ввод', () => {
   it('снимает соответствующие пробелы и помечается источником manual', () => {
     expect(gapPaths(ctx.gaps)).not.toContain('systemPurpose');
     expect(gapPaths(ctx.gaps)).not.toContain('availability');
-    expect(ctx.provenance).toContainEqual({ path: 'systemPurpose', source: 'manual', evidence: 'override' });
+    expect(ctx.provenance).toContainEqual({
+      path: 'systemPurpose',
+      source: 'manual',
+      evidence: 'override',
+    });
   });
 });
 
@@ -107,7 +133,15 @@ describe('analyzeAndNormalizeInput', () => {
       name: 'АС учёта заявок',
       customer: 'ПАО Пример',
       answers: JSON.stringify({ users_count: 80 }),
-      stages: [{ id: 's1', order: 1, name: 'Разработка', role: 'разработчик', hours: 100 }],
+      stages: [
+        {
+          id: 's1',
+          order: 1,
+          name: 'Разработка',
+          role: 'разработчик',
+          hours: 100,
+        },
+      ],
     },
     projectContext: { automationObject: 'Процессы обработки заявок абонентов' },
   });

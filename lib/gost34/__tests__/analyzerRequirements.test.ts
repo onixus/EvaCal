@@ -7,7 +7,14 @@ const calculation = {
   name: 'Тестовая система',
   customer: 'Заказчик',
   stages: [
-    { id: 's1', order: 1, name: 'Обследование', role: 'аналитик', hours: 10, requirements: 'Собрать требования.' },
+    {
+      id: 's1',
+      order: 1,
+      name: 'Обследование',
+      role: 'аналитик',
+      hours: 10,
+      requirements: 'Собрать требования.',
+    },
     { id: 's2', order: 2, name: 'Без требований', role: 'инженер', hours: 5 },
   ],
   risks: [],
@@ -81,7 +88,9 @@ describe('analyzer requirement assembly', () => {
     // "Собрать требования." carries no obligation wording — completeness catches it.
     expect(validation!.byRequirement['req-1'].some((f) => f.rule === 'completeness')).toBe(true);
     // Canned regulatory text is not editable here, so it may warn but never block.
-    const libraryFindings = validation!.findings.filter((f) => f.requirementCode?.startsWith('ТР-БЕЗ-2'));
+    const libraryFindings = validation!.findings.filter((f) =>
+      f.requirementCode?.startsWith('ТР-БЕЗ-2'),
+    );
     expect(libraryFindings.every((f) => f.severity !== 'ERROR')).toBe(true);
   });
 

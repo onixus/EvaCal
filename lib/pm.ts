@@ -3,9 +3,9 @@
 // on top of everyone else's labor hours.
 
 export const COMPLEXITY_LEVELS = [
-  { value: "Простой", percent: 10 },
-  { value: "Средний", percent: 20 },
-  { value: "Сложный", percent: 30 },
+  { value: 'Простой', percent: 10 },
+  { value: 'Средний', percent: 20 },
+  { value: 'Сложный', percent: 30 },
 ] as const;
 
 export const COMPLEXITY_OPTIONS = COMPLEXITY_LEVELS.map((l) => l.value);
@@ -26,10 +26,10 @@ export function complexityPercent(value: string | undefined | null): number {
 export function computePmHours(
   fields: { key: string; type: string }[],
   answers: Record<string, unknown>,
-  otherStagesHours: number
+  otherStagesHours: number,
 ): number {
-  const complexityField = fields.find((f) => f.type === "complexity");
-  const complexityValue = complexityField ? String(answers[complexityField.key] ?? "") : "";
+  const complexityField = fields.find((f) => f.type === 'complexity');
+  const complexityValue = complexityField ? String(answers[complexityField.key] ?? '') : '';
   const percent = complexityPercent(complexityValue);
   const overhead = (percent / 100) * otherStagesHours;
   return Math.round((PM_START_HOURS + PM_CLOSE_HOURS + overhead + Number.EPSILON) * 100) / 100;

@@ -5,7 +5,7 @@ services:
     build:
       context: .
       target: migrate
-    profiles: ["tools"]
+    profiles: ['tools']
     environment:
       DATABASE_URL: ${DATABASE_URL:-file:./dev.db}
     volumes:
@@ -20,7 +20,7 @@ services:
     volumes:
       - db-data:/app/prisma
     expose:
-      - "3000"
+      - '3000'
 
   web:
     image: nginx:1.27-alpine
@@ -28,8 +28,8 @@ services:
     depends_on:
       - app
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro

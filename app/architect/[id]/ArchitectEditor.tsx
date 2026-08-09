@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { ROLES, APPROVAL_REQUIRED_ROLES, APPROVAL_BUSINESS_DAYS, Role } from "@/lib/roles";
-import StageTable, { StageRow } from "@/components/StageTable";
-import GanttChart from "@/components/GanttChart";
-import StatusBadge from "@/components/StatusBadge";
-import TotalsSummary, { RiskRow } from "@/components/TotalsSummary";
-import ExportLinks from "@/components/ExportLinks";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ROLES, APPROVAL_REQUIRED_ROLES, APPROVAL_BUSINESS_DAYS, Role } from '@/lib/roles';
+import StageTable, { StageRow } from '@/components/StageTable';
+import GanttChart from '@/components/GanttChart';
+import StatusBadge from '@/components/StatusBadge';
+import TotalsSummary, { RiskRow } from '@/components/TotalsSummary';
+import ExportLinks from '@/components/ExportLinks';
 
 interface Calculation {
   id: string;
@@ -47,36 +47,36 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
         name: s.name,
         role: s.role,
         hours: s.hours,
-        requirements: s.requirements ?? "",
+        requirements: s.requirements ?? '',
         parallel: s.parallel ?? false,
         approvalDays: s.approvalDays ?? APPROVAL_BUSINESS_DAYS,
-      }))
+      })),
   );
   const [startDate, setStartDate] = useState(calculation.startDate.slice(0, 10));
   const [saving, setSaving] = useState(false);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [riskBusy, setRiskBusy] = useState(false);
-  const [newRiskDescription, setNewRiskDescription] = useState("");
+  const [newRiskDescription, setNewRiskDescription] = useState('');
   const [newRiskHours, setNewRiskHours] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const locked = calculation.status === "approved";
+  const locked = calculation.status === 'approved';
 
   async function saveSchedule() {
     setScheduleSaving(true);
     setError(null);
     try {
       const res = await fetch(`/api/calculations/${calculation.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ startDate }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Не удалось сохранить");
+        throw new Error(data.error ?? 'Не удалось сохранить');
       }
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError(err instanceof Error ? err.message : 'Ошибка');
     } finally {
       setScheduleSaving(false);
     }
@@ -91,10 +91,10 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
       ...prev,
       {
         key: nextKey(),
-        name: "Новый этап",
-        role: "developer",
+        name: 'Новый этап',
+        role: 'developer',
         hours: 8,
-        requirements: "",
+        requirements: '',
         parallel: false,
         approvalDays: APPROVAL_BUSINESS_DAYS,
       },
@@ -120,8 +120,8 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
     setError(null);
     try {
       const res = await fetch(`/api/calculations/${calculation.id}/stages`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           stages: stages.map((s) => ({
             name: s.name,
@@ -129,17 +129,19 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
             hours: Number(s.hours) || 0,
             requirements: s.requirements || null,
             parallel: s.parallel,
-            approvalDays: APPROVAL_REQUIRED_ROLES.includes(s.role as Role) ? Number(s.approvalDays) || null : null,
+            approvalDays: APPROVAL_REQUIRED_ROLES.includes(s.role as Role)
+              ? Number(s.approvalDays) || null
+              : null,
           })),
         }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Не удалось сохранить этапы");
+        throw new Error(data.error ?? 'Не удалось сохранить этапы');
       }
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError(err instanceof Error ? err.message : 'Ошибка');
     } finally {
       setSaving(false);
     }
@@ -148,7 +150,9 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
   async function approve() {
     setSaving(true);
     try {
-      await fetch(`/api/calculations/${calculation.id}/approve`, { method: "POST" });
+      await fetch(`/api/calculations/${calculation.id}/approve`, {
+        method: 'POST',
+      });
       router.refresh();
     } finally {
       setSaving(false);
@@ -160,12 +164,15 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
     setRiskBusy(true);
     try {
       const res = await fetch(`/api/calculations/${calculation.id}/risks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description: newRiskDescription, hours: newRiskHours }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: newRiskDescription,
+          hours: newRiskHours,
+        }),
       });
       if (res.ok) {
-        setNewRiskDescription("");
+        setNewRiskDescription('');
         setNewRiskHours(0);
         router.refresh();
       }
@@ -178,8 +185,8 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
     setRiskBusy(true);
     try {
       await fetch(`/api/calculations/${calculation.id}/risks/${risk.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       });
       router.refresh();
@@ -191,7 +198,9 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
   async function removeRisk(risk: RiskRow) {
     setRiskBusy(true);
     try {
-      await fetch(`/api/calculations/${calculation.id}/risks/${risk.id}`, { method: "DELETE" });
+      await fetch(`/api/calculations/${calculation.id}/risks/${risk.id}`, {
+        method: 'DELETE',
+      });
       router.refresh();
     } finally {
       setRiskBusy(false);
@@ -216,8 +225,8 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
       <div className="card p-6">
         <h2 className="mb-1 font-medium">Дата старта проекта</h2>
         <p className="mb-3 text-xs text-slate-500">
-          Архитектор может менять дату старта даже если она зафиксирована шаблоном для пресейла. Изменение сдвигает
-          весь график, сохраняя текущие трудозатраты этапов.
+          Архитектор может менять дату старта даже если она зафиксирована шаблоном для пресейла.
+          Изменение сдвигает весь график, сохраняя текущие трудозатраты этапов.
         </p>
         <div className="max-w-xs">
           <input
@@ -228,8 +237,12 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
             onChange={(e) => setStartDate(e.target.value)}
           />
         </div>
-        <button className="btn-secondary mt-3" disabled={scheduleSaving || locked} onClick={saveSchedule}>
-          {scheduleSaving ? "Сохранение…" : "Сохранить и пересчитать график"}
+        <button
+          className="btn-secondary mt-3"
+          disabled={scheduleSaving || locked}
+          onClick={saveSchedule}
+        >
+          {scheduleSaving ? 'Сохранение…' : 'Сохранить и пересчитать график'}
         </button>
       </div>
 
@@ -243,15 +256,19 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
           )}
         </div>
         <p className="mb-3 text-xs text-slate-500">
-          Для этапов с исполнителем «консультант», «разработчик», «инженер» или «аналитик» система автоматически
-          добавит задачу согласования на заказчика — длительность можно изменить для каждого этапа отдельно
-          (по умолчанию 3 рабочих дня). Отметьте «параллельно», чтобы этап начинался одновременно с предыдущим,
-          а не после его окончания. РП в этапах не отображается — учитывается только в итоговых трудозатратах.
+          Для этапов с исполнителем «консультант», «разработчик», «инженер» или «аналитик» система
+          автоматически добавит задачу согласования на заказчика — длительность можно изменить для
+          каждого этапа отдельно (по умолчанию 3 рабочих дня). Отметьте «параллельно», чтобы этап
+          начинался одновременно с предыдущим, а не после его окончания. РП в этапах не отображается
+          — учитывается только в итоговых трудозатратах.
         </p>
 
         <div className="space-y-2">
           {stages.map((s, index) => (
-            <div key={s.key} className="space-y-2 rounded-lg border border-slate-200 p-2 dark:border-nord-3">
+            <div
+              key={s.key}
+              className="space-y-2 rounded-lg border border-slate-200 p-2 dark:border-nord-3"
+            >
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   className="input flex-1 min-w-[180px]"
@@ -282,10 +299,18 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
                 <span className="text-xs text-slate-500">ч</span>
                 {!locked && (
                   <div className="ml-auto flex gap-1">
-                    <button className="btn-secondary px-2 py-1" onClick={() => moveStage(index, -1)} title="Вверх">
+                    <button
+                      className="btn-secondary px-2 py-1"
+                      onClick={() => moveStage(index, -1)}
+                      title="Вверх"
+                    >
                       ↑
                     </button>
-                    <button className="btn-secondary px-2 py-1" onClick={() => moveStage(index, 1)} title="Вниз">
+                    <button
+                      className="btn-secondary px-2 py-1"
+                      onClick={() => moveStage(index, 1)}
+                      title="Вниз"
+                    >
                       ↓
                     </button>
                     <button
@@ -325,7 +350,9 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
                       className="input w-20"
                       value={s.approvalDays}
                       onChange={(e) =>
-                        updateStage(s.key, { approvalDays: e.target.valueAsNumber || APPROVAL_BUSINESS_DAYS })
+                        updateStage(s.key, {
+                          approvalDays: e.target.valueAsNumber || APPROVAL_BUSINESS_DAYS,
+                        })
                       }
                     />
                   </label>
@@ -333,18 +360,24 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
               </div>
             </div>
           ))}
-          {stages.length === 0 && <p className="text-sm text-slate-500">Нет этапов. Добавьте хотя бы один.</p>}
+          {stages.length === 0 && (
+            <p className="text-sm text-slate-500">Нет этапов. Добавьте хотя бы один.</p>
+          )}
         </div>
 
         {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
 
         <div className="mt-4 flex gap-3">
-          <button className="btn-primary" disabled={saving || locked || stages.length === 0} onClick={save}>
-            {saving ? "Сохранение…" : "Сохранить и пересчитать график"}
+          <button
+            className="btn-primary"
+            disabled={saving || locked || stages.length === 0}
+            onClick={save}
+          >
+            {saving ? 'Сохранение…' : 'Сохранить и пересчитать график'}
           </button>
           <button
             className="btn-secondary"
-            disabled={saving || locked || calculation.status !== "pending_approval"}
+            disabled={saving || locked || calculation.status !== 'pending_approval'}
             onClick={approve}
           >
             Утвердить расчёт
@@ -356,12 +389,18 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
         <h2 className="mb-3 font-medium">Риски</h2>
         <div className="space-y-2">
           {calculation.risks.map((risk) => (
-            <div key={risk.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-2 dark:border-nord-3">
+            <div
+              key={risk.id}
+              className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-2 dark:border-nord-3"
+            >
               <input
                 className="input flex-1 min-w-[220px]"
                 disabled={locked}
                 defaultValue={risk.description}
-                onBlur={(e) => e.target.value !== risk.description && updateRisk(risk, { description: e.target.value })}
+                onBlur={(e) =>
+                  e.target.value !== risk.description &&
+                  updateRisk(risk, { description: e.target.value })
+                }
               />
               <input
                 type="number"
@@ -383,7 +422,9 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
               )}
             </div>
           ))}
-          {calculation.risks.length === 0 && <p className="text-sm text-slate-500">Риски не зафиксированы.</p>}
+          {calculation.risks.length === 0 && (
+            <p className="text-sm text-slate-500">Риски не зафиксированы.</p>
+          )}
         </div>
         {!locked && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -398,10 +439,14 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
               min={0}
               className="input w-28"
               placeholder="ч"
-              value={newRiskHours || ""}
+              value={newRiskHours || ''}
               onChange={(e) => setNewRiskHours(e.target.valueAsNumber || 0)}
             />
-            <button className="btn-secondary" disabled={riskBusy || !newRiskDescription.trim()} onClick={addRisk}>
+            <button
+              className="btn-secondary"
+              disabled={riskBusy || !newRiskDescription.trim()}
+              onClick={addRisk}
+            >
               + Добавить риск
             </button>
           </div>
@@ -410,7 +455,11 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
 
       <div className="card p-5">
         <h2 className="mb-3 font-medium">Трудозатраты</h2>
-        <TotalsSummary stages={calculation.stages} pmHours={calculation.pmHours} risks={calculation.risks} />
+        <TotalsSummary
+          stages={calculation.stages}
+          pmHours={calculation.pmHours}
+          risks={calculation.risks}
+        />
       </div>
 
       <div className="card p-5">

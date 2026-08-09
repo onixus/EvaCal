@@ -1,18 +1,22 @@
-import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import StatusBadge from "@/components/StatusBadge";
-import { grandTotalHours } from "@/lib/totals";
+import Link from 'next/link';
+import { prisma } from '@/lib/prisma';
+import StatusBadge from '@/components/StatusBadge';
+import { grandTotalHours } from '@/lib/totals';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export default async function ArchitectPage() {
   const calculations = await prisma.calculation.findMany({
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    include: { stages: true, risks: true, template: { select: { name: true } } },
+    orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+    include: {
+      stages: true,
+      risks: true,
+      template: { select: { name: true } },
+    },
   });
 
-  const pending = calculations.filter((c) => c.status === "pending_approval");
-  const others = calculations.filter((c) => c.status !== "pending_approval");
+  const pending = calculations.filter((c) => c.status === 'pending_approval');
+  const others = calculations.filter((c) => c.status !== 'pending_approval');
 
   return (
     <div className="space-y-6">
@@ -23,7 +27,11 @@ export default async function ArchitectPage() {
         </p>
       </div>
 
-      <Section title="Ожидают согласования" items={pending} empty="Нет расчётов, ожидающих согласования." />
+      <Section
+        title="Ожидают согласования"
+        items={pending}
+        empty="Нет расчётов, ожидающих согласования."
+      />
       <Section title="Остальные расчёты" items={others} empty="Пока нет других расчётов." />
     </div>
   );
@@ -55,9 +63,15 @@ export default async function ArchitectPage() {
             </thead>
             <tbody>
               {items.map((c) => (
-                <tr key={c.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                <tr
+                  key={c.id}
+                  className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
+                >
                   <td className="py-2 pr-4">
-                    <Link href={`/architect/${c.id}`} className="font-medium text-brand-700 hover:underline">
+                    <Link
+                      href={`/architect/${c.id}`}
+                      className="font-medium text-brand-700 hover:underline"
+                    >
                       {c.name}
                     </Link>
                   </td>

@@ -31,7 +31,11 @@ const PER_REQUIREMENT_RULES: Array<{
   { id: 'source', run: checkSource },
 ];
 
-const SEVERITY_ORDER: Record<ValidationSeverity, number> = { ERROR: 0, WARNING: 1, INFO: 2 };
+const SEVERITY_ORDER: Record<ValidationSeverity, number> = {
+  ERROR: 0,
+  WARNING: 1,
+  INFO: 2,
+};
 
 function isRuleEnabled(options: ValidationOptions, rule: ValidationRuleId): boolean {
   return options.rules?.[rule] !== false;
@@ -49,7 +53,7 @@ function capLibrarySeverity(finding: ValidationFinding, isLibrary: boolean): Val
 
 export function validateRequirements(
   requirements: Gost34RequirementV2[] = [],
-  options: ValidationOptions = {}
+  options: ValidationOptions = {},
 ): ValidationReport {
   const checks = requirements.map(buildCheck);
   const findings: ValidationFinding[] = [];
@@ -58,16 +62,14 @@ export function validateRequirements(
     PER_REQUIREMENT_RULES.forEach((rule) => {
       if (!isRuleEnabled(options, rule.id)) return;
 
-      rule
-        .run(check)
-        .forEach((item) => findings.push(capLibrarySeverity(item, check.isLibrary)));
+      rule.run(check).forEach((item) => findings.push(capLibrarySeverity(item, check.isLibrary)));
     });
   });
 
   if (isRuleEnabled(options, 'conflict')) {
     const libraryIds = new Set(checks.filter((c) => c.isLibrary).map((c) => c.requirement.id));
     checkConflicts(checks).forEach((item) =>
-      findings.push(capLibrarySeverity(item, libraryIds.has(item.requirementId || '')))
+      findings.push(capLibrarySeverity(item, libraryIds.has(item.requirementId || ''))),
     );
   }
 
@@ -80,7 +82,11 @@ export function validateRequirements(
     return SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
   });
 
-  const counts: Record<ValidationSeverity, number> = { ERROR: 0, WARNING: 0, INFO: 0 };
+  const counts: Record<ValidationSeverity, number> = {
+    ERROR: 0,
+    WARNING: 0,
+    INFO: 0,
+  };
   const byRequirement: Record<string, ValidationFinding[]> = {};
 
   findings.forEach((item) => {
@@ -101,7 +107,7 @@ export function validateRequirements(
 /** Проверка одного требования вне набора: сводные правила при этом не работают. */
 export function validateRequirement(
   requirement: Gost34RequirementV2,
-  options: ValidationOptions = {}
+  options: ValidationOptions = {},
 ): ValidationReport {
   return validateRequirements([requirement], options);
 }

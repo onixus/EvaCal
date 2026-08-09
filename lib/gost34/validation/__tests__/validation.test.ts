@@ -22,7 +22,10 @@ function rules(findings: ValidationFinding[]): ValidationRuleId[] {
   return findings.map((f) => f.rule);
 }
 
-function find(findings: ValidationFinding[], rule: ValidationRuleId): ValidationFinding | undefined {
+function find(
+  findings: ValidationFinding[],
+  rule: ValidationRuleId,
+): ValidationFinding | undefined {
   return findings.find((f) => f.rule === rule);
 }
 
@@ -41,7 +44,7 @@ describe('atomicity', () => {
       makeRequirement({
         originalText:
           'Система должна вести журнал событий безопасности. Система должна экспортировать журнал в формате CSV.',
-      })
+      }),
     );
 
     const finding = find(report.findings, 'atomicity');
@@ -53,7 +56,7 @@ describe('atomicity', () => {
     const report = validateRequirement(
       makeRequirement({
         originalText: 'Система должна поддерживать роли: администратор; аудитор; оператор.',
-      })
+      }),
     );
 
     expect(rules(report.findings)).toContain('atomicity');
@@ -63,7 +66,9 @@ describe('atomicity', () => {
 describe('ambiguity', () => {
   it('flags evaluative wording', () => {
     const report = validateRequirement(
-      makeRequirement({ originalText: 'Система должна работать быстро и быть удобной для оператора.' })
+      makeRequirement({
+        originalText: 'Система должна работать быстро и быть удобной для оператора.',
+      }),
     );
 
     const finding = find(report.findings, 'ambiguity');
@@ -74,7 +79,9 @@ describe('ambiguity', () => {
 
   it('leaves a numeric formulation alone', () => {
     const report = validateRequirement(
-      makeRequirement({ originalText: 'Время отклика системы должно составлять не более 2 с.' })
+      makeRequirement({
+        originalText: 'Время отклика системы должно составлять не более 2 с.',
+      }),
     );
 
     expect(rules(report.findings)).not.toContain('ambiguity');
@@ -87,7 +94,7 @@ describe('measurability', () => {
       makeRequirement({
         category: 'performance',
         originalText: 'Система должна обеспечивать высокую пропускную способность.',
-      })
+      }),
     );
 
     const finding = find(report.findings, 'measurability');
@@ -100,7 +107,7 @@ describe('measurability', () => {
       makeRequirement({
         category: 'performance',
         originalText: 'Система должна обрабатывать не менее 500 запросов в секунду.',
-      })
+      }),
     );
 
     expect(rules(report.findings)).not.toContain('measurability');
@@ -108,7 +115,9 @@ describe('measurability', () => {
 
   it('demands a value once a named indicator appears in any category', () => {
     const report = validateRequirement(
-      makeRequirement({ originalText: 'Система должна обеспечивать срок хранения журналов аудита.' })
+      makeRequirement({
+        originalText: 'Система должна обеспечивать срок хранения журналов аудита.',
+      }),
     );
 
     expect(find(report.findings, 'measurability')?.severity).toBe('ERROR');
@@ -123,7 +132,7 @@ describe('testability', () => {
         category: 'reliability',
         originalText: 'Система должна работать быстро.',
         verificationMethod: undefined,
-      })
+      }),
     );
 
     const finding = find(report.findings, 'testability');
@@ -137,7 +146,7 @@ describe('testability', () => {
       makeRequirement({
         verificationMethod: undefined,
         acceptanceCriteria: ['Журнал содержит запись о каждой попытке входа'],
-      })
+      }),
     );
 
     expect(rules(report.findings)).not.toContain('testability');
@@ -148,7 +157,7 @@ describe('testability', () => {
       makeRequirement({
         originalText: 'Система должна хранить журналы не менее 3 лет.',
         verificationMethod: undefined,
-      })
+      }),
     );
 
     expect(find(report.findings, 'testability')?.severity).toBe('INFO');
@@ -158,7 +167,9 @@ describe('testability', () => {
 describe('completeness', () => {
   it('rejects text without an obligation', () => {
     const report = validateRequirement(
-      makeRequirement({ originalText: 'Журнал событий безопасности ведётся в системе.' })
+      makeRequirement({
+        originalText: 'Журнал событий безопасности ведётся в системе.',
+      }),
     );
 
     expect(find(report.findings, 'completeness')?.severity).toBe('ERROR');
@@ -174,7 +185,9 @@ describe('completeness', () => {
 
   it('warns when the subject is missing', () => {
     const report = validateRequirement(
-      makeRequirement({ originalText: 'Должна вестись регистрация событий безопасности.' })
+      makeRequirement({
+        originalText: 'Должна вестись регистрация событий безопасности.',
+      }),
     );
 
     const finding = find(report.findings, 'completeness');
@@ -191,7 +204,7 @@ describe('completeness', () => {
 describe('source', () => {
   it('blocks a machine proposal without provenance', () => {
     const report = validateRequirement(
-      makeRequirement({ approval: { status: 'PROPOSED' }, source: undefined })
+      makeRequirement({ approval: { status: 'PROPOSED' }, source: undefined }),
     );
 
     const finding = find(report.findings, 'source');
@@ -218,7 +231,7 @@ describe('source', () => {
         source: undefined,
         originalText: 'Система должна обеспечивать защиту персональных данных надёжным образом.',
         verificationMethod: undefined,
-      })
+      }),
     );
 
     expect(find(report.findings, 'source')?.severity).toBe('INFO');
@@ -282,7 +295,10 @@ describe('conflict', () => {
 
   it('reports a mirrored pair that differs only by negation', () => {
     const report = validateRequirements([
-      makeRequirement({ id: 'req-1', originalText: 'Система должна хранить журналы аудита.' }),
+      makeRequirement({
+        id: 'req-1',
+        originalText: 'Система должна хранить журналы аудита.',
+      }),
       makeRequirement({
         id: 'req-2',
         code: 'ТР-ФУНК-02',
@@ -299,7 +315,10 @@ describe('conflict', () => {
 describe('report shape', () => {
   it('groups findings per requirement and keeps input order', () => {
     const report = validateRequirements([
-      makeRequirement({ id: 'req-1', originalText: 'Система должна работать быстро.' }),
+      makeRequirement({
+        id: 'req-1',
+        originalText: 'Система должна работать быстро.',
+      }),
       makeRequirement({ id: 'req-2', code: 'ТР-ФУНК-02', source: undefined }),
     ]);
 
@@ -309,12 +328,14 @@ describe('report shape', () => {
   });
 
   it('honours disabled rules', () => {
-    const requirement = makeRequirement({ originalText: 'Система должна работать быстро.' });
+    const requirement = makeRequirement({
+      originalText: 'Система должна работать быстро.',
+    });
 
     expect(rules(validateRequirement(requirement).findings)).toContain('ambiguity');
-    expect(rules(validateRequirement(requirement, { rules: { ambiguity: false } }).findings)).not.toContain(
-      'ambiguity'
-    );
+    expect(
+      rules(validateRequirement(requirement, { rules: { ambiguity: false } }).findings),
+    ).not.toContain('ambiguity');
   });
 
   it('accepts an empty set', () => {
@@ -325,7 +346,10 @@ describe('report shape', () => {
 
   it('formats a finding as one line', () => {
     const report = validateRequirement(
-      makeRequirement({ code: 'ТР-НАД-004', originalText: 'Система должна работать быстро.' })
+      makeRequirement({
+        code: 'ТР-НАД-004',
+        originalText: 'Система должна работать быстро.',
+      }),
     );
 
     expect(formatValidationFinding(report.findings[0])).toContain('ТР-НАД-004');

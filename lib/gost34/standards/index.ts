@@ -28,7 +28,11 @@ export function resolveGost34Profile(id?: string | null): StandardProfile {
   return getGost34Profile(id) || DEFAULT_NEW_GOST34_PROFILE;
 }
 
-export function getDocumentProfile(profile: StandardProfile, docType: GostDocumentType): DocumentProfile {
+/** Falls back to the TZ entry, mirroring the exporter's former `default:` branch. */
+export function getDocumentProfile(
+  profile: StandardProfile,
+  docType: GostDocumentType,
+): DocumentProfile {
   return (
     profile.documentTypes.find((d) => d.docType === docType) ||
     profile.documentTypes.find((d) => d.docType === 'TZ') ||
@@ -38,13 +42,16 @@ export function getDocumentProfile(profile: StandardProfile, docType: GostDocume
 
 export function getDocumentHeadings(
   profile: StandardProfile,
-  docType: GostDocumentType
+  docType: GostDocumentType,
 ): { title: string; subtitle: string } {
   const doc = getDocumentProfile(profile, docType);
   return { title: doc.title, subtitle: `(${doc.standardCitation})` };
 }
 
-export function getZipEntries(profile: StandardProfile): Array<{ docType: GostDocumentType; filename: string }> {
+/** Ordered batch-ZIP entries. Replaces the hardcoded list in the export route. */
+export function getZipEntries(
+  profile: StandardProfile,
+): Array<{ docType: GostDocumentType; filename: string }> {
   return [...profile.documentTypes]
     .sort((a, b) => a.zipOrder - b.zipOrder)
     .map((doc) => ({

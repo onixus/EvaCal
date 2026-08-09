@@ -40,40 +40,52 @@ describe('profile completeness', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it.each(GOST34_PROFILES.map((p) => [p.id, p] as const))('%s covers all 5 document types once', (_id, profile) => {
-    const docTypes = profile.documentTypes.map((d) => d.docType);
-    expect(docTypes.slice().sort()).toEqual(ALL_DOC_TYPES.slice().sort());
-    expect(new Set(docTypes).size).toBe(ALL_DOC_TYPES.length);
-  });
+  it.each(GOST34_PROFILES.map((p) => [p.id, p] as const))(
+    '%s covers all 5 document types once',
+    (_id, profile) => {
+      const docTypes = profile.documentTypes.map((d) => d.docType);
+      expect(docTypes.slice().sort()).toEqual(ALL_DOC_TYPES.slice().sort());
+      expect(new Set(docTypes).size).toBe(ALL_DOC_TYPES.length);
+    },
+  );
 
-  it.each(GOST34_PROFILES.map((p) => [p.id, p] as const))('%s has usable document metadata', (_id, profile) => {
-    const zipOrders = profile.documentTypes.map((d) => d.zipOrder);
-    expect(zipOrders.slice().sort()).toEqual([1, 2, 3, 4, 5]);
-    expect(new Set(profile.documentTypes.map((d) => d.id)).size).toBe(5);
+  it.each(GOST34_PROFILES.map((p) => [p.id, p] as const))(
+    '%s has usable document metadata',
+    (_id, profile) => {
+      const zipOrders = profile.documentTypes.map((d) => d.zipOrder);
+      expect(zipOrders.slice().sort()).toEqual([1, 2, 3, 4, 5]);
+      expect(new Set(profile.documentTypes.map((d) => d.id)).size).toBe(5);
 
-    for (const doc of profile.documentTypes) {
-      expect(doc.title.trim()).not.toBe('');
-      expect(doc.standardCitation.trim()).not.toBe('');
-      expect(doc.shortLabel.trim()).not.toBe('');
-      expect(doc.uiTitle.trim()).not.toBe('');
-      expect(doc.uiDescription.trim()).not.toBe('');
-      // filenameBase goes straight into a ZIP entry name
-      expect(doc.filenameBase).not.toMatch(/[\s/\\]/);
-      expect(doc.filenameBase).not.toMatch(/\.docx$/);
-    }
-  });
+      for (const doc of profile.documentTypes) {
+        expect(doc.title.trim()).not.toBe('');
+        expect(doc.standardCitation.trim()).not.toBe('');
+        expect(doc.shortLabel.trim()).not.toBe('');
+        expect(doc.uiTitle.trim()).not.toBe('');
+        expect(doc.uiDescription.trim()).not.toBe('');
+        // filenameBase goes straight into a ZIP entry name
+        expect(doc.filenameBase).not.toMatch(/[\s/\\]/);
+        expect(doc.filenameBase).not.toMatch(/\.docx$/);
+      }
+    },
+  );
 
-  it.each(GOST34_PROFILES.map((p) => [p.id, p] as const))('%s has every citation token filled', (_id, profile) => {
-    for (const [key, value] of Object.entries(profile.citations)) {
-      expect(value.trim(), `citation ${key}`).not.toBe('');
-    }
-  });
+  it.each(GOST34_PROFILES.map((p) => [p.id, p] as const))(
+    '%s has every citation token filled',
+    (_id, profile) => {
+      for (const [key, value] of Object.entries(profile.citations)) {
+        expect(value.trim(), `citation ${key}`).not.toBe('');
+      }
+    },
+  );
 });
 
 describe('getDocumentProfile', () => {
   it('falls back to the TZ entry for an unmapped doc type', () => {
     const profile = resolveGost34Profile(LEGACY_GOST34_PROFILE_ID);
-    const stripped = { ...profile, documentTypes: profile.documentTypes.filter((d) => d.docType !== 'SPEC') };
+    const stripped = {
+      ...profile,
+      documentTypes: profile.documentTypes.filter((d) => d.docType !== 'SPEC'),
+    };
     expect(getDocumentProfile(stripped, 'SPEC').docType).toBe('TZ');
   });
 });

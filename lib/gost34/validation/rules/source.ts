@@ -6,7 +6,7 @@ function hasLocator(check: RequirementCheck): boolean {
   if (!source) return false;
 
   return Boolean(
-    source.documentId || source.filename || source.section || source.paragraph || source.locator
+    source.documentId || source.filename || source.section || source.paragraph || source.locator,
   );
 }
 
@@ -30,7 +30,7 @@ export function checkSource(check: RequirementCheck): ValidationFinding[] {
         'source',
         'INFO',
         'Нормативное требование из встроенной библиотеки: пункт нормативного акта не указан.',
-        'Добавить ссылку на конкретный пункт нормативного документа в standardReferences.'
+        'Добавить ссылку на конкретный пункт нормативного документа в standardReferences.',
       ),
     ];
   }
@@ -44,7 +44,7 @@ export function checkSource(check: RequirementCheck): ValidationFinding[] {
         'source',
         'ERROR',
         'Машинно-сформированное требование не ссылается на источник.',
-        'Указать документ и раздел исходного текста либо отклонить предложение.'
+        'Указать документ и раздел исходного текста либо отклонить предложение.',
       ),
     ];
   }
@@ -56,7 +56,7 @@ export function checkSource(check: RequirementCheck): ValidationFinding[] {
         'source',
         'WARNING',
         'Источник задан только хэшем: документ и раздел не восстанавливаются.',
-        'Дополнить источник именем документа и разделом.'
+        'Дополнить источник именем документа и разделом.',
       ),
     ];
   }
@@ -67,7 +67,7 @@ export function checkSource(check: RequirementCheck): ValidationFinding[] {
       'source',
       'WARNING',
       'Не указан источник требования.',
-      'Указать документ, раздел или пункт, из которого взято требование.'
+      'Указать документ, раздел или пункт, из которого взято требование.',
     ),
   ];
 }

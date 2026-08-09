@@ -24,7 +24,7 @@ export interface LlmNormalizerOptions {
  */
 export async function checkLocalLlmAvailability(
   endpoint: string = 'http://localhost:11434',
-  provider: 'ollama' | 'openai_compatible' = 'ollama'
+  provider: 'ollama' | 'openai_compatible' = 'ollama',
 ): Promise<{ available: boolean; provider: string; models: string[] }> {
   const cleanEndpoint = endpoint.replace(/\/+$/, '');
 
@@ -55,7 +55,9 @@ export async function checkLocalLlmAvailability(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2500);
 
-    const modelsUrl = cleanEndpoint.endsWith('/v1') ? `${cleanEndpoint}/models` : `${cleanEndpoint}/v1/models`;
+    const modelsUrl = cleanEndpoint.endsWith('/v1')
+      ? `${cleanEndpoint}/models`
+      : `${cleanEndpoint}/v1/models`;
 
     const res = await fetch(modelsUrl, {
       method: 'GET',
@@ -75,7 +77,14 @@ export async function checkLocalLlmAvailability(
   return { available: false, provider, models: [] };
 }
 
-const LLM_CATEGORIES = ['functional', 'security', 'reliability', 'performance', 'ergonomics', 'technical'];
+const LLM_CATEGORIES = [
+  'functional',
+  'security',
+  'reliability',
+  'performance',
+  'ergonomics',
+  'technical',
+];
 
 /**
  * Turns an LLM reply into requirement *proposals*.
@@ -89,7 +98,7 @@ function buildLlmProposals(
   parsedJson: any[],
   rawItems: Gost34RequirementItem[],
   targetModel: string,
-  idPrefix: string
+  idPrefix: string,
 ): Gost34RequirementV2[] {
   const byCode = new Map<string, Gost34RequirementItem>();
   for (const item of rawItems) {
@@ -130,7 +139,9 @@ function buildLlmProposals(
 function rulesFallback(rawItems: Gost34RequirementItem[]): LlmNormalizationResult {
   const normalized = normalizeRequirementItemsV2(fromGost34RequirementItems(rawItems));
   return {
-    requirements: toGost34RequirementItems(normalized, { preferNormalized: true }),
+    requirements: toGost34RequirementItems(normalized, {
+      preferNormalized: true,
+    }),
     requirementsV2: normalized,
     usedLlm: false,
   };
@@ -151,7 +162,7 @@ export interface LlmNormalizationResult {
  */
 export async function normalizeRequirementsWithLlm(
   rawItems: Gost34RequirementItem[],
-  options: LlmNormalizerOptions
+  options: LlmNormalizerOptions,
 ): Promise<LlmNormalizationResult> {
   const provider = options.provider.kind;
   const endpoint = options.provider.endpoint.replace(/\/+$/, '');
@@ -159,21 +170,38 @@ export async function normalizeRequirementsWithLlm(
   const fallbackToRules = options.fallbackToRules !== false;
 
   // 1. Check availability
-  const { available, models, provider: detectedProvider } = await checkLocalLlmAvailability(endpoint, provider);
+  const {
+    available,
+    models,
+    provider: detectedProvider,
+  } = await checkLocalLlmAvailability(endpoint, provider);
 
   if (!available) {
     if (fallbackToRules) {
       return rulesFallback(rawItems);
     } else {
-      throw new Error(`ИИ-сервер недоступен по адресу ${endpoint}. Запустите Ollama или LM Studio.`);
+      throw new Error(
+        `ИИ-сервер недоступен по адресу ${endpoint}. Запустите Ollama или LM Studio.`,
+      );
     }
   }
 
-  const preferredModels = ['qwen2.5', 'llama3.2', 'llama3', 'mistral', 'deepseek-r1', 'gemma2', 'local-model'];
+  const preferredModels = [
+    'qwen2.5',
+    'llama3.2',
+    'llama3',
+    'mistral',
+    'deepseek-r1',
+    'gemma2',
+    'local-model',
+  ];
   let targetModel = options.model || options.provider.defaultModel;
 
   if (!targetModel) {
-    targetModel = models.find((m) => preferredModels.some((pref) => m.toLowerCase().includes(pref))) || models[0] || 'llama3.2';
+    targetModel =
+      models.find((m) => preferredModels.some((pref) => m.toLowerCase().includes(pref))) ||
+      models[0] ||
+      'llama3.2';
   }
 
   const systemPrompt = `Ты — ведущий системный архитектор и специалист по ГОСТ 34.602-89.
@@ -204,13 +232,15 @@ export async function normalizeRequirementsWithLlm(
       description: item.description,
     })),
     null,
-    2
+    2,
   );
 
   // 2. Request via LM Studio / OpenAI Chat Completions API
   if (detectedProvider === 'openai_compatible' || provider === 'openai_compatible') {
     try {
-      const chatUrl = endpoint.endsWith('/v1') ? `${endpoint}/chat/completions` : `${endpoint}/v1/chat/completions`;
+      const chatUrl = endpoint.endsWith('/v1')
+        ? `${endpoint}/chat/completions`
+        : `${endpoint}/v1/chat/completions`;
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -230,7 +260,10 @@ export async function normalizeRequirementsWithLlm(
           model: targetModel,
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Исходные требования вендора для нормализации:\n${userContent}` },
+            {
+              role: 'user',
+              content: `Исходные требования вендора для нормализации:\n${userContent}`,
+            },
           ],
           temperature: options.temperature ?? 0.2,
         }),
@@ -250,7 +283,9 @@ export async function normalizeRequirementsWithLlm(
             const proposals = buildLlmProposals(parsedJson, rawItems, targetModel, 'req-lmstudio');
 
             return {
-              requirements: toGost34RequirementItems(proposals, { preferNormalized: true }),
+              requirements: toGost34RequirementItems(proposals, {
+                preferNormalized: true,
+              }),
               requirementsV2: proposals,
               usedLlm: true,
               modelUsed: targetModel,
@@ -260,7 +295,9 @@ export async function normalizeRequirementsWithLlm(
         }
       }
     } catch (e: any) {
-      console.warn(`LM Studio / OpenAI API call failed (${e?.message}). Trying Ollama format or rules.`);
+      console.warn(
+        `LM Studio / OpenAI API call failed (${e?.message}). Trying Ollama format or rules.`,
+      );
     }
   }
 
@@ -297,7 +334,9 @@ export async function normalizeRequirementsWithLlm(
           const proposals = buildLlmProposals(parsedJson, rawItems, targetModel, 'req-ollama');
 
           return {
-            requirements: toGost34RequirementItems(proposals, { preferNormalized: true }),
+            requirements: toGost34RequirementItems(proposals, {
+              preferNormalized: true,
+            }),
             requirementsV2: proposals,
             usedLlm: true,
             modelUsed: targetModel,
