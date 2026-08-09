@@ -41,6 +41,7 @@ export type CitationKey =
   | 'primary'
   | 'documentsClassifier'
   | 'projectDocumentation'
+  | 'lifecycle'
   | 'testing'
   /** Standards the equipment/software specification is drawn up under, incl. clause. */
   | 'specificationBasis'
