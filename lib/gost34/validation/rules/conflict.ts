@@ -5,9 +5,9 @@ import {
   MODAL_PATTERN_GLOBAL,
   NEGATION_PATTERN,
   parseNumber,
-} from '../lexicon';
-import { finding, RequirementCheck } from '../context';
-import type { ValidationFinding } from '../types';
+} from "../lexicon";
+import { finding, RequirementCheck } from "../context";
+import type { ValidationFinding } from "../types";
 
 interface Bound {
   value: number;
@@ -21,7 +21,7 @@ function parseBound(text: string, pattern: RegExp): Bound | undefined {
   const value = parseNumber(match[1]);
   if (!Number.isFinite(value)) return undefined;
 
-  return { value, unit: (match[2] || '').toLowerCase() };
+  return { value, unit: (match[2] || "").toLowerCase() };
 }
 
 /** Границы сравнимы только при совпадающей единице измерения. */
@@ -33,9 +33,9 @@ function comparable(a: Bound, b: Bound): boolean {
 function semanticKey(text: string): string {
   return text
     .toLowerCase()
-    .replace(MODAL_PATTERN_GLOBAL, ' ')
-    .replace(/(?:^|[^0-9a-zа-яё])не(?=[^0-9a-zа-яё])/giu, ' ')
-    .replace(/[^0-9a-zа-яё]+/giu, ' ')
+    .replace(MODAL_PATTERN_GLOBAL, " ")
+    .replace(/(?:^|[^0-9a-zа-яё])не(?=[^0-9a-zа-яё])/giu, " ")
+    .replace(/[^0-9a-zа-яё]+/giu, " ")
     .trim();
 }
 
@@ -45,7 +45,7 @@ function declaredConflicts(checks: RequirementCheck[]): ValidationFinding[] {
 
   for (const check of checks) {
     for (const relation of check.requirement.relations || []) {
-      if (relation.type !== 'CONFLICTS_WITH') continue;
+      if (relation.type !== "CONFLICTS_WITH") continue;
 
       const other = byId.get(relation.targetRequirementId);
       const otherCode = other?.requirement.code || relation.targetRequirementId;
@@ -53,12 +53,12 @@ function declaredConflicts(checks: RequirementCheck[]): ValidationFinding[] {
       findings.push(
         finding(
           check,
-          'conflict',
-          'ERROR',
+          "conflict",
+          "ERROR",
           `Объявлено противоречие с требованием ${otherCode}.`,
-          'Снять противоречие: уточнить область действия одного из требований либо отменить одно из них.',
-          [relation.targetRequirementId]
-        )
+          "Снять противоречие: уточнить область действия одного из требований либо отменить одно из них.",
+          [relation.targetRequirementId],
+        ),
       );
     }
   }
@@ -86,11 +86,26 @@ function indicatorConflicts(checks: RequirementCheck[]): ValidationFinding[] {
 
         let reason: string | undefined;
 
-        if (a.upper && b.upper && comparable(a.upper, b.upper) && a.upper.value !== b.upper.value) {
+        if (
+          a.upper &&
+          b.upper &&
+          comparable(a.upper, b.upper) &&
+          a.upper.value !== b.upper.value
+        ) {
           reason = `заданы разные верхние границы (${a.upper.value} и ${b.upper.value})`;
-        } else if (a.upper && b.lower && comparable(a.upper, b.lower) && b.lower.value > a.upper.value) {
+        } else if (
+          a.upper &&
+          b.lower &&
+          comparable(a.upper, b.lower) &&
+          b.lower.value > a.upper.value
+        ) {
           reason = `нижняя граница ${b.lower.value} превышает верхнюю границу ${a.upper.value}`;
-        } else if (b.upper && a.lower && comparable(b.upper, a.lower) && a.lower.value > b.upper.value) {
+        } else if (
+          b.upper &&
+          a.lower &&
+          comparable(b.upper, a.lower) &&
+          a.lower.value > b.upper.value
+        ) {
           reason = `нижняя граница ${a.lower.value} превышает верхнюю границу ${b.upper.value}`;
         }
 
@@ -99,12 +114,12 @@ function indicatorConflicts(checks: RequirementCheck[]): ValidationFinding[] {
         findings.push(
           finding(
             a.check,
-            'conflict',
-            'ERROR',
+            "conflict",
+            "ERROR",
             `Противоречие с требованием ${b.check.requirement.code} по показателю «${indicator.label}»: ${reason}.`,
-            'Согласовать единое значение показателя либо явно разграничить условия применения требований.',
-            [b.check.requirement.id]
-          )
+            "Согласовать единое значение показателя либо явно разграничить условия применения требований.",
+            [b.check.requirement.id],
+          ),
         );
       }
     }
@@ -132,19 +147,21 @@ function negationConflicts(checks: RequirementCheck[]): ValidationFinding[] {
     if (bucket.length < 2) continue;
 
     const negated = bucket.filter((check) => NEGATION_PATTERN.test(check.text));
-    const affirmed = bucket.filter((check) => !NEGATION_PATTERN.test(check.text));
+    const affirmed = bucket.filter(
+      (check) => !NEGATION_PATTERN.test(check.text),
+    );
     if (!negated.length || !affirmed.length) continue;
 
     for (const check of affirmed) {
       findings.push(
         finding(
           check,
-          'conflict',
-          'ERROR',
-          `Требование прямо противоречит ${negated.map((n) => n.requirement.code).join(', ')}: одно и то же утверждение задано с отрицанием и без него.`,
-          'Оставить одну формулировку либо разграничить условия применения.',
-          negated.map((n) => n.requirement.id)
-        )
+          "conflict",
+          "ERROR",
+          `Требование прямо противоречит ${negated.map((n) => n.requirement.code).join(", ")}: одно и то же утверждение задано с отрицанием и без него.`,
+          "Оставить одну формулировку либо разграничить условия применения.",
+          negated.map((n) => n.requirement.id),
+        ),
       );
     }
   }
@@ -156,6 +173,12 @@ function negationConflicts(checks: RequirementCheck[]): ValidationFinding[] {
  * Непротиворечивость. Сводная проверка: работает по набору требований целиком,
  * а не по одному требованию.
  */
-export function checkConflicts(checks: RequirementCheck[]): ValidationFinding[] {
-  return [...declaredConflicts(checks), ...indicatorConflicts(checks), ...negationConflicts(checks)];
+export function checkConflicts(
+  checks: RequirementCheck[],
+): ValidationFinding[] {
+  return [
+    ...declaredConflicts(checks),
+    ...indicatorConflicts(checks),
+    ...negationConflicts(checks),
+  ];
 }

@@ -26,11 +26,17 @@ export function complexityPercent(value: string | undefined | null): number {
 export function computePmHours(
   fields: { key: string; type: string }[],
   answers: Record<string, unknown>,
-  otherStagesHours: number
+  otherStagesHours: number,
 ): number {
   const complexityField = fields.find((f) => f.type === "complexity");
-  const complexityValue = complexityField ? String(answers[complexityField.key] ?? "") : "";
+  const complexityValue = complexityField
+    ? String(answers[complexityField.key] ?? "")
+    : "";
   const percent = complexityPercent(complexityValue);
   const overhead = (percent / 100) * otherStagesHours;
-  return Math.round((PM_START_HOURS + PM_CLOSE_HOURS + overhead + Number.EPSILON) * 100) / 100;
+  return (
+    Math.round(
+      (PM_START_HOURS + PM_CLOSE_HOURS + overhead + Number.EPSILON) * 100,
+    ) / 100
+  );
 }

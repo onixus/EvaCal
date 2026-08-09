@@ -11,7 +11,8 @@ export default async function AccountPage() {
       <div>
         <h1 className="text-xl font-semibold">Аккаунт</h1>
         <p className="text-sm text-slate-500">
-          {session.username} · {session.role === "admin" ? "Администратор" : "Архитектор"}
+          {session.username} ·{" "}
+          {session.role === "admin" ? "Администратор" : "Архитектор"}
         </p>
       </div>
       <div className="card p-6">

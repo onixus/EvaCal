@@ -1,18 +1,22 @@
-import { analyzeAndNormalizeInput } from './analyzer';
-import { buildGost34DocumentAST } from './generator';
-import { exportGost34ToDocx } from './exporters/docxExporter';
-import { Gost34DocMetadata, Gost34RequirementItem, Gost34DocumentAST } from './types';
-import { ProjectContext } from './context/types';
+import { analyzeAndNormalizeInput } from "./analyzer";
+import { buildGost34DocumentAST } from "./generator";
+import { exportGost34ToDocx } from "./exporters/docxExporter";
+import {
+  Gost34DocMetadata,
+  Gost34RequirementItem,
+  Gost34DocumentAST,
+} from "./types";
+import { ProjectContext } from "./context/types";
 
-export * from './types';
-export * from './standards';
-export * from './context';
-export * from './validation';
-export * from './applicability';
-export { getEnrichedGostRequirements } from './enricher';
-export { analyzeAndNormalizeInput } from './analyzer';
-export { buildGost34DocumentAST } from './generator';
-export { exportGost34ToDocx } from './exporters/docxExporter';
+export * from "./types";
+export * from "./standards";
+export * from "./context";
+export * from "./validation";
+export * from "./applicability";
+export { getEnrichedGostRequirements } from "./enricher";
+export { analyzeAndNormalizeInput } from "./analyzer";
+export { buildGost34DocumentAST } from "./generator";
+export { exportGost34ToDocx } from "./exporters/docxExporter";
 
 /**
  * High-level API to generate a GOST 34 document (.docx)
@@ -28,10 +32,10 @@ export async function generateGost34Document(params: {
   const ast = buildGost34DocumentAST(normalizedPayload);
   const buffer = await exportGost34ToDocx(ast);
 
-  const docType = normalizedPayload.metadata.docType || 'TZ';
-  const safeName = (normalizedPayload.systemName || 'gost34_doc')
+  const docType = normalizedPayload.metadata.docType || "TZ";
+  const safeName = (normalizedPayload.systemName || "gost34_doc")
     .toLowerCase()
-    .replace(/[^a-z0-9а-яё]+/gi, '_')
+    .replace(/[^a-z0-9а-яё]+/gi, "_")
     .substring(0, 30);
   const filename = `${docType}_GOST34_${safeName}.docx`;
 

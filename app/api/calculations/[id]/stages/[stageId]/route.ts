@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiRole } from "@/lib/auth";
 
-const ALLOWED_STATUSES = ["planned", "in_progress", "done", "approved", "rejected"];
+const ALLOWED_STATUSES = [
+  "planned",
+  "in_progress",
+  "done",
+  "approved",
+  "rejected",
+];
 
 // Lightweight status update only — dates/hours are owned by the stage-rebuild flow.
 export async function PATCH(
   req: NextRequest,
-  props: { params: Promise<{ id: string; stageId: string }> }
+  props: { params: Promise<{ id: string; stageId: string }> },
 ) {
   const params = await props.params;
   const auth = await requireApiRole("architect");

@@ -37,7 +37,12 @@ export default function LoginForm() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="label">Логин</label>
-        <input className="input" required value={username} onChange={(e) => setUsername(e.target.value)} />
+        <input
+          className="input"
+          required
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
       </div>
       <div>
         <label className="label">Пароль</label>
@@ -50,7 +55,11 @@ export default function LoginForm() {
         />
       </div>
       {error && <p className="text-sm text-rose-600">{error}</p>}
-      <button type="submit" className="btn-primary w-full" disabled={submitting}>
+      <button
+        type="submit"
+        className="btn-primary w-full"
+        disabled={submitting}
+      >
         {submitting ? "Вход…" : "Войти"}
       </button>
     </form>

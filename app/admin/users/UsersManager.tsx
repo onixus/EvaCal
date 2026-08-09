@@ -22,7 +22,11 @@ export default function UsersManager({ users }: { users: User[] }) {
   const [role, setRole] = useState("architect");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<{ username: string; role: string; password: string } | null>(null);
+  const [created, setCreated] = useState<{
+    username: string;
+    role: string;
+    password: string;
+  } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -36,8 +40,13 @@ export default function UsersManager({ users }: { users: User[] }) {
         body: JSON.stringify({ username, role }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Не удалось создать пользователя");
-      setCreated({ username: data.username, role: data.role, password: data.password });
+      if (!res.ok)
+        throw new Error(data.error ?? "Не удалось создать пользователя");
+      setCreated({
+        username: data.username,
+        role: data.role,
+        password: data.password,
+      });
       setUsername("");
       router.refresh();
     } catch (err) {
@@ -67,14 +76,21 @@ export default function UsersManager({ users }: { users: User[] }) {
       {created && (
         <div className="card border-emerald-300 bg-emerald-50 p-4 text-sm dark:border-nord-green/50 dark:bg-nord-green/10">
           <p className="font-medium">
-            Пользователь «{created.username}» ({ROLE_LABELS[created.role]}) создан.
+            Пользователь «{created.username}» ({ROLE_LABELS[created.role]})
+            создан.
           </p>
           <p className="mt-1">
-            Пароль: <code className="rounded bg-white px-1.5 py-0.5 dark:bg-nord-2">{created.password}</code> —
-            показывается один раз, сохраните и передайте пользователю. При первом входе стоит сменить пароль в
-            «Аккаунт».
+            Пароль:{" "}
+            <code className="rounded bg-white px-1.5 py-0.5 dark:bg-nord-2">
+              {created.password}
+            </code>{" "}
+            — показывается один раз, сохраните и передайте пользователю. При
+            первом входе стоит сменить пароль в «Аккаунт».
           </p>
-          <button className="btn-secondary mt-2" onClick={() => setCreated(null)}>
+          <button
+            className="btn-secondary mt-2"
+            onClick={() => setCreated(null)}
+          >
             Понятно
           </button>
         </div>
@@ -82,14 +98,26 @@ export default function UsersManager({ users }: { users: User[] }) {
 
       <div className="card p-6">
         <h2 className="mb-3 font-medium">Новый пользователь</h2>
-        <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-wrap items-end gap-3"
+        >
           <div className="flex-1 min-w-[200px]">
             <label className="label">Логин</label>
-            <input className="input" required value={username} onChange={(e) => setUsername(e.target.value)} />
+            <input
+              className="input"
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Роль</label>
-            <select className="input w-48" value={role} onChange={(e) => setRole(e.target.value)}>
+            <select
+              className="input w-48"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+            >
               <option value="architect">Архитектор</option>
               <option value="admin">Администратор</option>
             </select>
@@ -118,11 +146,16 @@ export default function UsersManager({ users }: { users: User[] }) {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="border-b border-slate-100 last:border-0 dark:border-nord-3">
+                <tr
+                  key={u.id}
+                  className="border-b border-slate-100 last:border-0 dark:border-nord-3"
+                >
                   <td className="py-2 pr-4 font-medium">{u.username}</td>
                   <td className="py-2 pr-4">{ROLE_LABELS[u.role] ?? u.role}</td>
                   <td className="py-2 pr-4 text-slate-500 dark:text-nord-muted">
-                    {u.mustChangePassword ? "выдан, ещё не менялся" : "изменён пользователем"}
+                    {u.mustChangePassword
+                      ? "выдан, ещё не менялся"
+                      : "изменён пользователем"}
                   </td>
                   <td className="py-2 pr-4 text-slate-500 dark:text-nord-muted">
                     {new Date(u.createdAt).toLocaleDateString("ru-RU")}

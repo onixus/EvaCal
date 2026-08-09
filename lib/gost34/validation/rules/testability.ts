@@ -1,5 +1,5 @@
-import { finding, RequirementCheck } from '../context';
-import type { ValidationFinding } from '../types';
+import { finding, RequirementCheck } from "../context";
+import type { ValidationFinding } from "../types";
 
 /**
  * Проверяемость. Требование проверяемо, если задан метод верификации или
@@ -19,10 +19,10 @@ export function checkTestability(check: RequirementCheck): ValidationFinding[] {
     return [
       finding(
         check,
-        'testability',
-        'ERROR',
-        'Требование непроверяемо: формулировка оценочная, измеримый показатель не задан.',
-        'Задать измеримый показатель либо критерии приёмки и метод верификации (INSPECTION / ANALYSIS / DEMONSTRATION / TEST).'
+        "testability",
+        "ERROR",
+        "Требование непроверяемо: формулировка оценочная, измеримый показатель не задан.",
+        "Задать измеримый показатель либо критерии приёмки и метод верификации (INSPECTION / ANALYSIS / DEMONSTRATION / TEST).",
       ),
     ];
   }
@@ -31,10 +31,10 @@ export function checkTestability(check: RequirementCheck): ValidationFinding[] {
     return [
       finding(
         check,
-        'testability',
-        'INFO',
-        'Не указан метод верификации, хотя показатель задан численно.',
-        'Указать метод верификации, чтобы требование попало в программу и методику испытаний.'
+        "testability",
+        "INFO",
+        "Не указан метод верификации, хотя показатель задан численно.",
+        "Указать метод верификации, чтобы требование попало в программу и методику испытаний.",
       ),
     ];
   }
@@ -42,10 +42,10 @@ export function checkTestability(check: RequirementCheck): ValidationFinding[] {
   return [
     finding(
       check,
-      'testability',
-      'WARNING',
-      'Не заданы ни метод верификации, ни критерии приёмки.',
-      'Указать метод верификации и критерии приёмки для включения требования в ПМИ.'
+      "testability",
+      "WARNING",
+      "Не заданы ни метод верификации, ни критерии приёмки.",
+      "Указать метод верификации и критерии приёмки для включения требования в ПМИ.",
     ),
   ];
 }

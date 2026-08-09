@@ -46,7 +46,9 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
   async function duplicate(id: string) {
     setBusy(id);
     try {
-      const res = await fetch(`/api/templates/${id}/duplicate`, { method: "POST" });
+      const res = await fetch(`/api/templates/${id}/duplicate`, {
+        method: "POST",
+      });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         router.push(`/admin/${data.id}`);
@@ -92,7 +94,10 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
                 />
               ) : (
                 <div className="flex items-center gap-2">
-                  <Link href={`/admin/${t.id}`} className="font-medium text-brand-700 hover:underline">
+                  <Link
+                    href={`/admin/${t.id}`}
+                    className="font-medium text-brand-700 hover:underline"
+                  >
                     {t.name}
                   </Link>
                   <button
@@ -104,23 +109,34 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
                   </button>
                 </div>
               )}
-              {t.description && <p className="text-xs text-slate-500">{t.description}</p>}
+              {t.description && (
+                <p className="text-xs text-slate-500">{t.description}</p>
+              )}
             </td>
             <td className="py-2 pr-4">{t._count.fields}</td>
             <td className="py-2 pr-4">{t._count.stageTemplates}</td>
             <td className="py-2 pr-4">{t._count.calculations}</td>
             <td className="py-2 pr-4">
               {t.isActive ? (
-                <span className="badge bg-emerald-100 text-emerald-700">Активен</span>
+                <span className="badge bg-emerald-100 text-emerald-700">
+                  Активен
+                </span>
               ) : (
-                <button className="btn-secondary px-2 py-1 text-xs" disabled={busy === t.id} onClick={() => activate(t.id)}>
+                <button
+                  className="btn-secondary px-2 py-1 text-xs"
+                  disabled={busy === t.id}
+                  onClick={() => activate(t.id)}
+                >
                   Сделать активным
                 </button>
               )}
             </td>
             <td className="py-2 pr-4">
               <div className="flex items-center gap-2">
-                <Link href={`/admin/${t.id}`} className="btn-secondary px-3 py-1 text-xs">
+                <Link
+                  href={`/admin/${t.id}`}
+                  className="btn-secondary px-3 py-1 text-xs"
+                >
                   Редактировать
                 </Link>
                 <button

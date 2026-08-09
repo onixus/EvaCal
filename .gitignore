@@ -11,3 +11,6 @@ credentials.local.txt
 .DS_Store
 *.tsbuildinfo
 nginx/certs/*.pem
+.claude/
+.husky/
+!/.husky/

@@ -1,4 +1,5 @@
-export type LayoutProfileId = 'gost34-modern' | 'gost34-eskd-frame' | 'plain-corporate';
+export type LayoutProfileId =
+  "gost34-modern" | "gost34-eskd-frame" | "plain-corporate";
 
 export interface LayoutMargin {
   topMm: number;

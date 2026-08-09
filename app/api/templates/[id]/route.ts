@@ -3,7 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { requireApiRole } from "@/lib/auth";
 import { clampWorkDayHours } from "@/lib/scheduling";
 
-export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+export async function GET(
+  _req: NextRequest,
+  props: { params: Promise<{ id: string }> },
+) {
   const params = await props.params;
   const template = await prisma.formTemplate.findUnique({
     where: { id: params.id },
@@ -13,11 +16,15 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
       riskTemplates: { orderBy: { order: "asc" } },
     },
   });
-  if (!template) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (!template)
+    return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json(template);
 }
 
-export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  req: NextRequest,
+  props: { params: Promise<{ id: string }> },
+) {
   const params = await props.params;
   const auth = await requireApiRole("admin");
   if (auth instanceof NextResponse) return auth;
@@ -27,27 +34,42 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
     where: { id: params.id },
     data: {
       ...(body.name !== undefined ? { name: body.name } : {}),
-      ...(body.description !== undefined ? { description: body.description } : {}),
-      ...(body.defaultStartDate !== undefined
-        ? { defaultStartDate: body.defaultStartDate ? new Date(body.defaultStartDate) : null }
+      ...(body.description !== undefined
+        ? { description: body.description }
         : {}),
-      ...(body.workDayHours !== undefined ? { workDayHours: clampWorkDayHours(Number(body.workDayHours)) } : {}),
-      ...(body.includeWeekends !== undefined ? { includeWeekends: !!body.includeWeekends } : {}),
+      ...(body.defaultStartDate !== undefined
+        ? {
+            defaultStartDate: body.defaultStartDate
+              ? new Date(body.defaultStartDate)
+              : null,
+          }
+        : {}),
+      ...(body.workDayHours !== undefined
+        ? { workDayHours: clampWorkDayHours(Number(body.workDayHours)) }
+        : {}),
+      ...(body.includeWeekends !== undefined
+        ? { includeWeekends: !!body.includeWeekends }
+        : {}),
     },
   });
   return NextResponse.json(template);
 }
 
-export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  _req: NextRequest,
+  props: { params: Promise<{ id: string }> },
+) {
   const params = await props.params;
   const auth = await requireApiRole("admin");
   if (auth instanceof NextResponse) return auth;
 
-  const inUse = await prisma.calculation.count({ where: { templateId: params.id } });
+  const inUse = await prisma.calculation.count({
+    where: { templateId: params.id },
+  });
   if (inUse > 0) {
     return NextResponse.json(
       { error: "Шаблон используется в расчётах и не может быть удалён" },
-      { status: 409 }
+      { status: 409 },
     );
   }
   await prisma.formTemplate.delete({ where: { id: params.id } });

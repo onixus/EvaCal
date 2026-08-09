@@ -6,16 +6,16 @@
  * он только сообщает, чем требование не удовлетворяет этим свойствам.
  */
 
-export type ValidationSeverity = 'ERROR' | 'WARNING' | 'INFO';
+export type ValidationSeverity = "ERROR" | "WARNING" | "INFO";
 
 export type ValidationRuleId =
-  | 'atomicity'
-  | 'ambiguity'
-  | 'measurability'
-  | 'conflict'
-  | 'completeness'
-  | 'testability'
-  | 'source';
+  | "atomicity"
+  | "ambiguity"
+  | "measurability"
+  | "conflict"
+  | "completeness"
+  | "testability"
+  | "source";
 
 export interface ValidationFinding {
   severity: ValidationSeverity;

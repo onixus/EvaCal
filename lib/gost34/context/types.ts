@@ -11,12 +11,12 @@
 
 /** Откуда получено значение поля контекста. */
 export type ContextSource =
-  | 'questionnaire' // ответы опросника (Calculation.answers)
-  | 'calculation' // сам расчёт: этапы, риски, трудозатраты, сроки
-  | 'document' // импортированный вендорский документ
-  | 'requirement' // согласованное требование
-  | 'manual' // ручной ввод / override через API
-  | 'unknown';
+  | "questionnaire" // ответы опросника (Calculation.answers)
+  | "calculation" // сам расчёт: этапы, риски, трудозатраты, сроки
+  | "document" // импортированный вендорский документ
+  | "requirement" // согласованное требование
+  | "manual" // ручной ввод / override через API
+  | "unknown";
 
 /** Провенанс одного поля контекста. */
 export interface ContextProvenance {
@@ -28,7 +28,7 @@ export interface ContextProvenance {
 }
 
 /** Насколько критично отсутствие данных для выпуска документа. */
-export type ContextGapSeverity = 'blocking' | 'major' | 'minor';
+export type ContextGapSeverity = "blocking" | "major" | "minor";
 
 /** Незаполненное поле проектного контекста. */
 export interface ContextGap {
@@ -61,7 +61,8 @@ export interface ArchitectureContext {
   notes?: string[];
 }
 
-export type IntegrationDirection = 'inbound' | 'outbound' | 'bidirectional' | 'unknown';
+export type IntegrationDirection =
+  "inbound" | "outbound" | "bidirectional" | "unknown";
 
 export interface IntegrationContext {
   name: string;
@@ -71,7 +72,7 @@ export interface IntegrationContext {
   note?: string;
 }
 
-export type DeploymentModel = 'on-premise' | 'cloud' | 'hybrid' | 'unknown';
+export type DeploymentModel = "on-premise" | "cloud" | "hybrid" | "unknown";
 
 export interface InfrastructureContext {
   deploymentModel?: DeploymentModel;
@@ -175,7 +176,7 @@ export interface ProjectContext {
 }
 
 /** Текст-заполнитель для полей, по которым нет данных. */
-export const CONTEXT_GAP_PLACEHOLDER = 'Требует уточнения у Заказчика';
+export const CONTEXT_GAP_PLACEHOLDER = "Требует уточнения у Заказчика";
 
 /** Форматирует незаполненное поле для вставки в документ. */
 export function formatGap(label: string): string {

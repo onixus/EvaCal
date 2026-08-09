@@ -8,7 +8,11 @@ export const metadata: Metadata = {
   description: "Расчёт трудозатрат в человеко-часах по этапам проекта",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="ru">
       <head>

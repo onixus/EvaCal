@@ -2,16 +2,16 @@
  * GOST 34 / GOST 2.104-2006 / GOST 2.105-95 Domain Types
  */
 
-import type { StandardProfile } from './standards/types';
-import type { Gost34RequirementV2 } from './requirements/v2';
-import type { ProjectContext } from './context/types';
-import type { ValidationReport } from './validation/types';
-import type { ApplicabilityResult } from './applicability/types';
+import type { StandardProfile } from "./standards/types";
+import type { Gost34RequirementV2 } from "./requirements/v2";
+import type { ProjectContext } from "./context/types";
+import type { ValidationReport } from "./validation/types";
+import type { ApplicabilityResult } from "./applicability/types";
 
-export type GostDocumentType = 'TZ' | 'PZ' | 'AF' | 'PMI' | 'SPEC';
+export type GostDocumentType = "TZ" | "PZ" | "AF" | "PMI" | "SPEC";
 
 /** What an export request may ask for: one document, or the full batch as a ZIP. */
-export type GostExportType = GostDocumentType | 'ZIP';
+export type GostExportType = GostDocumentType | "ZIP";
 
 export interface Gost2104Signatures {
   developer: string; // Разработал (ФИО)
@@ -27,19 +27,19 @@ export interface Gost2104Signatures {
 }
 
 export interface Gost34EnrichmentOptions {
-  fstek_21?: boolean;         // Приказ ФСТЭК № 21 (Защита ИСПДн)
-  fstek_117?: boolean;        // Приказ ФСТЭК № 117 + ГОСТ Р 56939-2016 (Безопасная разработка)
-  fstek_239?: boolean;        // Приказ ФСТЭК № 239 (Безопасность объектов КИИ)
-  gost_57580?: boolean;       // ГОСТ Р 57580.1-2017 / СТО БР ИББС
-  cb_683p?: boolean;          // Положение ЦБ РФ № 683-П (Безопасность ПО кредитных организаций)
-  cb_757p?: boolean;          // Положение ЦБ РФ № 757-П (Безопасность НФО)
-  cb_719p?: boolean;          // Положение ЦБ РФ № 719-П (Антифрод и электронная подпись)
+  fstek_21?: boolean; // Приказ ФСТЭК № 21 (Защита ИСПДн)
+  fstek_117?: boolean; // Приказ ФСТЭК № 117 + ГОСТ Р 56939-2016 (Безопасная разработка)
+  fstek_239?: boolean; // Приказ ФСТЭК № 239 (Безопасность объектов КИИ)
+  gost_57580?: boolean; // ГОСТ Р 57580.1-2017 / СТО БР ИББС
+  cb_683p?: boolean; // Положение ЦБ РФ № 683-П (Безопасность ПО кредитных организаций)
+  cb_757p?: boolean; // Положение ЦБ РФ № 757-П (Безопасность НФО)
+  cb_719p?: boolean; // Положение ЦБ РФ № 719-П (Антифрод и электронная подпись)
   fsb_282_gossopka?: boolean; // Приказ ФСБ № 282 (Интеграция с ГосСОПКА / НКЦКИ)
-  fz_187_kii?: boolean;       // 187-ФЗ (О безопасности КИИ РФ)
-  fz_152?: boolean;           // 152-ФЗ / 242-ФЗ (Локализация баз ПДн в РФ)
-  fz_188_reestr?: boolean;    // 188-ФЗ (Единый реестр российского ПО, Astra Linux/PostgreSQL)
-  sla_999?: boolean;          // SLA 99.9% (RTO ≤ 15 мин, RPO ≤ 5 мин)
-  wcag_52872?: boolean;       // ГОСТ Р 52872-2019 / WCAG 2.1 AA (Доступность)
+  fz_187_kii?: boolean; // 187-ФЗ (О безопасности КИИ РФ)
+  fz_152?: boolean; // 152-ФЗ / 242-ФЗ (Локализация баз ПДн в РФ)
+  fz_188_reestr?: boolean; // 188-ФЗ (Единый реестр российского ПО, Astra Linux/PostgreSQL)
+  sla_999?: boolean; // SLA 99.9% (RTO ≤ 15 мин, RPO ≤ 5 мин)
+  wcag_52872?: boolean; // ГОСТ Р 52872-2019 / WCAG 2.1 AA (Доступность)
 }
 
 export interface Gost34DocMetadata {
@@ -57,18 +57,18 @@ export interface Gost34DocMetadata {
   enrichRequirements?: boolean; // Флаг нормативного авто-обогащения
   enrichmentOptions?: Gost34EnrichmentOptions; // Выбранные стандарты нормативного обогащения
   standardProfileId?: string; // Идентификатор нормативного профиля (по умолчанию legacy)
-  layoutProfileId?: import('./exporters/layout/types').LayoutProfileId; // Профиль визуального оформления DOCX
+  layoutProfileId?: import("./exporters/layout/types").LayoutProfileId; // Профиль визуального оформления DOCX
 }
 
 export type RequirementCategory =
-  | 'functional'
-  | 'performance'
-  | 'security'
-  | 'reliability'
-  | 'ergonomics'
-  | 'technical'
-  | 'software'
-  | 'organizational';
+  | "functional"
+  | "performance"
+  | "security"
+  | "reliability"
+  | "ergonomics"
+  | "technical"
+  | "software"
+  | "organizational";
 
 export interface Gost34RequirementItem {
   id: string;
@@ -155,5 +155,5 @@ export interface Gost34InputPayload {
   /** Замечания GOST Validator к набору требований. Не блокирует генерацию. */
   validation?: ValidationReport;
   /** Предварительно рассчитанные или вручную отредактированные связи трассировки (Traceability Engine, PR-07). */
-  traceability?: import('./traceability/types').TraceabilityResult;
+  traceability?: import("./traceability/types").TraceabilityResult;
 }

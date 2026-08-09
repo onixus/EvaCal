@@ -20,19 +20,27 @@ interface Props {
 
 export default function DynamicForm({ fields, values, onChange }: Props) {
   if (fields.length === 0) {
-    return <p className="text-sm text-slate-500">В этом шаблоне пока нет вопросов.</p>;
+    return (
+      <p className="text-sm text-slate-500">
+        В этом шаблоне пока нет вопросов.
+      </p>
+    );
   }
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {fields.map((field) => {
         const value = values[field.key] ?? "";
-        const options: string[] = field.options ? JSON.parse(field.options) : [];
+        const options: string[] = field.options
+          ? JSON.parse(field.options)
+          : [];
         return (
           <div key={field.id}>
             <label className="label">
               {field.label}
-              {field.required ? <span className="text-rose-500"> *</span> : null}
+              {field.required ? (
+                <span className="text-rose-500"> *</span>
+              ) : null}
             </label>
             {field.type === "number" && (
               <input
@@ -40,7 +48,9 @@ export default function DynamicForm({ fields, values, onChange }: Props) {
                 className="input"
                 required={field.required}
                 value={value as number}
-                onChange={(e) => onChange(field.key, e.target.valueAsNumber || 0)}
+                onChange={(e) =>
+                  onChange(field.key, e.target.valueAsNumber || 0)
+                }
               />
             )}
             {field.type === "text" && (

@@ -6,7 +6,11 @@ import { risksTotalHours } from "./totals";
 
 function fmtDate(d: Date | null): string {
   if (!d) return "";
-  return new Date(d).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return new Date(d).toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 export function renderCalculationXlsx(calc: CalculationForExport): Buffer {
@@ -41,7 +45,17 @@ export function renderCalculationXlsx(calc: CalculationForExport): Buffer {
   }
 
   const stagesSheet = XLSX.utils.aoa_to_sheet([
-    ["Этап", "Роль", "Параллельно", "Часы", "Начало", "Окончание", "Срок согласования", "Статус", "Требования"],
+    [
+      "Этап",
+      "Роль",
+      "Параллельно",
+      "Часы",
+      "Начало",
+      "Окончание",
+      "Срок согласования",
+      "Статус",
+      "Требования",
+    ],
     ...calc.stages.map((s) => [
       s.name,
       roleLabel(s.role),

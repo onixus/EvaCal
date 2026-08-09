@@ -15,12 +15,20 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function NewCalculationForm({ template }: { template: Template }) {
+export default function NewCalculationForm({
+  template,
+}: {
+  template: Template;
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [customer, setCustomer] = useState("");
-  const [startDate, setStartDate] = useState(template.defaultStartDate?.slice(0, 10) ?? todayIso());
-  const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({});
+  const [startDate, setStartDate] = useState(
+    template.defaultStartDate?.slice(0, 10) ?? todayIso(),
+  );
+  const [answers, setAnswers] = useState<
+    Record<string, string | number | boolean>
+  >({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const startDateLocked = !!template.defaultStartDate;
@@ -33,7 +41,13 @@ export default function NewCalculationForm({ template }: { template: Template })
       const res = await fetch("/api/calculations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, customer, templateId: template.id, answers, startDate }),
+        body: JSON.stringify({
+          name,
+          customer,
+          templateId: template.id,
+          answers,
+          startDate,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -53,15 +67,30 @@ export default function NewCalculationForm({ template }: { template: Template })
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label">Название проекта</label>
-          <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            className="input"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
         <div>
           <label className="label">Заказчик</label>
-          <input className="input" required value={customer} onChange={(e) => setCustomer(e.target.value)} />
+          <input
+            className="input"
+            required
+            value={customer}
+            onChange={(e) => setCustomer(e.target.value)}
+          />
         </div>
         <div>
           <label className="label">
-            Дата старта проекта{startDateLocked && <span className="ml-1 text-xs text-slate-400">(зафиксирована шаблоном)</span>}
+            Дата старта проекта
+            {startDateLocked && (
+              <span className="ml-1 text-xs text-slate-400">
+                (зафиксирована шаблоном)
+              </span>
+            )}
           </label>
           <input
             type="date"
@@ -75,11 +104,15 @@ export default function NewCalculationForm({ template }: { template: Template })
       </div>
 
       <div>
-        <h3 className="mb-2 text-sm font-medium text-slate-700">Опросник «{template.name}»</h3>
+        <h3 className="mb-2 text-sm font-medium text-slate-700">
+          Опросник «{template.name}»
+        </h3>
         <DynamicForm
           fields={template.fields}
           values={answers}
-          onChange={(key, value) => setAnswers((prev) => ({ ...prev, [key]: value }))}
+          onChange={(key, value) =>
+            setAnswers((prev) => ({ ...prev, [key]: value }))
+          }
         />
       </div>
 

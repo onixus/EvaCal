@@ -10,7 +10,9 @@ import ExportLinks from "@/components/ExportLinks";
 
 export const dynamic = "force-dynamic";
 
-export default async function CalculationViewPage(props: { params: Promise<{ id: string }> }) {
+export default async function CalculationViewPage(props: {
+  params: Promise<{ id: string }>;
+}) {
   const params = await props.params;
   const calculation = await prisma.calculation.findUnique({
     where: { id: params.id },
@@ -30,7 +32,8 @@ export default async function CalculationViewPage(props: { params: Promise<{ id:
         <div>
           <h1 className="text-xl font-semibold">{calculation.name}</h1>
           <p className="text-sm text-slate-500">
-            Заказчик: {calculation.customer} · Шаблон: {calculation.template.name} · Старт проекта:{" "}
+            Заказчик: {calculation.customer} · Шаблон:{" "}
+            {calculation.template.name} · Старт проекта:{" "}
             {calculation.startDate.toLocaleDateString("ru-RU")}
           </p>
         </div>
@@ -45,7 +48,9 @@ export default async function CalculationViewPage(props: { params: Promise<{ id:
         <dl className="grid gap-3 sm:grid-cols-2">
           {calculation.template.fields.map((field) => (
             <div key={field.id}>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">{field.label}</dt>
+              <dt className="text-xs uppercase tracking-wide text-slate-500">
+                {field.label}
+              </dt>
               <dd className="text-sm">{String(answers[field.key] ?? "—")}</dd>
             </div>
           ))}
@@ -54,7 +59,11 @@ export default async function CalculationViewPage(props: { params: Promise<{ id:
 
       <div className="card p-5">
         <h2 className="mb-3 font-medium">Трудозатраты</h2>
-        <TotalsSummary stages={calculation.stages} pmHours={calculation.pmHours} risks={calculation.risks} />
+        <TotalsSummary
+          stages={calculation.stages}
+          pmHours={calculation.pmHours}
+          risks={calculation.risks}
+        />
       </div>
 
       <div className="card p-5">

@@ -8,7 +8,11 @@ export const dynamic = "force-dynamic";
 export default async function AdminPage() {
   const templates = await prisma.formTemplate.findMany({
     orderBy: { createdAt: "desc" },
-    include: { _count: { select: { fields: true, stageTemplates: true, calculations: true } } },
+    include: {
+      _count: {
+        select: { fields: true, stageTemplates: true, calculations: true },
+      },
+    },
   });
 
   return (
@@ -17,7 +21,8 @@ export default async function AdminPage() {
         <div>
           <h1 className="text-xl font-semibold">Интерфейс администратора</h1>
           <p className="text-sm text-slate-500">
-            Визуальный конструктор форм: создавайте шаблоны опросников и настраивайте формулы этапов.
+            Визуальный конструктор форм: создавайте шаблоны опросников и
+            настраивайте формулы этапов.
           </p>
         </div>
         <Link href="/admin/users" className="btn-secondary">

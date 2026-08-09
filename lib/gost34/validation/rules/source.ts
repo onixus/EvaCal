@@ -1,19 +1,26 @@
-import { finding, RequirementCheck } from '../context';
-import type { ValidationFinding } from '../types';
+import { finding, RequirementCheck } from "../context";
+import type { ValidationFinding } from "../types";
 
 function hasLocator(check: RequirementCheck): boolean {
   const source = check.requirement.source;
   if (!source) return false;
 
   return Boolean(
-    source.documentId || source.filename || source.section || source.paragraph || source.locator
+    source.documentId ||
+    source.filename ||
+    source.section ||
+    source.paragraph ||
+    source.locator,
   );
 }
 
 /** Требование создано машиной (LLM-предложение или правило), а не внесено вручную. */
 function isMachineProposed(check: RequirementCheck): boolean {
   const { approval, confidence } = check.requirement;
-  return approval.status === 'PROPOSED' || (confidence !== undefined && confidence < 1);
+  return (
+    approval.status === "PROPOSED" ||
+    (confidence !== undefined && confidence < 1)
+  );
 }
 
 /**
@@ -27,10 +34,10 @@ export function checkSource(check: RequirementCheck): ValidationFinding[] {
     return [
       finding(
         check,
-        'source',
-        'INFO',
-        'Нормативное требование из встроенной библиотеки: пункт нормативного акта не указан.',
-        'Добавить ссылку на конкретный пункт нормативного документа в standardReferences.'
+        "source",
+        "INFO",
+        "Нормативное требование из встроенной библиотеки: пункт нормативного акта не указан.",
+        "Добавить ссылку на конкретный пункт нормативного документа в standardReferences.",
       ),
     ];
   }
@@ -41,10 +48,10 @@ export function checkSource(check: RequirementCheck): ValidationFinding[] {
     return [
       finding(
         check,
-        'source',
-        'ERROR',
-        'Машинно-сформированное требование не ссылается на источник.',
-        'Указать документ и раздел исходного текста либо отклонить предложение.'
+        "source",
+        "ERROR",
+        "Машинно-сформированное требование не ссылается на источник.",
+        "Указать документ и раздел исходного текста либо отклонить предложение.",
       ),
     ];
   }
@@ -53,10 +60,10 @@ export function checkSource(check: RequirementCheck): ValidationFinding[] {
     return [
       finding(
         check,
-        'source',
-        'WARNING',
-        'Источник задан только хэшем: документ и раздел не восстанавливаются.',
-        'Дополнить источник именем документа и разделом.'
+        "source",
+        "WARNING",
+        "Источник задан только хэшем: документ и раздел не восстанавливаются.",
+        "Дополнить источник именем документа и разделом.",
       ),
     ];
   }
@@ -64,10 +71,10 @@ export function checkSource(check: RequirementCheck): ValidationFinding[] {
   return [
     finding(
       check,
-      'source',
-      'WARNING',
-      'Не указан источник требования.',
-      'Указать документ, раздел или пункт, из которого взято требование.'
+      "source",
+      "WARNING",
+      "Не указан источник требования.",
+      "Указать документ, раздел или пункт, из которого взято требование.",
     ),
   ];
 }

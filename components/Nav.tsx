@@ -47,7 +47,10 @@ export default function Nav() {
         </Link>
         <nav className="flex flex-1 gap-1">
           {LINKS.map((link) => {
-            const active = link.href === "/" ? pathname === "/" : pathname?.startsWith(link.href);
+            const active =
+              link.href === "/"
+                ? pathname === "/"
+                : pathname?.startsWith(link.href);
             return (
               <Link
                 key={link.href}
@@ -66,9 +69,13 @@ export default function Nav() {
         {session ? (
           <div className="flex items-center gap-3 text-sm">
             <span className="text-slate-500 dark:text-nord-muted">
-              {session.username} · {session.role === "admin" ? "администратор" : "архитектор"}
+              {session.username} ·{" "}
+              {session.role === "admin" ? "администратор" : "архитектор"}
             </span>
-            <button onClick={logout} className="text-rose-600 hover:underline dark:text-nord-redText">
+            <button
+              onClick={logout}
+              className="text-rose-600 hover:underline dark:text-nord-redText"
+            >
               Выйти
             </button>
           </div>

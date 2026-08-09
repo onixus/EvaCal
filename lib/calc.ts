@@ -13,9 +13,13 @@ export async function rebuildStages(
   calculationId: string,
   primary: PrimaryStageInput[],
   startDate: Date,
-  config: ScheduleConfig = DEFAULT_SCHEDULE_CONFIG
+  config: ScheduleConfig = DEFAULT_SCHEDULE_CONFIG,
 ) {
-  const scheduled = scheduleItems(expandWithApprovals(primary), startDate, config);
+  const scheduled = scheduleItems(
+    expandWithApprovals(primary),
+    startDate,
+    config,
+  );
 
   await prisma.stage.deleteMany({ where: { calculationId } });
 
@@ -38,22 +42,31 @@ export async function rebuildStages(
           parallel: item.parallel,
           approvalDays: item.approvalDays,
         },
-      })
-    )
+      }),
+    ),
   );
 
-  return prisma.stage.findMany({ where: { calculationId }, orderBy: { order: "asc" } });
+  return prisma.stage.findMany({
+    where: { calculationId },
+    orderBy: { order: "asc" },
+  });
 }
 
-export function scheduleConfigFromTemplate(template: { workDayHours: number; includeWeekends: boolean }): ScheduleConfig {
-  return { workDayHours: template.workDayHours, includeWeekends: template.includeWeekends };
+export function scheduleConfigFromTemplate(template: {
+  workDayHours: number;
+  includeWeekends: boolean;
+}): ScheduleConfig {
+  return {
+    workDayHours: template.workDayHours,
+    includeWeekends: template.includeWeekends,
+  };
 }
 
 /** РП isn't a stage — this computes the scalar hours to store on Calculation.pmHours. */
 export function pmHoursFor(
   fields: { key: string; type: string }[],
   answers: Record<string, unknown>,
-  primary: PrimaryStageInput[]
+  primary: PrimaryStageInput[],
 ): number {
   const otherHours = primary.reduce((sum, s) => sum + s.hours, 0);
   return computePmHours(fields, answers, otherHours);
@@ -69,12 +82,14 @@ export function primaryStagesFromTemplate(
     requirements?: string | null;
     order: number;
   }[],
-  answers: Record<string, unknown>
+  answers: Record<string, unknown>,
 ): PrimaryStageInput[] {
   return [...stageTemplates]
     .sort((a, b) => a.order - b.order)
     .map((st) => {
-      const driverValue = st.driverFieldKey ? Number(answers[st.driverFieldKey] ?? 0) || 0 : 0;
+      const driverValue = st.driverFieldKey
+        ? Number(answers[st.driverFieldKey] ?? 0) || 0
+        : 0;
       return {
         name: st.name,
         role: st.role,
@@ -86,9 +101,13 @@ export function primaryStagesFromTemplate(
 
 /** Turns an admin's default RiskTemplate rows into Risk create-input for a new calculation. */
 export function risksFromTemplate(
-  riskTemplates: { description: string; hours: number; order: number }[]
+  riskTemplates: { description: string; hours: number; order: number }[],
 ): { description: string; hours: number; order: number }[] {
   return [...riskTemplates]
     .sort((a, b) => a.order - b.order)
-    .map((rt) => ({ description: rt.description, hours: rt.hours, order: rt.order }));
+    .map((rt) => ({
+      description: rt.description,
+      hours: rt.hours,
+      order: rt.order,
+    }));
 }

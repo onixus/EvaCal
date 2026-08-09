@@ -2,7 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { primaryStagesFromTemplate, rebuildStages, pmHoursFor, scheduleConfigFromTemplate } from "../lib/calc";
+import {
+  primaryStagesFromTemplate,
+  rebuildStages,
+  pmHoursFor,
+  scheduleConfigFromTemplate,
+} from "../lib/calc";
 import { generatePassword } from "../lib/password";
 
 const prisma = new PrismaClient();
@@ -19,13 +24,19 @@ async function seedDefaultUsers() {
     { username: "admin", role: "admin" },
   ];
 
-  const credentials: { username: string; role: string; password: string }[] = [];
+  const credentials: { username: string; role: string; password: string }[] =
+    [];
 
   for (const account of accounts) {
     const password = generatePassword();
     const passwordHash = await bcrypt.hash(password, 10);
     await prisma.user.create({
-      data: { username: account.username, role: account.role, passwordHash, mustChangePassword: true },
+      data: {
+        username: account.username,
+        role: account.role,
+        passwordHash,
+        mustChangePassword: true,
+      },
     });
     credentials.push({ ...account, password });
   }
@@ -34,7 +45,10 @@ async function seedDefaultUsers() {
     "EvaCal — учётные записи по умолчанию (созданы при первом запуске)",
     "Эти пароли показываются только один раз. Смените их после первого входа в /account.",
     "",
-    ...credentials.map((c) => `  роль: ${c.role.padEnd(10)} логин: ${c.username.padEnd(12)} пароль: ${c.password}`),
+    ...credentials.map(
+      (c) =>
+        `  роль: ${c.role.padEnd(10)} логин: ${c.username.padEnd(12)} пароль: ${c.password}`,
+    ),
     "",
   ];
 
@@ -42,9 +56,15 @@ async function seedDefaultUsers() {
   console.log(lines.join("\n"));
   console.log("=".repeat(70) + "\n");
 
-  const credentialsFile = path.resolve(__dirname, "..", "credentials.local.txt");
+  const credentialsFile = path.resolve(
+    __dirname,
+    "..",
+    "credentials.local.txt",
+  );
   fs.writeFileSync(credentialsFile, lines.join("\n"), "utf-8");
-  console.log(`Пароли также сохранены в ${credentialsFile} (в .gitignore, удалите файл после смены паролей).\n`);
+  console.log(
+    `Пароли также сохранены в ${credentialsFile} (в .gitignore, удалите файл после смены паролей).\n`,
+  );
 }
 
 async function main() {
@@ -63,9 +83,27 @@ async function main() {
       isActive: true,
       fields: {
         create: [
-          { label: "Количество пользователей", key: "users_count", type: "number", required: true, order: 0 },
-          { label: "Количество интеграций", key: "integrations_count", type: "number", required: true, order: 1 },
-          { label: "Количество экранов/форм", key: "screens_count", type: "number", required: true, order: 2 },
+          {
+            label: "Количество пользователей",
+            key: "users_count",
+            type: "number",
+            required: true,
+            order: 0,
+          },
+          {
+            label: "Количество интеграций",
+            key: "integrations_count",
+            type: "number",
+            required: true,
+            order: 1,
+          },
+          {
+            label: "Количество экранов/форм",
+            key: "screens_count",
+            type: "number",
+            required: true,
+            order: 2,
+          },
           {
             label: "Сложность проекта",
             key: "complexity",
@@ -73,16 +111,57 @@ async function main() {
             required: true,
             order: 3,
           },
-          { label: "Комментарий", key: "comment", type: "textarea", required: false, order: 4 },
+          {
+            label: "Комментарий",
+            key: "comment",
+            type: "textarea",
+            required: false,
+            order: 4,
+          },
         ],
       },
       stageTemplates: {
         create: [
-          { name: "Сбор требований", role: "analyst", baseHours: 16, hoursPerUnit: 1.5, driverFieldKey: "screens_count", order: 0 },
-          { name: "Консультация по архитектуре", role: "consultant", baseHours: 8, hoursPerUnit: 0, driverFieldKey: null, order: 1 },
-          { name: "Разработка интеграций", role: "developer", baseHours: 8, hoursPerUnit: 12, driverFieldKey: "integrations_count", order: 2 },
-          { name: "Настройка инфраструктуры", role: "engineer", baseHours: 12, hoursPerUnit: 0.2, driverFieldKey: "users_count", order: 3 },
-          { name: "Тестирование и приёмка", role: "engineer", baseHours: 16, hoursPerUnit: 1, driverFieldKey: "screens_count", order: 4 },
+          {
+            name: "Сбор требований",
+            role: "analyst",
+            baseHours: 16,
+            hoursPerUnit: 1.5,
+            driverFieldKey: "screens_count",
+            order: 0,
+          },
+          {
+            name: "Консультация по архитектуре",
+            role: "consultant",
+            baseHours: 8,
+            hoursPerUnit: 0,
+            driverFieldKey: null,
+            order: 1,
+          },
+          {
+            name: "Разработка интеграций",
+            role: "developer",
+            baseHours: 8,
+            hoursPerUnit: 12,
+            driverFieldKey: "integrations_count",
+            order: 2,
+          },
+          {
+            name: "Настройка инфраструктуры",
+            role: "engineer",
+            baseHours: 12,
+            hoursPerUnit: 0.2,
+            driverFieldKey: "users_count",
+            order: 3,
+          },
+          {
+            name: "Тестирование и приёмка",
+            role: "engineer",
+            baseHours: 16,
+            hoursPerUnit: 1,
+            driverFieldKey: "screens_count",
+            order: 4,
+          },
         ],
       },
     },
@@ -119,7 +198,8 @@ async function main() {
       risks: {
         create: [
           {
-            description: "Заказчик может задержать предоставление доступов к учётной системе для интеграции.",
+            description:
+              "Заказчик может задержать предоставление доступов к учётной системе для интеграции.",
             hours: 8,
             order: 0,
           },
@@ -128,7 +208,12 @@ async function main() {
     },
   });
 
-  await rebuildStages(calculation.id, primary, calculation.startDate, scheduleConfigFromTemplate(template));
+  await rebuildStages(
+    calculation.id,
+    primary,
+    calculation.startDate,
+    scheduleConfigFromTemplate(template),
+  );
 
   console.log("Сид выполнен: создан шаблон и демонстрационный расчёт.");
 }

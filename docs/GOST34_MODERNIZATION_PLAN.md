@@ -322,10 +322,7 @@ Normative Requirements
 interface ApplicabilityResult {
   standardId: string;
 
-  status:
-    | "APPLICABLE"
-    | "NOT_APPLICABLE"
-    | "UNKNOWN";
+  status: "APPLICABLE" | "NOT_APPLICABLE" | "UNKNOWN";
 
   reasons: string[];
   evidence: Evidence[];
@@ -447,10 +444,7 @@ interface TraceLink {
 
   relation: TraceRelation;
 
-  method:
-    | "MANUAL"
-    | "RULE"
-    | "LLM";
+  method: "MANUAL" | "RULE" | "LLM";
 
   confidence?: number;
   approved: boolean;
@@ -722,10 +716,10 @@ legacy GOST 34.602-89
 Добавить к Calculation / GeneratedDocument:
 
 ```ts
-standardProfileId
-standardProfileVersion
-generatorVersion
-generatedAt
+standardProfileId;
+standardProfileVersion;
+generatorVersion;
+generatedAt;
 ```
 
 Пример:
@@ -757,27 +751,27 @@ Migrate to ГОСТ 34.602-2020
 
 # 6. Приоритеты
 
-| Приоритет | Работа |
-|---|---|
-| P0 | Standards Registry |
-| P0 | ГОСТ 34.602-2020 profile |
-| P0 | Новая структура ТЗ |
-| P0 | Requirement v2 |
-| P0 | ProjectContext |
-| P0 | Applicability Engine |
-| P0 | Удаление fake traceability |
-| P0 | SSRF / LLM security |
-| P0 | Базовый GOST Validator |
-| P1 | LLM proposal workflow |
-| P1 | Traceability до test cases |
-| P1 | Новый UI Wizard |
-| P1 | Модернизация PZ / AF / PMI / SPEC |
-| P1 | DOCX layout profiles |
-| P1 | Regression suite |
-| P2 | Автогенерация acceptance criteria |
-| P2 | Version / diff документов |
-| P2 | Compliance dashboards |
-| P2 | Customer-specific profiles |
+| Приоритет | Работа                            |
+| --------- | --------------------------------- |
+| P0        | Standards Registry                |
+| P0        | ГОСТ 34.602-2020 profile          |
+| P0        | Новая структура ТЗ                |
+| P0        | Requirement v2                    |
+| P0        | ProjectContext                    |
+| P0        | Applicability Engine              |
+| P0        | Удаление fake traceability        |
+| P0        | SSRF / LLM security               |
+| P0        | Базовый GOST Validator            |
+| P1        | LLM proposal workflow             |
+| P1        | Traceability до test cases        |
+| P1        | Новый UI Wizard                   |
+| P1        | Модернизация PZ / AF / PMI / SPEC |
+| P1        | DOCX layout profiles              |
+| P1        | Regression suite                  |
+| P2        | Автогенерация acceptance criteria |
+| P2        | Version / diff документов         |
+| P2        | Compliance dashboards             |
+| P2        | Customer-specific profiles        |
 
 ---
 

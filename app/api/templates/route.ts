@@ -5,7 +5,11 @@ import { requireApiRole } from "@/lib/auth";
 export async function GET() {
   const templates = await prisma.formTemplate.findMany({
     orderBy: { createdAt: "desc" },
-    include: { _count: { select: { fields: true, stageTemplates: true, calculations: true } } },
+    include: {
+      _count: {
+        select: { fields: true, stageTemplates: true, calculations: true },
+      },
+    },
   });
   return NextResponse.json(templates);
 }

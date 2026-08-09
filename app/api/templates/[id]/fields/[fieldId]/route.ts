@@ -4,7 +4,7 @@ import { requireApiRole } from "@/lib/auth";
 
 export async function PUT(
   req: NextRequest,
-  props: { params: Promise<{ id: string; fieldId: string }> }
+  props: { params: Promise<{ id: string; fieldId: string }> },
 ) {
   const params = await props.params;
   const auth = await requireApiRole("admin");
@@ -17,7 +17,9 @@ export async function PUT(
       ...(body.label !== undefined ? { label: body.label } : {}),
       ...(body.key !== undefined ? { key: body.key } : {}),
       ...(body.type !== undefined ? { type: body.type } : {}),
-      ...(body.options !== undefined ? { options: body.options ? JSON.stringify(body.options) : null } : {}),
+      ...(body.options !== undefined
+        ? { options: body.options ? JSON.stringify(body.options) : null }
+        : {}),
       ...(body.required !== undefined ? { required: !!body.required } : {}),
       ...(body.order !== undefined ? { order: body.order } : {}),
     },
@@ -27,7 +29,7 @@ export async function PUT(
 
 export async function DELETE(
   _req: NextRequest,
-  props: { params: Promise<{ id: string; fieldId: string }> }
+  props: { params: Promise<{ id: string; fieldId: string }> },
 ) {
   const params = await props.params;
   const auth = await requireApiRole("admin");

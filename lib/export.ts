@@ -38,7 +38,9 @@ export interface CalculationForExport {
 }
 
 /** Shared shape/query for the PDF, XLSX and JSON export routes. */
-export async function loadCalculationForExport(id: string): Promise<CalculationForExport | null> {
+export async function loadCalculationForExport(
+  id: string,
+): Promise<CalculationForExport | null> {
   const calculation = await prisma.calculation.findUnique({
     where: { id },
     include: {
@@ -67,8 +69,11 @@ export function safeFileName(name: string): string {
   return name.replace(/[^\p{L}\p{N}\- _]/gu, "").trim() || "calculation";
 }
 
-export function contentDisposition(safeName: string, extension: string): string {
+export function contentDisposition(
+  safeName: string,
+  extension: string,
+): string {
   return `attachment; filename="calculation.${extension}"; filename*=UTF-8''${encodeURIComponent(
-    safeName
+    safeName,
   )}.${extension}`;
 }

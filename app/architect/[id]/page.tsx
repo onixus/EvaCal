@@ -4,7 +4,9 @@ import ArchitectEditor from "./ArchitectEditor";
 
 export const dynamic = "force-dynamic";
 
-export default async function ArchitectCalculationPage(props: { params: Promise<{ id: string }> }) {
+export default async function ArchitectCalculationPage(props: {
+  params: Promise<{ id: string }>;
+}) {
   const params = await props.params;
   const calculation = await prisma.calculation.findUnique({
     where: { id: params.id },
@@ -16,5 +18,7 @@ export default async function ArchitectCalculationPage(props: { params: Promise<
   });
   if (!calculation) notFound();
 
-  return <ArchitectEditor calculation={JSON.parse(JSON.stringify(calculation))} />;
+  return (
+    <ArchitectEditor calculation={JSON.parse(JSON.stringify(calculation))} />
+  );
 }

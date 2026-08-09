@@ -13,7 +13,13 @@ export async function GET() {
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
-    select: { id: true, username: true, role: true, mustChangePassword: true, createdAt: true },
+    select: {
+      id: true,
+      username: true,
+      role: true,
+      mustChangePassword: true,
+      createdAt: true,
+    },
   });
   return NextResponse.json(users);
 }
@@ -26,13 +32,21 @@ export async function POST(req: NextRequest) {
   const username = String(body.username ?? "").trim();
   const role = body.role;
 
-  if (!username) return NextResponse.json({ error: "Укажите логин" }, { status: 400 });
+  if (!username)
+    return NextResponse.json({ error: "Укажите логин" }, { status: 400 });
   if (!ALLOWED_ROLES.includes(role)) {
-    return NextResponse.json({ error: "Роль должна быть architect или admin" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Роль должна быть architect или admin" },
+      { status: 400 },
+    );
   }
 
   const existing = await prisma.user.findUnique({ where: { username } });
-  if (existing) return NextResponse.json({ error: "Такой логин уже существует" }, { status: 409 });
+  if (existing)
+    return NextResponse.json(
+      { error: "Такой логин уже существует" },
+      { status: 409 },
+    );
 
   const password = generatePassword();
   const passwordHash = await bcrypt.hash(password, 10);
@@ -43,6 +57,6 @@ export async function POST(req: NextRequest) {
   // Plaintext password is returned exactly once — the client must show it now, it can't be recovered later.
   return NextResponse.json(
     { id: user.id, username: user.username, role: user.role, password },
-    { status: 201 }
+    { status: 201 },
   );
 }

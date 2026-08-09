@@ -13,15 +13,19 @@ import type { PublicLlmProvider } from "@/lib/gost34/llm/providers";
  */
 const EXPORT_PROFILE = DEFAULT_GOST34_PROFILE;
 
-const DOCUMENT_TYPE_CARDS: Array<{ type: GostDocumentType; title: string; gost: string; desc: string }> =
-  [...EXPORT_PROFILE.documentTypes]
-    .sort((a, b) => a.zipOrder - b.zipOrder)
-    .map((doc) => ({
-      type: doc.docType,
-      title: doc.uiTitle,
-      gost: doc.standardCitation,
-      desc: doc.uiDescription,
-    }));
+const DOCUMENT_TYPE_CARDS: Array<{
+  type: GostDocumentType;
+  title: string;
+  gost: string;
+  desc: string;
+}> = [...EXPORT_PROFILE.documentTypes]
+  .sort((a, b) => a.zipOrder - b.zipOrder)
+  .map((doc) => ({
+    type: doc.docType,
+    title: doc.uiTitle,
+    gost: doc.standardCitation,
+    desc: doc.uiDescription,
+  }));
 
 interface VendorSpecUploadModalProps {
   calculationId: string;
@@ -71,14 +75,17 @@ export default function VendorSpecUploadModal({
 
   // Vendor file upload & requirement extraction state
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
-  const [extractedReqs, setExtractedReqs] = useState<Gost34RequirementItem[]>([]);
+  const [extractedReqs, setExtractedReqs] = useState<Gost34RequirementItem[]>(
+    [],
+  );
   const [isParsing, setIsParsing] = useState(false);
 
   // Requirement manual entry form & category filter state
   const [newReqCode, setNewReqCode] = useState("");
   const [newReqTitle, setNewReqTitle] = useState("");
   const [newReqDesc, setNewReqDesc] = useState("");
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] =
+    useState<string>("all");
 
   /**
    * LLM configuration is server-side: the client picks a provider by id and
@@ -96,7 +103,12 @@ export default function VendorSpecUploadModal({
   // One-time cleanup: earlier versions kept an API key in localStorage.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    for (const key of ["gost34_llm_provider", "gost34_llm_endpoint", "gost34_llm_model", "gost34_llm_apikey"]) {
+    for (const key of [
+      "gost34_llm_provider",
+      "gost34_llm_endpoint",
+      "gost34_llm_model",
+      "gost34_llm_apikey",
+    ]) {
       localStorage.removeItem(key);
     }
   }, []);
@@ -110,7 +122,9 @@ export default function VendorSpecUploadModal({
         const data = await res.json();
         if (!res.ok) {
           setLlmAvailable(false);
-          setLlmError(data?.error || "Не удалось проверить доступность ИИ-сервера.");
+          setLlmError(
+            data?.error || "Не удалось проверить доступность ИИ-сервера.",
+          );
           return false;
         }
         setLlmError("");
@@ -125,7 +139,7 @@ export default function VendorSpecUploadModal({
         return false;
       }
     },
-    [llmProviderId, llmSelectedModel]
+    [llmProviderId, llmSelectedModel],
   );
 
   // Load the server-side provider list when the modal opens.
@@ -144,9 +158,13 @@ export default function VendorSpecUploadModal({
           return;
         }
         setLlmProviders(data.providers || []);
-        setLlmProviderId((current) => current || data.defaultProviderId || data.providers?.[0]?.id || "");
+        setLlmProviderId(
+          (current) =>
+            current || data.defaultProviderId || data.providers?.[0]?.id || "",
+        );
       } catch {
-        if (!cancelled) setLlmError("Не удалось получить список ИИ-провайдеров.");
+        if (!cancelled)
+          setLlmError("Не удалось получить список ИИ-провайдеров.");
       }
     })();
 
@@ -188,7 +206,9 @@ export default function VendorSpecUploadModal({
         setExtractedReqs(data.requirements);
       }
     } catch (err: any) {
-      alert(`Не удалось выполнить ИИ-нормализацию: ${err?.message || "Ошибка ИИ"}`);
+      alert(
+        `Не удалось выполнить ИИ-нормализацию: ${err?.message || "Ошибка ИИ"}`,
+      );
     } finally {
       setIsLlmNormalizing(false);
     }
@@ -239,7 +259,8 @@ export default function VendorSpecUploadModal({
 
       const data = await res.json();
       const parsedFiles: string[] = data.parsedFiles || [];
-      const newRequirements: Gost34RequirementItem[] = data.extractedRequirements || [];
+      const newRequirements: Gost34RequirementItem[] =
+        data.extractedRequirements || [];
 
       setUploadedFiles((prev) => [...prev, ...parsedFiles]);
       setExtractedReqs((prev) => [...prev, ...newRequirements]);
@@ -255,7 +276,9 @@ export default function VendorSpecUploadModal({
 
     const newReq: Gost34RequirementItem = {
       id: `req-manual-${Date.now()}`,
-      code: newReqCode.trim() || `ТР-ВЕНД-${String(extractedReqs.length + 1).padStart(2, "0")}`,
+      code:
+        newReqCode.trim() ||
+        `ТР-ВЕНД-${String(extractedReqs.length + 1).padStart(2, "0")}`,
       category: "functional",
       title: newReqTitle.trim(),
       description: newReqDesc.trim(),
@@ -328,7 +351,9 @@ export default function VendorSpecUploadModal({
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || "Ошибка при генерации документа ГОСТ 34");
+        throw new Error(
+          errorData.error || "Ошибка при генерации документа ГОСТ 34",
+        );
       }
 
       const blob = await res.blob();
@@ -388,14 +413,16 @@ export default function VendorSpecUploadModal({
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || "Ошибка при генерации ZIP комплекта ГОСТ 34");
+        throw new Error(
+          errorData.error || "Ошибка при генерации ZIP комплекта ГОСТ 34",
+        );
       }
 
       const blob = await res.blob();
       const downloadUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = downloadUrl;
-      a.download = `GOST34_Full_Package_${calculationName.replace(/\s+/g, '_')}.zip`;
+      a.download = `GOST34_Full_Package_${calculationName.replace(/\s+/g, "_")}.zip`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -403,7 +430,9 @@ export default function VendorSpecUploadModal({
 
       onClose();
     } catch (err: any) {
-      alert(`Не удалось скачать ZIP-архив: ${err?.message || "Ошибка сервера"}`);
+      alert(
+        `Не удалось скачать ZIP-архив: ${err?.message || "Ошибка сервера"}`,
+      );
     }
   };
 
@@ -411,7 +440,6 @@ export default function VendorSpecUploadModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 animate-in fade-in duration-150">
       {/* Main Solid High-Contrast Container */}
       <div className="w-full max-w-5xl rounded-2xl bg-[#1a1d24] border border-[#3b4252] p-6 text-slate-100 shadow-2xl flex flex-col max-h-[90vh]">
-        
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-[#2e3440] pb-4 mb-4">
           <div>
@@ -424,7 +452,14 @@ export default function VendorSpecUploadModal({
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-1">
-              Проект: <strong className="text-white font-semibold">{calculationName}</strong> • Заказчик: <strong className="text-white font-semibold">{customerName}</strong>
+              Проект:{" "}
+              <strong className="text-white font-semibold">
+                {calculationName}
+              </strong>{" "}
+              • Заказчик:{" "}
+              <strong className="text-white font-semibold">
+                {customerName}
+              </strong>
             </p>
           </div>
           <button
@@ -444,7 +479,8 @@ export default function VendorSpecUploadModal({
               title: "1. ТЗ вендора",
               subtitle: `Загружено ${extractedReqs.length} треб.`,
               icon: "📄",
-              badge: extractedReqs.length > 0 ? extractedReqs.length : undefined,
+              badge:
+                extractedReqs.length > 0 ? extractedReqs.length : undefined,
             },
             {
               id: "enrichment",
@@ -483,14 +519,20 @@ export default function VendorSpecUploadModal({
                   <div className="font-bold text-xs truncate flex items-center justify-between">
                     <span>{tab.title}</span>
                     {tab.badge !== undefined && tab.badge > 0 && (
-                      <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-full ml-1 ${
-                        isActive ? "bg-white text-blue-700" : "bg-blue-500 text-white"
-                      }`}>
+                      <span
+                        className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-full ml-1 ${
+                          isActive
+                            ? "bg-white text-blue-700"
+                            : "bg-blue-500 text-white"
+                        }`}
+                      >
                         {tab.badge}
                       </span>
                     )}
                   </div>
-                  <div className={`text-[11px] truncate mt-0.5 ${isActive ? "text-blue-100 font-medium" : "text-slate-400"}`}>
+                  <div
+                    className={`text-[11px] truncate mt-0.5 ${isActive ? "text-blue-100 font-medium" : "text-slate-400"}`}
+                  >
                     {tab.subtitle}
                   </div>
                 </div>
@@ -501,11 +543,9 @@ export default function VendorSpecUploadModal({
 
         {/* Tab Content Box - Solid Dark High-Legibility Background */}
         <div className="flex-1 overflow-y-auto pr-1 space-y-4 min-h-[380px]">
-          
           {/* TAB 1: Vendor Specifications & File Extraction */}
           {activeTab === "vendor" && (
             <div className="space-y-4 animate-in fade-in duration-150">
-              
               {/* Dropzone */}
               <div className="bg-[#242832] p-5 rounded-2xl border border-[#3b4252] space-y-3 shadow-md">
                 <div className="flex items-center justify-between">
@@ -514,7 +554,8 @@ export default function VendorSpecUploadModal({
                       Загрузка исходных спецификаций ТЗ / ФТ / ТТ
                     </h4>
                     <p className="text-xs text-slate-300 mt-1">
-                      Загрузите файлы вендора (.docx, .txt, .md, .json) для авто-извлечения требований
+                      Загрузите файлы вендора (.docx, .txt, .md, .json) для
+                      авто-извлечения требований
                     </p>
                   </div>
                   {uploadedFiles.length > 0 && (
@@ -527,10 +568,13 @@ export default function VendorSpecUploadModal({
                 <label className="cursor-pointer flex flex-col items-center justify-center p-7 rounded-xl border-2 border-dashed border-[#434c5e] hover:border-blue-400 bg-[#1c1f26] hover:bg-[#20242e] transition-all">
                   <span className="text-3xl mb-2">📁</span>
                   <span className="text-sm font-bold text-white">
-                    {isParsing ? "Идёт обработка и анализ документа..." : "Нажмите или перетащите файлы вендорского ТЗ сюда"}
+                    {isParsing
+                      ? "Идёт обработка и анализ документа..."
+                      : "Нажмите или перетащите файлы вендорского ТЗ сюда"}
                   </span>
                   <span className="text-xs text-slate-400 mt-1">
-                    Поддерживаются исходные форматы MS Word (.docx), спецификации (.txt, .md, .json)
+                    Поддерживаются исходные форматы MS Word (.docx),
+                    спецификации (.txt, .md, .json)
                   </span>
                   <input
                     type="file"
@@ -561,13 +605,17 @@ export default function VendorSpecUploadModal({
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-[#3b4252] pb-3 gap-3">
                   <div>
                     <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
-                      <span>Извлечённые и нормализованные требования ({extractedReqs.length})</span>
+                      <span>
+                        Извлечённые и нормализованные требования (
+                        {extractedReqs.length})
+                      </span>
                     </h4>
                     <p className="text-xs text-slate-300 mt-0.5">
-                      Список структурных пунктов с авто-классификацией по категориям ГОСТ 34
+                      Список структурных пунктов с авто-классификацией по
+                      категориям ГОСТ 34
                     </p>
                   </div>
-                  
+
                   {extractedReqs.length > 0 && (
                     <div className="flex flex-wrap items-center gap-2">
                       <button
@@ -590,11 +638,15 @@ export default function VendorSpecUploadModal({
                         }`}
                         title={
                           llmAvailable
-                            ? `Использовать локальную нейросеть (${llmModels[0] || 'Ollama'}) для смысловой очистки и структурирования по ГОСТ 34`
+                            ? `Использовать локальную нейросеть (${llmModels[0] || "Ollama"}) для смысловой очистки и структурирования по ГОСТ 34`
                             : "Запустите Ollama локально (ollama run llama3.2) для включения нейросетевой очистки"
                         }
                       >
-                        <span>{isLlmNormalizing ? "⏳ Идет обработка ИИ..." : "🤖 ИИ-Нормализация (Ollama)"}</span>
+                        <span>
+                          {isLlmNormalizing
+                            ? "⏳ Идет обработка ИИ..."
+                            : "🤖 ИИ-Нормализация (Ollama)"}
+                        </span>
                         {llmAvailable && !isLlmNormalizing && (
                           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                         )}
@@ -625,11 +677,19 @@ export default function VendorSpecUploadModal({
                   <div className="bg-[#1c1f26] p-4 rounded-xl border border-purple-500/40 space-y-3 animate-in fade-in duration-150">
                     <div className="flex items-center justify-between border-b border-[#3b4252] pb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-purple-400">⚙️ Настройки ИИ-модели (Ollama / LM Studio / OpenAI)</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          llmAvailable ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-red-500/20 text-red-300 border border-red-500/40"
-                        }`}>
-                          {llmAvailable ? "✓ Сервер доступен" : "✕ Сервер недоступен"}
+                        <span className="text-sm font-bold text-purple-400">
+                          ⚙️ Настройки ИИ-модели (Ollama / LM Studio / OpenAI)
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            llmAvailable
+                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                              : "bg-red-500/20 text-red-300 border border-red-500/40"
+                          }`}
+                        >
+                          {llmAvailable
+                            ? "✓ Сервер доступен"
+                            : "✕ Сервер недоступен"}
                         </span>
                       </div>
                       <button
@@ -662,9 +722,15 @@ export default function VendorSpecUploadModal({
                           disabled={llmProviders.length === 0}
                           className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-1.5 text-white font-bold focus:border-purple-400 focus:outline-none disabled:opacity-50"
                         >
-                          {llmProviders.length === 0 && <option value="">Нет настроенных провайдеров</option>}
+                          {llmProviders.length === 0 && (
+                            <option value="">
+                              Нет настроенных провайдеров
+                            </option>
+                          )}
                           {llmProviders.map((p) => (
-                            <option key={p.id} value={p.id}>{p.label}</option>
+                            <option key={p.id} value={p.id}>
+                              {p.label}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -677,18 +743,24 @@ export default function VendorSpecUploadModal({
                         {llmModels.length > 0 ? (
                           <select
                             value={llmSelectedModel}
-                            onChange={(e) => setLlmSelectedModel(e.target.value)}
+                            onChange={(e) =>
+                              setLlmSelectedModel(e.target.value)
+                            }
                             className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-1.5 text-white font-bold focus:border-purple-400 focus:outline-none"
                           >
                             {llmModels.map((m) => (
-                              <option key={m} value={m}>{m}</option>
+                              <option key={m} value={m}>
+                                {m}
+                              </option>
                             ))}
                           </select>
                         ) : (
                           <input
                             type="text"
                             value={llmSelectedModel}
-                            onChange={(e) => setLlmSelectedModel(e.target.value)}
+                            onChange={(e) =>
+                              setLlmSelectedModel(e.target.value)
+                            }
                             placeholder="llama3.2 / qwen2.5 / local-model"
                             className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-1.5 text-white focus:border-purple-400 focus:outline-none"
                           />
@@ -697,11 +769,15 @@ export default function VendorSpecUploadModal({
                     </div>
 
                     <p className="text-[11px] text-slate-400 pt-1 border-t border-[#3b4252]/60">
-                      Адреса ИИ-серверов и ключи доступа задаются на сервере (переменные окружения
+                      Адреса ИИ-серверов и ключи доступа задаются на сервере
+                      (переменные окружения
                       <code className="mx-1 text-slate-300">OLLAMA_HOST</code>,
-                      <code className="mx-1 text-slate-300">LMSTUDIO_HOST</code>,
-                      <code className="mx-1 text-slate-300">EVACAL_LLM_PROVIDERS</code>)
-                      и в браузер не передаются.
+                      <code className="mx-1 text-slate-300">LMSTUDIO_HOST</code>
+                      ,
+                      <code className="mx-1 text-slate-300">
+                        EVACAL_LLM_PROVIDERS
+                      </code>
+                      ) и в браузер не передаются.
                     </p>
                   </div>
                 )}
@@ -710,11 +786,39 @@ export default function VendorSpecUploadModal({
                 {extractedReqs.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 pb-1">
                     {[
-                      { id: "all", label: "Все категории", count: extractedReqs.length },
-                      { id: "functional", label: "Функциональные", count: extractedReqs.filter(r => r.category === "functional").length },
-                      { id: "security", label: "ИБ и Безопасность", count: extractedReqs.filter(r => r.category === "security").length },
-                      { id: "reliability", label: "Надежность и SLA", count: extractedReqs.filter(r => r.category === "reliability").length },
-                      { id: "technical", label: "Технические / ПО", count: extractedReqs.filter(r => r.category === "technical").length },
+                      {
+                        id: "all",
+                        label: "Все категории",
+                        count: extractedReqs.length,
+                      },
+                      {
+                        id: "functional",
+                        label: "Функциональные",
+                        count: extractedReqs.filter(
+                          (r) => r.category === "functional",
+                        ).length,
+                      },
+                      {
+                        id: "security",
+                        label: "ИБ и Безопасность",
+                        count: extractedReqs.filter(
+                          (r) => r.category === "security",
+                        ).length,
+                      },
+                      {
+                        id: "reliability",
+                        label: "Надежность и SLA",
+                        count: extractedReqs.filter(
+                          (r) => r.category === "reliability",
+                        ).length,
+                      },
+                      {
+                        id: "technical",
+                        label: "Технические / ПО",
+                        count: extractedReqs.filter(
+                          (r) => r.category === "technical",
+                        ).length,
+                      },
                     ].map((cat) => (
                       <button
                         key={cat.id}
@@ -734,53 +838,89 @@ export default function VendorSpecUploadModal({
 
                 {extractedReqs.length === 0 ? (
                   <div className="text-xs text-slate-400 italic p-6 text-center border border-dashed border-[#434c5e] rounded-xl bg-[#1c1f26]">
-                    Требования пока не извлечены. Загрузите файл ТЗ (.docx) выше или добавьте пункты вручную.
+                    Требования пока не извлечены. Загрузите файл ТЗ (.docx) выше
+                    или добавьте пункты вручную.
                   </div>
                 ) : (
                   <div className="max-h-64 overflow-y-auto rounded-xl border border-[#3b4252] bg-[#1c1f26]">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-[#2e3440] text-white sticky top-0 border-b border-[#434c5e]">
                         <tr>
-                          <th className="p-3 w-32 font-bold text-blue-300">Код ГОСТ</th>
-                          <th className="p-3 w-28 font-bold text-slate-300">Категория</th>
-                          <th className="p-3 font-bold text-white">Полное наименование и текст требования</th>
-                          <th className="p-3 w-28 font-bold text-slate-300">Источник</th>
-                          <th className="p-3 w-12 text-center font-bold text-slate-300">Удалить</th>
+                          <th className="p-3 w-32 font-bold text-blue-300">
+                            Код ГОСТ
+                          </th>
+                          <th className="p-3 w-28 font-bold text-slate-300">
+                            Категория
+                          </th>
+                          <th className="p-3 font-bold text-white">
+                            Полное наименование и текст требования
+                          </th>
+                          <th className="p-3 w-28 font-bold text-slate-300">
+                            Источник
+                          </th>
+                          <th className="p-3 w-12 text-center font-bold text-slate-300">
+                            Удалить
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#2e3440]">
                         {extractedReqs
-                          .filter((r) => selectedCategoryFilter === "all" || r.category === selectedCategoryFilter)
+                          .filter(
+                            (r) =>
+                              selectedCategoryFilter === "all" ||
+                              r.category === selectedCategoryFilter,
+                          )
                           .map((req) => (
-                            <tr key={req.id} className="hover:bg-[#282c37] transition-colors">
+                            <tr
+                              key={req.id}
+                              className="hover:bg-[#282c37] transition-colors"
+                            >
                               <td className="p-3 font-mono font-bold text-blue-400 align-top">
                                 {req.code}
                               </td>
                               <td className="p-3 align-top">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                  req.category === 'security'
-                                    ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                                    : req.category === 'reliability'
-                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                    : req.category === 'technical'
-                                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                                    : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                }`}>
-                                  {req.category === 'security' ? 'ИБ' : req.category === 'reliability' ? 'НАД' : req.category === 'technical' ? 'ТЕХ' : 'ФУНК'}
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                    req.category === "security"
+                                      ? "bg-red-500/20 text-red-300 border border-red-500/30"
+                                      : req.category === "reliability"
+                                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                        : req.category === "technical"
+                                          ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                                          : "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                                  }`}
+                                >
+                                  {req.category === "security"
+                                    ? "ИБ"
+                                    : req.category === "reliability"
+                                      ? "НАД"
+                                      : req.category === "technical"
+                                        ? "ТЕХ"
+                                        : "ФУНК"}
                                 </span>
                               </td>
                               <td className="p-3 text-slate-100 break-words align-top space-y-1">
-                                <div className="font-semibold text-white">{req.title}</div>
+                                <div className="font-semibold text-white">
+                                  {req.title}
+                                </div>
                                 {req.title !== req.description && (
-                                  <div className="text-slate-300 text-[11px] leading-relaxed">{req.description}</div>
+                                  <div className="text-slate-300 text-[11px] leading-relaxed">
+                                    {req.description}
+                                  </div>
                                 )}
                               </td>
                               <td className="p-3 text-slate-400 text-[11px] align-top space-y-1">
-                                <div className="truncate">{req.sourceFile || "—"}</div>
+                                <div className="truncate">
+                                  {req.sourceFile || "—"}
+                                </div>
                                 {req.normalizedBy && (
                                   <div
                                     className="inline-block px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px]"
-                                    title={req.originalText ? `Исходная формулировка: ${req.originalText}` : undefined}
+                                    title={
+                                      req.originalText
+                                        ? `Исходная формулировка: ${req.originalText}`
+                                        : undefined
+                                    }
                                   >
                                     ИИ-предложение
                                   </div>
@@ -846,15 +986,17 @@ export default function VendorSpecUploadModal({
           {activeTab === "enrichment" && (
             <div className="space-y-4 animate-in fade-in duration-150">
               <div className="bg-[#242832] p-5 rounded-2xl border border-[#3b4252] space-y-4 shadow-md">
-                
                 {/* Header Controls */}
                 <div className="flex items-center justify-between border-b border-[#3b4252] pb-3">
                   <div>
                     <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
-                      <span>🛡️ Нормативное авто-обогащение требованиями РФ</span>
+                      <span>
+                        🛡️ Нормативное авто-обогащение требованиями РФ
+                      </span>
                     </h4>
                     <p className="text-xs text-slate-300 mt-1">
-                      Отметьте применимые приказы регуляторов, стандарты ИБ и законодательные акты
+                      Отметьте применимые приказы регуляторов, стандарты ИБ и
+                      законодательные акты
                     </p>
                   </div>
 
@@ -893,7 +1035,6 @@ export default function VendorSpecUploadModal({
 
                 {enrich ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
-                    
                     {/* FSTEK Group */}
                     <div className="col-span-full font-bold text-blue-400 uppercase tracking-wider text-[11px] pt-1">
                       1. Приказы ФСТЭК России
@@ -907,9 +1048,12 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">Приказ ФСТЭК России № 21</span>
+                        <span className="font-bold text-white block">
+                          Приказ ФСТЭК России № 21
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
-                          Состав и содержание мер по защите персональных данных в ИСПДн (УЗ-1..3).
+                          Состав и содержание мер по защите персональных данных
+                          в ИСПДн (УЗ-1..3).
                         </span>
                       </div>
                     </label>
@@ -922,9 +1066,12 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">Приказ ФСТЭК России № 117</span>
+                        <span className="font-bold text-white block">
+                          Приказ ФСТЭК России № 117
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
-                          Безопасная разработка ПО по ГОСТ Р 56939-2016 (SAST, DAST, SCA, НДВ).
+                          Безопасная разработка ПО по ГОСТ Р 56939-2016 (SAST,
+                          DAST, SCA, НДВ).
                         </span>
                       </div>
                     </label>
@@ -937,9 +1084,12 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">Приказ ФСТЭК России № 239</span>
+                        <span className="font-bold text-white block">
+                          Приказ ФСТЭК России № 239
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
-                          Требования безопасности для значимых объектов КИИ (1, 2 и 3 категории).
+                          Требования безопасности для значимых объектов КИИ (1,
+                          2 и 3 категории).
                         </span>
                       </div>
                     </label>
@@ -957,9 +1107,12 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">ГОСТ Р 57580.1-2017</span>
+                        <span className="font-bold text-white block">
+                          ГОСТ Р 57580.1-2017
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
-                          Безопасность финансовых операций и требования СТО БР ИББС.
+                          Безопасность финансовых операций и требования СТО БР
+                          ИББС.
                         </span>
                       </div>
                     </label>
@@ -972,9 +1125,12 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">Положение ЦБ РФ № 683-П</span>
+                        <span className="font-bold text-white block">
+                          Положение ЦБ РФ № 683-П
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
-                          Защита информации для кредитных организаций и контроль API.
+                          Защита информации для кредитных организаций и контроль
+                          API.
                         </span>
                       </div>
                     </label>
@@ -987,9 +1143,12 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">Положение ЦБ РФ № 757-П</span>
+                        <span className="font-bold text-white block">
+                          Положение ЦБ РФ № 757-П
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
-                          Защита информации для некредитных финансовых организаций (НФО).
+                          Защита информации для некредитных финансовых
+                          организаций (НФО).
                         </span>
                       </div>
                     </label>
@@ -1002,16 +1161,20 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">Положение ЦБ РФ № 719-П</span>
+                        <span className="font-bold text-white block">
+                          Положение ЦБ РФ № 719-П
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
-                          Антифрод-журналирование, СКЗИ/HSM и электронная подпись (УКЭП).
+                          Антифрод-журналирование, СКЗИ/HSM и электронная
+                          подпись (УКЭП).
                         </span>
                       </div>
                     </label>
 
                     {/* KII & Government Regulators Group */}
                     <div className="col-span-full font-bold text-blue-400 uppercase tracking-wider text-[11px] pt-3 border-t border-[#3b4252]">
-                      3. Критическая инфраструктура (КИИ), ФСБ и Импортозамещение
+                      3. Критическая инфраструктура (КИИ), ФСБ и
+                      Импортозамещение
                     </div>
 
                     <label className="flex items-start gap-3 p-3 rounded-xl border border-[#3b4252] bg-[#1c1f26] hover:border-blue-400 cursor-pointer transition-colors">
@@ -1022,9 +1185,12 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">Федеральный закон № 187-ФЗ</span>
+                        <span className="font-bold text-white block">
+                          Федеральный закон № 187-ФЗ
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
-                          О безопасности критической информационной инфраструктуры РФ.
+                          О безопасности критической информационной
+                          инфраструктуры РФ.
                         </span>
                       </div>
                     </label>
@@ -1037,9 +1203,12 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">Приказ ФСБ России № 282</span>
+                        <span className="font-bold text-white block">
+                          Приказ ФСБ России № 282
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
-                          Интеграция с системой ГосСОПКА и передача инцидентов в НКЦКИ.
+                          Интеграция с системой ГосСОПКА и передача инцидентов в
+                          НКЦКИ.
                         </span>
                       </div>
                     </label>
@@ -1052,9 +1221,12 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">Федеральный закон № 188-ФЗ</span>
+                        <span className="font-bold text-white block">
+                          Федеральный закон № 188-ФЗ
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
-                          Реестр отечественного ПО (совместимость с Astra Linux/PostgreSQL).
+                          Реестр отечественного ПО (совместимость с Astra
+                          Linux/PostgreSQL).
                         </span>
                       </div>
                     </label>
@@ -1072,9 +1244,12 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">152-ФЗ / 242-ФЗ</span>
+                        <span className="font-bold text-white block">
+                          152-ФЗ / 242-ФЗ
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
-                          Физическая локализация баз данных персональных данных в ЦОД РФ.
+                          Физическая локализация баз данных персональных данных
+                          в ЦОД РФ.
                         </span>
                       </div>
                     </label>
@@ -1087,9 +1262,12 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">SLA Доступность 99.9%</span>
+                        <span className="font-bold text-white block">
+                          SLA Доступность 99.9%
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
-                          Непрерывность 24/7 (RTO ≤ 15 мин, RPO ≤ 5 мин, WAL-репликация).
+                          Непрерывность 24/7 (RTO ≤ 15 мин, RPO ≤ 5 мин,
+                          WAL-репликация).
                         </span>
                       </div>
                     </label>
@@ -1102,16 +1280,20 @@ export default function VendorSpecUploadModal({
                         className="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer"
                       />
                       <div>
-                        <span className="font-bold text-white block">ГОСТ Р 52872-2019</span>
+                        <span className="font-bold text-white block">
+                          ГОСТ Р 52872-2019
+                        </span>
                         <span className="text-slate-300 text-[11px] block mt-0.5 leading-relaxed">
-                          Стандарт доступности веб-интерфейсов (WCAG 2.1 AA, отклик ≤ 1.5 с).
+                          Стандарт доступности веб-интерфейсов (WCAG 2.1 AA,
+                          отклик ≤ 1.5 с).
                         </span>
                       </div>
                     </label>
                   </div>
                 ) : (
                   <div className="text-xs text-slate-400 italic p-6 text-center border border-dashed border-[#434c5e] rounded-xl bg-[#1c1f26]">
-                    Авто-обогащение отключено. В документ будут включены только извлеченные требования вендора.
+                    Авто-обогащение отключено. В документ будут включены только
+                    извлеченные требования вендора.
                   </div>
                 )}
               </div>
@@ -1127,7 +1309,8 @@ export default function VendorSpecUploadModal({
                     ✍️ Данные основной надписи (ГОСТ 2.104-2006 Форма 2 и 2а)
                   </h4>
                   <p className="text-xs text-slate-300 mt-1">
-                    Заполните ФИО должностных лиц для вывода в штампах нормоконтроля документа
+                    Заполните ФИО должностных лиц для вывода в штампах
+                    нормоконтроля документа
                   </p>
                 </div>
 
@@ -1240,7 +1423,8 @@ export default function VendorSpecUploadModal({
                     🚀 Выбор типа нормативного документа и генерация
                   </h4>
                   <p className="text-xs text-slate-300 mt-1">
-                    Выберите требуемый документ из комплекта нормативной документации по ГОСТ 34
+                    Выберите требуемый документ из комплекта нормативной
+                    документации по ГОСТ 34
                   </p>
                 </div>
 
@@ -1260,16 +1444,24 @@ export default function VendorSpecUploadModal({
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className={`font-bold text-sm ${isSelected ? "text-white" : "text-slate-100"}`}>
+                          <span
+                            className={`font-bold text-sm ${isSelected ? "text-white" : "text-slate-100"}`}
+                          >
                             {item.title}
                           </span>
-                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                            isSelected ? "bg-white text-blue-700" : "bg-[#2e3440] text-blue-300 border border-[#434c5e]"
-                          }`}>
+                          <span
+                            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                              isSelected
+                                ? "bg-white text-blue-700"
+                                : "bg-[#2e3440] text-blue-300 border border-[#434c5e]"
+                            }`}
+                          >
                             {item.gost}
                           </span>
                         </div>
-                        <p className={`text-xs mt-2 leading-relaxed ${isSelected ? "text-blue-100" : "text-slate-400"}`}>
+                        <p
+                          className={`text-xs mt-2 leading-relaxed ${isSelected ? "text-blue-100" : "text-slate-400"}`}
+                        >
                           {item.desc}
                         </p>
                       </button>
@@ -1284,11 +1476,19 @@ export default function VendorSpecUploadModal({
                       Сводная готовность к формированию:
                     </div>
                     <div className="text-slate-300 leading-relaxed">
-                      • Выбранный документ: <strong className="text-blue-400 font-bold">{docType}</strong>
-                      <br />
-                      • Извлечённых требований вендора: <strong className="text-white font-bold">{extractedReqs.length}</strong>
-                      <br />
-                      • Включённых государственных стандартов: <strong className="text-white font-bold">{countActiveEnrichments()} из {ENRICHMENT_OPTION_KEYS.length}</strong>
+                      • Выбранный документ:{" "}
+                      <strong className="text-blue-400 font-bold">
+                        {docType}
+                      </strong>
+                      <br />• Извлечённых требований вендора:{" "}
+                      <strong className="text-white font-bold">
+                        {extractedReqs.length}
+                      </strong>
+                      <br />• Включённых государственных стандартов:{" "}
+                      <strong className="text-white font-bold">
+                        {countActiveEnrichments()} из{" "}
+                        {ENRICHMENT_OPTION_KEYS.length}
+                      </strong>
                     </div>
                   </div>
 
@@ -1331,7 +1531,8 @@ export default function VendorSpecUploadModal({
                 type="button"
                 onClick={() => {
                   if (activeTab === "export") setActiveTab("signatures");
-                  else if (activeTab === "signatures") setActiveTab("enrichment");
+                  else if (activeTab === "signatures")
+                    setActiveTab("enrichment");
                   else if (activeTab === "enrichment") setActiveTab("vendor");
                 }}
                 className="px-4.5 py-2 rounded-xl text-xs font-bold bg-[#2e3440] text-white hover:bg-[#3b4252] border border-[#434c5e] transition-colors"
@@ -1345,7 +1546,8 @@ export default function VendorSpecUploadModal({
                 type="button"
                 onClick={() => {
                   if (activeTab === "vendor") setActiveTab("enrichment");
-                  else if (activeTab === "enrichment") setActiveTab("signatures");
+                  else if (activeTab === "enrichment")
+                    setActiveTab("signatures");
                   else if (activeTab === "signatures") setActiveTab("export");
                 }}
                 className="px-6 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/30 transition-colors flex items-center gap-1.5"

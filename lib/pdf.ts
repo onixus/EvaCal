@@ -10,12 +10,21 @@ import { CalculationForExport as CalculationForPdf } from "./export";
 // The path is built from process.cwd() rather than require.resolve(), because webpack
 // rewrites require.resolve() calls to an internal module id instead of a real filesystem
 // path once this module is bundled into a Next.js route handler.
-const FONTS_DIR = path.join(process.cwd(), "node_modules", "dejavu-fonts-ttf", "ttf");
+const FONTS_DIR = path.join(
+  process.cwd(),
+  "node_modules",
+  "dejavu-fonts-ttf",
+  "ttf",
+);
 const FONT_REGULAR = path.join(FONTS_DIR, "DejaVuSans.ttf");
 const FONT_BOLD = path.join(FONTS_DIR, "DejaVuSans-Bold.ttf");
 
 function fmtDate(d: Date): string {
-  return new Date(d).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return new Date(d).toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 const COLS = {
@@ -27,7 +36,9 @@ const COLS = {
   status: { x: 460, width: 95 },
 };
 
-export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocument {
+export function renderCalculationPdf(
+  calc: CalculationForPdf,
+): PDFKit.PDFDocument {
   const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
   doc.registerFont("body", FONT_REGULAR);
   doc.registerFont("bold", FONT_BOLD);
@@ -42,8 +53,8 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
   doc.font("body").fontSize(10).fillColor("#555");
   doc.text(
     `Заказчик: ${calc.customer}   Шаблон: ${calc.templateName}   Старт: ${fmtDate(
-      calc.startDate
-    )}   Статус: ${STATUS_LABELS[calc.status] ?? calc.status}`
+      calc.startDate,
+    )}   Статус: ${STATUS_LABELS[calc.status] ?? calc.status}`,
   );
   doc.fillColor("#000");
   doc.moveDown(1.2);
@@ -64,8 +75,15 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
   doc.moveDown(0.4);
 
   function drawRow(
-    cells: { name: string; role: string; hours: string; start: string; end: string; status: string },
-    opts: { bold?: boolean; note?: string } = {}
+    cells: {
+      name: string;
+      role: string;
+      hours: string;
+      start: string;
+      end: string;
+      status: string;
+    },
+    opts: { bold?: boolean; note?: string } = {},
   ) {
     const font = opts.bold ? "bold" : "body";
     doc.font(font).fontSize(9);
@@ -73,8 +91,11 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
       Math.max(
         doc.heightOfString(cells.name, { width: COLS.name.width }),
         doc.heightOfString(cells.role, { width: COLS.role.width }),
-        doc.heightOfString(cells.status, { width: COLS.status.width })
-      ) + (opts.note ? doc.heightOfString(opts.note, { width: COLS.name.width }) + 2 : 0);
+        doc.heightOfString(cells.status, { width: COLS.status.width }),
+      ) +
+      (opts.note
+        ? doc.heightOfString(opts.note, { width: COLS.name.width }) + 2
+        : 0);
 
     ensureSpace(rowHeight + 4);
     const y = doc.y;
@@ -97,8 +118,15 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
   }
 
   drawRow(
-    { name: "Этап", role: "Роль", hours: "Ч", start: "Начало", end: "Окончание", status: "Статус" },
-    { bold: true }
+    {
+      name: "Этап",
+      role: "Роль",
+      hours: "Ч",
+      start: "Начало",
+      end: "Окончание",
+      status: "Статус",
+    },
+    { bold: true },
   );
   doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#ccc").stroke();
   doc.moveDown(0.3);
@@ -113,7 +141,7 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
         end: fmtDate(stage.endDate),
         status: STATUS_LABELS[stage.status] ?? stage.status,
       },
-      { note: stage.requirements ?? undefined }
+      { note: stage.requirements ?? undefined },
     );
   }
 

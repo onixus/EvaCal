@@ -29,11 +29,20 @@ export default function NewTemplateForm() {
     <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
       <div className="flex-1 min-w-[220px]">
         <label className="label">Название шаблона</label>
-        <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />
+        <input
+          className="input"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
       </div>
       <div className="flex-1 min-w-[220px]">
         <label className="label">Описание (необязательно)</label>
-        <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} />
+        <input
+          className="input"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
       </div>
       <button type="submit" className="btn-primary" disabled={submitting}>
         Создать

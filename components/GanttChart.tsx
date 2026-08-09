@@ -26,12 +26,17 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 function fmtDate(d: string | Date): string {
-  return new Date(d).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+  return new Date(d).toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+  });
 }
 
 export default function GanttChart({ stages }: { stages: GanttStage[] }) {
   if (stages.length === 0) {
-    return <p className="text-sm text-slate-500">Нет этапов для отображения.</p>;
+    return (
+      <p className="text-sm text-slate-500">Нет этапов для отображения.</p>
+    );
   }
 
   const starts = stages.map((s) => new Date(s.startDate).getTime());
@@ -59,7 +64,10 @@ export default function GanttChart({ stages }: { stages: GanttStage[] }) {
             const widthPct = Math.max(((end - start) / rangeMs) * 100, 0.6);
             return (
               <div key={stage.id} className="flex items-center gap-3">
-                <div className="w-56 shrink-0 truncate text-sm text-slate-700 dark:text-nord-4" title={stage.name}>
+                <div
+                  className="w-56 shrink-0 truncate text-sm text-slate-700 dark:text-nord-4"
+                  title={stage.name}
+                >
                   {stage.isApprovalTask ? "⏳ " : ""}
                   {stage.parallel ? "∥ " : ""}
                   {stage.name}
@@ -69,7 +77,7 @@ export default function GanttChart({ stages }: { stages: GanttStage[] }) {
                     className={`absolute h-6 rounded ${
                       stage.isApprovalTask
                         ? "bg-amber-400/70 border border-dashed border-amber-500 dark:bg-nord-yellow/40 dark:border-nord-yellow"
-                        : ROLE_COLORS[stage.role] ?? "bg-slate-400"
+                        : (ROLE_COLORS[stage.role] ?? "bg-slate-400")
                     } ${stage.parallel ? "ring-2 ring-sky-400 dark:ring-nord-frost2" : ""}`}
                     style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                     title={`${fmtDate(stage.startDate)} — ${fmtDate(stage.endDate)}${

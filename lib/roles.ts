@@ -11,7 +11,12 @@ export const ROLES = [
 export type Role = (typeof ROLES)[number]["value"];
 
 // Stages performed by these roles require a customer sign-off task before the next stage starts.
-export const APPROVAL_REQUIRED_ROLES: Role[] = ["consultant", "developer", "engineer", "analyst"];
+export const APPROVAL_REQUIRED_ROLES: Role[] = [
+  "consultant",
+  "developer",
+  "engineer",
+  "analyst",
+];
 
 export const APPROVAL_BUSINESS_DAYS = 3;
 

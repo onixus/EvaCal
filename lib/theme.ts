@@ -9,7 +9,10 @@ export function getStoredTheme(): Theme | null {
 }
 
 export function systemPrefersDark(): boolean {
-  return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
 }
 
 export function resolveTheme(): Theme {
@@ -23,5 +26,5 @@ export function applyTheme(theme: Theme): void {
 // Runs before hydration (inlined in <head>) so the page never flashes the wrong theme:
 // an explicit user choice in localStorage wins, otherwise falls back to the OS preference.
 export const THEME_INIT_SCRIPT = `(function(){try{var s=localStorage.getItem(${JSON.stringify(
-  THEME_STORAGE_KEY
+  THEME_STORAGE_KEY,
 )});var dark=s?s==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",dark);}catch(e){}})();`;

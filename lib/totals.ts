@@ -4,9 +4,13 @@ import { totalLaborHours } from "./scheduling";
 export function grandTotalHours(
   stages: { hours: number; isApprovalTask: boolean }[],
   pmHours: number,
-  risks: { hours: number }[]
+  risks: { hours: number }[],
 ): number {
-  return totalLaborHours(stages) + pmHours + risks.reduce((sum, r) => sum + r.hours, 0);
+  return (
+    totalLaborHours(stages) +
+    pmHours +
+    risks.reduce((sum, r) => sum + r.hours, 0)
+  );
 }
 
 export function risksTotalHours(risks: { hours: number }[]): number {
