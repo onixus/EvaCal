@@ -17,8 +17,8 @@ export const LAYOUT_PROFILES: Record<LayoutProfileId, LayoutProfile> = {
 export const DEFAULT_LAYOUT_PROFILE: LayoutProfile = GOST34_ESKD_FRAME_LAYOUT;
 
 export function getLayoutProfile(id?: string): LayoutProfile {
-  if (!id) return DEFAULT_LAYOUT_PROFILE;
-  return LAYOUT_PROFILES[id as LayoutProfileId] || DEFAULT_LAYOUT_PROFILE;
+  const resolved = resolveLayoutProfileId(id);
+  return resolved ? LAYOUT_PROFILES[resolved] : DEFAULT_LAYOUT_PROFILE;
 }
 
 /**
@@ -27,5 +27,7 @@ export function getLayoutProfile(id?: string): LayoutProfile {
  */
 export function resolveLayoutProfileId(id?: string | null): LayoutProfileId | undefined {
   if (!id) return undefined;
-  return id in LAYOUT_PROFILES ? (id as LayoutProfileId) : undefined;
+  // Именно собственное свойство: иначе `constructor` или `toString` из
+  // Object.prototype прошли бы как валидный профиль и уронили экспорт.
+  return Object.hasOwn(LAYOUT_PROFILES, id) ? (id as LayoutProfileId) : undefined;
 }

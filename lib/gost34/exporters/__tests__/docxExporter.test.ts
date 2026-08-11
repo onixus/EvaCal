@@ -47,6 +47,72 @@ describe('DOCX Exporter and Layout Profiles', () => {
     expect(resolveLayoutProfileId('nonsense')).toBeUndefined();
     expect(resolveLayoutProfileId(null)).toBeUndefined();
     expect(resolveLayoutProfileId('gost34-modern')).toBe('gost34-modern');
+
+    // Унаследованные из Object.prototype ключи профилями не являются
+    for (const inherited of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      expect(resolveLayoutProfileId(inherited)).toBeUndefined();
+      expect(getLayoutProfile(inherited).id).toBe('gost34-eskd-frame');
+    }
+  });
+
+  it('should keep body tables inside the frame and out of the page edge', async () => {
+    const withTable: Gost34DocumentAST = {
+      ...dummyAst,
+      sections: [
+        {
+          ...dummyAst.sections[0],
+          tables: [{ caption: 'Таблица 1', headers: ['Код', 'Требование'], rows: [['ТР-1', 'X']] }],
+        },
+      ],
+    };
+
+    const zip = await JSZip.loadAsync(await exportGost34ToDocx(withTable));
+    const documentXml = await zip.file('word/document.xml')!.async('string');
+
+    // Полоса набора при полях 25 и 10 мм — 175 мм; 185 мм вылезли бы за рамку
+    expect(documentXml).toContain(`<w:tblW w:type="dxa" w:w="${convertMillimetersToTwip(175)}"/>`);
+    expect(documentXml).not.toContain(
+      `<w:tblW w:type="dxa" w:w="${convertMillimetersToTwip(185)}"/>`,
+    );
+  });
+
+  it('should number sheets through PAGE fields in the stamps', async () => {
+    const zip = await JSZip.loadAsync(await exportGost34ToDocx(dummyAst));
+    const footers = Object.keys(zip.files).filter((n) => /^word\/footer\d+\.xml$/.test(n));
+    const footerContents = await Promise.all(footers.map((n) => zip.file(n)!.async('string')));
+
+    // Форма 2: номер листа и общее число листов, форма 2а: номер листа
+    for (const xml of footerContents) {
+      expect(xml).toContain('PAGE');
+    }
+    expect(footerContents.some((xml) => xml.includes('NUMPAGES'))).toBe(true);
+    // Прежние заглушки «1» и «X» вместо полей больше не выводятся
+    expect(footerContents.every((xml) => !/<w:t[^>]*>X<\/w:t>/.test(xml))).toBe(true);
+  });
+
+  it('should exclude the contents title from the generated TOC', async () => {
+    const zip = await JSZip.loadAsync(await exportGost34ToDocx(dummyAst));
+    const documentXml = await zip.file('word/document.xml')!.async('string');
+
+    const tocTitle = documentXml.slice(0, documentXml.indexOf('СОДЕРЖАНИЕ'));
+    const titleParagraph = tocTitle.slice(tocTitle.lastIndexOf('<w:p>'));
+    expect(titleParagraph).not.toContain('w:pStyle');
+  });
+
+  it('should typeset with the fonts of the selected layout profile', async () => {
+    const corporate = {
+      ...dummyAst,
+      metadata: { ...dummyAst.metadata, layoutProfileId: 'plain-corporate' as const },
+    };
+    const profile = getLayoutProfile('plain-corporate');
+
+    const zip = await JSZip.loadAsync(await exportGost34ToDocx(corporate));
+    const documentXml = await zip.file('word/document.xml')!.async('string');
+
+    expect(documentXml).toContain(`w:ascii="${profile.fontFamily}"`);
+    expect(documentXml).not.toContain('w:ascii="Times New Roman"');
+    // Базовый кегль профиля — в полуточках
+    expect(documentXml).toContain(`<w:sz w:val="${profile.fontSizePt * 2}"/>`);
   });
 
   it('should render ESKD frames and stamps when no layout is specified', async () => {

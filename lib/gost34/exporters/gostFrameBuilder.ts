@@ -8,6 +8,7 @@ import {
   WidthType,
   BorderStyle,
   ImportedXmlComponent,
+  PageNumber,
   convertMillimetersToTwip,
 } from 'docx';
 import { Gost34DocMetadata } from '../types';
@@ -72,6 +73,35 @@ export function buildEskdFrameHeader(instance = 0): Paragraph {
 }
 
 /**
+ * Ячейка штампа: либо обычный текст, либо поле Word с номером листа
+ * (`PAGE` / `NUMPAGES`) — иначе на всех листах стояли бы одни и те же цифры.
+ */
+function buildCellRuns(
+  text: string,
+  opts: { font: string; bold: boolean; size: number; pageField?: 'current' | 'total' },
+): TextRun[] {
+  const runs: TextRun[] = [];
+  const { font, bold, size } = opts;
+
+  if (text) {
+    runs.push(new TextRun({ text, font, bold, size }));
+  }
+
+  if (opts.pageField) {
+    runs.push(
+      new TextRun({
+        children: [opts.pageField === 'current' ? PageNumber.CURRENT : PageNumber.TOTAL_PAGES],
+        font,
+        bold,
+        size,
+      }),
+    );
+  }
+
+  return runs.length > 0 ? runs : [new TextRun({ text: '', font, bold, size })];
+}
+
+/**
  * Builds standard GOST 2.104-2006 stamp tables with pixel-perfect TWIP dimensions (dxa).
  * Printable width: 185mm = 10488 dxa (A4 210mm - 20mm left - 5mm right).
  */
@@ -103,7 +133,13 @@ export function buildGost2104Form2Table(
   const makeCell = (
     text: string,
     widthMm: number,
-    opts: { bold?: boolean; size?: number; align?: any; colSpan?: number } = {},
+    opts: {
+      bold?: boolean;
+      size?: number;
+      align?: any;
+      colSpan?: number;
+      pageField?: 'current' | 'total';
+    } = {},
   ) => {
     const widthDxa = convertMillimetersToTwip(widthMm);
     return new TableCell({
@@ -120,14 +156,12 @@ export function buildGost2104Form2Table(
         new Paragraph({
           alignment: opts.align || AlignmentType.CENTER,
           spacing: { before: 0, after: 0, line: 200 },
-          children: [
-            new TextRun({
-              text,
-              font,
-              bold: opts.bold ?? false,
-              size: opts.size || normTextSize,
-            }),
-          ],
+          children: buildCellRuns(text, {
+            font,
+            bold: opts.bold ?? false,
+            size: opts.size || normTextSize,
+            pageField: opts.pageField,
+          }),
         }),
       ],
     });
@@ -174,8 +208,8 @@ export function buildGost2104Form2Table(
             size: normTextSize,
           }),
           makeCell('Р', 15, { bold: true }),
-          makeCell('1', 17.5),
-          makeCell('X', 17.5),
+          makeCell('', 17.5, { pageField: 'current' }),
+          makeCell('', 17.5, { pageField: 'total' }),
         ],
       }),
       // Row 3: Checker signature
@@ -273,7 +307,7 @@ export function buildGost2104Form2aTable(meta: Gost34DocMetadata, indentMm = 0):
   const makeCell = (
     text: string,
     widthMm: number,
-    opts: { bold?: boolean; size?: number; align?: any } = {},
+    opts: { bold?: boolean; size?: number; align?: any; pageField?: 'current' | 'total' } = {},
   ) => {
     const widthDxa = convertMillimetersToTwip(widthMm);
     return new TableCell({
@@ -289,14 +323,12 @@ export function buildGost2104Form2aTable(meta: Gost34DocMetadata, indentMm = 0):
         new Paragraph({
           alignment: opts.align || AlignmentType.CENTER,
           spacing: { before: 0, after: 0, line: 200 },
-          children: [
-            new TextRun({
-              text,
-              font,
-              bold: opts.bold ?? false,
-              size: opts.size || normTextSize,
-            }),
-          ],
+          children: buildCellRuns(text, {
+            font,
+            bold: opts.bold ?? false,
+            size: opts.size || normTextSize,
+            pageField: opts.pageField,
+          }),
         }),
       ],
     });
@@ -316,7 +348,7 @@ export function buildGost2104Form2aTable(meta: Gost34DocMetadata, indentMm = 0):
           makeCell('Подп.', 15, { size: smallTextSize }),
           makeCell('Дата', 10, { size: smallTextSize }),
           makeCell(meta.documentCode, 110, { bold: true, size: normTextSize }),
-          makeCell('Лист', 10, { size: smallTextSize }),
+          makeCell('Лист ', 10, { size: smallTextSize, pageField: 'current' }),
         ],
       }),
     ],
