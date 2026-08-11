@@ -9,9 +9,25 @@ export const LAYOUT_PROFILES: Record<LayoutProfileId, LayoutProfile> = {
   'plain-corporate': PLAIN_CORPORATE_LAYOUT,
 };
 
-export const DEFAULT_LAYOUT_PROFILE: LayoutProfile = GOST34_MODERN_LAYOUT;
+/**
+ * По умолчанию документы выпускаются с рамками и штампами ЕСКД (ГОСТ 2.104-2006):
+ * это ожидаемое «гостовское» оформление. Современный стиль без рамок доступен
+ * явным выбором профиля `gost34-modern`.
+ */
+export const DEFAULT_LAYOUT_PROFILE: LayoutProfile = GOST34_ESKD_FRAME_LAYOUT;
 
 export function getLayoutProfile(id?: string): LayoutProfile {
-  if (!id) return DEFAULT_LAYOUT_PROFILE;
-  return LAYOUT_PROFILES[id as LayoutProfileId] || DEFAULT_LAYOUT_PROFILE;
+  const resolved = resolveLayoutProfileId(id);
+  return resolved ? LAYOUT_PROFILES[resolved] : DEFAULT_LAYOUT_PROFILE;
+}
+
+/**
+ * Нормализует идентификатор профиля оформления, пришедший из запроса.
+ * Неизвестное значение отбрасывается, чтобы сработал профиль по умолчанию.
+ */
+export function resolveLayoutProfileId(id?: string | null): LayoutProfileId | undefined {
+  if (!id) return undefined;
+  // Именно собственное свойство: иначе `constructor` или `toString` из
+  // Object.prototype прошли бы как валидный профиль и уронили экспорт.
+  return Object.hasOwn(LAYOUT_PROFILES, id) ? (id as LayoutProfileId) : undefined;
 }

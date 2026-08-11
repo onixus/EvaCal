@@ -8,6 +8,7 @@ import {
   Gost34RequirementItem,
   getZipEntries,
   resolveGost34Profile,
+  resolveLayoutProfileId,
 } from '@/lib/gost34';
 
 /**
@@ -36,6 +37,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const enrich = searchParams.get('enrich') !== 'false';
 
   const standardProfileId = searchParams.get('profile') || undefined;
+  const layoutProfileId = resolveLayoutProfileId(searchParams.get('layout'));
 
   const { buffer, filename } = await generateGost34Document({
     calculation: calc,
@@ -45,6 +47,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       city,
       enrichRequirements: enrich,
       standardProfileId,
+      layoutProfileId,
       signatures: {
         ...DEFAULT_SIGNATURES,
         developer: searchParams.get('developer') || DEFAULT_SIGNATURES.developer,
@@ -90,8 +93,11 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       approver = DEFAULT_SIGNATURES.approver,
       customerApprover = DEFAULT_SIGNATURES.customerApprover,
       standardProfileId,
+      layoutProfileId,
       rawRequirements,
     } = body;
+
+    const layout = resolveLayoutProfileId(layoutProfileId);
 
     const commonSignatures = {
       ...DEFAULT_SIGNATURES,
@@ -122,6 +128,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
               enrichRequirements: Boolean(enrich),
               enrichmentOptions,
               standardProfileId,
+              layoutProfileId: layout,
               signatures: commonSignatures,
             },
           });
@@ -156,6 +163,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         enrichRequirements: Boolean(enrich),
         enrichmentOptions,
         standardProfileId,
+        layoutProfileId: layout,
         signatures: commonSignatures,
       },
     });

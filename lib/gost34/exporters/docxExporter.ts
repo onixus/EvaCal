@@ -10,15 +10,18 @@ import {
   AlignmentType,
   HeadingLevel,
   Footer,
+  Header,
   convertMillimetersToTwip,
-  BorderStyle,
-  PageBorderOffsetFrom,
-  PageBorderDisplay,
   PageNumber,
   TableOfContents,
 } from 'docx';
 import { Gost34DocumentAST, Gost34Section } from '../types';
-import { buildGost2104Form2Table, buildGost2104Form2aTable } from './gostFrameBuilder';
+import {
+  buildGost2104Form2Table,
+  buildGost2104Form2aTable,
+  buildEskdFrameHeader,
+  FRAME_LEFT_MM,
+} from './gostFrameBuilder';
 import { DEFAULT_GOST34_PROFILE, getDocumentHeadings } from '../standards';
 import { getLayoutProfile } from './layout';
 
@@ -43,41 +46,36 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
     bottom: convertMillimetersToTwip(layoutProfile.margins.bottomMm),
     left: convertMillimetersToTwip(layoutProfile.margins.leftMm),
     right: convertMillimetersToTwip(layoutProfile.margins.rightMm),
+    header: convertMillimetersToTwip(5),
+    footer: convertMillimetersToTwip(5),
   };
 
-  // Outer GOST Page Frame Border (used when showEskdFrames is enabled)
-  const gostBordersConfig = layoutProfile.showEskdFrames
-    ? {
-        pageBorders: {
-          display: PageBorderDisplay.ALL_PAGES,
-          offsetFrom: PageBorderOffsetFrom.PAGE,
-        },
-        pageBorderTop: {
-          style: BorderStyle.SINGLE,
-          size: 12,
-          color: '000000',
-          space: 14,
-        },
-        pageBorderBottom: {
-          style: BorderStyle.SINGLE,
-          size: 12,
-          color: '000000',
-          space: 14,
-        },
-        pageBorderLeft: {
-          style: BorderStyle.SINGLE,
-          size: 12,
-          color: '000000',
-          space: 31,
-        },
-        pageBorderRight: {
-          style: BorderStyle.SINGLE,
-          size: 12,
-          color: '000000',
-          space: 14,
-        },
-      }
-    : undefined;
+  /**
+   * Рамка ЕСКД рисуется VML-фигурой в колонтитуле, а не через `w:pgBorders`:
+   * Word не даёт отодвинуть границу страницы дальше 31 пункта от края, из-за
+   * чего левое поле подшивки 20 мм по `pgBorders` недостижимо.
+   */
+  let frameInstance = 0;
+  const makeFrameHeaders = () =>
+    layoutProfile.showEskdFrames
+      ? {
+          default: new Header({ children: [buildEskdFrameHeader(frameInstance++)] }),
+          first: new Header({ children: [buildEskdFrameHeader(frameInstance++)] }),
+        }
+      : undefined;
+
+  // Штампы прижимаются к левой линии рамки, а текст отступает от неё внутрь.
+  const stampIndentMm = FRAME_LEFT_MM - layoutProfile.margins.leftMm;
+
+  // Ширина полосы набора: таблицы шире неё вылезли бы за рамку и за край листа.
+  const contentWidthMm = 210 - layoutProfile.margins.leftMm - layoutProfile.margins.rightMm;
+
+  /**
+   * Кегли берутся из профиля: базовый размер — на текст, остальное отсчитывается
+   * от него, поэтому смена профиля меняет типографику целиком, а не только поля.
+   */
+  const font = layoutProfile.fontFamily;
+  const halfPt = (deltaPt = 0) => (layoutProfile.fontSizePt + deltaPt) * 2;
 
   // Title Page Elements
   const titlePageChildren: (Paragraph | Table)[] = [
@@ -89,8 +87,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
         new TextRun({
           text: 'УТВЕРЖДАЮ',
           bold: true,
-          font: 'Times New Roman',
-          size: 24,
+          font,
+          size: halfPt(-2),
         }),
       ],
     }),
@@ -100,8 +98,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
       children: [
         new TextRun({
           text: `Заказчик: ${meta.customerName}`,
-          font: 'Times New Roman',
-          size: 24,
+          font,
+          size: halfPt(-2),
         }),
       ],
     }),
@@ -111,8 +109,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
       children: [
         new TextRun({
           text: `_________________ / ${sigs.customerApprover || 'И.И. Иванов'} /`,
-          font: 'Times New Roman',
-          size: 24,
+          font,
+          size: halfPt(-2),
         }),
       ],
     }),
@@ -122,8 +120,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
       children: [
         new TextRun({
           text: `«_____» ________________ ${meta.year} г.`,
-          font: 'Times New Roman',
-          size: 24,
+          font,
+          size: halfPt(-2),
         }),
       ],
     }),
@@ -136,8 +134,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
         new TextRun({
           text: meta.documentCode,
           bold: true,
-          font: 'Times New Roman',
-          size: 28,
+          font,
+          size: halfPt(),
         }),
       ],
     }),
@@ -148,8 +146,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
         new TextRun({
           text: meta.fullSystemName.toUpperCase(),
           bold: true,
-          font: 'Times New Roman',
-          size: 32,
+          font,
+          size: halfPt(2),
         }),
       ],
     }),
@@ -160,13 +158,13 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
         new TextRun({
           text: docTitleText,
           bold: true,
-          font: 'Times New Roman',
-          size: 36,
+          font,
+          size: halfPt(4),
         }),
         new TextRun({
           text: `\n${docSubtitleText}`,
-          font: 'Times New Roman',
-          size: 24,
+          font,
+          size: halfPt(-2),
         }),
       ],
     }),
@@ -179,8 +177,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
         new TextRun({
           text: 'СОГЛАСОВАНО:',
           bold: true,
-          font: 'Times New Roman',
-          size: 24,
+          font,
+          size: halfPt(-2),
         }),
       ],
     }),
@@ -190,8 +188,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
       children: [
         new TextRun({
           text: `Разработчик: ${meta.developerName}`,
-          font: 'Times New Roman',
-          size: 24,
+          font,
+          size: halfPt(-2),
         }),
       ],
     }),
@@ -201,8 +199,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
       children: [
         new TextRun({
           text: `_________________ / ${sigs.approver || 'П.П. Петров'} /`,
-          font: 'Times New Roman',
-          size: 24,
+          font,
+          size: halfPt(-2),
         }),
       ],
     }),
@@ -212,8 +210,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
       children: [
         new TextRun({
           text: `«_____» ________________ ${meta.year} г.`,
-          font: 'Times New Roman',
-          size: 24,
+          font,
+          size: halfPt(-2),
         }),
       ],
     }),
@@ -225,8 +223,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
       children: [
         new TextRun({
           text: `${meta.city} — ${meta.year}`,
-          font: 'Times New Roman',
-          size: 24,
+          font,
+          size: halfPt(-2),
         }),
       ],
     }),
@@ -241,8 +239,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
       children: [
         new TextRun({
           text,
-          font: 'Times New Roman',
-          size: 28, // 14pt
+          font,
+          size: halfPt(),
         }),
       ],
     });
@@ -258,8 +256,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
         new TextRun({
           text: `${numStr}. ${title}`,
           bold: true,
-          font: 'Times New Roman',
-          size: level === 1 ? 32 : 28, // 16pt for H1, 14pt for H2
+          font,
+          size: level === 1 ? halfPt(2) : halfPt(),
         }),
       ],
     });
@@ -285,8 +283,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
               children: [
                 new TextRun({
                   text: tbl.caption,
-                  font: 'Times New Roman',
-                  size: 24,
+                  font,
+                  size: halfPt(-2),
                   bold: true,
                 }),
               ],
@@ -308,8 +306,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
                         new TextRun({
                           text: h,
                           bold: true,
-                          font: 'Times New Roman',
-                          size: 22,
+                          font,
+                          size: halfPt(-3),
                         }),
                       ],
                     }),
@@ -331,8 +329,8 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
                           children: [
                             new TextRun({
                               text: String(val),
-                              font: 'Times New Roman',
-                              size: 22,
+                              font,
+                              size: halfPt(-3),
                             }),
                           ],
                         }),
@@ -345,7 +343,7 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
 
         docBodyElements.push(
           new Table({
-            width: { size: convertMillimetersToTwip(185), type: WidthType.DXA },
+            width: { size: convertMillimetersToTwip(contentWidthMm), type: WidthType.DXA },
             rows: tableRows,
           }),
         );
@@ -360,16 +358,17 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
   // Add Table of Contents if enabled in Layout Profile
   if (layoutProfile.includeTOC) {
     docBodyElements.unshift(
+      // Без стиля заголовка: иначе Word соберёт сам заголовок «СОДЕРЖАНИЕ»
+      // первой строкой создаваемого тут же оглавления.
       new Paragraph({
-        heading: HeadingLevel.HEADING_1,
         alignment: AlignmentType.CENTER,
         spacing: { before: 200, after: 300 },
         children: [
           new TextRun({
             text: 'СОДЕРЖАНИЕ',
             bold: true,
-            font: layoutProfile.fontFamily,
-            size: 32,
+            font,
+            size: halfPt(2),
           }),
         ],
       }),
@@ -390,10 +389,10 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
   const footersConfig = layoutProfile.showEskdFrames
     ? {
         first: new Footer({
-          children: [buildGost2104Form2Table(meta, standardProfile)],
+          children: [buildGost2104Form2Table(meta, standardProfile, stampIndentMm)],
         }),
         default: new Footer({
-          children: [buildGost2104Form2aTable(meta)],
+          children: [buildGost2104Form2aTable(meta, stampIndentMm)],
         }),
       }
     : {
@@ -432,14 +431,14 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
   // Build Word Document
   const doc = new Document({
     sections: [
-      // Title Section
+      // Title Section — рамка есть, основной надписи (штампа) на титуле нет
       {
         properties: {
           page: {
             margin: titleMargin,
-            borders: gostBordersConfig as any,
           },
         },
+        headers: makeFrameHeaders(),
         children: titlePageChildren,
       },
       // Main Body Section
@@ -455,9 +454,9 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
               footer: convertMillimetersToTwip(5),
               header: convertMillimetersToTwip(5),
             },
-            borders: gostBordersConfig as any,
           },
         },
+        headers: makeFrameHeaders(),
         footers: footersConfig,
         children: docBodyElements,
       },

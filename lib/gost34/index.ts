@@ -15,6 +15,13 @@ export { analyzeAndNormalizeInput } from './analyzer';
 export { buildGost34DocumentAST } from './generator';
 export type { Gost34BuildDiagnostics } from './generator';
 export { exportGost34ToDocx } from './exporters/docxExporter';
+export {
+  LAYOUT_PROFILES,
+  DEFAULT_LAYOUT_PROFILE,
+  getLayoutProfile,
+  resolveLayoutProfileId,
+} from './exporters/layout';
+export type { LayoutProfile, LayoutProfileId } from './exporters/layout';
 export { buildTZ34Document } from './templates/tz34';
 export { TZ_SCHEMA_2020 } from './schema/tz34-2020';
 export { renderDocumentSchema, validateSchemaCoverage } from './schema/renderer';
