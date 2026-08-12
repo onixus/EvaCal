@@ -37,21 +37,30 @@ pipeline {
             }
         }
 
+        // Each check reports its own stage result instead of aborting the run,
+        // so a lint failure can no longer hide a failing test. Any failure
+        // still marks the whole build FAILURE.
         stage('Lint') {
             steps {
-                sh 'npm run lint'
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                    sh 'npm run lint'
+                }
             }
         }
 
         stage('Typecheck') {
             steps {
-                sh 'npm run typecheck'
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                    sh 'npm run typecheck'
+                }
             }
         }
 
         stage('Test') {
             steps {
-                sh 'npm run test'
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                    sh 'npm run test'
+                }
             }
         }
 
