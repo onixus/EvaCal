@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     if (totalBytes > MAX_UPLOAD_BYTES) {
       return NextResponse.json(
         { error: `Upload exceeds the ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB limit` },
-        { status: 413 }
+        { status: 413 },
       );
     }
 
