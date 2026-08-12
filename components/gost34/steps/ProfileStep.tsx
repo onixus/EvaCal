@@ -5,12 +5,14 @@ import { LAYOUT_PROFILES } from '@/lib/gost34/exporters/layout';
 import type { LayoutProfileId } from '@/lib/gost34/exporters/layout';
 import type { GostDocumentType } from '@/lib/gost34/types';
 import { PANEL_CLASS } from '../wizardShared';
+import MigrationPanel from '../MigrationPanel';
 
 /** Profiles the wizard may offer: a preview profile has no migrated structure yet. */
 const SELECTABLE_PROFILES = GOST34_PROFILES.filter((profile) => profile.status === 'stable');
 const LAYOUT_PROFILE_CARDS = Object.values(LAYOUT_PROFILES);
 
 interface ProfileStepProps {
+  calculationId: string;
   standardProfileId: string;
   layoutProfileId: string;
   docType: GostDocumentType;
@@ -20,6 +22,7 @@ interface ProfileStepProps {
 }
 
 export default function ProfileStep({
+  calculationId,
   standardProfileId,
   layoutProfileId,
   docType,
@@ -35,6 +38,12 @@ export default function ProfileStep({
 
   return (
     <div className="space-y-4 animate-in fade-in duration-150">
+      <MigrationPanel
+        calculationId={calculationId}
+        docType={docType}
+        onMigrated={onStandardProfileChange}
+      />
+
       <div className={`${PANEL_CLASS} space-y-4`}>
         <div>
           <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider">

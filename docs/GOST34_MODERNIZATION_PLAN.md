@@ -869,6 +869,11 @@ Migrate to ГОСТ 34.602-2020
 - migration UI;
 - documentation.
 
+Реализовано: golden-сценарии и эталоны — `lib/gost34/__tests__/golden/`,
+структурные проверки Word — `lib/gost34/exporters/__tests__/docxStructure.test.ts`,
+нормативная привязка и diff миграции — `lib/gost34/migration/`, экран миграции —
+`components/gost34/MigrationPanel.tsx`, описание — [GOST34_MIGRATION.md](GOST34_MIGRATION.md).
+
 ---
 
 # 8. Definition of Done
