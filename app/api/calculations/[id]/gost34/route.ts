@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
-import { loadCalculationForExport, safeFileName, contentDisposition } from '@/lib/export';
+import { loadCalculationForExport, safeFileName, contentDisposition, responseBody } from '@/lib/export';
 import {
   generateGost34Document,
   GostDocumentType,
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     },
   });
 
-  return new NextResponse(new Uint8Array(buffer), {
+  return new NextResponse(responseBody(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'Content-Disposition': contentDisposition(
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
       const zipFilename = `GOST34_Full_Package_${safeFileName(calc.name)}.zip`;
 
-      return new NextResponse(new Uint8Array(zipBuffer), {
+      return new NextResponse(responseBody(zipBuffer), {
         headers: {
           'Content-Type': 'application/zip',
           'Content-Disposition': contentDisposition(zipFilename.replace(/\.zip$/, ''), 'zip'),
@@ -174,7 +174,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       },
     });
 
-    return new NextResponse(new Uint8Array(buffer), {
+    return new NextResponse(responseBody(buffer), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'Content-Disposition': contentDisposition(

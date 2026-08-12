@@ -26,22 +26,25 @@ model User {
 // Only one template is "active" at a time and used by the presale interface,
 // but old templates are kept so old calculations remain readable.
 model FormTemplate {
-  id       String   @id @default(cuid())
-  name     String
-  description String?
-  isActive Boolean  @default(false)
+  id               String          @id @default(cuid())
+  name             String
+  description      String?
+  isActive         Boolean         @default(false)
   // Optional locked default: when set, every calculation from this template
   // inherits the start date and only architect/admin can override it.
   defaultStartDate DateTime?
   // Scheduling: length of a working day (4-6h) and whether weekends count as working days.
-  workDayHours    Int             @default(6)
-  includeWeekends Boolean         @default(false)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  fields         FormField[]
-  stageTemplates StageTemplate[]
-  riskTemplates  RiskTemplate[]
-  calculations   Calculation[]
+  workDayHours     Int             @default(6)
+  includeWeekends  Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  fields           FormField[]
+  stageTemplates   StageTemplate[]
+  riskTemplates    RiskTemplate[]
+  calculations     Calculation[]
+
+  // Presale looks up the single active template on every page load.
+  @@index([isActive])
 }
 
 // A single question/field in the questionnaire.
@@ -55,6 +58,10 @@ model FormField {
   options    String? // JSON-encoded array of strings, used when type = select
   required   Boolean      @default(false)
   order      Int          @default(0)
+
+  // SQLite does not index foreign keys automatically; every read of this table
+  // is "all rows for one template, in display order".
+  @@index([templateId, order])
 }
 
 // Defines a stage that gets generated for every calculation made from this template.
@@ -72,6 +79,8 @@ model StageTemplate {
   // generated from this stage template. The architect can still edit it per calculation.
   requirements   String?
   order          Int          @default(0)
+
+  @@index([templateId, order])
 }
 
 // Admin-defined default risk, copied onto every calculation made from this template
@@ -83,6 +92,8 @@ model RiskTemplate {
   description String
   hours       Float        @default(0)
   order       Int          @default(0)
+
+  @@index([templateId, order])
 }
 
 // A concrete labor-cost calculation, produced by presale, refined by the architect.
@@ -103,6 +114,12 @@ model Calculation {
   updatedAt  DateTime     @updatedAt
   stages     Stage[]
   risks      Risk[]
+
+  // The calculation list is always sorted newest-first.
+  @@index([createdAt])
+  @@index([templateId])
+  // The architect screen splits the archive into "awaiting approval" and the rest.
+  @@index([status, createdAt])
 }
 
 // A stage on the Gantt chart. Approval tasks (auto-inserted whenever a stage's
@@ -126,6 +143,9 @@ model Stage {
   parallel           Boolean     @default(false) // starts alongside the preceding non-parallel stage
   approvalDays       Int? // custom duration (business days) for this stage's own approval task; null = default 3
   createdAt          DateTime    @default(now())
+
+  // Stages are only ever read as "all rows for one calculation, in Gantt order".
+  @@index([calculationId, order])
 }
 
 // A risk the architect flags on a calculation, with the extra labor hours it adds
@@ -138,4 +158,6 @@ model Risk {
   hours         Float       @default(0)
   order         Int         @default(0)
   createdAt     DateTime    @default(now())
+
+  @@index([calculationId, order])
 }
