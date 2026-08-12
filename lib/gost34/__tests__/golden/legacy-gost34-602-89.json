@@ -1,0 +1,123 @@
+{
+  "scenario": "legacy-gost34-602-89",
+  "title": "Проект прежней редакции ГОСТ 34.602-89",
+  "docType": "TZ",
+  "profile": {
+    "id": "gost34-legacy-89",
+    "version": "1989",
+    "primaryStandard": "ГОСТ 34.602-89"
+  },
+  "sections": [
+    {
+      "numStr": "1",
+      "title": "ОБЩИЕ СВЕДЕНИЯ",
+      "paragraphs": 7
+    },
+    {
+      "numStr": "2",
+      "title": "НАЗНАЧЕНИЕ И ЦЕЛИ СОЗДАНИЯ (РАЗВИТИЯ) СИСТЕМЫ",
+      "paragraphs": 5
+    },
+    {
+      "numStr": "3",
+      "title": "ХАРАКТЕРИСТИКА ОБЪЕКТОВ АВТОМАТИЗАЦИИ",
+      "paragraphs": 2
+    },
+    {
+      "numStr": "4",
+      "title": "ТРЕБОВАНИЯ К СИСТЕМЕ",
+      "paragraphs": 1,
+      "subsections": [
+        {
+          "numStr": "4.1",
+          "title": "Требования к системе в целом",
+          "paragraphs": 4
+        },
+        {
+          "numStr": "4.2",
+          "title": "Требования к функциям (задачам), выполняемым системой",
+          "paragraphs": 1,
+          "tables": [
+            "Таблица 1 — Спецификация требований к системе"
+          ]
+        },
+        {
+          "numStr": "4.3",
+          "title": "Требования к видам обеспечения",
+          "paragraphs": 3
+        }
+      ]
+    },
+    {
+      "numStr": "5",
+      "title": "СОСТАВ И СОДЕРЖАНИЕ РАБОТ ПО СОЗДАНИЮ СИСТЕМЫ",
+      "paragraphs": 3,
+      "tables": [
+        "Таблица 2 — Календарный план и состав этапов работ",
+        "Таблица — Матрица прослеживаемости требований и этапов проекта",
+        "Таблица 4 — Резерв на риски проекта"
+      ]
+    },
+    {
+      "numStr": "6",
+      "title": "ПОРЯДОК КОНТРОЛЯ И ПРИЕМКИ СИСТЕМЫ",
+      "paragraphs": 2
+    },
+    {
+      "numStr": "7",
+      "title": "ТРЕБОВАНИЯ К ПОДГОТОВКЕ ОБЪЕКТА АВТОМАТИЗАЦИИ К ВВОДУ СИСТЕМЫ В ЭКСПЛУАТАЦИЮ",
+      "paragraphs": 1
+    },
+    {
+      "numStr": "8",
+      "title": "ТРЕБОВАНИЯ К ДОКУМЕНТИРОВАНИЮ",
+      "paragraphs": 1
+    },
+    {
+      "numStr": "9",
+      "title": "ИСТОЧНИКИ РАЗРАБОТКИ",
+      "paragraphs": 2
+    }
+  ],
+  "requirementCodes": [
+    "ТР-ЭТ-01",
+    "ТР-ЭТ-02",
+    "ТР-ЭТ-03"
+  ],
+  "applicability": {
+    "fstek_21": "NOT_APPLICABLE",
+    "fz_152": "NOT_APPLICABLE",
+    "fz_187_kii": "NOT_APPLICABLE",
+    "fstek_239": "NOT_APPLICABLE",
+    "fstek_117": "UNKNOWN",
+    "fz_188_reestr": "UNKNOWN",
+    "gost_57580": "UNKNOWN",
+    "cb_683p": "UNKNOWN",
+    "cb_757p": "UNKNOWN",
+    "cb_719p": "UNKNOWN",
+    "fsb_282_gossopka": "NOT_APPLICABLE",
+    "sla_999": "UNKNOWN",
+    "wcag_52872": "UNKNOWN"
+  },
+  "validation": {
+    "ERROR": 0,
+    "WARNING": 3,
+    "INFO": 0
+  },
+  "traceabilityCoveragePercent": 66.67,
+  "contextGapPaths": [
+    "goals",
+    "measurableGoalCriteria",
+    "users",
+    "roles",
+    "architecture.style",
+    "integrations",
+    "deploymentModel",
+    "infrastructure.platforms",
+    "infrastructure.computeResources",
+    "availability",
+    "performance",
+    "dataClasses"
+  ],
+  "schemaIssues": []
+}
