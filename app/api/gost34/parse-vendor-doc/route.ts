@@ -4,6 +4,14 @@ import { GOST34_LLM_ROLES } from '../roles';
 import { parseVendorDocument } from '@/lib/gost34/parser/vendorDocParser';
 import { normalizeRequirementItems } from '@/lib/gost34/parser/requirementSanitizer';
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '12mb',
+    },
+  },
+};
+
 export async function POST(req: NextRequest) {
   const session = await requireApiRole(GOST34_LLM_ROLES);
   if (session instanceof NextResponse) return session;
@@ -12,7 +20,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const files = formData.getAll('files') as File[];
 
-    if (!files || files.length === 0) {
+    if (!files?.length) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 });
     }
 
@@ -20,12 +28,12 @@ export async function POST(req: NextRequest) {
     const parsedFiles: string[] = [];
 
     for (const file of files) {
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+      console.log('📄 Upload:', file.name, file.size, 'bytes');
+      const buffer = Buffer.from(await file.arrayBuffer());
 
       const parsed = await parseVendorDocument(buffer, file.name);
+      console.log('🔧 Detected ext:', file.name.split('.').pop()?.toLowerCase());
 
-      // Clean unprintable binary control characters while preserving full Cyrillic text, «», №, —, tabs to spaces
       const cleanedRequirements = parsed.extractedRequirements
         .map((req) => {
           const cleanTitle = req.title
@@ -42,19 +50,17 @@ export async function POST(req: NextRequest) {
 
           return {
             ...req,
-            // Recorded before any cleaning: everything downstream carries it forward.
             originalText: req.description,
             title: cleanTitle,
             description: cleanDesc,
           };
         })
-        .filter((req) => req.description.length > 5);
+        .filter((r) => r.description.length > 5);
 
       rawExtractedRequirements.push(...cleanedRequirements);
       parsedFiles.push(file.name);
     }
 
-    // Run structural normalization & auto-categorization
     const normalizedRequirements = normalizeRequirementItems(rawExtractedRequirements);
 
     return NextResponse.json({
@@ -63,7 +69,7 @@ export async function POST(req: NextRequest) {
       rawCount: rawExtractedRequirements.length,
     });
   } catch (err: any) {
-    console.error('Error parsing vendor document:', err);
+    console.error('❌ Error parsing vendor document:', err);
     return NextResponse.json({ error: err?.message || 'Parsing failed' }, { status: 500 });
   }
 }
