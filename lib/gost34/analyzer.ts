@@ -18,6 +18,8 @@ import { buildProjectContext } from './context/builder';
 import { ProjectContext } from './context/types';
 import { validateRequirements } from './validation';
 import { evaluateApplicability } from './applicability';
+import { buildTraceability } from './traceability/engine';
+import type { TraceLink } from './traceability/types';
 
 /**
  * Normalizes input from EvaCal Calculation model or direct external API input
@@ -45,6 +47,11 @@ export function analyzeAndNormalizeInput(input: {
   vendorFiles?: string[];
   /** Ручной ввод проектного контекста: перекрывает данные опросника и расчёта. */
   projectContext?: Partial<ProjectContext>;
+  /**
+   * Подтверждённые в мастере связи «требование → этап». Имеют приоритет над
+   * автоматическим сопоставлением: документ печатает именно их.
+   */
+  manualTraceLinks?: TraceLink[];
 }): Gost34InputPayload {
   const calc = input.calculation;
 
@@ -169,15 +176,20 @@ export function analyzeAndNormalizeInput(input: {
   });
 
   // Ручные подтверждения мастера имеют приоритет над булевыми флагами обогащения.
-  const applicability = evaluateApplicability(projectContext, {
+  const enrichmentDecisions = {
     ...(metadata.enrichmentOptions || {}),
     ...(metadata.applicabilityOverrides || {}),
-  });
+  };
+  const applicability = evaluateApplicability(projectContext, enrichmentDecisions);
 
   // Apply normative enrichment if flag is active
   if (metadata.enrichRequirements) {
     // Canned regulatory text, evaluated from ProjectContext & overrides
-    const enriched = getEnrichedGostRequirements(metadata.enrichmentOptions, projectContext);
+    const enriched = getEnrichedGostRequirements(
+      metadata.enrichmentOptions,
+      projectContext,
+      enrichmentDecisions,
+    );
     requirementsV2.push(
       ...fromGost34RequirementItems(enriched, {
         type: 'regulatory',
@@ -207,5 +219,6 @@ export function analyzeAndNormalizeInput(input: {
     projectContext,
     applicability,
     validation: validateRequirements(requirementsV2),
+    traceability: buildTraceability(requirementsV2, stages, input.manualTraceLinks || []),
   };
 }

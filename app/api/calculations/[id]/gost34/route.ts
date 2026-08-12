@@ -96,6 +96,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       standardProfileId,
       layoutProfileId,
       rawRequirements,
+      manualLinks,
     } = body;
 
     const layout = resolveLayoutProfileId(layoutProfileId);
@@ -122,6 +123,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
           const { buffer } = await generateGost34Document({
             calculation: calc,
             rawRequirements,
+            manualTraceLinks: manualLinks,
             metadataOverride: {
               docType: entry.docType,
               contractNumber,
@@ -158,6 +160,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const { buffer, filename } = await generateGost34Document({
       calculation: calc,
       rawRequirements,
+      manualTraceLinks: manualLinks,
       metadataOverride: {
         docType,
         contractNumber,

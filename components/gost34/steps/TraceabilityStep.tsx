@@ -30,12 +30,13 @@ export default function TraceabilityStep({
 
   const linkFor = (requirementId: string) => links.find((link) => link.sourceId === requirementId);
 
+  /**
+   * Пустой этап — это осознанное решение «не распределять», а не отсутствие
+   * решения: иначе следующий пересчёт снова навесил бы отклонённую связь по
+   * правилу. Вернуть автоматическое предложение можно кнопкой «Сбросить».
+   */
   const setManualLink = (requirementId: string, stageId: string) => {
     const rest = manualLinks.filter((link) => link.sourceId !== requirementId);
-    if (!stageId) {
-      onManualLinksChange(rest);
-      return;
-    }
     onManualLinksChange([
       ...rest,
       {
@@ -46,6 +47,10 @@ export default function TraceabilityStep({
         approved: true,
       },
     ]);
+  };
+
+  const clearDecision = (requirementId: string) => {
+    onManualLinksChange(manualLinks.filter((link) => link.sourceId !== requirementId));
   };
 
   const coverage = metrics?.coveragePercentage ?? 0;
@@ -145,8 +150,14 @@ export default function TraceabilityStep({
                       </td>
                       <td className="p-3 space-y-1.5">
                         {!link && (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold border bg-amber-500/15 text-amber-300 border-amber-500/40">
-                            UNMAPPED
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              isManual
+                                ? 'bg-slate-500/15 text-slate-300 border-slate-500/40'
+                                : 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                            }`}
+                          >
+                            {isManual ? 'не распределено (решение)' : 'UNMAPPED'}
                           </span>
                         )}
                         {link && (
@@ -175,7 +186,7 @@ export default function TraceabilityStep({
                         {isManual && (
                           <button
                             type="button"
-                            onClick={() => setManualLink(req.id, '')}
+                            onClick={() => clearDecision(req.id)}
                             className="block px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white"
                           >
                             ↺ Сбросить решение

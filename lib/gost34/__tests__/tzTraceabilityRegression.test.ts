@@ -93,6 +93,44 @@ describe('ГОСТ34 regression: traceability and context normalization', () => 
     expect(row?.[3]).toBe('разработчик');
   });
 
+  it('carries wizard-confirmed links from the analyzer into the generated TZ', () => {
+    const payload = analyzeAndNormalizeInput({
+      calculation: calc,
+      metadataOverride: {
+        standardProfileId: CURRENT_GOST34_PROFILE_ID,
+        enrichRequirements: false,
+      },
+      rawRequirements: [
+        {
+          id: 'REQ-1',
+          code: 'REQ-1',
+          category: 'functional',
+          title: 'Разработка функционала',
+          description: 'Создать модуль управления требованиями',
+        },
+      ],
+      manualTraceLinks: [
+        {
+          sourceId: 'REQ-1',
+          targetId: 'stage-analysis',
+          method: 'MANUAL',
+          confidence: 1,
+          approved: true,
+        },
+      ],
+    });
+
+    expect(payload.traceability?.links).toContainEqual(
+      expect.objectContaining({ sourceId: 'REQ-1', targetId: 'stage-analysis' }),
+    );
+
+    const row = traceabilityTable(buildTZ34Document(payload))?.rows.find(
+      (item) => item[0] === 'REQ-1',
+    );
+    expect(row?.[2]).toBe('Анализ требований');
+    expect(row?.[3]).toBe('аналитик');
+  });
+
   it('keeps lifecycle gaps instead of inventing schedule dates', () => {
     const result = buildTZ34Document(basePayload());
 

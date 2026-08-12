@@ -148,10 +148,8 @@ function traceabilityStep(input: ComplianceInput): WizardStepReport {
 }
 
 function signaturesStep(input: ComplianceInput): WizardStepReport {
-  const signatures = input.signatures;
-  if (!signatures) {
-    return { id: 'signatures', status: 'empty', issues: ['Реквизиты основной надписи не заданы.'] };
-  }
+  // Отсутствующий объект — это та же пустая основная надпись, а не «ещё не дошли».
+  const signatures = input.signatures || {};
 
   const missing = REQUIRED_SIGNATURE_FIELDS.filter(
     (field) => !String(signatures[field.key] ?? '').trim(),
@@ -166,6 +164,12 @@ function signaturesStep(input: ComplianceInput): WizardStepReport {
   };
 }
 
+/**
+ * Пробелы проектного контекста не блокируют выпуск: их источник — опросник и
+ * расчёт, а не мастер, и документ печатает по ним явную отметку «требует
+ * уточнения» вместо выдуманного значения. Скрывать их тоже нельзя, поэтому
+ * шаг остаётся в статусе «требует внимания» с указанием, где заполнять.
+ */
 function complianceStep(input: ComplianceInput): WizardStepReport {
   const gaps = input.contextGaps || [];
   const blocking = gaps.filter((gap) => gap.severity === 'blocking');
@@ -174,17 +178,20 @@ function complianceStep(input: ComplianceInput): WizardStepReport {
   const issues: string[] = [];
   if (blocking.length > 0) {
     issues.push(
-      `Не заполнены обязательные сведения о проекте: ${blocking.map((gap) => gap.label).join(', ')}.`,
+      `Обязательные сведения о проекте не заполнены и попадут в документ с отметкой «требует уточнения»: ${blocking
+        .map((gap) => gap.label)
+        .join(', ')}. Источник — опросник расчёта.`,
     );
   }
   if (major.length > 0) {
     issues.push(`Требуют уточнения: ${major.map((gap) => gap.label).join(', ')}.`);
   }
 
-  const status: WizardStepStatus =
-    blocking.length > 0 ? 'blocked' : major.length > 0 ? 'attention' : 'ready';
-
-  return { id: 'compliance', status, issues };
+  return {
+    id: 'compliance',
+    status: issues.length > 0 ? 'attention' : 'ready',
+    issues,
+  };
 }
 
 const STEP_BUILDERS: Record<WizardStepId, (input: ComplianceInput) => WizardStepReport> = {
@@ -198,10 +205,11 @@ const STEP_BUILDERS: Record<WizardStepId, (input: ComplianceInput) => WizardStep
 
 /**
  * Считает состояние каждого шага мастера и итоговую готовность к выпуску.
- * Блокируют выпуск только те замечания, которые делают документ несоответствующим:
- * preview-профиль, ошибки валидации требований, пустая основная надпись и
- * блокирующие пробелы проектного контекста. Статус UNKNOWN у нормативов и
- * непокрытые требования выпуск не блокируют, но остаются видимыми.
+ * Блокируют выпуск только те замечания, которые делают документ несоответствующим
+ * и которые можно устранить в самом мастере: preview-профиль, ошибки валидации
+ * требований и пустая основная надпись. Статус UNKNOWN у нормативов, непокрытые
+ * требования и пробелы проектного контекста выпуск не блокируют, но остаются
+ * видимыми.
  */
 export function buildComplianceReport(input: ComplianceInput): ComplianceReport {
   const steps = WIZARD_STEP_IDS.map((id) => STEP_BUILDERS[id](input));

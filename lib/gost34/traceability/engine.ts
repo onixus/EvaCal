@@ -3,17 +3,34 @@ import { Gost34RequirementV2, getRequirementEffectiveText } from '../requirement
 import { Gost34RequirementItem, Gost34StageItem, Gost34TableData } from '../types';
 import { TraceLink, TraceabilityResult } from './types';
 
+/**
+ * Ручное решение «требование намеренно не распределено»: связь без целевого
+ * этапа. Такое требование остаётся UNMAPPED и не перепривязывается правилами.
+ */
+export function isUnmappedDecision(link: TraceLink): boolean {
+  return !link.targetId;
+}
+
 export function buildTraceability(
   requirements: Gost34RequirementV2[],
   stages: Gost34StageItem[],
   manualLinks: TraceLink[] = [],
 ): TraceabilityResult {
   const stageIds = new Set(stages.map((stage) => stage.id));
-  const links: TraceLink[] = manualLinks.filter((link) => stageIds.has(link.targetId));
+  const requirementIds = new Set(requirements.map((req) => req.id));
+
+  // Решения по удалённым требованиям не должны попадать в метрики покрытия.
+  const decisions = manualLinks.filter((link) => requirementIds.has(link.sourceId));
+  const rejectedRequirementIds = new Set(
+    decisions.filter(isUnmappedDecision).map((link) => link.sourceId),
+  );
+
+  const links: TraceLink[] = decisions.filter((link) => stageIds.has(link.targetId));
 
   for (const req of requirements) {
     // Manual/pre-existing mappings are authoritative for this requirement.
     if (links.some((link) => link.sourceId === req.id)) continue;
+    if (rejectedRequirementIds.has(req.id)) continue;
 
     const matchedStage = matchStageByRules(req, stages);
     if (matchedStage) {

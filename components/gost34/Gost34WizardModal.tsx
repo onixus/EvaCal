@@ -91,8 +91,11 @@ export default function Gost34WizardModal({
     if (!isOpen) return;
     let cancelled = false;
 
+    // Обзор устаревает сразу, а не через debounce: пока идёт пересчёт, экран
+    // соответствия не должен считать прежний вердикт действующим.
+    setIsReviewLoading(true);
+
     const timer = setTimeout(async () => {
-      setIsReviewLoading(true);
       try {
         const res = await fetch('/api/gost34/review', {
           method: 'POST',
@@ -156,6 +159,8 @@ export default function Gost34WizardModal({
       applicabilityOverrides,
       ...signatures,
       rawRequirements: requirements,
+      /** Подтверждённые связи печатаются в матрице прослеживаемости документа. */
+      manualLinks,
     }),
     [
       layoutProfileId,
@@ -166,8 +171,23 @@ export default function Gost34WizardModal({
       applicabilityOverrides,
       signatures,
       requirements,
+      manualLinks,
     ],
   );
+
+  /**
+   * Удаление требования снимает и его решение по трассировке: иначе связь
+   * осталась бы висеть на несуществующем требовании и искажала покрытие.
+   */
+  const handleRequirementsChange = (next: Gost34RequirementItem[]) => {
+    const keptIds = new Set(next.map((req) => req.id));
+    const removedIds = new Set(requirements.map((req) => req.id).filter((id) => !keptIds.has(id)));
+
+    setRequirements(next);
+    if (removedIds.size > 0) {
+      setManualLinks((prev) => prev.filter((link) => !removedIds.has(link.sourceId)));
+    }
+  };
 
   const download = async (payload: Record<string, unknown>, filename: string) => {
     setIsExporting(true);
@@ -287,7 +307,7 @@ export default function Gost34WizardModal({
           {activeStep === 'requirements' && (
             <RequirementsStep
               requirements={requirements}
-              onRequirementsChange={setRequirements}
+              onRequirementsChange={handleRequirementsChange}
               uploadedFiles={uploadedFiles}
               onUploadedFilesChange={setUploadedFiles}
               review={review}

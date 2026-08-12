@@ -108,18 +108,39 @@ describe('сводка соответствия', () => {
     expect(report.blockingIssues.join(' ')).toContain('Нормоконтроль');
   });
 
-  it('блокирует выпуск при preview-профиле и блокирующих пробелах контекста', () => {
+  it('блокирует выпуск при preview-профиле', () => {
     const report = buildComplianceReport(
       complianceInput({
         profile: { id: 'x', name: 'Черновой профиль', version: '2030', status: 'preview' },
-        contextGaps: [{ path: 'goals', label: 'Цели создания системы', severity: 'blocking' }],
       }),
     );
 
     expect(report.canExport).toBe(false);
     expect(report.steps.find((s) => s.id === 'profile')?.status).toBe('blocked');
-    expect(report.steps.find((s) => s.id === 'compliance')?.status).toBe('blocked');
-    expect(report.blockingIssues).toHaveLength(2);
+    expect(report.blockingIssues).toHaveLength(1);
+  });
+
+  it('блокирует выпуск, если основная надпись не передана вовсе', () => {
+    const report = buildComplianceReport(complianceInput({ signatures: undefined }));
+
+    expect(report.canExport).toBe(false);
+    expect(report.steps.find((s) => s.id === 'signatures')?.status).toBe('blocked');
+  });
+
+  it('не блокирует выпуск из-за пробелов контекста, но показывает их', () => {
+    const report = buildComplianceReport(
+      complianceInput({
+        contextGaps: [
+          { path: 'goals', label: 'Цели создания системы', severity: 'blocking' },
+          { path: 'dataClasses', label: 'Классы данных', severity: 'major' },
+        ],
+      }),
+    );
+
+    expect(report.canExport).toBe(true);
+    expect(report.steps.find((s) => s.id === 'compliance')?.status).toBe('attention');
+    expect(report.warnings.join(' ')).toContain('Цели создания системы');
+    expect(report.warnings.join(' ')).toContain('Классы данных');
   });
 
   it('не блокирует выпуск из-за UNKNOWN-нормативов и непокрытых требований', () => {
@@ -247,6 +268,65 @@ describe('обзор мастера', () => {
     expect(result.finalStatus).toBe('APPLICABLE');
     expect(result.confirmedBy).toBe('Архитектор');
     expect(confirmed.applicability.options[target!.standardId]).toBe(true);
+  });
+
+  it('сохраняет явное решение «не распределять» вопреки правилам сопоставления', () => {
+    // Формулировка про испытания сопоставляется правилом с этапом аналитика.
+    const rawRequirements = [
+      {
+        id: 'req-vendor-1',
+        code: 'ТР-ВЕНД-01',
+        category: 'functional' as const,
+        title: 'Приёмочные испытания',
+        description: 'Исполнитель должен провести приемочные испытания системы.',
+      },
+    ];
+
+    const base = buildWizardReview({ calculation, rawRequirements });
+    const ruleLinked = base.traceability.links.find((link) => link.method === 'RULE');
+    expect(ruleLinked).toBeDefined();
+
+    const rejected = buildWizardReview({
+      calculation,
+      rawRequirements,
+      manualLinks: [
+        {
+          sourceId: ruleLinked!.sourceId,
+          targetId: '',
+          method: 'MANUAL' as const,
+          confidence: 1,
+          approved: true,
+        },
+      ],
+    });
+
+    expect(rejected.traceability.links.some((l) => l.sourceId === ruleLinked!.sourceId)).toBe(
+      false,
+    );
+    expect(rejected.traceability.metrics.mappedRequirements).toBe(
+      base.traceability.metrics.mappedRequirements - 1,
+    );
+  });
+
+  it('не засчитывает связи удалённых требований в покрытие', () => {
+    const review = buildWizardReview({
+      calculation,
+      manualLinks: [
+        {
+          sourceId: 'req-удалено',
+          targetId: 'stage-1',
+          method: 'MANUAL' as const,
+          confidence: 1,
+          approved: true,
+        },
+      ],
+    });
+
+    const { totalRequirements, mappedRequirements, unmappedRequirements } =
+      review.traceability.metrics;
+    expect(review.traceability.links.every((l) => l.sourceId !== 'req-удалено')).toBe(true);
+    expect(mappedRequirements + unmappedRequirements).toBe(totalRequirements);
+    expect(unmappedRequirements).toBeGreaterThanOrEqual(0);
   });
 
   it('засчитывает ручные связи трассировки', () => {
