@@ -4,6 +4,14 @@ import { GOST34_LLM_ROLES } from '../roles';
 import { parseVendorDocument } from '@/lib/gost34/parser/vendorDocParser';
 import { normalizeRequirementItems } from '@/lib/gost34/parser/requirementSanitizer';
 
+/**
+ * Ceiling for one upload request. App Router route handlers have no built-in
+ * body limit, so the effective gate is `client_max_body_size` in nginx/nginx.conf —
+ * this check only turns an oversized request into a clear 413 in local runs and
+ * behind proxies configured more generously. Keep both numbers in step.
+ */
+const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+
 export async function POST(req: NextRequest) {
   const session = await requireApiRole(GOST34_LLM_ROLES);
   if (session instanceof NextResponse) return session;
@@ -12,16 +20,23 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const files = formData.getAll('files') as File[];
 
-    if (!files || files.length === 0) {
+    if (!files?.length) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 });
+    }
+
+    const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+    if (totalBytes > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: `Upload exceeds the ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB limit` },
+        { status: 413 }
+      );
     }
 
     const rawExtractedRequirements: any[] = [];
     const parsedFiles: string[] = [];
 
     for (const file of files) {
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+      const buffer = Buffer.from(await file.arrayBuffer());
 
       const parsed = await parseVendorDocument(buffer, file.name);
 
@@ -48,7 +63,7 @@ export async function POST(req: NextRequest) {
             description: cleanDesc,
           };
         })
-        .filter((req) => req.description.length > 5);
+        .filter((r) => r.description.length > 5);
 
       rawExtractedRequirements.push(...cleanedRequirements);
       parsedFiles.push(file.name);
