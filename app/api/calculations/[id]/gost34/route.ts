@@ -87,6 +87,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       city,
       enrich = true,
       enrichmentOptions,
+      applicabilityOverrides,
       developer = DEFAULT_SIGNATURES.developer,
       checker = DEFAULT_SIGNATURES.checker,
       normControl = DEFAULT_SIGNATURES.normControl,
@@ -95,6 +96,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       standardProfileId,
       layoutProfileId,
       rawRequirements,
+      manualLinks,
     } = body;
 
     const layout = resolveLayoutProfileId(layoutProfileId);
@@ -121,12 +123,14 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
           const { buffer } = await generateGost34Document({
             calculation: calc,
             rawRequirements,
+            manualTraceLinks: manualLinks,
             metadataOverride: {
               docType: entry.docType,
               contractNumber,
               city,
               enrichRequirements: Boolean(enrich),
               enrichmentOptions,
+              applicabilityOverrides,
               standardProfileId,
               layoutProfileId: layout,
               signatures: commonSignatures,
@@ -156,12 +160,14 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const { buffer, filename } = await generateGost34Document({
       calculation: calc,
       rawRequirements,
+      manualTraceLinks: manualLinks,
       metadataOverride: {
         docType,
         contractNumber,
         city,
         enrichRequirements: Boolean(enrich),
         enrichmentOptions,
+        applicabilityOverrides,
         standardProfileId,
         layoutProfileId: layout,
         signatures: commonSignatures,

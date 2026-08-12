@@ -3,6 +3,7 @@ import { buildGost34DocumentAST, Gost34BuildDiagnostics } from './generator';
 import { exportGost34ToDocx } from './exporters/docxExporter';
 import { Gost34DocMetadata, Gost34RequirementItem, Gost34DocumentAST } from './types';
 import { ProjectContext } from './context/types';
+import type { TraceLink } from './traceability/types';
 
 export * from './types';
 export * from './standards';
@@ -10,6 +11,7 @@ export * from './context';
 export * from './validation';
 export * from './applicability';
 export * from './traceability';
+export * from './wizard';
 export { getEnrichedGostRequirements } from './enricher';
 export { analyzeAndNormalizeInput } from './analyzer';
 export { buildGost34DocumentAST } from './generator';
@@ -32,6 +34,8 @@ export async function generateGost34Document(params: {
   metadataOverride?: Partial<Gost34DocMetadata>;
   rawRequirements?: Gost34RequirementItem[];
   projectContext?: Partial<ProjectContext>;
+  /** Подтверждённые в мастере связи «требование → этап» (PR-10). */
+  manualTraceLinks?: TraceLink[];
 }): Promise<{
   buffer: Buffer;
   filename: string;
