@@ -168,7 +168,11 @@ export function analyzeAndNormalizeInput(input: {
     override: input.projectContext,
   });
 
-  const applicability = evaluateApplicability(projectContext, metadata.enrichmentOptions);
+  // Ручные подтверждения мастера имеют приоритет над булевыми флагами обогащения.
+  const applicability = evaluateApplicability(projectContext, {
+    ...(metadata.enrichmentOptions || {}),
+    ...(metadata.applicabilityOverrides || {}),
+  });
 
   // Apply normative enrichment if flag is active
   if (metadata.enrichRequirements) {

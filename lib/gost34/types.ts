@@ -56,6 +56,12 @@ export interface Gost34DocMetadata {
   version: string; // Версия документа
   enrichRequirements?: boolean; // Флаг нормативного авто-обогащения
   enrichmentOptions?: Gost34EnrichmentOptions; // Выбранные стандарты нормативного обогащения
+  /**
+   * Ручные решения по применимости нормативов (мастер, PR-10). В отличие от
+   * `enrichmentOptions` сохраняют, кто подтвердил норматив и на каком основании,
+   * и имеют приоритет над булевыми флагами.
+   */
+  applicabilityOverrides?: Record<string, import('./applicability/types').ApplicabilityOverride>;
   standardProfileId?: string; // Идентификатор нормативного профиля (по умолчанию legacy)
   layoutProfileId?: import('./exporters/layout/types').LayoutProfileId; // Профиль визуального оформления DOCX
 }

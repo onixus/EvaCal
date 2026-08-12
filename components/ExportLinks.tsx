@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import VendorSpecUploadModal from './gost34/VendorSpecUploadModal';
+import Gost34WizardModal from './gost34/Gost34WizardModal';
 
 export default function ExportLinks({ calculationId }: { calculationId: string }) {
   const [isGostModalOpen, setIsGostModalOpen] = useState(false);
@@ -13,9 +13,9 @@ export default function ExportLinks({ calculationId }: { calculationId: string }
           type="button"
           onClick={() => setIsGostModalOpen(true)}
           className="btn-secondary font-medium text-nord-accent border-nord-accent/40 hover:border-nord-accent"
-          title="Конструктор ГОСТ 34: загрузка вендорского ТЗ и рамки ГОСТ 2.104"
+          title="Мастер ГОСТ 34: профиль, требования, применимость, трассируемость и выпуск"
         >
-          ГОСТ 34 Конструктор
+          Мастер ГОСТ 34
         </button>
         <a href={`/api/calculations/${calculationId}/pdf`} className="btn-secondary">
           PDF
@@ -28,7 +28,7 @@ export default function ExportLinks({ calculationId }: { calculationId: string }
         </a>
       </div>
 
-      <VendorSpecUploadModal
+      <Gost34WizardModal
         calculationId={calculationId}
         isOpen={isGostModalOpen}
         onClose={() => setIsGostModalOpen(false)}
