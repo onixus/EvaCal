@@ -2,18 +2,28 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { grandTotalHours } from '@/lib/totals';
 import StatusBadge from '@/components/StatusBadge';
+import Pagination from '@/components/Pagination';
+import { PAGE_SIZE, pageArgs, parsePage } from '@/lib/pagination';
 
 export const dynamic = 'force-dynamic';
 
-export default async function HomePage() {
-  const calculations = await prisma.calculation.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: {
-      template: { select: { name: true } },
-      stages: true,
-      risks: true,
-    },
-  });
+export default async function HomePage(props: { searchParams: Promise<{ page?: string }> }) {
+  const page = parsePage((await props.searchParams).page);
+
+  // The archive grows without bound, so read one page at a time — and only the
+  // stage/risk fields the totals need, not whole rows (`requirements` can be long).
+  const [total, calculations] = await Promise.all([
+    prisma.calculation.count(),
+    prisma.calculation.findMany({
+      ...pageArgs(page),
+      orderBy: { createdAt: 'desc' },
+      include: {
+        template: { select: { name: true } },
+        stages: { select: { hours: true, isApprovalTask: true } },
+        risks: { select: { hours: true } },
+      },
+    }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -29,9 +39,16 @@ export default async function HomePage() {
         </Link>
       </div>
 
-      {calculations.length === 0 ? (
+      {total === 0 ? (
         <div className="card p-8 text-center text-slate-500">
           Пока нет ни одного расчёта. Начните с интерфейса пресейла.
+        </div>
+      ) : calculations.length === 0 ? (
+        <div className="card p-8 text-center text-slate-500">
+          На этой странице расчётов нет.{' '}
+          <Link href="/" className="text-brand-700 hover:underline">
+            К первой странице
+          </Link>
         </div>
       ) : (
         <div className="card overflow-x-auto">
@@ -73,6 +90,8 @@ export default async function HomePage() {
           </table>
         </div>
       )}
+
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} basePath="/" />
     </div>
   );
 }

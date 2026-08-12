@@ -2,21 +2,50 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import StatusBadge from '@/components/StatusBadge';
 import { grandTotalHours } from '@/lib/totals';
+import Pagination from '@/components/Pagination';
+import { PAGE_SIZE, pageArgs, parsePage } from '@/lib/pagination';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ArchitectPage() {
-  const calculations = await prisma.calculation.findMany({
-    orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-    include: {
-      stages: true,
-      risks: true,
-      template: { select: { name: true } },
-    },
-  });
+const PENDING = 'pending_approval';
 
-  const pending = calculations.filter((c) => c.status === 'pending_approval');
-  const others = calculations.filter((c) => c.status !== 'pending_approval');
+// Only the fields the totals and the table actually render.
+const listSelection = {
+  stages: { select: { hours: true, isApprovalTask: true } },
+  risks: { select: { hours: true } },
+  template: { select: { name: true } },
+} as const;
+
+type ListedCalculation = {
+  id: string;
+  name: string;
+  customer: string;
+  status: string;
+  pmHours: number;
+  template: { name: string };
+  stages: { hours: number; isApprovalTask: boolean }[];
+  risks: { hours: number }[];
+};
+
+export default async function ArchitectPage(props: { searchParams: Promise<{ page?: string }> }) {
+  const page = parsePage((await props.searchParams).page);
+
+  // The approval queue is the architect's actual work list, so it is shown in full;
+  // only the archive below it is paged.
+  const [pending, othersTotal, others] = await Promise.all([
+    prisma.calculation.findMany({
+      where: { status: PENDING },
+      orderBy: { createdAt: 'desc' },
+      include: listSelection,
+    }),
+    prisma.calculation.count({ where: { status: { not: PENDING } } }),
+    prisma.calculation.findMany({
+      where: { status: { not: PENDING } },
+      ...pageArgs(page),
+      orderBy: { createdAt: 'desc' },
+      include: listSelection,
+    }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -32,7 +61,9 @@ export default async function ArchitectPage() {
         items={pending}
         empty="Нет расчётов, ожидающих согласования."
       />
-      <Section title="Остальные расчёты" items={others} empty="Пока нет других расчётов." />
+      <Section title="Остальные расчёты" items={others} empty="Пока нет других расчётов.">
+        <Pagination page={page} pageSize={PAGE_SIZE} total={othersTotal} basePath="/architect" />
+      </Section>
     </div>
   );
 
@@ -40,10 +71,12 @@ export default async function ArchitectPage() {
     title,
     items,
     empty,
+    children,
   }: {
     title: string;
-    items: typeof calculations;
+    items: ListedCalculation[];
     empty: string;
+    children?: React.ReactNode;
   }) {
     return (
       <div className="card p-5">
@@ -86,6 +119,7 @@ export default async function ArchitectPage() {
             </tbody>
           </table>
         )}
+        {children}
       </div>
     );
   }

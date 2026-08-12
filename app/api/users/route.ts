@@ -3,25 +3,34 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { requireApiRole } from '@/lib/auth';
 import { generatePassword } from '@/lib/password';
+import { pageArgs, paginationHeaders, parseLimit, parsePage } from '@/lib/pagination';
 
 const ALLOWED_ROLES = ['architect', 'admin'];
 
 // User provisioning is admin-only.
-export async function GET() {
+export async function GET(req: NextRequest) {
   const auth = await requireApiRole('admin');
   if (auth instanceof NextResponse) return auth;
 
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      username: true,
-      role: true,
-      mustChangePassword: true,
-      createdAt: true,
-    },
-  });
-  return NextResponse.json(users);
+  const { searchParams } = new URL(req.url);
+  const limit = parseLimit(searchParams.get('limit'));
+  const page = parsePage(searchParams.get('page') ?? undefined);
+
+  const [total, users] = await Promise.all([
+    prisma.user.count(),
+    prisma.user.findMany({
+      ...pageArgs(page, limit),
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        mustChangePassword: true,
+        createdAt: true,
+      },
+    }),
+  ]);
+  return NextResponse.json(users, { headers: paginationHeaders(total, page, limit) });
 }
 
 export async function POST(req: NextRequest) {
