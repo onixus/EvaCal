@@ -18,15 +18,15 @@ describe('resolveGost34Profile', () => {
     expect(resolveGost34Profile(LEGACY_GOST34_PROFILE_ID).id).toBe(LEGACY_GOST34_PROFILE_ID);
   });
 
-  it('falls back to legacy for unknown, empty and missing ids', () => {
-    expect(resolveGost34Profile('nope').id).toBe(LEGACY_GOST34_PROFILE_ID);
-    expect(resolveGost34Profile('').id).toBe(LEGACY_GOST34_PROFILE_ID);
-    expect(resolveGost34Profile(undefined).id).toBe(LEGACY_GOST34_PROFILE_ID);
-    expect(resolveGost34Profile(null).id).toBe(LEGACY_GOST34_PROFILE_ID);
+  it('falls back to the current profile for unknown, empty and missing ids', () => {
+    expect(resolveGost34Profile('nope').id).toBe(CURRENT_GOST34_PROFILE_ID);
+    expect(resolveGost34Profile('').id).toBe(CURRENT_GOST34_PROFILE_ID);
+    expect(resolveGost34Profile(undefined).id).toBe(CURRENT_GOST34_PROFILE_ID);
+    expect(resolveGost34Profile(null).id).toBe(CURRENT_GOST34_PROFILE_ID);
   });
 
-  it('defaults to the legacy profile so existing exports are unchanged', () => {
-    expect(DEFAULT_GOST34_PROFILE.id).toBe('gost34-legacy-89');
+  it('keeps the legacy profile as the compatibility fallback for profile-less ASTs', () => {
+    expect(DEFAULT_GOST34_PROFILE.id).toBe(LEGACY_GOST34_PROFILE_ID);
   });
 
   it('getGost34Profile returns undefined for an unknown id', () => {
