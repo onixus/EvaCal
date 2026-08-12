@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadCalculationForExport, safeFileName, contentDisposition, responseBody } from '@/lib/export';
+import {
+  loadCalculationForExport,
+  safeFileName,
+  contentDisposition,
+  responseBody,
+} from '@/lib/export';
 import { renderCalculationXlsx } from '@/lib/xlsx';
 
 // Same visibility as the rest of the archive: no auth required to export a calculation.
