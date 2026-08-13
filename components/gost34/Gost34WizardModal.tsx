@@ -295,6 +295,7 @@ export default function Gost34WizardModal({
         <div className="flex-1 overflow-y-auto pr-1 min-h-[380px]">
           {activeStep === 'profile' && (
             <ProfileStep
+              calculationId={calculationId}
               standardProfileId={standardProfileId}
               layoutProfileId={layoutProfileId}
               docType={docType}

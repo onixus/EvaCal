@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
+import { prisma } from '@/lib/prisma';
 import {
   loadCalculationForExport,
   safeFileName,
@@ -7,6 +8,7 @@ import {
   responseBody,
 } from '@/lib/export';
 import {
+  buildBindingUpdate,
   generateGost34Document,
   GostDocumentType,
   GostExportType,
@@ -29,6 +31,22 @@ const DEFAULT_SIGNATURES = {
   customerApprover: 'Александров И.В.',
   invSubl: 'ИНВ-102938',
 };
+
+/**
+ * Фиксирует в расчёте, каким нормативным профилем и какой версией генератора
+ * выпущен комплект (раздел 5 плана модернизации). Сбой записи не должен
+ * ломать уже сформированный документ — он только логируется.
+ */
+async function recordRelease(calculationId: string, standardProfileId?: string) {
+  try {
+    await prisma.calculation.update({
+      where: { id: calculationId },
+      data: buildBindingUpdate(standardProfileId),
+    });
+  } catch (err) {
+    console.error('Failed to record GOST 34 release binding:', err);
+  }
+}
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -65,6 +83,8 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       },
     },
   });
+
+  await recordRelease(params.id, standardProfileId);
 
   return new NextResponse(responseBody(buffer), {
     headers: {
@@ -152,6 +172,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
       const zipFilename = `GOST34_Full_Package_${safeFileName(calc.name)}.zip`;
 
+      await recordRelease(params.id, standardProfileId);
+
       return new NextResponse(responseBody(zipBuffer), {
         headers: {
           'Content-Type': 'application/zip',
@@ -178,6 +200,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         signatures: commonSignatures,
       },
     });
+
+    await recordRelease(params.id, standardProfileId);
 
     return new NextResponse(responseBody(buffer), {
       headers: {

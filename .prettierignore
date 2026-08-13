@@ -4,3 +4,6 @@ out
 dist
 *.log
 package-lock.json
+# Эталоны контрольных документов ГОСТ 34: файлы генерируются скриптом
+# lib/gost34/__tests__/golden/update.ts — форматировать их вручную нечем.
+lib/gost34/__tests__/golden/*.json

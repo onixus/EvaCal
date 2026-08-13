@@ -1,0 +1,162 @@
+{
+  "scenario": "bank",
+  "title": "Кредитная организация (банк)",
+  "docType": "TZ",
+  "profile": {
+    "id": "ru-gost34-current",
+    "version": "2020",
+    "primaryStandard": "ГОСТ 34.602-2020"
+  },
+  "sections": [
+    {
+      "numStr": "1",
+      "title": "ОБЩИЕ СВЕДЕНИЯ",
+      "paragraphs": 9
+    },
+    {
+      "numStr": "2",
+      "title": "ЦЕЛИ И НАЗНАЧЕНИЕ СОЗДАНИЯ (РАЗВИТИЯ) АС",
+      "paragraphs": 0,
+      "subsections": [
+        {
+          "numStr": "2.1",
+          "title": "Цели создания АС",
+          "paragraphs": 2
+        },
+        {
+          "numStr": "2.2",
+          "title": "Назначение АС",
+          "paragraphs": 3
+        }
+      ]
+    },
+    {
+      "numStr": "3",
+      "title": "ХАРАКТЕРИСТИКА ОБЪЕКТОВ АВТОМАТИЗАЦИИ",
+      "paragraphs": 2
+    },
+    {
+      "numStr": "4",
+      "title": "ТРЕБОВАНИЯ К АВТОМАТИЗИРОВАННОЙ СИСТЕМЕ",
+      "paragraphs": 0,
+      "subsections": [
+        {
+          "numStr": "4.1",
+          "title": "Требования к структуре АС в целом",
+          "paragraphs": 5
+        },
+        {
+          "numStr": "4.2",
+          "title": "Требования к функциям (задачам), выполняемым АС",
+          "paragraphs": 1,
+          "tables": [
+            "Спецификация требований к системе"
+          ]
+        },
+        {
+          "numStr": "4.3",
+          "title": "Требования к видам обеспечения АС",
+          "paragraphs": 3
+        },
+        {
+          "numStr": "4.4",
+          "title": "Общие технические требования",
+          "paragraphs": 7
+        }
+      ]
+    },
+    {
+      "numStr": "5",
+      "title": "СОСТАВ И СОДЕРЖАНИЕ РАБОТ ПО СОЗДАНИЮ АС",
+      "paragraphs": 2,
+      "tables": [
+        "Состав и содержание работ по созданию системы",
+        "Таблица — Матрица прослеживаемости требований и этапов проекта"
+      ]
+    },
+    {
+      "numStr": "6",
+      "title": "ПОРЯДОК РАЗРАБОТКИ АС",
+      "paragraphs": 6
+    },
+    {
+      "numStr": "7",
+      "title": "ПОРЯДОК КОНТРОЛЯ И ПРИЁМКИ АС",
+      "paragraphs": 3,
+      "tables": [
+        "Проверяемые требования и способ подтверждения соответствия"
+      ]
+    },
+    {
+      "numStr": "8",
+      "title": "ТРЕБОВАНИЯ К ПОДГОТОВКЕ ОБЪЕКТА АВТОМАТИЗАЦИИ К ВВОДУ АС В ДЕЙСТВИЕ",
+      "paragraphs": 2
+    },
+    {
+      "numStr": "9",
+      "title": "ТРЕБОВАНИЯ К ДОКУМЕНТИРОВАНИЮ",
+      "paragraphs": 2
+    },
+    {
+      "numStr": "10",
+      "title": "ИСТОЧНИКИ РАЗРАБОТКИ",
+      "paragraphs": 6
+    },
+    {
+      "numStr": "Приложение А",
+      "title": "СВЕДЕНИЯ, ТРЕБУЮЩИЕ УТОЧНЕНИЯ",
+      "paragraphs": 1,
+      "tables": [
+        "Перечень сведений, требующих уточнения"
+      ]
+    }
+  ],
+  "requirementCodes": [
+    "ТР-ЭТ-01",
+    "ТР-ЭТ-02",
+    "ТР-ЭТ-03",
+    "ТР-БЕЗ-21",
+    "ТР-БЕЗ-117",
+    "ТР-БЕЗ-239",
+    "ТР-БЕЗ-57580",
+    "ТР-БЕЗ-683П",
+    "ТР-БЕЗ-719П",
+    "ТР-БЕЗ-282",
+    "ТР-БЕЗ-187ФЗ",
+    "ТР-БЕЗ-152ФЗ",
+    "ТР-ТЕХ-188ФЗ",
+    "ТР-НАД-SLA",
+    "ТР-ЭРГ-WCAG"
+  ],
+  "applicability": {
+    "fstek_21": "APPLICABLE",
+    "fz_152": "APPLICABLE",
+    "fz_187_kii": "APPLICABLE",
+    "fstek_239": "APPLICABLE",
+    "fstek_117": "APPLICABLE",
+    "fz_188_reestr": "APPLICABLE",
+    "gost_57580": "APPLICABLE",
+    "cb_683p": "APPLICABLE",
+    "cb_757p": "UNKNOWN",
+    "cb_719p": "APPLICABLE",
+    "fsb_282_gossopka": "APPLICABLE",
+    "sla_999": "APPLICABLE",
+    "wcag_52872": "APPLICABLE"
+  },
+  "validation": {
+    "ERROR": 0,
+    "WARNING": 15,
+    "INFO": 14
+  },
+  "traceabilityCoveragePercent": 86.67,
+  "contextGapPaths": [
+    "goals",
+    "measurableGoalCriteria",
+    "users",
+    "roles",
+    "integrations",
+    "deploymentModel",
+    "performance"
+  ],
+  "schemaIssues": []
+}

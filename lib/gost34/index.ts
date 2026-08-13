@@ -12,6 +12,7 @@ export * from './validation';
 export * from './applicability';
 export * from './traceability';
 export * from './wizard';
+export * from './migration';
 export { getEnrichedGostRequirements } from './enricher';
 export { analyzeAndNormalizeInput } from './analyzer';
 export { buildGost34DocumentAST } from './generator';
