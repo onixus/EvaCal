@@ -1,6 +1,10 @@
 # --- deps: install dependencies ---
 FROM node:20-alpine AS deps
 WORKDIR /app
+# The `prepare` script runs format+typecheck for local installs and skips itself when CI
+# is set. Only package.json and the lockfile exist at this layer, so without CI it would
+# run those against a source-less directory and fail the install.
+ENV CI=true
 COPY package.json package-lock.json ./
 RUN npm ci
 
