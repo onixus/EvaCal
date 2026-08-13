@@ -14,7 +14,7 @@ export default async function AdminPage(props: { searchParams: Promise<{ page?: 
     prisma.formTemplate.count(),
     prisma.formTemplate.findMany({
       ...pageArgs(page),
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         _count: {
           select: { fields: true, stageTemplates: true, calculations: true },

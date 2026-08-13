@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     prisma.formTemplate.count(),
     prisma.formTemplate.findMany({
       ...pageArgs(page, limit),
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         _count: {
           select: { fields: true, stageTemplates: true, calculations: true },

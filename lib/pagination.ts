@@ -8,11 +8,21 @@ export const PAGE_SIZE = 50;
 /** Largest page size a caller may request via ?limit= on the list API endpoints. */
 export const MAX_PAGE_SIZE = 200;
 
-/** Clamps an untrusted ?page= value to a 1-based page number. */
+/**
+ * Highest page number that may reach the database. `?page=999999999999999999`
+ * parses to a finite positive number, and multiplying it by the page size produces
+ * an offset far outside the integer range Prisma accepts — the query then throws
+ * PrismaClientValidationError and the request 500s on an untrusted query parameter.
+ * At this bound the largest possible offset stays a safe, ordinary integer.
+ */
+export const MAX_PAGE = 1_000_000;
+
+/** Clamps an untrusted ?page= value to a 1-based page number within MAX_PAGE. */
 export function parsePage(raw: string | string[] | undefined): number {
   const value = Array.isArray(raw) ? raw[0] : raw;
   const parsed = Number.parseInt(value ?? '', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+  return Math.min(parsed, MAX_PAGE);
 }
 
 /** Clamps an untrusted ?limit= value to 1..MAX_PAGE_SIZE. */

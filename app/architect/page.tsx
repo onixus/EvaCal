@@ -35,14 +35,14 @@ export default async function ArchitectPage(props: { searchParams: Promise<{ pag
   const [pending, othersTotal, others] = await Promise.all([
     prisma.calculation.findMany({
       where: { status: PENDING },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: listSelection,
     }),
     prisma.calculation.count({ where: { status: { not: PENDING } } }),
     prisma.calculation.findMany({
       where: { status: { not: PENDING } },
       ...pageArgs(page),
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: listSelection,
     }),
   ]);

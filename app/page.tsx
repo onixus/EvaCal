@@ -16,7 +16,7 @@ export default async function HomePage(props: { searchParams: Promise<{ page?: s
     prisma.calculation.count(),
     prisma.calculation.findMany({
       ...pageArgs(page),
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         template: { select: { name: true } },
         stages: { select: { hours: true, isApprovalTask: true } },
@@ -44,12 +44,8 @@ export default async function HomePage(props: { searchParams: Promise<{ page?: s
           Пока нет ни одного расчёта. Начните с интерфейса пресейла.
         </div>
       ) : calculations.length === 0 ? (
-        <div className="card p-8 text-center text-slate-500">
-          На этой странице расчётов нет.{' '}
-          <Link href="/" className="text-brand-700 hover:underline">
-            К первой странице
-          </Link>
-        </div>
+        // The way back is rendered by <Pagination> below, which knows the real page count.
+        <div className="card p-8 text-center text-slate-500">На этой странице расчётов нет.</div>
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
