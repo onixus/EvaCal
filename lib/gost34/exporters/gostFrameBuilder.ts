@@ -14,6 +14,8 @@ import {
 import { Gost34DocMetadata } from '../types';
 import { DEFAULT_GOST34_PROFILE, StandardProfile } from '../standards';
 
+type DocxAlignment = (typeof AlignmentType)[keyof typeof AlignmentType];
+
 /**
  * Геометрия рамки по ГОСТ 2.301-68 для листа A4: слева поле подшивки 20 мм,
  * с остальных сторон — 5 мм. Внутренняя ширина рамки (и штампов) — 185 мм.
@@ -136,7 +138,7 @@ export function buildGost2104Form2Table(
     opts: {
       bold?: boolean;
       size?: number;
-      align?: any;
+      align?: DocxAlignment;
       colSpan?: number;
       pageField?: 'current' | 'total';
     } = {},
@@ -307,7 +309,12 @@ export function buildGost2104Form2aTable(meta: Gost34DocMetadata, indentMm = 0):
   const makeCell = (
     text: string,
     widthMm: number,
-    opts: { bold?: boolean; size?: number; align?: any; pageField?: 'current' | 'total' } = {},
+    opts: {
+      bold?: boolean;
+      size?: number;
+      align?: DocxAlignment;
+      pageField?: 'current' | 'total';
+    } = {},
   ) => {
     const widthDxa = convertMillimetersToTwip(widthMm);
     return new TableCell({

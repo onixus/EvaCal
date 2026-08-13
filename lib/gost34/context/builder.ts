@@ -42,7 +42,7 @@ export interface ProjectContextInput {
 const TRUE_WORDS = /^(да|yes|true|1|есть|требуется)$/i;
 const FALSE_WORDS = /^(нет|no|false|0|не требуется|отсутствует)$/i;
 
-function toBool(value: any): boolean | undefined {
+function toBool(value: unknown): boolean | undefined {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value !== 0;
   if (typeof value === 'string') {
@@ -53,7 +53,7 @@ function toBool(value: any): boolean | undefined {
   return undefined;
 }
 
-function toNumber(value: any): number | undefined {
+function toNumber(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
     const match = value.replace(',', '.').match(/-?\d+(\.\d+)?/);
@@ -62,7 +62,7 @@ function toNumber(value: any): number | undefined {
   return undefined;
 }
 
-function toText(value: any): string | undefined {
+function toText(value: unknown): string | undefined {
   if (typeof value === 'string') {
     const v = value.trim();
     return v.length > 0 ? v : undefined;
@@ -72,7 +72,7 @@ function toText(value: any): string | undefined {
 }
 
 /** Разбирает перечисление, введённое одной строкой. */
-function toList(value: any): string[] | undefined {
+function toList(value: unknown): string[] | undefined {
   const text = toText(value);
   if (!text) return undefined;
   const items = text
@@ -103,9 +103,9 @@ function gap(
 
 /** Ищет первый ответ опросника, ключ которого соответствует шаблону. */
 function findAnswer(
-  answers: Record<string, any>,
+  answers: Record<string, unknown>,
   pattern: RegExp,
-): { key: string; value: any } | undefined {
+): { key: string; value: unknown } | undefined {
   for (const [key, value] of Object.entries(answers)) {
     if (value === null || value === undefined || value === '') continue;
     if (pattern.test(key)) return { key, value };

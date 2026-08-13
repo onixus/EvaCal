@@ -31,7 +31,7 @@ export { renderDocumentSchema, validateSchemaCoverage } from './schema/renderer'
 export type { DocumentSchema, SchemaNode, SchemaValidationIssue } from './schema/types';
 
 export async function generateGost34Document(params: {
-  calculation?: any;
+  calculation?: import('./types').Gost34CalculationInput;
   metadataOverride?: Partial<Gost34DocMetadata>;
   rawRequirements?: Gost34RequirementItem[];
   projectContext?: Partial<ProjectContext>;

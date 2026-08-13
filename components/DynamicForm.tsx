@@ -92,12 +92,17 @@ export default function DynamicForm({ fields, values, onChange }: Props) {
               </select>
             )}
             {field.type === 'checkbox' && (
-              <input
-                type="checkbox"
-                className="h-5 w-5 rounded border-slate-300"
-                checked={!!value}
-                onChange={(e) => onChange(field.key, e.target.checked)}
-              />
+              <label className="flex items-center gap-3 pt-1 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-2 focus:ring-brand-500/20 dark:border-nord-3 dark:bg-nord-1"
+                  checked={!!value}
+                  onChange={(e) => onChange(field.key, e.target.checked)}
+                />
+                <span className="text-xs font-semibold text-slate-700 dark:text-nord-4">
+                  {value ? 'Включено (Да)' : 'Отключено (Нет)'}
+                </span>
+              </label>
             )}
           </div>
         );

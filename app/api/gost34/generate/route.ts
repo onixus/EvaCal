@@ -3,6 +3,7 @@ import { requireApiRole } from '@/lib/auth';
 import { GOST34_LLM_ROLES } from '../roles';
 import { generateGost34Document } from '@/lib/gost34';
 import { responseBody } from '@/lib/export';
+import { handleApiError } from '@/lib/apiHelpers';
 
 export async function POST(req: NextRequest) {
   const session = await requireApiRole(GOST34_LLM_ROLES);
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
         'Content-Length': String(buffer.length),
       },
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Internal error' }, { status: 500 });
+  } catch (err: unknown) {
+    return handleApiError(err, 'Failed to generate document', 500);
   }
 }

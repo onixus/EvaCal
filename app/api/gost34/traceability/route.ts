@@ -4,6 +4,7 @@ import { Gost34RequirementV2 } from '@/lib/gost34/requirements/v2';
 import { Gost34StageItem } from '@/lib/gost34/types';
 import { TraceLink } from '@/lib/gost34/traceability/types';
 import { requireStaff } from '@/lib/access';
+import { handleApiError } from '@/lib/apiHelpers';
 
 /** Pure compute endpoint: staff-only (payload may contain commercial stages). */
 export async function POST(req: NextRequest) {
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
     const result = buildTraceability(requirements, stages, manualLinks);
 
     return NextResponse.json(result);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+  } catch (err: unknown) {
+    return handleApiError(err, 'Traceability computation failed', 500);
   }
 }

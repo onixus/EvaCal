@@ -6,6 +6,7 @@ import {
   getApplicabilitySummary,
   toEnrichmentOptions,
 } from '@/lib/gost34/applicability';
+import { handleApiError } from '@/lib/apiHelpers';
 import { GOST34_LLM_ROLES } from '../roles';
 
 /**
@@ -37,11 +38,8 @@ export async function POST(req: NextRequest) {
       summary,
       options,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error in GOST 34 applicability endpoint:', err);
-    return NextResponse.json(
-      { error: err?.message || 'Applicability evaluation failed' },
-      { status: 500 },
-    );
+    return handleApiError(err, 'Applicability evaluation failed', 500);
   }
 }

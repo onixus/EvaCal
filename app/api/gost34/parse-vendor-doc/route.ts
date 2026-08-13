@@ -3,6 +3,8 @@ import { requireApiRole } from '@/lib/auth';
 import { GOST34_LLM_ROLES } from '../roles';
 import { parseVendorDocument } from '@/lib/gost34/parser/vendorDocParser';
 import { normalizeRequirementItems } from '@/lib/gost34/parser/requirementSanitizer';
+import { Gost34RequirementItem } from '@/lib/gost34/types';
+import { handleApiError } from '@/lib/apiHelpers';
 
 /**
  * Ceiling for one upload request. App Router route handlers have no built-in
@@ -32,7 +34,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const rawExtractedRequirements: any[] = [];
+    const rawExtractedRequirements: Gost34RequirementItem[] = [];
     const parsedFiles: string[] = [];
 
     for (const file of files) {
@@ -77,8 +79,8 @@ export async function POST(req: NextRequest) {
       extractedRequirements: normalizedRequirements,
       rawCount: rawExtractedRequirements.length,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error parsing vendor document:', err);
-    return NextResponse.json({ error: err?.message || 'Parsing failed' }, { status: 500 });
+    return handleApiError(err, 'Parsing failed', 500);
   }
 }

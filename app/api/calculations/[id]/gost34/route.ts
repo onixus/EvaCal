@@ -19,6 +19,7 @@ import {
 } from '@/lib/gost34';
 import { requireCalcAccess } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
+import { handleApiError } from '@/lib/apiHelpers';
 
 /**
  * Fallback signatories used when the caller supplies none. Single source of
@@ -251,8 +252,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         'Content-Length': String(buffer.length),
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error in GOST 34 POST export:', err);
-    return NextResponse.json({ error: err?.message || 'Export error' }, { status: 500 });
+    return handleApiError(err, 'Export error', 500);
   }
 }

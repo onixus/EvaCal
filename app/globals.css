@@ -3,52 +3,65 @@
 @tailwind utilities;
 
 body {
-  @apply bg-slate-50 text-slate-900 dark:bg-nord-0 dark:text-nord-6 transition-colors duration-200;
+  @apply bg-slate-50 text-slate-900 dark:bg-nord-0 dark:text-nord-6 transition-colors duration-200 antialiased;
 }
 
 .card {
-  @apply bg-white rounded-xl border border-slate-200 shadow-sm
+  @apply bg-white rounded-xl border border-slate-200/80 shadow-sm
     dark:bg-nord-2 dark:border-nord-3;
 }
 
+.card-interactive {
+  @apply card transition-all duration-150 hover:shadow-md hover:border-slate-300 dark:hover:border-nord-4/30;
+}
+
 .btn {
-  @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed select-none;
 }
 
 .btn-primary {
-  @apply btn bg-brand-600 text-white hover:bg-brand-700 hover:shadow-[0_0_16px_rgba(255,62,165,0.45)]
-    dark:bg-nord-frost4 dark:hover:bg-nord-frost3 dark:hover:shadow-[0_0_16px_rgba(136,192,208,0.45)];
+  @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700 hover:shadow-md active:scale-[0.98]
+    dark:bg-nord-frost4 dark:hover:bg-nord-frost3 dark:text-white;
 }
 
 .btn-secondary {
-  @apply btn bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 hover:border-neon-500/40
-    dark:bg-nord-2 dark:border-nord-3 dark:text-nord-4 dark:hover:bg-nord-3;
+  @apply btn bg-white border border-slate-200 text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 active:scale-[0.98]
+    dark:bg-nord-2 dark:border-nord-3 dark:text-nord-4 dark:hover:bg-nord-3 dark:hover:text-nord-6;
+}
+
+.btn-ghost {
+  @apply btn text-slate-600 hover:bg-slate-100 dark:text-nord-4 dark:hover:bg-nord-3;
+}
+
+.btn-danger {
+  @apply btn bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 dark:bg-nord-red/20 dark:text-nord-redText dark:border-nord-red/40 dark:hover:bg-nord-red/30;
 }
 
 .input {
-  @apply w-full rounded-lg border border-slate-300 px-3 py-2 text-sm
-    focus:outline-none focus:ring-2 focus:ring-neon-500/60 focus:border-transparent
-    dark:bg-nord-1 dark:border-nord-3 dark:text-nord-6 dark:focus:ring-nord-frost2/60
+  @apply w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400
+    focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors
+    dark:bg-nord-1 dark:border-nord-3 dark:text-nord-6 dark:focus:ring-nord-frost2/20 dark:focus:border-nord-frost2
     disabled:bg-slate-100 dark:disabled:bg-nord-2;
 }
 
 .label {
-  @apply block text-sm font-medium text-slate-700 mb-1 dark:text-nord-4;
+  @apply block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5 dark:text-nord-4;
 }
 
 .badge {
-  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
 }
 
-/* Blanket Nord re-skin for the common slate utilities used throughout the app,
-   so individual pages don't need a `dark:` variant on every single element.
-   Scoped to .dark (toggled by ThemeToggle / the system-preference bootstrap script)
-   rather than a media query, so the manual light/dark switch actually works.
+/* Tab button styles */
+.tab-btn {
+  @apply inline-flex items-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-slate-500 hover:border-slate-300 hover:text-slate-700 transition-colors dark:text-nord-muted dark:hover:text-nord-4 dark:hover:border-nord-3;
+}
 
-   Surfaces sit on nord2 (cards/panels/hover), one step lighter than the nord0 page
-   background — verified against WCAG contrast math (see tailwind.config.ts): nord3 is
-   NOT used as text anywhere (measured ~1.2-1.7:1 against nord0-2, effectively invisible),
-   only as a border/divider tone; muted text uses the custom `nord.muted` instead. */
+.tab-btn-active {
+  @apply border-brand-600 text-brand-700 dark:border-nord-frost2 dark:text-nord-frost2 font-semibold;
+}
+
+/* Blanket Nord re-skin for common slate utilities */
 .dark .text-slate-900 {
   color: theme('colors.nord.6');
 }

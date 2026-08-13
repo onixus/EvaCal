@@ -12,6 +12,12 @@ const FALLBACK_NAME: Record<ExportFormat, string> = {
   json: 'calculation.json',
 };
 
+const FORMAT_CONFIG: Record<ExportFormat, { label: string; ext: string; color: string }> = {
+  pdf: { label: 'PDF', ext: 'pdf', color: 'text-rose-600 dark:text-nord-redText' },
+  xlsx: { label: 'Excel', ext: 'xlsx', color: 'text-emerald-600 dark:text-nord-green' },
+  json: { label: 'JSON', ext: 'json', color: 'text-amber-600 dark:text-nord-yellow' },
+};
+
 /** Reads the server-provided name, preferring the RFC 5987 form that carries Cyrillic. */
 function filenameFromDisposition(header: string | null, fallback: string): string {
   if (!header) return fallback;
@@ -27,14 +33,19 @@ function filenameFromDisposition(header: string | null, fallback: string): strin
   return plain?.[1] || fallback;
 }
 
-export default function ExportLinks({ calculationId }: { calculationId: string }) {
+export default function ExportLinks({
+  calculationId,
+  calculationName,
+  customerName,
+}: {
+  calculationId: string;
+  calculationName?: string;
+  customerName?: string;
+}) {
   const [isGostModalOpen, setIsGostModalOpen] = useState(false);
   const [busy, setBusy] = useState<ExportFormat | null>(null);
   const [error, setError] = useState('');
 
-  // Downloads go through fetch with the share token in a header rather than a plain <a>
-  // carrying ?share=. The token is a reusable, write-capable credential and nginx logs the
-  // full request URI by default, so putting it in the query string leaks it into access logs.
   const download = async (format: ExportFormat) => {
     setBusy(format);
     setError('');
@@ -68,31 +79,50 @@ export default function ExportLinks({ calculationId }: { calculationId: string }
 
   return (
     <>
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => setIsGostModalOpen(true)}
-          className="btn-secondary font-medium text-nord-accent border-nord-accent/40 hover:border-nord-accent"
+          className="btn-primary !py-1.5 !px-3 text-xs font-semibold shadow-xs"
           title="Мастер ГОСТ 34: профиль, требования, применимость, трассируемость и выпуск"
         >
-          Мастер ГОСТ 34
+          <span className="text-sm">📑</span>
+          <span>Мастер ГОСТ 34</span>
         </button>
-        {(['pdf', 'xlsx', 'json'] as const).map((format) => (
-          <button
-            key={format}
-            type="button"
-            onClick={() => download(format)}
-            disabled={busy !== null}
-            className="btn-secondary disabled:opacity-50"
-          >
-            {busy === format ? '…' : format.toUpperCase()}
-          </button>
-        ))}
+
+        <div className="flex items-center rounded-lg border border-slate-200 bg-white p-0.5 shadow-xs dark:border-nord-3 dark:bg-nord-2">
+          {(['pdf', 'xlsx', 'json'] as const).map((format) => {
+            const cfg = FORMAT_CONFIG[format];
+            const isCurrent = busy === format;
+
+            return (
+              <button
+                key={format}
+                type="button"
+                onClick={() => download(format)}
+                disabled={busy !== null}
+                className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 dark:text-nord-4 dark:hover:bg-nord-3 dark:hover:text-nord-6"
+                title={`Скачать в формате ${cfg.label}`}
+              >
+                {isCurrent ? (
+                  <span className="animate-spin text-xs">⏳</span>
+                ) : (
+                  <span className={`font-bold text-[10px] uppercase ${cfg.color}`}>{cfg.ext}</span>
+                )}
+                <span>{cfg.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
-      {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+      {error ? (
+        <p className="mt-1 text-xs font-medium text-rose-600 dark:text-nord-redText">{error}</p>
+      ) : null}
 
       <Gost34WizardModal
         calculationId={calculationId}
+        calculationName={calculationName}
+        customerName={customerName}
         isOpen={isGostModalOpen}
         onClose={() => setIsGostModalOpen(false)}
       />

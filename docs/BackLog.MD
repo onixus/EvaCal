@@ -3,6 +3,7 @@
 ## Summary
 
 ## P1 Findings
+
 - Enforce mustChangePassword server-side
 - Revocable sessions / sessionVersion
 - Replace URL bearer share tokens
@@ -14,6 +15,7 @@
 - CI release gate
 
 ## P2 Findings
+
 - Remove xlsx-latest dependency
 - Pin GitHub Actions SHA
 - Container digest pinning

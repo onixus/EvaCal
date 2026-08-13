@@ -10,6 +10,7 @@ import {
 } from '@/lib/gost34';
 import { requireCalcAccess, requireStaff } from '@/lib/access';
 import { clientIp, writeAudit } from '@/lib/audit';
+import { handleApiError } from '@/lib/apiHelpers';
 
 /**
  * Миграция ранее выпущенных проектов на действующий нормативный профиль
@@ -134,8 +135,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     });
 
     return NextResponse.json({ binding: resolveProjectBinding(updated), diff });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error in GOST 34 migration endpoint:', err);
-    return NextResponse.json({ error: err?.message || 'Migration failed' }, { status: 500 });
+    return handleApiError(err, 'Migration failed', 500);
   }
 }
