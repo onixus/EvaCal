@@ -102,7 +102,11 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
               >
                 📝 Пресейл
               </Link>
-              <ExportLinks calculationId={calculation.id} />
+              <ExportLinks
+                calculationId={calculation.id}
+                calculationName={calculation.name}
+                customerName={calculation.customer}
+              />
             </div>
           </div>
         </div>
@@ -332,6 +336,8 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
 
       <Gost34WizardModal
         calculationId={calculation.id}
+        calculationName={calculation.name}
+        customerName={calculation.customer}
         isOpen={isGostModalOpen}
         onClose={() => setIsGostModalOpen(false)}
       />

@@ -33,7 +33,15 @@ function filenameFromDisposition(header: string | null, fallback: string): strin
   return plain?.[1] || fallback;
 }
 
-export default function ExportLinks({ calculationId }: { calculationId: string }) {
+export default function ExportLinks({
+  calculationId,
+  calculationName,
+  customerName,
+}: {
+  calculationId: string;
+  calculationName?: string;
+  customerName?: string;
+}) {
   const [isGostModalOpen, setIsGostModalOpen] = useState(false);
   const [busy, setBusy] = useState<ExportFormat | null>(null);
   const [error, setError] = useState('');
@@ -113,6 +121,8 @@ export default function ExportLinks({ calculationId }: { calculationId: string }
 
       <Gost34WizardModal
         calculationId={calculationId}
+        calculationName={calculationName}
+        customerName={customerName}
         isOpen={isGostModalOpen}
         onClose={() => setIsGostModalOpen(false)}
       />
