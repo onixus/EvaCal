@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { safeJsonParse } from './json';
 
 export interface StageForExport {
   name: string;
@@ -25,6 +26,7 @@ export interface FieldForExport {
 }
 
 export interface CalculationForExport {
+  id?: string;
   name: string;
   customer: string;
   status: string;
@@ -50,13 +52,14 @@ export async function loadCalculationForExport(id: string): Promise<CalculationF
   if (!calculation) return null;
 
   return {
+    id: calculation.id,
     name: calculation.name,
     customer: calculation.customer,
     status: calculation.status,
     startDate: calculation.startDate,
     pmHours: calculation.pmHours,
     templateName: calculation.template.name,
-    answers: JSON.parse(calculation.answers),
+    answers: safeJsonParse<Record<string, unknown>>(calculation.answers, {}),
     fields: calculation.template.fields,
     stages: calculation.stages,
     risks: calculation.risks,

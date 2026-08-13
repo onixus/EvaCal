@@ -4,6 +4,7 @@ import { normalizeRequirementsWithLlm } from '@/lib/gost34/parser/llmNormalizer'
 import { EndpointNotAllowedError } from '@/lib/gost34/llm/endpointGuard';
 import { resolveLlmProvider } from '@/lib/gost34/llm/providers';
 import { validateRequirements } from '@/lib/gost34/validation';
+import { handleApiError } from '@/lib/apiHelpers';
 import { GOST34_LLM_ROLES } from '../roles';
 
 export async function POST(req: NextRequest) {
@@ -43,8 +44,8 @@ export async function POST(req: NextRequest) {
       modelUsed: result.modelUsed,
       providerUsed: result.providerUsed,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error in LLM normalization endpoint:', err);
-    return NextResponse.json({ error: err?.message || 'Normalization failed' }, { status: 500 });
+    return handleApiError(err, 'Normalization failed', 500);
   }
 }

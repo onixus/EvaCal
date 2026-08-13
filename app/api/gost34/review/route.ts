@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadCalculationForExport } from '@/lib/export';
 import { buildWizardReview } from '@/lib/gost34/wizard';
 import { requireCalcAccess } from '@/lib/access';
+import { handleApiError } from '@/lib/apiHelpers';
 
 /**
  * Экраны проверки мастера (PR-10): требования, применимость, трассируемость и
@@ -50,8 +51,8 @@ export async function POST(req: NextRequest) {
     );
 
     return NextResponse.json(review);
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error in GOST 34 wizard review endpoint:', err);
-    return NextResponse.json({ error: err?.message || 'Review failed' }, { status: 500 });
+    return handleApiError(err, 'Review failed', 500);
   }
 }

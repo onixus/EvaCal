@@ -1,4 +1,4 @@
-import { Gost34RequirementItem } from '../types';
+import { Gost34RequirementItem, RequirementCategory } from '../types';
 import {
   Gost34RequirementV2,
   fromGost34RequirementItems,
@@ -17,6 +17,24 @@ export interface LlmNormalizerOptions {
   model?: string; // Default: llama3.2, qwen2.5, mistral, deepseek-r1
   temperature?: number;
   fallbackToRules?: boolean;
+}
+
+interface OllamaModelItem {
+  name?: string;
+  model?: string;
+}
+
+interface OpenAiModelItem {
+  id?: string;
+  name?: string;
+}
+
+interface LlmProposalRawItem {
+  code?: string;
+  category?: string;
+  title?: string;
+  description?: string;
+  confidence?: number;
 }
 
 /**
@@ -41,11 +59,13 @@ export async function checkLocalLlmAvailability(
       clearTimeout(timeoutId);
 
       if (res.ok) {
-        const data = await res.json();
-        const models = (data.models || []).map((m: any) => m.name || m.model);
+        const data = (await res.json()) as { models?: OllamaModelItem[] };
+        const models = (data.models || [])
+          .map((m) => m.name || m.model)
+          .filter((name): name is string => typeof name === 'string' && name.length > 0);
         return { available: true, provider: 'ollama', models };
       }
-    } catch (e) {
+    } catch {
       // Ignore and try OpenAI / LM Studio endpoint
     }
   }
@@ -66,11 +86,13 @@ export async function checkLocalLlmAvailability(
     clearTimeout(timeoutId);
 
     if (res.ok) {
-      const data = await res.json();
-      const models = (data.data || []).map((m: any) => m.id || m.name);
+      const data = (await res.json()) as { data?: OpenAiModelItem[] };
+      const models = (data.data || [])
+        .map((m) => m.id || m.name)
+        .filter((name): name is string => typeof name === 'string' && name.length > 0);
       return { available: true, provider: 'openai_compatible', models };
     }
-  } catch (e) {
+  } catch {
     // Both failed
   }
 
@@ -95,7 +117,7 @@ const LLM_CATEGORIES = [
  * then the effective text of the requirement is still the original.
  */
 function buildLlmProposals(
-  parsedJson: any[],
+  parsedJson: LlmProposalRawItem[],
   rawItems: Gost34RequirementItem[],
   targetModel: string,
   idPrefix: string,
@@ -107,17 +129,20 @@ function buildLlmProposals(
 
   const stamp = Date.now();
 
-  return parsedJson.map((item: any, idx: number) => {
+  return parsedJson.map((item: LlmProposalRawItem, idx: number) => {
     // Match the reply back to its input by code, else positionally.
     const source = (item.code && byCode.get(item.code)) || rawItems[idx];
     const proposedText = item.description || item.title || '';
 
+    const resolvedCategory =
+      item.category && LLM_CATEGORIES.includes(item.category)
+        ? (item.category as RequirementCategory)
+        : source?.category || 'functional';
+
     const proposal: Gost34RequirementV2 = {
       id: source?.id || `${idPrefix}-${stamp}-${idx}`,
       code: item.code || source?.code || `ТР-ГОСТ-${String(idx + 1).padStart(2, '0')}`,
-      category: LLM_CATEGORIES.includes(item.category)
-        ? item.category
-        : source?.category || 'functional',
+      category: resolvedCategory,
       type: 'system',
       title: item.title || item.code || 'Требование ГОСТ 34',
       originalText: source?.originalText ?? source?.description ?? proposedText,

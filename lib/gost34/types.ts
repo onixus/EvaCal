@@ -136,6 +136,36 @@ export interface Gost34DocumentAST {
   standardProfile?: StandardProfile;
 }
 
+export interface Gost34CalculationInput {
+  id?: string;
+  name: string;
+  customer: string;
+  answers?: string | Record<string, unknown>;
+  pmHours?: number;
+  startDate?: Date | string;
+  stages?: Array<{
+    id?: string;
+    order?: number;
+    name?: string;
+    role?: string;
+    hours?: number;
+    startDate?: Date | string;
+    endDate?: Date | string;
+    requirements?: string | null;
+  }>;
+  risks?: Array<{
+    id?: string;
+    description?: string;
+    hours?: number;
+  }>;
+  template?: {
+    name: string;
+    description?: string | null;
+    workDayHours?: number;
+    includeWeekends?: boolean;
+  };
+}
+
 /**
  * Raw input payload for GOST 34 document generation
  */
@@ -145,7 +175,7 @@ export interface Gost34InputPayload {
   systemName: string;
   customerName: string;
   templateName?: string;
-  answers?: Record<string, any>;
+  answers?: Record<string, unknown>;
   stages: Gost34StageItem[];
   risks?: Gost34RiskItem[];
   pmHours?: number;

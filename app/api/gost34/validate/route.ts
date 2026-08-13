@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth';
 import { fromGost34RequirementItems } from '@/lib/gost34/requirements';
 import { validateRequirements } from '@/lib/gost34/validation';
+import { handleApiError } from '@/lib/apiHelpers';
 import { GOST34_LLM_ROLES } from '../roles';
 
 /**
@@ -27,8 +28,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       validation: validateRequirements(toValidate, { rules }),
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error in GOST 34 validation endpoint:', err);
-    return NextResponse.json({ error: err?.message || 'Validation failed' }, { status: 500 });
+    return handleApiError(err, 'Validation failed', 500);
   }
 }

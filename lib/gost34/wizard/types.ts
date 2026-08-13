@@ -52,22 +52,7 @@ export interface ComplianceReport {
 }
 
 /** Расчёт EvaCal в том виде, в каком его принимает анализатор. */
-export interface WizardCalculationInput {
-  id: string;
-  name: string;
-  customer: string;
-  answers?: string | Record<string, any>;
-  pmHours?: number;
-  startDate?: Date | string;
-  stages?: any[];
-  risks?: any[];
-  template?: {
-    name: string;
-    description?: string | null;
-    workDayHours?: number;
-    includeWeekends?: boolean;
-  };
-}
+export type WizardCalculationInput = import('../types').Gost34CalculationInput;
 
 /** Сводка применимости, как её считает Applicability Engine. */
 export interface ApplicabilitySummary {

@@ -5,7 +5,9 @@ import {
   Gost34StageItem,
   Gost34RiskItem,
   GostDocumentType,
+  Gost34CalculationInput,
 } from './types';
+import { safeJsonParse } from '../json';
 import { getEnrichedGostRequirements } from './enricher';
 import { resolveGost34Profile } from './standards';
 import {
@@ -26,22 +28,7 @@ import type { TraceLink } from './traceability/types';
  * into a structured payload for GOST 34 generator.
  */
 export function analyzeAndNormalizeInput(input: {
-  calculation?: {
-    id: string;
-    name: string;
-    customer: string;
-    answers?: string | Record<string, any>;
-    pmHours?: number;
-    startDate?: Date | string;
-    stages?: any[];
-    risks?: any[];
-    template?: {
-      name: string;
-      description?: string | null;
-      workDayHours?: number;
-      includeWeekends?: boolean;
-    };
-  };
+  calculation?: Gost34CalculationInput;
   metadataOverride?: Partial<Gost34DocMetadata>;
   rawRequirements?: Gost34RequirementItem[];
   vendorFiles?: string[];
@@ -96,14 +83,10 @@ export function analyzeAndNormalizeInput(input: {
   const standardProfile = resolveGost34Profile(metadata.standardProfileId);
 
   // Parse answers if JSON string
-  let parsedAnswers: Record<string, any> = {};
+  let parsedAnswers: Record<string, unknown> = {};
   if (calc?.answers) {
     if (typeof calc.answers === 'string') {
-      try {
-        parsedAnswers = JSON.parse(calc.answers);
-      } catch (e) {
-        parsedAnswers = {};
-      }
+      parsedAnswers = safeJsonParse<Record<string, unknown>>(calc.answers, {});
     } else {
       parsedAnswers = calc.answers;
     }
