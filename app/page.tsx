@@ -17,8 +17,8 @@ export default async function HomePage(props: { searchParams: Promise<{ page?: s
         <div className="card space-y-4 p-8">
           <h1 className="text-xl font-semibold">EvaCal</h1>
           <p className="text-sm text-slate-500">
-            Калькулятор трудозатрат и комплект ГОСТ 34. Архив расчётов доступен только
-            сотрудникам. Пресейл работает по share-ссылке или в режиме локального демо.
+            Калькулятор трудозатрат и комплект ГОСТ 34. Архив расчётов доступен только сотрудникам.
+            Пресейл работает по share-ссылке или в режиме локального демо.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link href="/presale" className="btn-primary">

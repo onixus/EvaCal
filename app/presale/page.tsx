@@ -5,9 +5,7 @@ import { getStaffSession, isAnonymousPresaleAllowed } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PresalePage(props: {
-  searchParams: Promise<{ share?: string }>;
-}) {
+export default async function PresalePage(props: { searchParams: Promise<{ share?: string }> }) {
   const searchParams = await props.searchParams;
   const staff = await getStaffSession();
   const anonymousOk = isAnonymousPresaleAllowed();

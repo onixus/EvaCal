@@ -35,11 +35,7 @@ export default function ShareTokenRecovery({
   }, [calculationId, pathPrefix, router]);
 
   if (status === 'checking') {
-    return (
-      <div className="card p-8 text-center text-slate-500">
-        Проверяем доступ к расчёту…
-      </div>
-    );
+    return <div className="card p-8 text-center text-slate-500">Проверяем доступ к расчёту…</div>;
   }
 
   return (
