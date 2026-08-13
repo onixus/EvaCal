@@ -168,3 +168,21 @@ model Risk {
 
   @@index([calculationId, order])
 }
+
+// Append-only security / compliance trail (Horizon A).
+model AuditEvent {
+  id         String   @id @default(cuid())
+  at         DateTime @default(now())
+  actorType  String // user | share | system | anonymous
+  actorId    String?
+  action     String // e.g. calculation.create, calculation.export.pdf
+  entityType String?
+  entityId   String?
+  meta       String? // JSON
+  ip         String?
+
+  @@index([at])
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([action, at])
+}

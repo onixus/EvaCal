@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DynamicForm, { FormFieldDef } from '@/components/DynamicForm';
+import { storeShareToken } from '@/lib/shareClient';
 
 interface Template {
   id: string;
@@ -46,6 +47,7 @@ export default function NewCalculationForm({ template }: { template: Template })
         throw new Error(data.error ?? 'Не удалось создать расчёт');
       }
       const data = await res.json();
+      if (data.shareToken) storeShareToken(data.id, data.shareToken);
       router.push(`/presale/${data.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка');

@@ -33,7 +33,9 @@ pipeline {
 
         stage('Security Audit') {
             steps {
-                sh 'npm audit --audit-level=high || true'
+                // Fail on high/critical advisories. Force the public registry:
+                // some mirrors (e.g. npmmirror) do not implement the audit API.
+                sh 'npm audit --audit-level=high --registry=https://registry.npmjs.org/'
             }
         }
 

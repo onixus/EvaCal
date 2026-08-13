@@ -6,10 +6,14 @@ import {
   pmHoursFor,
   scheduleConfigFromTemplate,
 } from '@/lib/calc';
-import { requireApiRole } from '@/lib/auth';
+import { requireCalcAccess, requireStaff } from '@/lib/access';
+import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 
-export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const access = await requireCalcAccess(req, params.id, ['read']);
+  if (access instanceof NextResponse) return access;
+
   const calculation = await prisma.calculation.findUnique({
     where: { id: params.id },
     include: {
@@ -34,6 +38,9 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
 // from the template formulas. Per-stage requirements text is architect-only, so it's untouched here.
 export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const access = await requireCalcAccess(req, params.id, ['write']);
+  if (access instanceof NextResponse) return access;
+
   const body = await req.json();
   const existing = await prisma.calculation.findUnique({
     where: { id: params.id },
@@ -76,6 +83,15 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
     scheduleConfigFromTemplate(existing.template),
   );
 
+  await writeAudit({
+    actorType: actorTypeFromAccess(access.kind),
+    actorId: access.actorId,
+    action: 'calculation.update',
+    entityType: 'calculation',
+    entityId: params.id,
+    ip: clientIp(req),
+  });
+
   return NextResponse.json({ ok: true });
 }
 
@@ -84,7 +100,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
 // current hours and per-stage requirements — it only shifts dates, it never re-runs formulas.
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const auth = await requireApiRole('architect');
+  const auth = await requireStaff();
   if (auth instanceof NextResponse) return auth;
 
   const body = await req.json();
@@ -127,11 +143,19 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const auth = await requireApiRole('architect');
+  const auth = await requireStaff();
   if (auth instanceof NextResponse) return auth;
 
   await prisma.calculation.delete({ where: { id: params.id } });
+  await writeAudit({
+    actorType: 'user',
+    actorId: auth.userId,
+    action: 'calculation.delete',
+    entityType: 'calculation',
+    entityId: params.id,
+    ip: clientIp(req),
+  });
   return NextResponse.json({ ok: true });
 }

@@ -61,10 +61,16 @@ export async function getSession(): Promise<SessionPayload | null> {
 }
 
 /** For Server Components / layouts: redirects to /login when the required role isn't present. */
-export async function requireRole(role: string): Promise<SessionPayload> {
+export async function requireRole(role: string | string[]): Promise<SessionPayload> {
+  const allowed = Array.isArray(role) ? role : [role];
   const session = await getSession();
-  if (!session || session.role !== role) {
-    redirect(`/login?next=${encodeURIComponent(`/${role}`)}`);
+  if (!session || !allowed.includes(session.role)) {
+    const next = allowed.includes('admin')
+      ? '/admin'
+      : allowed.includes('architect')
+        ? '/architect'
+        : `/${allowed[0]}`;
+    redirect(`/login?next=${encodeURIComponent(next)}`);
   }
   return session as SessionPayload;
 }

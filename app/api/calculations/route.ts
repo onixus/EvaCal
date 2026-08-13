@@ -9,11 +9,14 @@ import {
 } from '@/lib/calc';
 import { grandTotalHours } from '@/lib/totals';
 import { pageArgs, paginationHeaders, parseLimit, parsePage } from '@/lib/pagination';
+import { createShareToken, requireCalcAccess, requireStaff } from '@/lib/access';
+import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 
-// Old calculations are visible to everyone, so a plain list with no auth filtering.
-// Paged: the body stays a plain array, and the X-Total-Count / X-Page headers tell a
-// caller there is more to fetch, so the cap is never silent.
+// List is staff-only: no anonymous dump of the commercial archive.
 export async function GET(req: NextRequest) {
+  const auth = await requireStaff();
+  if (auth instanceof NextResponse) return auth;
+
   const { searchParams } = new URL(req.url);
   const limit = parseLimit(searchParams.get('limit'));
   const page = parsePage(searchParams.get('page') ?? undefined);
@@ -25,8 +28,6 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       include: {
         template: { select: { name: true } },
-        // Only the fields the summary below actually reads — pulling whole Stage rows
-        // here drags every stage's `requirements` text into the list response.
         stages: { select: { hours: true, isApprovalTask: true, endDate: true } },
         risks: { select: { hours: true } },
       },
@@ -51,7 +52,11 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(summarized, { headers: paginationHeaders(total, page, limit) });
 }
 
+// Create: staff, or share with `create`, or ALLOW_ANONYMOUS_PRESALE.
 export async function POST(req: NextRequest) {
+  const access = await requireCalcAccess(req, null, ['create']);
+  if (access instanceof NextResponse) return access;
+
   const body = await req.json();
   const { name, customer, templateId, answers, startDate } = body;
   if (!name || !customer || !templateId) {
@@ -61,18 +66,31 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (access.kind === 'share' && access.share?.templateId && access.share.templateId !== templateId) {
+    return NextResponse.json(
+      { error: 'Share-токен выдан на другой шаблон' },
+      { status: 403 },
+    );
+  }
+
   const template = await prisma.formTemplate.findUnique({
     where: { id: templateId },
     include: { stageTemplates: true, fields: true, riskTemplates: true },
   });
   if (!template) return NextResponse.json({ error: 'template not found' }, { status: 404 });
 
-  // A template-level default locks the start date for presale; otherwise the submitted value is used.
   const start = template.defaultStartDate ?? (startDate ? new Date(startDate) : new Date());
   const answersObj = answers ?? {};
 
   const primary = primaryStagesFromTemplate(template.stageTemplates, answersObj);
   const pmHours = pmHoursFor(template.fields, answersObj, primary);
+
+  const createdBy =
+    access.kind === 'staff'
+      ? access.session?.username || access.actorId
+      : access.kind === 'share'
+        ? 'presale-share'
+        : 'presale';
 
   const calculation = await prisma.calculation.create({
     data: {
@@ -82,7 +100,7 @@ export async function POST(req: NextRequest) {
       answers: JSON.stringify(answersObj),
       startDate: start,
       pmHours,
-      createdBy: 'presale',
+      createdBy,
     },
   });
 
@@ -95,5 +113,29 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ id: calculation.id }, { status: 201 });
+  await writeAudit({
+    actorType: actorTypeFromAccess(access.kind),
+    actorId: access.actorId,
+    action: 'calculation.create',
+    entityType: 'calculation',
+    entityId: calculation.id,
+    meta: { templateId, name, customer },
+    ip: clientIp(req),
+  });
+
+  // Presale (share/anonymous) gets a bound token so subsequent PUT/export work
+  // without re-opening the global data-plane.
+  const shareToken =
+    access.kind === 'staff'
+      ? undefined
+      : createShareToken({
+          calculationId: calculation.id,
+          templateId,
+          scopes: ['read', 'write', 'export'],
+        });
+
+  return NextResponse.json(
+    { id: calculation.id, ...(shareToken ? { shareToken } : {}) },
+    { status: 201 },
+  );
 }

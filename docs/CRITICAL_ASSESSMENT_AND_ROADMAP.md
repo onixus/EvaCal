@@ -1,0 +1,255 @@
+# EvaCal — критическая оценка и сценарий развития
+
+Дата: 2026-08-13  
+Версия продукта: 0.2.0  
+База: репозиторий `/Users/onixus/Git/EvaCal`, `main` @ `0688d52` (+ незакоммиченный diff Dockerfile).
+
+---
+
+## 1. Краткий вердикт
+
+EvaCal — **сильный вертикальный MVP** для ниши «presale → трудозатраты → ГОСТ 34 комплект» с уже нетривиальным domain-ядром (профили, применимость, трассируемость, golden-сценарии, LLM-нормализация). Это не «ещё один CRUD»: ценность в связке калькулятора с нормативной документацией.
+
+При этом продукт **ещё не production-grade enterprise**:
+
+| Сильная сторона | Критический изъян |
+|-----------------|-------------------|
+| Богатый ГОСТ 34 pipeline + golden tests | **Открытые API расчётов и экспорта** (список/PDF/XLSX/JSON/submit без auth) |
+| Чёткие роли admin/architect + HMAC-сессии | **Нет multi-tenant / ACL по объекту** — все расчёты в одной «плоской» БД |
+| Docker + nginx + CI (Jenkins «Ева» green) | **SQLite** как единственное хранилище — concurrency, бэкапы, multi-instance |
+| LLM только server-side, fallback на regex | Нормативка в коде/шаблонах: **риск «шаблонной простыни»** вместо проектной истины |
+| Пагинация и индексы (0.2.0) | JSON-в-String в Prisma (`answers`, options) — **слабая схема данных** |
+| План модернизации ГОСТ 34 уже есть | План **частично реализован**, продуктовый UX и процесс согласования с заказчиком недозрелы |
+
+**Оценка зрелости (субъективно, 1–5):**
+
+| Область | Балл | Комментарий |
+|---------|-----:|-------------|
+| Product-market fit (ниша) | 4 | Реальная боль пресейла/архитекторов РФ |
+| Domain ГОСТ 34 | 4 | Глубоко; нужен постоянный нормативный review |
+| UX end-to-end | 3 | Wizard есть; единый «проектный кабинет» слабее |
+| Security / multi-tenant | 2 | HMAC ок, но data plane открыт |
+| Data platform | 2 | SQLite + JSON-поля |
+| Quality / CI | 4 | Vitest + golden + Jenkins; audit «мягкий» |
+| Ops / observability | 2 | Мало метрик, аудита решений, алертинга |
+| AI governance | 3 | Хороший каркас; нет eval-набора качества нормализации |
+
+---
+
+## 2. Критическая оценка по слоям
+
+### 2.1. Продукт и бизнес-логика
+
+**Плюсы**
+
+- Понятный pipeline: шаблон → опросник → расчёт → этапы/Gantt → риски → согласование → экспорт → ГОСТ 34.
+- Формула `base + perUnit × driver` прозрачна для пресейла.
+- Автозадачи согласования на заказчика (3 раб. дня) — правильный процессный задел.
+- Нормативные чекбоксы (ФСТЭК, ЦБ, 152-ФЗ, КИИ…) повышают «продаваемость» комплекта в РФ.
+
+**Минусы / риски**
+
+1. **Смешение двух продуктов** в одном UI: «калькулятор трудозатрат» и «конструктор ТЗ». Без жёсткой навигации пользователь теряется: что primary, что secondary.
+2. **Нет явной модели «коммерческого предложения»**: нет версии КП, маржи, ставки роли, валюты, скидок, сравнения сценариев (optimistic / base / pessimistic).
+3. **Согласование с заказчиком** — задачи в Gantt, но нет внешнего портала/ссылки/e-mail workflow. Риск: фича «для галочки».
+4. **История изменений** расчёта и нормативного комплекта слабая: сложно ответить «кто утвердил какую версию ТЗ и по какому профилю».
+5. **Юридическая ответственность** за нормативные формулировки: шаблонные вставки приказов ФСТЭК/ЦБ без привязки к реальному аудиту объекта могут создавать **ложную уверенность** у заказчика.
+
+### 2.2. Архитектура и код
+
+**Плюсы**
+
+- Модуль `lib/gost34/` разложен осмысленно: standards, applicability, requirements, validation, traceability, exporters, wizard, migration.
+- Golden fixtures — правильный подход для регрессии документов.
+- LLM за endpoint guard: провайдеры и ключи не уезжают в браузер.
+- Недавние perf-правки (индексы, pagination) показывают зрелый рефакторинг.
+
+**Минусы**
+
+1. **Доменная модель в БД плоская**: `Calculation.answers` как JSON-string; много «типов» как `String` (`role`, `status`, `type`). Теряется type-safety на границе Prisma ↔ domain.
+2. **Дублирование смысла** между calc stages и gost34 requirements — трассируемость опросник→ТЗ всё ещё не «первая класса» сущность в UI.
+3. **Монолит Next.js** тащит тяжёлую генерацию DOCX/PDF в request path — при росте concurrent users упрётесь в CPU/timeout, не в DB.
+4. **SQLite**: один writer; volume в Docker ок для single-node, **не ок** для HA, горизонтального масштаба, строгих бэкапов point-in-time.
+5. **Сессии HMAC без server-side store**: logout/invalidate token / force revoke при смене пароля — ограничены; нет rotation secret, нет CSRF policy на cookie-based mutating API (зависит от SameSite/CORS).
+
+### 2.3. Безопасность (критично)
+
+| Находка | Severity | Суть |
+|---------|----------|------|
+| `GET/POST /api/calculations` без auth | **High** | Список и создание расчётов открыты |
+| Экспорт PDF/XLSX/JSON/GOST34 по `id` | **High** | Утечка коммерческих данных при угадывании/утечке cuid |
+| `submit` без auth | **High** | Смена статуса расчёта извне |
+| `gost34/review`, `traceability` OPEN | **Medium** | Аналитика/обзор без роли |
+| `npm audit --audit-level=high \|\| true` | **Medium** | Security stage не валит сборку |
+| Одна роль = один cookie payload | **Low–Med** | Нет impersonation audit, нет MFA |
+
+Комментарий в коде «Old calculations are visible to everyone» — **продуктовое решение, не баг**, но для коммерческого деплоя это **блокер**.
+
+### 2.4. Качество и тесты
+
+**Плюсы:** ~23 test-файла, плотный кластер вокруг ГОСТ 34; golden scenarios; vitest; typecheck/lint в CI.
+
+**Минусы**
+
+- Слабое покрытие **API/integration** (auth matrix, ACL, pagination contracts).
+- Мало e2e (Playwright/Cypress) на wizard + export.
+- Нет property-based / fuzz на sanitizer и parser вендорских DOCX.
+- Нет load-теста генерации комплекта (CPU-bound).
+
+### 2.5. UX / операционка
+
+- Тёмная тема и wizard — хорошо; **нет** «единой карточки проекта» (КП + риски + ГОСТ статус + версия + артефакты).
+- Нет dashboard метрик: средний чел·ч по шаблону, win-rate, цикл согласования.
+- Observability: нет structured logs / tracing на генерацию документов.
+- Backup SQLite volume — на совести оператора, не продукта.
+
+---
+
+## 3. Что уже «не надо изобретать»
+
+План `docs/GOST34_MODERNIZATION_PLAN.md` — правильный каркас. Критика плана:
+
+- Слишком **стандарт-центричен**; мало продуктовых KPI (время пресейла, % автозаполнения ТЗ, число итераций согласования).
+- Не закрывает **security/multi-tenant** и **коммерческий контур** — без них ГОСТ-модуль остаётся «красивой фичей внутри дырявого perimeter».
+- LLM описан осторожно — хорошо; не хватает **eval-набора** (precision нормализации, human acceptance).
+
+---
+
+## 4. Сценарий улучшения и развития
+
+Ниже — **сценарий «От вертикального MVP к доверенной платформе пресейла и ГОСТ-документации»** на 4 горизонта.
+
+### Горизонт A — «Закрыть периметр» (2–4 недели) — **P0**
+
+**Статус: реализован (2026-08-13).** См. `docs/SECURITY_PERIMETER.md`.
+
+| # | Работа | Результат |
+|---|--------|-----------|
+| A1 | ACL на calculation/export/submit/gost34-by-id | staff или share-токен |
+| A2 | Signed share tokens (`POST .../share`, `?share=`, auto token on create) | Presale без глобального open |
+| A3 | `AuditEvent` + writeAudit на login/create/export/… | Трассировка действий |
+| A4 | `npm audit --audit-level=high` в Jenkins/GHA без `\|\| true` | Security gate |
+| A5 | Единые cookie options (`HttpOnly`/`Secure`/`SameSite`) | Базовый web security |
+| A6 | Backup note в SECURITY_PERIMETER | Ops minimum |
+
+**Exit criteria:** pen-test light / checklist OWASP API top10 по расчётам — critical closed.
+
+---
+
+### Горизонт B — «Один проект — одна правда» (1–2 месяца) — **P0/P1**
+
+**Цель:** расчёт и ГОСТ 34 — единый проектный объект, не два острова.
+
+| # | Работа | Результат |
+|---|--------|-----------|
+| B1 | Сущность **Project** (customer, calc versions, gost package versions, status) | Версионирование КП и ТЗ |
+| B2 | Requirements Repository v2 как **source of truth**; DOCX = projection | Меньше «шаблонной воды» |
+| B3 | Traceability UI: опросник field → requirement → раздел ТЗ → тест ПМИ | Продаваемый compliance story |
+| B4 | Ставки ролей / календарь / currency → **стоимость** рядом с чел·ч | КП, а не только часы |
+| B5 | Сценарии: base / optimistic / risk-buffer; diff часов | Переговоры с заказчиком |
+| B6 | E2E Playwright: login → calc → wizard → export ZIP | Регресс UX |
+
+**Exit criteria:** один demo-сценарий «банк/КИИ» от опросника до ZIP без ручной правки JSON.
+
+---
+
+### Горизонт C — «Платформа данных и multi-tenant» (2–4 месяца) — **P1**
+
+**Цель:** несколько команд/организаций, рост данных, предсказуемый ops.
+
+| # | Работа | Результат |
+|---|--------|-----------|
+| C1 | Postgres (или dual-mode SQLite→Postgres) + миграции Prisma | Concurrent writers, бэкапы |
+| C2 | `tenantId` / org на User, Template, Calculation | Изоляция данных |
+| C3 | RBAC расширить: `presale`, `viewer`, `customer`; object-level permissions | Реальные оргструктуры |
+| C4 | Job queue (BullMQ/Redis или pg-boss) для DOCX/PDF/ZIP | UI не таймаутится |
+| C5 | Object storage для артефактов (S3/minio) | Не раздувать SQLite/FS |
+| C6 | Metrics: gen latency, export errors, LLM fallback rate | SRE |
+
+**Exit criteria:** 2 tenant на одном инстансе без пересечения данных; 10 параллельных генераций комплекта.
+
+---
+
+### Горизонт D — «Дифференциация и доверие» (3–6 месяцев) — **P1/P2**
+
+**Цель:** moat: не «ещё редактор DOCX», а **управляемая нормативная модель + коммерция**.
+
+| # | Работа | Результат |
+|---|--------|-----------|
+| D1 | Реестр нормативных профилей + **дата актуальности** + changelog (ручной legal review) | Снижение юр. риска |
+| D2 | LLM eval suite: 50 вендорских ТЗ → human score ≥ X | Контроль качества ИИ |
+| D3 | Customer portal: magic link на approval tasks | Реальное согласование |
+| D4 | Интеграции: Jira/YouTrack, 1С/Excel import ставок, Confluence/SharePoint export | Встраивание в контур |
+| D5 | «Compare packages» двух версий ТЗ (structural + semantic diff) | Change management |
+| D6 | On-prem air-gap package (уже есть зачатки) + offline LLM profile | Гос/КИИ продажи |
+
+**Exit criteria:** 1–2 пилота с внешним заказчиком; метрика «время первого комплекта ТЗ» ↓ ≥ 40% vs Word-ручной процесс.
+
+---
+
+## 5. Сценарный narrative (как продавать roadmap)
+
+### Сценарий «Северный банк — пилот за 90 дней»
+
+**Контекст:** интегратор отвечает на RFP банка (ПДн + элементы КИИ). Сейчас: Excel + Word + копипаст приказов ФСТЭК.
+
+| День | Что делаем | Ценность |
+|------|------------|----------|
+| 0–14 | Горизонт A: закрываем API, share-links, audit | Можно класть на внутренний стенд банка |
+| 15–45 | Горизонт B: Project + cost + traceability UI | Один объект «КП+ТЗ» для пресейла и архитектора |
+| 46–75 | Golden bank scenario + 2 реальных RFP прогона | Доказательство качества |
+| 76–90 | Customer approval links + export ZIP в data room | Процесс, а не демо |
+
+**KPI пилота**
+
+- T_first_package: часы от брифа до ZIP комплекта  
+- % requirements with source (provenance)  
+- % auto-filled sections vs manual edit  
+- Architect rework hours after first generate  
+- Zero critical findings на security checklist
+
+---
+
+## 6. Приоритизация «если делать только 5 вещей»
+
+1. **Закрыть data-plane auth** (расчёты + экспорт).  
+2. **Share links** вместо «presale = anonymous global».  
+3. **Project + versioning** артефактов.  
+4. **Postgres + queue** для генерации.  
+5. **Traceability UI** (видимая связь опросник → требование → документ).
+
+Всё остальное (красивый UI, новые приказы, ещё LLM-модели) — после этого.
+
+---
+
+## 7. Анти-сценарии (чего не делать)
+
+| Анти-паттерн | Почему вредно |
+|--------------|---------------|
+| Наращивать чекбоксы ФСТЭК/ЦБ без applicability engine | Юр. риск + «простыня» |
+| Делать LLM «автором ТЗ» без human gate | Галлюцинации в нормативке |
+| Multi-tenant до закрытия open API | Усилите blast radius |
+| Переписывать всё на микросервисы сейчас | MVP ещё не исчерпан; сначала auth+data model |
+| Игнорировать SQLite limits «пока влезет» | Сломается на первом concurrent architect team |
+
+---
+
+## 8. Связь с существующими документами
+
+| Документ | Роль |
+|----------|------|
+| `README.md` | Продуктовое описание as-is |
+| `docs/GOST34_MODERNIZATION_PLAN.md` | Технический план domain ГОСТ 34 (продолжать) |
+| `docs/GOST34_MIGRATION.md` | Миграция legacy проектов |
+| **Этот документ** | Критика + продуктово-платформенный roadmap поверх ГОСТ-плана |
+
+---
+
+## 9. Итоговая формула
+
+> EvaCal уже умеет **генерировать смысл** (часы + ГОСТ).  
+> Чтобы вырасти, нужно научиться **хранить доверие**: кто видит данные, какая версия утверждена, откуда взялось требование, и можно ли это повторить через полгода.
+
+Без горизонта A продукт опасен в чужом периметре.  
+С горизонтами B–C — это уже платформа пресейла.  
+С D — конкурентное преимущество на рынке гос/фин/КИИ документации.

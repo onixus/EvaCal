@@ -34,6 +34,9 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: Security audit
+        run: npm audit --audit-level=high --registry=https://registry.npmjs.org/
+
       # Mirrors the Jenkinsfile stages. Test runs even when lint fails so a
       # formatting nit can never hide a red test again.
       - name: Lint

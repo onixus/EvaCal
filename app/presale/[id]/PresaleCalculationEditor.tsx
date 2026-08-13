@@ -9,6 +9,7 @@ import StatusBadge from '@/components/StatusBadge';
 import TotalsSummary, { RiskRow } from '@/components/TotalsSummary';
 import RiskList from '@/components/RiskList';
 import ExportLinks from '@/components/ExportLinks';
+import { withShareHeaders } from '@/lib/shareClient';
 
 interface Calculation {
   id: string;
@@ -45,7 +46,7 @@ export default function PresaleCalculationEditor({ calculation }: { calculation:
     try {
       const res = await fetch(`/api/calculations/${calculation.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: withShareHeaders(calculation.id, { 'Content-Type': 'application/json' }),
         body: JSON.stringify({ name, customer, answers, startDate }),
       });
       if (!res.ok) {
@@ -65,6 +66,7 @@ export default function PresaleCalculationEditor({ calculation }: { calculation:
     try {
       await fetch(`/api/calculations/${calculation.id}/submit`, {
         method: 'POST',
+        headers: withShareHeaders(calculation.id),
       });
       router.refresh();
     } finally {

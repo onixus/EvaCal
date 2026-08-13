@@ -1,10 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Gost34WizardModal from './gost34/Gost34WizardModal';
+import { shareQuerySuffix } from '@/lib/shareClient';
 
 export default function ExportLinks({ calculationId }: { calculationId: string }) {
   const [isGostModalOpen, setIsGostModalOpen] = useState(false);
+  const [shareQ, setShareQ] = useState('');
+
+  useEffect(() => {
+    setShareQ(shareQuerySuffix(calculationId));
+  }, [calculationId]);
 
   return (
     <>
@@ -17,13 +23,13 @@ export default function ExportLinks({ calculationId }: { calculationId: string }
         >
           Мастер ГОСТ 34
         </button>
-        <a href={`/api/calculations/${calculationId}/pdf`} className="btn-secondary">
+        <a href={`/api/calculations/${calculationId}/pdf${shareQ}`} className="btn-secondary">
           PDF
         </a>
-        <a href={`/api/calculations/${calculationId}/xlsx`} className="btn-secondary">
+        <a href={`/api/calculations/${calculationId}/xlsx${shareQ}`} className="btn-secondary">
           XLSX
         </a>
-        <a href={`/api/calculations/${calculationId}/json`} className="btn-secondary">
+        <a href={`/api/calculations/${calculationId}/json${shareQ}`} className="btn-secondary">
           JSON
         </a>
       </div>
