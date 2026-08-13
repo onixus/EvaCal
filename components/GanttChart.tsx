@@ -58,7 +58,10 @@ export default function GanttChart({ stages }: { stages: GanttStage[] }) {
       <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-nord-muted">
         <span className="font-semibold text-slate-700 dark:text-nord-4">Роли:</span>
         {Object.entries(ROLE_COLORS).map(([role, cfg]) => (
-          <span key={role} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 dark:bg-nord-1">
+          <span
+            key={role}
+            className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 dark:bg-nord-1"
+          >
             <span className={`h-2 w-2 rounded-full ${cfg.bar}`} />
             <span>{roleLabel(role)}</span>
           </span>

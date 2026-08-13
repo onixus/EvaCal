@@ -69,9 +69,7 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
               <tr
                 key={stage.id}
                 className={`transition-colors hover:bg-slate-50/70 dark:hover:bg-nord-3/40 ${
-                  stage.isApprovalTask
-                    ? 'bg-amber-50/30 dark:bg-nord-yellow/5'
-                    : ''
+                  stage.isApprovalTask ? 'bg-amber-50/30 dark:bg-nord-yellow/5' : ''
                 }`}
               >
                 <td className="py-3 pr-4">
@@ -102,12 +100,18 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
                   </div>
                 </td>
                 <td className="py-3 pr-4">
-                  <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${roleClass}`}>
+                  <span
+                    className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${roleClass}`}
+                  >
                     {roleLabel(stage.role)}
                   </span>
                 </td>
                 <td className="py-3 pr-4 text-right font-semibold tabular-nums text-slate-800 dark:text-nord-5">
-                  {stage.isApprovalTask ? <span className="text-slate-400 font-normal">—</span> : `${stage.hours} ч`}
+                  {stage.isApprovalTask ? (
+                    <span className="text-slate-400 font-normal">—</span>
+                  ) : (
+                    `${stage.hours} ч`
+                  )}
                 </td>
                 <td className="py-3 pr-4 text-xs tabular-nums text-slate-600 dark:text-nord-4">
                   {fmt(stage.startDate)}

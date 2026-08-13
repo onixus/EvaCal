@@ -23,13 +23,20 @@ export default async function HomePage(props: { searchParams: Promise<{ page?: s
               Калькулятор трудозатрат & Комплект ГОСТ 34
             </h1>
             <p className="mt-3 max-w-2xl text-base text-brand-100 dark:text-nord-4">
-              Единая корпоративная платформа для оценки трудозатрат ИТ-проектов, календарного планирования и выпуска нормативного комплекта документации (ТЗ, ПЗ, ПМИ, АФ, ЧТЗ).
+              Единая корпоративная платформа для оценки трудозатрат ИТ-проектов, календарного
+              планирования и выпуска нормативного комплекта документации (ТЗ, ПЗ, ПМИ, АФ, ЧТЗ).
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/presale" className="btn bg-white text-brand-700 shadow-md hover:bg-brand-50 active:scale-[0.98]">
+              <Link
+                href="/presale"
+                className="btn bg-white text-brand-700 shadow-md hover:bg-brand-50 active:scale-[0.98]"
+              >
                 📝 Перейти в интерфейс пресейла
               </Link>
-              <Link href="/login" className="btn bg-brand-700/80 text-white border border-white/20 hover:bg-brand-800 active:scale-[0.98]">
+              <Link
+                href="/login"
+                className="btn bg-brand-700/80 text-white border border-white/20 hover:bg-brand-800 active:scale-[0.98]"
+              >
                 🔐 Вход для сотрудников
               </Link>
             </div>
@@ -42,17 +49,17 @@ export default async function HomePage(props: { searchParams: Promise<{ page?: s
                 Быстрая оценка пресейла
               </h3>
               <p className="text-xs text-slate-500 dark:text-nord-muted leading-relaxed">
-                Интерактивные опросники с автоматическим расчётом трудозатрат разработчиков, аналитиков и архитекторов.
+                Интерактивные опросники с автоматическим расчётом трудозатрат разработчиков,
+                аналитиков и архитекторов.
               </p>
             </div>
 
             <div className="space-y-2">
               <div className="text-2xl">📊</div>
-              <h3 className="font-semibold text-slate-900 dark:text-nord-6">
-                План-график и Гант
-              </h3>
+              <h3 className="font-semibold text-slate-900 dark:text-nord-6">План-график и Гант</h3>
               <p className="text-xs text-slate-500 dark:text-nord-muted leading-relaxed">
-                Учёт параллельных потоков, задач согласования с заказчиком и автоматический расчёт критического пути.
+                Учёт параллельных потоков, задач согласования с заказчиком и автоматический расчёт
+                критического пути.
               </p>
             </div>
 
@@ -62,7 +69,8 @@ export default async function HomePage(props: { searchParams: Promise<{ page?: s
                 ГОСТ 34.602-2020 & ИИ
               </h3>
               <p className="text-xs text-slate-500 dark:text-nord-muted leading-relaxed">
-                Генерация DOCX с рамкой ГОСТ 2.301, нормализация требований заказчика локальными и облачными LLM.
+                Генерация DOCX с рамкой ГОСТ 2.301, нормализация требований заказчика локальными и
+                облачными LLM.
               </p>
             </div>
           </div>
@@ -104,7 +112,9 @@ export default async function HomePage(props: { searchParams: Promise<{ page?: s
             Всего расчётов
           </span>
           <div className="mt-1.5 text-2xl font-bold text-slate-900 dark:text-nord-6">{total}</div>
-          <div className="mt-0.5 text-xs text-slate-400 dark:text-nord-muted">В портфеле компании</div>
+          <div className="mt-0.5 text-xs text-slate-400 dark:text-nord-muted">
+            В портфеле компании
+          </div>
         </div>
 
         <div className="card p-4">
@@ -114,7 +124,9 @@ export default async function HomePage(props: { searchParams: Promise<{ page?: s
           <div className="mt-1.5 text-2xl font-bold text-amber-600 dark:text-nord-yellow">
             {draftCount}
           </div>
-          <div className="mt-0.5 text-xs text-slate-400 dark:text-nord-muted">Черновики и калибровка</div>
+          <div className="mt-0.5 text-xs text-slate-400 dark:text-nord-muted">
+            Черновики и калибровка
+          </div>
         </div>
 
         <div className="card p-4">
@@ -124,7 +136,9 @@ export default async function HomePage(props: { searchParams: Promise<{ page?: s
           <div className="mt-1.5 text-2xl font-bold text-emerald-600 dark:text-nord-green">
             {approvedCount}
           </div>
-          <div className="mt-0.5 text-xs text-slate-400 dark:text-nord-muted">Утверждено заказчиком</div>
+          <div className="mt-0.5 text-xs text-slate-400 dark:text-nord-muted">
+            Утверждено заказчиком
+          </div>
         </div>
 
         <div className="card border-brand-200 bg-brand-50/30 p-4 dark:border-nord-frost4/40 dark:bg-nord-frost4/10">
@@ -160,7 +174,9 @@ export default async function HomePage(props: { searchParams: Promise<{ page?: s
       {total === 0 ? (
         <div className="card p-12 text-center">
           <div className="text-3xl mb-3">📁</div>
-          <h3 className="font-semibold text-slate-800 dark:text-nord-5">Пока нет ни одного расчёта</h3>
+          <h3 className="font-semibold text-slate-800 dark:text-nord-5">
+            Пока нет ни одного расчёта
+          </h3>
           <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto dark:text-nord-muted">
             Создайте первый расчёт трудозатрат через интерфейс пресейла.
           </p>

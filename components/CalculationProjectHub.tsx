@@ -50,9 +50,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
     .reduce((sum, s) => sum + s.hours, 0);
 
   const grandTotal =
-    totalStageHours +
-    calculation.pmHours +
-    calculation.risks.reduce((sum, r) => sum + r.hours, 0);
+    totalStageHours + calculation.pmHours + calculation.risks.reduce((sum, r) => sum + r.hours, 0);
 
   return (
     <div className="space-y-6">
@@ -69,11 +67,17 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-nord-muted">
                 <span>
-                  Заказчик: <strong className="font-semibold text-slate-700 dark:text-nord-4">{calculation.customer}</strong>
+                  Заказчик:{' '}
+                  <strong className="font-semibold text-slate-700 dark:text-nord-4">
+                    {calculation.customer}
+                  </strong>
                 </span>
                 <span>•</span>
                 <span>
-                  Шаблон: <strong className="font-semibold text-slate-700 dark:text-nord-4">{calculation.template.name}</strong>
+                  Шаблон:{' '}
+                  <strong className="font-semibold text-slate-700 dark:text-nord-4">
+                    {calculation.template.name}
+                  </strong>
                 </span>
                 <span>•</span>
                 <span>Старт: {startDateFormatted}</span>
@@ -165,10 +169,12 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
                     const val = calculation.answers[field.key];
                     const displayVal =
                       typeof val === 'boolean'
-                        ? val ? 'Да' : 'Нет'
+                        ? val
+                          ? 'Да'
+                          : 'Нет'
                         : val !== undefined && val !== null && String(val).trim() !== ''
-                        ? String(val)
-                        : '—';
+                          ? String(val)
+                          : '—';
 
                     return (
                       <div key={field.id} className="py-2.5 first:pt-0 last:pb-0">
@@ -229,7 +235,9 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
           <div className="card p-5">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="font-semibold text-slate-900 dark:text-nord-6">Календарный план этапов</h2>
+                <h2 className="font-semibold text-slate-900 dark:text-nord-6">
+                  Календарный план этапов
+                </h2>
                 <p className="text-xs text-slate-500 dark:text-nord-muted">
                   Сводная таблица этапов проекта, исполнителей и сроков
                 </p>
@@ -269,7 +277,9 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
                   Комплект проектной документации ГОСТ 34
                 </h2>
                 <p className="max-w-2xl text-sm text-slate-500 dark:text-nord-muted">
-                  Сформируйте техническое задание (ТЗ), пояснительную записку (ПЗ), программу и методику испытаний (ПМИ), архитектурный формуляр (АФ) или частное техническое задание (ЧТЗ) по действующим нормативным профилям.
+                  Сформируйте техническое задание (ТЗ), пояснительную записку (ПЗ), программу и
+                  методику испытаний (ПМИ), архитектурный формуляр (АФ) или частное техническое
+                  задание (ЧТЗ) по действующим нормативным профилям.
                 </p>
               </div>
 
@@ -290,7 +300,8 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
                   ТЗ ГОСТ 34.602-2020
                 </div>
                 <div className="mt-1 text-xs text-slate-500 dark:text-nord-muted">
-                  Полная структура с 9 обязательными разделами, матрицей трассируемости и рамкой ГОСТ 2.301.
+                  Полная структура с 9 обязательными разделами, матрицей трассируемости и рамкой
+                  ГОСТ 2.301.
                 </div>
               </div>
 
@@ -300,7 +311,8 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
                   ИИ-нормализация требований
                 </div>
                 <div className="mt-1 text-xs text-slate-500 dark:text-nord-muted">
-                  Автоматическое приведение формулировок из файлов заказчика к критериям измеримости и проверяемости.
+                  Автоматическое приведение формулировок из файлов заказчика к критериям измеримости
+                  и проверяемости.
                 </div>
               </div>
 

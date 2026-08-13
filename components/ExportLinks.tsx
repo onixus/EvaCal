@@ -107,7 +107,9 @@ export default function ExportLinks({ calculationId }: { calculationId: string }
           })}
         </div>
       </div>
-      {error ? <p className="mt-1 text-xs font-medium text-rose-600 dark:text-nord-redText">{error}</p> : null}
+      {error ? (
+        <p className="mt-1 text-xs font-medium text-rose-600 dark:text-nord-redText">{error}</p>
+      ) : null}
 
       <Gost34WizardModal
         calculationId={calculationId}
