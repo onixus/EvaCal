@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth';
 import { GOST34_LLM_ROLES } from '../roles';
 import { generateGost34Document } from '@/lib/gost34';
+import { responseBody } from '@/lib/export';
 
 export async function POST(req: NextRequest) {
   const session = await requireApiRole(GOST34_LLM_ROLES);
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
       rawRequirements,
     });
 
-    return new NextResponse(new Uint8Array(buffer), {
+    return new NextResponse(responseBody(buffer), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'Content-Disposition': `attachment; filename="${filename}"`,

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadCalculationForExport, safeFileName, contentDisposition } from '@/lib/export';
+import {
+  loadCalculationForExport,
+  safeFileName,
+  contentDisposition,
+  responseBody,
+} from '@/lib/export';
 import { renderCalculationXlsx } from '@/lib/xlsx';
 
 // Same visibility as the rest of the archive: no auth required to export a calculation.
@@ -10,7 +15,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
 
   const buffer = renderCalculationXlsx(calc);
 
-  return new NextResponse(new Uint8Array(buffer), {
+  return new NextResponse(responseBody(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': contentDisposition(safeFileName(calc.name), 'xlsx'),
