@@ -26,6 +26,7 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
+                sh 'apk add --no-cache openssl'
                 sh 'npm ci'
                 sh 'npx prisma generate'
             }
