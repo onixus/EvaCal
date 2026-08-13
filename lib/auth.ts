@@ -60,17 +60,26 @@ export async function getSession(): Promise<SessionPayload | null> {
   return verifySessionToken(token);
 }
 
-/** For Server Components / layouts: redirects to /login when the required role isn't present. */
-export async function requireRole(role: string | string[]): Promise<SessionPayload> {
+/**
+ * For Server Components / layouts: redirects to /login when the required role isn't present.
+ *
+ * `next` is where the user lands after logging in. Pass the guarded surface itself: a page
+ * that accepts several roles must not derive it from the role list, because picking the
+ * admin-only route merely because admin is also accepted sends an architect who asked for
+ * /architect to a page their role cannot open.
+ */
+export async function requireRole(role: string | string[], next?: string): Promise<SessionPayload> {
   const allowed = Array.isArray(role) ? role : [role];
   const session = await getSession();
   if (!session || !allowed.includes(session.role)) {
-    const next = allowed.includes('admin')
-      ? '/admin'
-      : allowed.includes('architect')
+    const target =
+      next ??
+      (allowed.includes('architect')
         ? '/architect'
-        : `/${allowed[0]}`;
-    redirect(`/login?next=${encodeURIComponent(next)}`);
+        : allowed.includes('admin')
+          ? '/admin'
+          : `/${allowed[0]}`);
+    redirect(`/login?next=${encodeURIComponent(target)}`);
   }
   return session as SessionPayload;
 }

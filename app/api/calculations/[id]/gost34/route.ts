@@ -192,6 +192,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
       await recordRelease(params.id, standardProfileId);
 
+      await writeAudit({
+        actorType: actorTypeFromAccess(access.kind),
+        actorId: access.actorId,
+        action: 'calculation.export.gost34',
+        entityType: 'calculation',
+        entityId: params.id,
+        meta: { method: 'POST', exportType: 'full-package-zip', docs: generatedDocs.length },
+        ip: clientIp(req),
+      });
+
       return new NextResponse(responseBody(zipBuffer), {
         headers: {
           'Content-Type': 'application/zip',
@@ -220,6 +230,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     });
 
     await recordRelease(params.id, standardProfileId);
+
+    await writeAudit({
+      actorType: actorTypeFromAccess(access.kind),
+      actorId: access.actorId,
+      action: 'calculation.export.gost34',
+      entityType: 'calculation',
+      entityId: params.id,
+      meta: { method: 'POST', docType },
+      ip: clientIp(req),
+    });
 
     return new NextResponse(responseBody(buffer), {
       headers: {

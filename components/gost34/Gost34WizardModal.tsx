@@ -8,6 +8,7 @@ import type { WizardReviewResult, WizardStepId } from '@/lib/gost34/wizard/types
 import { WIZARD_STEPS, adjacentWizardStep } from '@/lib/gost34/wizard/steps';
 import { CURRENT_GOST34_PROFILE_ID } from '@/lib/gost34/standards';
 import { LAYOUT_PROFILES, DEFAULT_LAYOUT_PROFILE } from '@/lib/gost34/exporters/layout';
+import { withShareHeaders } from '@/lib/shareClient';
 import type { LayoutProfileId } from '@/lib/gost34/exporters/layout';
 import { STEP_STATUS_STYLES } from './wizardShared';
 import ProfileStep from './steps/ProfileStep';
@@ -99,7 +100,7 @@ export default function Gost34WizardModal({
       try {
         const res = await fetch('/api/gost34/review', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: withShareHeaders(calculationId, { 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             calculationId,
             rawRequirements: JSON.parse(requirementsKey),
@@ -195,7 +196,7 @@ export default function Gost34WizardModal({
     try {
       const res = await fetch(`/api/calculations/${calculationId}/gost34`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: withShareHeaders(calculationId, { 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload),
       });
 

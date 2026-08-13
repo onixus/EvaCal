@@ -12,8 +12,9 @@ import { requireRole } from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 
 export default async function CalculationViewPage(props: { params: Promise<{ id: string }> }) {
-  await requireRole(['architect', 'admin']);
   const params = await props.params;
+  // Come back to this calculation after logging in, not to a section landing page.
+  await requireRole(['architect', 'admin'], `/calculations/${params.id}`);
   const calculation = await prisma.calculation.findUnique({
     where: { id: params.id },
     include: {
