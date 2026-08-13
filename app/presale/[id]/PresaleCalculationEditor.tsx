@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DynamicForm, { FormFieldDef } from '@/components/DynamicForm';
 import StageTable, { StageRow } from '@/components/StageTable';
@@ -9,7 +9,7 @@ import StatusBadge from '@/components/StatusBadge';
 import TotalsSummary, { RiskRow } from '@/components/TotalsSummary';
 import RiskList from '@/components/RiskList';
 import ExportLinks from '@/components/ExportLinks';
-import { withShareHeaders } from '@/lib/shareClient';
+import { storeShareToken, withShareHeaders } from '@/lib/shareClient';
 
 interface Calculation {
   id: string;
@@ -29,7 +29,13 @@ interface Calculation {
   risks: RiskRow[];
 }
 
-export default function PresaleCalculationEditor({ calculation }: { calculation: Calculation }) {
+export default function PresaleCalculationEditor({
+  calculation,
+  shareToken = null,
+}: {
+  calculation: Calculation;
+  shareToken?: string | null;
+}) {
   const router = useRouter();
   const [name, setName] = useState(calculation.name);
   const [customer, setCustomer] = useState(calculation.customer);
@@ -39,6 +45,10 @@ export default function PresaleCalculationEditor({ calculation }: { calculation:
   const [error, setError] = useState<string | null>(null);
   const locked = calculation.status === 'approved';
   const startDateLocked = locked || !!calculation.template.defaultStartDate;
+
+  useEffect(() => {
+    if (shareToken) storeShareToken(calculation.id, shareToken);
+  }, [calculation.id, shareToken]);
 
   async function save() {
     setSaving(true);

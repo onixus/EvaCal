@@ -66,11 +66,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (access.kind === 'share' && access.share?.templateId && access.share.templateId !== templateId) {
-    return NextResponse.json(
-      { error: 'Share-токен выдан на другой шаблон' },
-      { status: 403 },
-    );
+  if (
+    access.kind === 'share' &&
+    access.share?.templateId &&
+    access.share.templateId !== templateId
+  ) {
+    return NextResponse.json({ error: 'Share-токен выдан на другой шаблон' }, { status: 403 });
   }
 
   const template = await prisma.formTemplate.findUnique({

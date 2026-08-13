@@ -4,10 +4,35 @@ import { grandTotalHours } from '@/lib/totals';
 import StatusBadge from '@/components/StatusBadge';
 import Pagination from '@/components/Pagination';
 import { PAGE_SIZE, pageArgs, parsePage } from '@/lib/pagination';
+import { getStaffSession } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage(props: { searchParams: Promise<{ page?: string }> }) {
+  const staff = await getStaffSession();
+
+  if (!staff) {
+    return (
+      <div className="space-y-6">
+        <div className="card space-y-4 p-8">
+          <h1 className="text-xl font-semibold">EvaCal</h1>
+          <p className="text-sm text-slate-500">
+            Калькулятор трудозатрат и комплект ГОСТ 34. Архив расчётов доступен только
+            сотрудникам. Пресейл работает по share-ссылке или в режиме локального демо.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/presale" className="btn-primary">
+              Интерфейс пресейла
+            </Link>
+            <Link href="/login" className="btn-secondary">
+              Войти
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const page = parsePage((await props.searchParams).page);
 
   // The archive grows without bound, so read one page at a time — and only the
@@ -31,7 +56,7 @@ export default async function HomePage(props: { searchParams: Promise<{ page?: s
         <div>
           <h1 className="text-xl font-semibold">Все расчёты</h1>
           <p className="text-sm text-slate-500">
-            Архив доступен всем — включая старые и утверждённые расчёты.
+            Архив для сотрудников (архитектор / администратор).
           </p>
         </div>
         <Link href="/presale" className="btn-primary">

@@ -4,23 +4,27 @@ Implemented 2026-08-13.
 
 ## Rules
 
-| Surface | Access |
-|---------|--------|
-| `GET /api/calculations` (list) | staff only (`architect` \| `admin`) |
+| Surface                           | Access                                                        |
+| --------------------------------- | ------------------------------------------------------------- |
+| `GET /` (archive UI)              | staff only; guests see landing without data                   |
+| `GET /presale`                    | form if staff / anonymous / create-share; draft list staff    |
+| `GET /presale/:id`                | staff **or** `?share=` **or** anonymous flag                  |
+| `GET /api/calculations` (list)    | staff only (`architect` \| `admin`)                           |
 | `POST /api/calculations` (create) | staff **or** share(`create`) **or** `ALLOW_ANONYMOUS_PRESALE` |
-| `GET/PUT` calculation by id | staff **or** share bound to id (`read` / `write`) |
-| export PDF/XLSX/JSON/GOST34 | staff **or** share (`export`; implies `read`) |
-| `submit` | staff **or** share (`write`) |
-| GOST migration apply | staff only |
-| GOST LLM / parse / generate | staff (unchanged) |
-| users / templates admin | `admin` (unchanged) |
+| `GET/PUT` calculation by id       | staff **or** share bound to id (`read` / `write`)             |
+| export PDF/XLSX/JSON/GOST34       | staff **or** share (`export`; implies `read`)                 |
+| `submit`                          | staff **or** share (`write`)                                  |
+| GOST migration apply              | staff only                                                    |
+| GOST LLM / parse / generate       | staff (unchanged)                                             |
+| users / templates admin           | `admin` (unchanged)                                           |
 
 ## Share tokens
 
 - HMAC-signed (`SHARE_TOKEN_SECRET` or `SESSION_SECRET`), default TTL 7 days.
 - Issue: `POST /api/calculations/:id/share` (staff) with `{ scopes, ttlSeconds? }`.
 - Send as `X-Share-Token`, `Authorization: Share <token>`, or `?share=`.
-- On anonymous/share create, API returns `{ id, shareToken }` for the new calculation; UI stores it in `sessionStorage`.
+- On anonymous/share create, API returns `{ id, shareToken }` for the new calculation; UI stores it in `sessionStorage` and navigates to `/presale/:id?share=…` so RSC can authorize.
+- If the page loads without session/`?share=`, `ShareTokenRecovery` retries from `sessionStorage`.
 
 ## Anonymous mode
 

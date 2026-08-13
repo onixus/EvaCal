@@ -183,3 +183,56 @@ export function sessionCookieOptions(maxAge: number) {
     maxAge,
   };
 }
+
+/**
+ * Page / RSC access (no NextRequest). Share token comes from `?share=` or an
+ * optional explicit string (caller reads searchParams).
+ * Returns null when access is denied — pages redirect or render a recovery UI.
+ */
+export async function resolvePageAccess(
+  calculationId: string | null,
+  need: ShareScope[],
+  shareToken?: string | null,
+): Promise<AccessContext | null> {
+  const session = await getSession();
+  if (session && isStaffRole(session.role)) {
+    return {
+      kind: 'staff',
+      session,
+      actorId: session.userId,
+    };
+  }
+
+  const share = verifyShareToken(shareToken);
+  if (share) {
+    const effective = new Set<ShareScope>(share.scopes);
+    if (effective.has('export') || effective.has('write')) effective.add('read');
+    if (need.some((s) => !effective.has(s))) return null;
+    if (calculationId) {
+      if (share.calculationId && share.calculationId !== calculationId) return null;
+      if (!share.calculationId && !share.scopes.includes('create')) return null;
+      if (!share.calculationId && need.some((s) => s !== 'create')) return null;
+    }
+    return {
+      kind: 'share',
+      share,
+      actorId: `share:${share.calculationId || share.templateId || 'create'}`,
+    };
+  }
+
+  if (isAnonymousPresaleAllowed()) {
+    return {
+      kind: 'anonymous',
+      actorId: 'anonymous',
+    };
+  }
+
+  return null;
+}
+
+/** Staff session for RSC pages, or null. Does not redirect. */
+export async function getStaffSession(): Promise<SessionPayload | null> {
+  const session = await getSession();
+  if (!session || !isStaffRole(session.role)) return null;
+  return session;
+}
