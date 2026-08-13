@@ -10,7 +10,7 @@ export async function PATCH(
   props: { params: Promise<{ id: string; stageId: string }> },
 ) {
   const params = await props.params;
-  const auth = await requireApiRole('architect');
+  const auth = await requireApiRole(['architect', 'admin']);
   if (auth instanceof NextResponse) return auth;
 
   const body = await req.json();

@@ -17,6 +17,8 @@ import {
   resolveGost34Profile,
   resolveLayoutProfileId,
 } from '@/lib/gost34';
+import { requireCalcAccess } from '@/lib/access';
+import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 
 /**
  * Fallback signatories used when the caller supplies none. Single source of
@@ -50,6 +52,9 @@ async function recordRelease(calculationId: string, standardProfileId?: string) 
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const access = await requireCalcAccess(req, params.id, ['export']);
+  if (access instanceof NextResponse) return access;
+
   const calc = await loadCalculationForExport(params.id);
   if (!calc) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
@@ -86,6 +91,16 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
   await recordRelease(params.id, standardProfileId);
 
+  await writeAudit({
+    actorType: actorTypeFromAccess(access.kind),
+    actorId: access.actorId,
+    action: 'calculation.export.gost34',
+    entityType: 'calculation',
+    entityId: params.id,
+    meta: { docType, method: 'GET' },
+    ip: clientIp(req),
+  });
+
   return new NextResponse(responseBody(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -101,6 +116,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   try {
     const params = await props.params;
+    const access = await requireCalcAccess(req, params.id, ['export']);
+    if (access instanceof NextResponse) return access;
+
     const calc = await loadCalculationForExport(params.id);
     if (!calc) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
@@ -174,6 +192,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
       await recordRelease(params.id, standardProfileId);
 
+      await writeAudit({
+        actorType: actorTypeFromAccess(access.kind),
+        actorId: access.actorId,
+        action: 'calculation.export.gost34',
+        entityType: 'calculation',
+        entityId: params.id,
+        meta: { method: 'POST', exportType: 'full-package-zip', docs: generatedDocs.length },
+        ip: clientIp(req),
+      });
+
       return new NextResponse(responseBody(zipBuffer), {
         headers: {
           'Content-Type': 'application/zip',
@@ -202,6 +230,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     });
 
     await recordRelease(params.id, standardProfileId);
+
+    await writeAudit({
+      actorType: actorTypeFromAccess(access.kind),
+      actorId: access.actorId,
+      action: 'calculation.export.gost34',
+      entityType: 'calculation',
+      entityId: params.id,
+      meta: { method: 'POST', docType },
+      ip: clientIp(req),
+    });
 
     return new NextResponse(responseBody(buffer), {
       headers: {

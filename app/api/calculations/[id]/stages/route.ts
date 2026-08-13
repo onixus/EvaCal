@@ -9,7 +9,7 @@ import { requireApiRole } from '@/lib/auth';
 // stages are re-derived automatically.
 export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const auth = await requireApiRole('architect');
+  const auth = await requireApiRole(['architect', 'admin']);
   if (auth instanceof NextResponse) return auth;
 
   const body = await req.json();

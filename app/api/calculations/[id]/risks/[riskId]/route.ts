@@ -21,7 +21,7 @@ export async function PUT(
   props: { params: Promise<{ id: string; riskId: string }> },
 ) {
   const params = await props.params;
-  const auth = await requireApiRole('architect');
+  const auth = await requireApiRole(['architect', 'admin']);
   if (auth instanceof NextResponse) return auth;
 
   const blocked = await assertEditable(params.id);
@@ -43,7 +43,7 @@ export async function DELETE(
   props: { params: Promise<{ id: string; riskId: string }> },
 ) {
   const params = await props.params;
-  const auth = await requireApiRole('architect');
+  const auth = await requireApiRole(['architect', 'admin']);
   if (auth instanceof NextResponse) return auth;
 
   const blocked = await assertEditable(params.id);

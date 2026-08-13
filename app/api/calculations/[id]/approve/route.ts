@@ -5,7 +5,7 @@ import { requireApiRole } from '@/lib/auth';
 // Architect signs off on the presale calculation.
 export async function POST(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const auth = await requireApiRole('architect');
+  const auth = await requireApiRole(['architect', 'admin']);
   if (auth instanceof NextResponse) return auth;
 
   const calculation = await prisma.calculation.update({

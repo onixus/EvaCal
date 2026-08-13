@@ -8,6 +8,8 @@ import {
   getGost34Profile,
   resolveProjectBinding,
 } from '@/lib/gost34';
+import { requireCalcAccess, requireStaff } from '@/lib/access';
+import { clientIp, writeAudit } from '@/lib/audit';
 
 /**
  * Миграция ранее выпущенных проектов на действующий нормативный профиль
@@ -63,6 +65,9 @@ function parseDocType(value: string | null | undefined): GostDocumentType {
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
+  const access = await requireCalcAccess(req, params.id, ['read']);
+  if (access instanceof NextResponse) return access;
+
   const calculation = await loadCalculation(params.id);
   if (!calculation) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
@@ -79,6 +84,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   try {
     const params = await props.params;
+    const auth = await requireStaff();
+    if (auth instanceof NextResponse) return auth;
+
     const calculation = await loadCalculation(params.id);
     if (!calculation) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
@@ -113,6 +121,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const updated = await prisma.calculation.update({
       where: { id: calculation.id },
       data: buildBindingUpdate(target.id),
+    });
+
+    await writeAudit({
+      actorType: 'user',
+      actorId: auth.userId,
+      action: 'calculation.gost34.migrate',
+      entityType: 'calculation',
+      entityId: calculation.id,
+      meta: { targetProfileId: target.id },
+      ip: clientIp(req),
     });
 
     return NextResponse.json({ binding: resolveProjectBinding(updated), diff });

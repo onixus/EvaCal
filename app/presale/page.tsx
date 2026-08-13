@@ -1,21 +1,31 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import NewCalculationForm from './NewCalculationForm';
+import { getStaffSession, isAnonymousPresaleAllowed } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PresalePage() {
+export default async function PresalePage(props: { searchParams: Promise<{ share?: string }> }) {
+  const searchParams = await props.searchParams;
+  const staff = await getStaffSession();
+  const anonymousOk = isAnonymousPresaleAllowed();
+
   const template = await prisma.formTemplate.findFirst({
     where: { isActive: true },
     include: { fields: { orderBy: { order: 'asc' } } },
   });
 
-  const drafts = await prisma.calculation.findMany({
-    where: { createdBy: 'presale' },
-    orderBy: { createdAt: 'desc' },
-    take: 10,
-    include: { stages: true },
-  });
+  // Draft list is staff-only — no cross-tenant leak of other presale work.
+  const drafts = staff
+    ? await prisma.calculation.findMany({
+        where: { createdBy: { in: ['presale', 'presale-share', 'anonymous'] } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        include: { stages: true },
+      })
+    : [];
+
+  const canCreate = !!staff || anonymousOk || !!searchParams.share;
 
   return (
     <div className="space-y-6">
@@ -26,6 +36,22 @@ export default async function PresalePage() {
         </p>
       </div>
 
+      {!canCreate && (
+        <div className="card space-y-2 p-5 text-sm text-slate-600">
+          <p>
+            Создание расчёта без входа отключено. Нужна share-ссылка с правом{' '}
+            <code className="text-xs">create</code> или{' '}
+            <Link href="/login" className="text-brand-700 underline">
+              вход сотрудника
+            </Link>
+            .
+          </p>
+          <p className="text-xs text-slate-400">
+            Локально: <code>ALLOW_ANONYMOUS_PRESALE=true</code> (только для демо).
+          </p>
+        </div>
+      )}
+
       {!template ? (
         <div className="card p-6 text-slate-600">
           Нет активного шаблона опросника. Создайте и активируйте шаблон в{' '}
@@ -34,11 +60,14 @@ export default async function PresalePage() {
           </Link>
           .
         </div>
-      ) : (
+      ) : canCreate ? (
         <div className="card p-6">
-          <NewCalculationForm template={JSON.parse(JSON.stringify(template))} />
+          <NewCalculationForm
+            template={JSON.parse(JSON.stringify(template))}
+            createShareToken={searchParams.share ?? null}
+          />
         </div>
-      )}
+      ) : null}
 
       {drafts.length > 0 && (
         <div className="card p-5">

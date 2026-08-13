@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DynamicForm, { FormFieldDef } from '@/components/DynamicForm';
+import { storeShareToken, withShareHeaders } from '@/lib/shareClient';
 
 interface Template {
   id: string;
@@ -15,7 +16,14 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function NewCalculationForm({ template }: { template: Template }) {
+export default function NewCalculationForm({
+  template,
+  createShareToken = null,
+}: {
+  template: Template;
+  /** Optional create-scoped share from `?share=` on /presale. */
+  createShareToken?: string | null;
+}) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [customer, setCustomer] = useState('');
@@ -30,9 +38,11 @@ export default function NewCalculationForm({ template }: { template: Template })
     setError(null);
     setSubmitting(true);
     try {
+      const headers = withShareHeaders(null, { 'Content-Type': 'application/json' });
+      if (createShareToken) headers.set('X-Share-Token', createShareToken);
       const res = await fetch('/api/calculations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           name,
           customer,
@@ -46,7 +56,12 @@ export default function NewCalculationForm({ template }: { template: Template })
         throw new Error(data.error ?? 'Не удалось создать расчёт');
       }
       const data = await res.json();
-      router.push(`/presale/${data.id}`);
+      if (data.shareToken) {
+        storeShareToken(data.id, data.shareToken);
+        router.push(`/presale/${data.id}?share=${encodeURIComponent(data.shareToken)}`);
+      } else {
+        router.push(`/presale/${data.id}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка');
     } finally {
