@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_PAGE,
   MAX_PAGE_SIZE,
   PAGE_SIZE,
   pageArgs,
@@ -27,6 +28,16 @@ describe('parsePage', () => {
 
   it('takes the first value when the param is repeated', () => {
     expect(parsePage(['2', '7'])).toBe(2);
+  });
+
+  it('caps absurd page numbers so the offset stays a usable integer', () => {
+    // `?page=999999999999999999` parses to a finite positive number; unclamped it
+    // multiplied out to skip=5e19, which Prisma rejects and the request 500s.
+    expect(parsePage('999999999999999999')).toBe(MAX_PAGE);
+    expect(parsePage('99999999999999999999999')).toBe(MAX_PAGE);
+    const { skip } = pageArgs(parsePage('999999999999999999'));
+    expect(Number.isSafeInteger(skip)).toBe(true);
+    expect(skip).toBeLessThanOrEqual(Number.MAX_SAFE_INTEGER);
   });
 });
 

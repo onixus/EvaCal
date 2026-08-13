@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     prisma.user.count(),
     prisma.user.findMany({
       ...pageArgs(page, limit),
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: {
         id: true,
         username: true,

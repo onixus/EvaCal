@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     prisma.calculation.count(),
     prisma.calculation.findMany({
       ...pageArgs(page, limit),
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
         template: { select: { name: true } },
         // Only the fields the summary below actually reads — pulling whole Stage rows

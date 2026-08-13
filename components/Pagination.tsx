@@ -21,11 +21,28 @@ export default function Pagination({
   pageParam?: string;
 }) {
   const pages = totalPages(total, pageSize);
+  const href = (target: number) => `${basePath}?${pageParam}=${target}`;
+
+  // A stale bookmark or hand-edited URL can point past the end of the list. The page
+  // renders empty there, so it must still offer a way back — otherwise the screen just
+  // claims there is nothing, while page 1 has rows.
+  if (page > pages) {
+    return (
+      <div className="mt-4 flex items-center justify-between gap-4 text-sm">
+        <span className="text-slate-500">
+          Страница {page} не существует — всего {pages === 1 ? 'одна страница' : `${pages}`}
+        </span>
+        <Link href={href(1)} className="btn-secondary">
+          ← К первой странице
+        </Link>
+      </div>
+    );
+  }
+
   if (pages <= 1) return null;
 
   const first = (page - 1) * pageSize + 1;
   const last = Math.min(page * pageSize, total);
-  const href = (target: number) => `${basePath}?${pageParam}=${target}`;
 
   return (
     <div className="mt-4 flex items-center justify-between gap-4 text-sm">
