@@ -86,7 +86,9 @@ describe('lib/scenarios', () => {
     // Optimistic cost < Base cost
     expect(result.optimistic.commercial.grandTotal).toBeLessThan(result.base.commercial.grandTotal);
     // Pessimistic cost > Base cost
-    expect(result.pessimistic.commercial.grandTotal).toBeGreaterThan(result.base.commercial.grandTotal);
+    expect(result.pessimistic.commercial.grandTotal).toBeGreaterThan(
+      result.base.commercial.grandTotal,
+    );
     expect(result.pessimistic.diffVsBase.cost).toBeGreaterThan(0);
   });
 });

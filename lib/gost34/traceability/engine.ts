@@ -71,7 +71,8 @@ export function matchStageByRules(
 ): Gost34StageItem | null {
   if (!stages || stages.length === 0) return null;
 
-  const reqText = `${req.code} ${req.title} ${getRequirementEffectiveText(req)} ${req.category || ''}`.toLowerCase();
+  const reqText =
+    `${req.code} ${req.title} ${getRequirementEffectiveText(req)} ${req.category || ''}`.toLowerCase();
 
   // Helper to match stage by combined text and role
   const findStage = (pattern: RegExp) =>
@@ -120,7 +121,9 @@ export function matchStageByRules(
       reqText,
     )
   ) {
-    const hwStage = findStage(/поставк.*(оборудован|желез|пак|сервер|схд|сет)|монтаж.*(пак|сервер|схд|шкаф|стойк|оборудован)|аппаратн|оборудован|сборк.*пак/i);
+    const hwStage = findStage(
+      /поставк.*(оборудован|желез|пак|сервер|схд|сет)|монтаж.*(пак|сервер|схд|шкаф|стойк|оборудован)|аппаратн|оборудован|сборк.*пак/i,
+    );
     if (hwStage) return hwStage;
   }
 
@@ -141,7 +144,9 @@ export function matchStageByRules(
       reqText,
     )
   ) {
-    const archStage = findStage(/проектирован|архитектур|техпроект|технический проект|концепц|архитект/i);
+    const archStage = findStage(
+      /проектирован|архитектур|техпроект|технический проект|концепц|архитект/i,
+    );
     if (archStage) return archStage;
   }
 
@@ -169,12 +174,16 @@ export function matchStageByRules(
       reqText,
     )
   ) {
-    const trainStage = findStage(/обучен|инструктаж|документац|руководств|сопровожден|техподдержк|аналитик|консультант/i);
+    const trainStage = findStage(
+      /обучен|инструктаж|документац|руководств|сопровожден|техподдержк|аналитик|консультант/i,
+    );
     if (trainStage) return trainStage;
   }
 
   // 10. Прикладная разработка и функционал
-  if (/разработк.*модул|функционал|бизнес-логик|пользовательск.*сценари|кастомизац/i.test(reqText)) {
+  if (
+    /разработк.*модул|функционал|бизнес-логик|пользовательск.*сценари|кастомизац/i.test(reqText)
+  ) {
     const devStage = findStage(/разработк|программирован|реализац.*функционал|разработчик/i);
     if (devStage) return devStage;
   }

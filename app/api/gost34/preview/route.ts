@@ -18,9 +18,7 @@ function applySectionOverrides(
       ...sec,
       title: override?.title ?? sec.title,
       paragraphs: override?.paragraphs ?? sec.paragraphs,
-      subsections: sec.subsections
-        ? applySectionOverrides(sec.subsections, overrides)
-        : undefined,
+      subsections: sec.subsections ? applySectionOverrides(sec.subsections, overrides) : undefined,
     };
     return updatedSec;
   });

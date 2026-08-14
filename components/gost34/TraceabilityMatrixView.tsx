@@ -74,7 +74,8 @@ export default function TraceabilityMatrixView({
         name: s.name,
         role: s.role,
         hours: s.hours,
-        startDate: typeof s.startDate === 'string' ? s.startDate : new Date(s.startDate).toISOString(),
+        startDate:
+          typeof s.startDate === 'string' ? s.startDate : new Date(s.startDate).toISOString(),
         endDate: typeof s.endDate === 'string' ? s.endDate : new Date(s.endDate).toISOString(),
       }));
   }, [stages]);
@@ -101,7 +102,8 @@ export default function TraceabilityMatrixView({
       // Text search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const text = `${item.code} ${item.title} ${item.description} ${item.gostSection.code} ${item.gostSection.title} ${item.pmiTest.testCode} ${item.pmiTest.testTitle} ${item.stage?.name || ''}`.toLowerCase();
+        const text =
+          `${item.code} ${item.title} ${item.description} ${item.gostSection.code} ${item.gostSection.title} ${item.pmiTest.testCode} ${item.pmiTest.testTitle} ${item.stage?.name || ''}`.toLowerCase();
         return text.includes(q);
       }
 
@@ -137,7 +139,8 @@ export default function TraceabilityMatrixView({
               Матрица сквозной трассируемости требований (Traceability Matrix)
             </h2>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
-              Сквозная прослеживаемость: Опросник пресейла → Требования ТЗ → Разделы ГОСТ 34.602 → Программа испытаний (ПМИ) → Этапы календарного плана
+              Сквозная прослеживаемость: Опросник пресейла → Требования ТЗ → Разделы ГОСТ 34.602 →
+              Программа испытаний (ПМИ) → Этапы календарного плана
             </p>
           </div>
 
@@ -264,7 +267,10 @@ export default function TraceabilityMatrixView({
             <tbody className="divide-y divide-slate-100 dark:divide-nord-3/60">
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-xs text-slate-400 dark:text-nord-muted">
+                  <td
+                    colSpan={5}
+                    className="py-8 text-center text-xs text-slate-400 dark:text-nord-muted"
+                  >
                     Требований, удовлетворяющих условиям фильтрации, не найдено.
                   </td>
                 </tr>

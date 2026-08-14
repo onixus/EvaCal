@@ -133,7 +133,8 @@ export async function createCalculationVersion(input: CreateCalculationVersionIn
       projectId,
       version: nextVersion,
       parentCalculationId: source.id,
-      versionComment: input.versionComment || `Версия ${nextVersion} от ${source.name} (v${source.version})`,
+      versionComment:
+        input.versionComment || `Версия ${nextVersion} от ${source.name} (v${source.version})`,
       standardProfileId: source.standardProfileId,
       standardProfileVersion: source.standardProfileVersion,
       generatorVersion: source.generatorVersion,
@@ -271,7 +272,7 @@ export async function createGostPackageVersion(input: CreateGostPackageInput) {
 export async function updateGostPackageStatus(
   packageId: string,
   status: 'draft' | 'under_review' | 'approved' | 'rejected' | 'archived',
-  options?: { approvedBy?: string }
+  options?: { approvedBy?: string },
 ) {
   return prisma.gostPackage.update({
     where: { id: packageId },

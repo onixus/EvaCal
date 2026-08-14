@@ -2,11 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  calculateScenarioVariations,
-  ScenarioResult,
-  ScenarioType,
-} from '@/lib/scenarios';
+import { calculateScenarioVariations, ScenarioResult, ScenarioType } from '@/lib/scenarios';
 import { formatCurrency } from '@/lib/commercial';
 import { StageRow } from './StageTable';
 import { RiskRow } from './TotalsSummary';
@@ -99,7 +95,9 @@ export default function ScenarioAnalysisPanel({
       }
 
       const created = await res.json();
-      setCreateSuccess(`Создана новая версия v${created.version} для сценария «${activeResult.definition.shortLabel}»`);
+      setCreateSuccess(
+        `Создана новая версия v${created.version} для сценария «${activeResult.definition.shortLabel}»`,
+      );
       setTimeout(() => {
         router.refresh();
       }, 1500);
@@ -167,7 +165,9 @@ export default function ScenarioAnalysisPanel({
             >
               {/* Badge & Diff Pill */}
               <div className="flex items-center justify-between gap-1">
-                <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${item.definition.badgeClass}`}>
+                <span
+                  className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${item.definition.badgeClass}`}
+                >
                   {item.definition.shortLabel}
                 </span>
 
@@ -179,7 +179,8 @@ export default function ScenarioAnalysisPanel({
                         : 'text-amber-600 dark:text-nord-yellow'
                     }`}
                   >
-                    {diffHours > 0 ? `+${diffHours} ч` : `${diffHours} ч`} ({diffPct > 0 ? `+${diffPct}%` : `${diffPct}%`})
+                    {diffHours > 0 ? `+${diffHours} ч` : `${diffHours} ч`} (
+                    {diffPct > 0 ? `+${diffPct}%` : `${diffPct}%`})
                   </span>
                 )}
               </div>
@@ -187,7 +188,8 @@ export default function ScenarioAnalysisPanel({
               {/* Hours */}
               <div className="mt-3">
                 <div className="text-2xl font-black text-slate-900 dark:text-nord-6">
-                  {item.totalLaborHours} <span className="text-xs font-normal text-slate-400">ч</span>
+                  {item.totalLaborHours}{' '}
+                  <span className="text-xs font-normal text-slate-400">ч</span>
                 </div>
                 <div className="text-xs text-slate-400 dark:text-nord-muted">
                   ≈ {item.durationBusinessDays} раб. дн.
@@ -200,7 +202,9 @@ export default function ScenarioAnalysisPanel({
                   {formatCurrency(item.commercial.grandTotal, item.commercial.currency)}
                 </div>
                 <div className="text-[11px] text-slate-400 dark:text-nord-muted">
-                  {item.commercial.subtotalExVat > 0 ? `Без НДС: ${formatCurrency(item.commercial.subtotalExVat, item.commercial.currency)}` : ''}
+                  {item.commercial.subtotalExVat > 0
+                    ? `Без НДС: ${formatCurrency(item.commercial.subtotalExVat, item.commercial.currency)}`
+                    : ''}
                 </div>
               </div>
 
@@ -237,8 +241,10 @@ export default function ScenarioAnalysisPanel({
               }`}
             >
               {activeResult.diffVsBase.hours >= 0 ? '+' : ''}
-              {activeResult.diffVsBase.hours} ч ({activeResult.diffVsBase.hoursPercent >= 0 ? '+' : ''}
-              {activeResult.diffVsBase.hoursPercent}%) • {activeResult.diffVsBase.cost >= 0 ? '+' : ''}
+              {activeResult.diffVsBase.hours} ч (
+              {activeResult.diffVsBase.hoursPercent >= 0 ? '+' : ''}
+              {activeResult.diffVsBase.hoursPercent}%) •{' '}
+              {activeResult.diffVsBase.cost >= 0 ? '+' : ''}
               {formatCurrency(activeResult.diffVsBase.cost, currency)}
             </span>
           </div>
@@ -295,7 +301,9 @@ export default function ScenarioAnalysisPanel({
               <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:border-nord-3 dark:bg-nord-2 dark:text-nord-muted">
                 <th className="px-3.5 py-2.5">Параметр</th>
                 <th className="px-3.5 py-2.5 text-center">Оптимистичный</th>
-                <th className="px-3.5 py-2.5 text-center font-bold text-slate-900 dark:text-nord-6">Базовый (Base)</th>
+                <th className="px-3.5 py-2.5 text-center font-bold text-slate-900 dark:text-nord-6">
+                  Базовый (Base)
+                </th>
                 <th className="px-3.5 py-2.5 text-center">С буфером рисков</th>
                 <th className="px-3.5 py-2.5 text-center">Пессимистичный</th>
               </tr>
@@ -303,38 +311,68 @@ export default function ScenarioAnalysisPanel({
             <tbody className="divide-y divide-slate-100 dark:divide-nord-3/60">
               <tr>
                 <td className="px-3.5 py-2.5 font-medium">Трудозатраты этапов</td>
-                <td className="px-3.5 py-2.5 text-center">{scenarioData.optimistic.stagesHours} ч</td>
-                <td className="px-3.5 py-2.5 text-center font-semibold">{scenarioData.base.stagesHours} ч</td>
-                <td className="px-3.5 py-2.5 text-center">{scenarioData.risk_buffer.stagesHours} ч</td>
-                <td className="px-3.5 py-2.5 text-center">{scenarioData.pessimistic.stagesHours} ч</td>
+                <td className="px-3.5 py-2.5 text-center">
+                  {scenarioData.optimistic.stagesHours} ч
+                </td>
+                <td className="px-3.5 py-2.5 text-center font-semibold">
+                  {scenarioData.base.stagesHours} ч
+                </td>
+                <td className="px-3.5 py-2.5 text-center">
+                  {scenarioData.risk_buffer.stagesHours} ч
+                </td>
+                <td className="px-3.5 py-2.5 text-center">
+                  {scenarioData.pessimistic.stagesHours} ч
+                </td>
               </tr>
               <tr>
                 <td className="px-3.5 py-2.5 font-medium">Управление (РП)</td>
                 <td className="px-3.5 py-2.5 text-center">{scenarioData.optimistic.pmHours} ч</td>
-                <td className="px-3.5 py-2.5 text-center font-semibold">{scenarioData.base.pmHours} ч</td>
+                <td className="px-3.5 py-2.5 text-center font-semibold">
+                  {scenarioData.base.pmHours} ч
+                </td>
                 <td className="px-3.5 py-2.5 text-center">{scenarioData.risk_buffer.pmHours} ч</td>
                 <td className="px-3.5 py-2.5 text-center">{scenarioData.pessimistic.pmHours} ч</td>
               </tr>
               <tr>
                 <td className="px-3.5 py-2.5 font-medium">Резерв на риски</td>
                 <td className="px-3.5 py-2.5 text-center text-slate-400">0 ч</td>
-                <td className="px-3.5 py-2.5 text-center font-semibold">{scenarioData.base.riskHours} ч</td>
-                <td className="px-3.5 py-2.5 text-center">{scenarioData.risk_buffer.riskHours} ч</td>
-                <td className="px-3.5 py-2.5 text-center">{scenarioData.pessimistic.riskHours} ч</td>
+                <td className="px-3.5 py-2.5 text-center font-semibold">
+                  {scenarioData.base.riskHours} ч
+                </td>
+                <td className="px-3.5 py-2.5 text-center">
+                  {scenarioData.risk_buffer.riskHours} ч
+                </td>
+                <td className="px-3.5 py-2.5 text-center">
+                  {scenarioData.pessimistic.riskHours} ч
+                </td>
               </tr>
               <tr className="bg-slate-50/50 font-bold dark:bg-nord-2/30">
                 <td className="px-3.5 py-2.5">ИТОГО ТРУДОЕМКОСТЬ</td>
-                <td className="px-3.5 py-2.5 text-center text-emerald-700 dark:text-nord-frost3">{scenarioData.optimistic.totalLaborHours} ч</td>
+                <td className="px-3.5 py-2.5 text-center text-emerald-700 dark:text-nord-frost3">
+                  {scenarioData.optimistic.totalLaborHours} ч
+                </td>
                 <td className="px-3.5 py-2.5 text-center">{scenarioData.base.totalLaborHours} ч</td>
-                <td className="px-3.5 py-2.5 text-center text-amber-700 dark:text-nord-yellow">{scenarioData.risk_buffer.totalLaborHours} ч</td>
-                <td className="px-3.5 py-2.5 text-center text-rose-700 dark:text-nord-auroraRed">{scenarioData.pessimistic.totalLaborHours} ч</td>
+                <td className="px-3.5 py-2.5 text-center text-amber-700 dark:text-nord-yellow">
+                  {scenarioData.risk_buffer.totalLaborHours} ч
+                </td>
+                <td className="px-3.5 py-2.5 text-center text-rose-700 dark:text-nord-auroraRed">
+                  {scenarioData.pessimistic.totalLaborHours} ч
+                </td>
               </tr>
               <tr className="font-bold">
                 <td className="px-3.5 py-2.5">ИТОГО К ОПЛАТЕ</td>
-                <td className="px-3.5 py-2.5 text-center text-emerald-700 dark:text-nord-frost3">{formatCurrency(scenarioData.optimistic.commercial.grandTotal, currency)}</td>
-                <td className="px-3.5 py-2.5 text-center">{formatCurrency(scenarioData.base.commercial.grandTotal, currency)}</td>
-                <td className="px-3.5 py-2.5 text-center text-amber-700 dark:text-nord-yellow">{formatCurrency(scenarioData.risk_buffer.commercial.grandTotal, currency)}</td>
-                <td className="px-3.5 py-2.5 text-center text-rose-700 dark:text-nord-auroraRed">{formatCurrency(scenarioData.pessimistic.commercial.grandTotal, currency)}</td>
+                <td className="px-3.5 py-2.5 text-center text-emerald-700 dark:text-nord-frost3">
+                  {formatCurrency(scenarioData.optimistic.commercial.grandTotal, currency)}
+                </td>
+                <td className="px-3.5 py-2.5 text-center">
+                  {formatCurrency(scenarioData.base.commercial.grandTotal, currency)}
+                </td>
+                <td className="px-3.5 py-2.5 text-center text-amber-700 dark:text-nord-yellow">
+                  {formatCurrency(scenarioData.risk_buffer.commercial.grandTotal, currency)}
+                </td>
+                <td className="px-3.5 py-2.5 text-center text-rose-700 dark:text-nord-auroraRed">
+                  {formatCurrency(scenarioData.pessimistic.commercial.grandTotal, currency)}
+                </td>
               </tr>
             </tbody>
           </table>

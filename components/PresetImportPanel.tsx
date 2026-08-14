@@ -5,10 +5,26 @@ import { useRouter } from 'next/navigation';
 import { INDUSTRY_PRESETS, IndustryPreset } from '@/lib/presets/industryPresets';
 
 const CATEGORY_LABELS: Record<string, { label: string; bg: string; text: string }> = {
-  security: { label: 'Информационная безопасность', bg: 'bg-rose-50 dark:bg-rose-950/40', text: 'text-rose-700 dark:text-rose-300' },
-  hardware_pac: { label: 'Оборудование и ПАК', bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300' },
-  compliance: { label: 'КИИ и Соответствие (ФСТЭК)', bg: 'bg-indigo-50 dark:bg-indigo-950/40', text: 'text-indigo-700 dark:text-indigo-300' },
-  development: { label: 'Заказная разработка', bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300' },
+  security: {
+    label: 'Информационная безопасность',
+    bg: 'bg-rose-50 dark:bg-rose-950/40',
+    text: 'text-rose-700 dark:text-rose-300',
+  },
+  hardware_pac: {
+    label: 'Оборудование и ПАК',
+    bg: 'bg-amber-50 dark:bg-amber-950/40',
+    text: 'text-amber-700 dark:text-amber-300',
+  },
+  compliance: {
+    label: 'КИИ и Соответствие (ФСТЭК)',
+    bg: 'bg-indigo-50 dark:bg-indigo-950/40',
+    text: 'text-indigo-700 dark:text-indigo-300',
+  },
+  development: {
+    label: 'Заказная разработка',
+    bg: 'bg-emerald-50 dark:bg-emerald-950/40',
+    text: 'text-emerald-700 dark:text-emerald-300',
+  },
 };
 
 export default function PresetImportPanel() {
@@ -65,7 +81,8 @@ export default function PresetImportPanel() {
             Отраслевые пресеты ИТ / ИБ / ПАК
           </h3>
           <p className="text-xs text-slate-500">
-            Готовые шаблоны опросников с настроенными драйверами трудозатрат, этапами работ и рисками
+            Готовые шаблоны опросников с настроенными драйверами трудозатрат, этапами работ и
+            рисками
           </p>
         </div>
         <button

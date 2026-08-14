@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildFullTraceabilityMatrix,
-  resolveGostSection,
-  resolvePmiTest,
-} from '../matrix';
+import { buildFullTraceabilityMatrix, resolveGostSection, resolvePmiTest } from '../matrix';
 import { Gost34RequirementItem, Gost34StageItem } from '../../types';
 
 describe('Traceability Matrix Engine', () => {

@@ -27,8 +27,14 @@ export interface RelationValidationError {
  * Calculates text similarity score (0..1) using bigram Jaccard index.
  */
 function calculateTextSimilarity(a: string, b: string): number {
-  const normA = a.toLowerCase().replace(/[^\p{L}\p{N}]/gu, ' ').trim();
-  const normB = b.toLowerCase().replace(/[^\p{L}\p{N}]/gu, ' ').trim();
+  const normA = a
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, ' ')
+    .trim();
+  const normB = b
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, ' ')
+    .trim();
 
   if (normA === normB) return 1.0;
   if (!normA || !normB) return 0.0;

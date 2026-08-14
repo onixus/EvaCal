@@ -82,9 +82,16 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
       status: existing.status === 'pending_approval' ? 'draft' : existing.status,
       currency: body.currency ?? existing.currency,
       roleRates: roleRatesJson,
-      overheadPercent: body.overheadPercent !== undefined ? Number(body.overheadPercent) : existing.overheadPercent,
-      marginPercent: body.marginPercent !== undefined ? Number(body.marginPercent) : existing.marginPercent,
-      discountPercent: body.discountPercent !== undefined ? Number(body.discountPercent) : existing.discountPercent,
+      overheadPercent:
+        body.overheadPercent !== undefined
+          ? Number(body.overheadPercent)
+          : existing.overheadPercent,
+      marginPercent:
+        body.marginPercent !== undefined ? Number(body.marginPercent) : existing.marginPercent,
+      discountPercent:
+        body.discountPercent !== undefined
+          ? Number(body.discountPercent)
+          : existing.discountPercent,
       vatPercent: body.vatPercent !== undefined ? Number(body.vatPercent) : existing.vatPercent,
       includeVat: body.includeVat !== undefined ? Boolean(body.includeVat) : existing.includeVat,
     },
@@ -147,9 +154,16 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       startDate,
       currency: body.currency ?? existing.currency,
       roleRates: roleRatesJson,
-      overheadPercent: body.overheadPercent !== undefined ? Number(body.overheadPercent) : existing.overheadPercent,
-      marginPercent: body.marginPercent !== undefined ? Number(body.marginPercent) : existing.marginPercent,
-      discountPercent: body.discountPercent !== undefined ? Number(body.discountPercent) : existing.discountPercent,
+      overheadPercent:
+        body.overheadPercent !== undefined
+          ? Number(body.overheadPercent)
+          : existing.overheadPercent,
+      marginPercent:
+        body.marginPercent !== undefined ? Number(body.marginPercent) : existing.marginPercent,
+      discountPercent:
+        body.discountPercent !== undefined
+          ? Number(body.discountPercent)
+          : existing.discountPercent,
       vatPercent: body.vatPercent !== undefined ? Number(body.vatPercent) : existing.vatPercent,
       includeVat: body.includeVat !== undefined ? Boolean(body.includeVat) : existing.includeVat,
     },
@@ -166,7 +180,12 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         parallel: s.parallel,
         approvalDays: s.approvalDays,
       }));
-    await rebuildStages(params.id, primary, startDate, scheduleConfigFromTemplate(existing.template));
+    await rebuildStages(
+      params.id,
+      primary,
+      startDate,
+      scheduleConfigFromTemplate(existing.template),
+    );
   }
 
   return NextResponse.json({ ok: true });

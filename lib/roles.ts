@@ -23,7 +23,11 @@ export function normalizeRoleKey(roleStr: string): Role {
   if (!roleStr) return 'other';
   const lower = roleStr.toLowerCase();
 
-  if (/гап|главный архитект|ведущий архитект|архитект|architect|solution architect|enterprise architect|техлид/i.test(lower)) {
+  if (
+    /гап|главный архитект|ведущий архитект|архитект|architect|solution architect|enterprise architect|техлид/i.test(
+      lower,
+    )
+  ) {
     return 'architect';
   }
   if (/рп|руководител.*проек|project manager|менеджер проекта/i.test(lower)) {

@@ -29,8 +29,7 @@ export default function NewCalculationForm({
 }) {
   const router = useRouter();
   const [selectedTemplateId, setSelectedTemplateId] = useState(template.id);
-  const currentTemplate =
-    availableTemplates.find((t) => t.id === selectedTemplateId) || template;
+  const currentTemplate = availableTemplates.find((t) => t.id === selectedTemplateId) || template;
 
   const [name, setName] = useState('');
   const [customer, setCustomer] = useState('');

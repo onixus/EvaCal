@@ -64,7 +64,13 @@ export function renderCalculationXlsx(
     ['Валюта:', commercial.currency],
     [],
     ['1. ПРЯМЫЕ ТРУДОЗАТРАТЫ ПО РОЛЯМ'],
-    ['Роль / Специализация', 'Трудоемкость (ч)', `Ставка (${commercial.currencySymbol}/ч)`, `Стоимость (${commercial.currencySymbol})`, 'Доля в трудозатратах'],
+    [
+      'Роль / Специализация',
+      'Трудоемкость (ч)',
+      `Ставка (${commercial.currencySymbol}/ч)`,
+      `Стоимость (${commercial.currencySymbol})`,
+      'Доля в трудозатратах',
+    ],
   ];
 
   for (const roleItem of commercial.rolesBreakdown) {
@@ -98,7 +104,13 @@ export function renderCalculationXlsx(
   }
 
   commercialRows.push(
-    ['Итого трудозатраты (прямая себестоимость):', commercial.directLaborHours, '', commercial.directLaborCost, '100%'],
+    [
+      'Итого трудозатраты (прямая себестоимость):',
+      commercial.directLaborHours,
+      '',
+      commercial.directLaborCost,
+      '100%',
+    ],
     [],
     ['2. ФИНАНСОВЫЙ РАСЧЕТ И МАРЖИНАЛЬНОСТЬ'],
     ['Показатель', 'Параметр / %', `Сумма (${commercial.currencySymbol})`],
@@ -109,10 +121,18 @@ export function renderCalculationXlsx(
     ['Базовая цена до скидки', '', commercial.priceBeforeDiscount],
     ['Скидка', `${commercial.discountPercent}%`, -commercial.discountAmount],
     ['Итого без НДС', '', commercial.subtotalExVat],
-    [`НДС (${commercial.vatPercent}%)`, calc.includeVat ? `${commercial.vatPercent}%` : '0% (не облагается)', commercial.vatAmount],
+    [
+      `НДС (${commercial.vatPercent}%)`,
+      calc.includeVat ? `${commercial.vatPercent}%` : '0% (не облагается)',
+      commercial.vatAmount,
+    ],
     ['ИТОГО К ОПЛАТЕ', '', commercial.grandTotal],
     [],
-    ['Средневзвешенная ставка, ' + commercial.currencySymbol + '/ч', '', commercial.blendedHourlyRate],
+    [
+      'Средневзвешенная ставка, ' + commercial.currencySymbol + '/ч',
+      '',
+      commercial.blendedHourlyRate,
+    ],
   );
 
   const commercialSheet = XLSX.utils.aoa_to_sheet(commercialRows);
@@ -200,12 +220,12 @@ export function renderCalculationXlsx(
           category: /иб|безопасн|сзи|скзи|фстэк/i.test(s.name + ' ' + s.requirements)
             ? 'security'
             : /пак|сервер|схд|оборудован|монтаж/i.test(s.name + ' ' + s.requirements)
-            ? 'hardware_pac'
-            : /лиценз|поставк.*по/i.test(s.name + ' ' + s.requirements)
-            ? 'software_supply'
-            : /интеграц|api|шлюз/i.test(s.name + ' ' + s.requirements)
-            ? 'integration'
-            : 'functional',
+              ? 'hardware_pac'
+              : /лиценз|поставк.*по/i.test(s.name + ' ' + s.requirements)
+                ? 'software_supply'
+                : /интеграц|api|шлюз/i.test(s.name + ' ' + s.requirements)
+                  ? 'integration'
+                  : 'functional',
           title: `Требование к этапу: ${s.name}`,
           description: s.requirements,
         });
@@ -221,12 +241,12 @@ export function renderCalculationXlsx(
           category: /иб|безопасн|сзи|скзи|фстэк/i.test(s.name)
             ? 'security'
             : /пак|сервер|схд|оборудован|монтаж/i.test(s.name)
-            ? 'hardware_pac'
-            : /лиценз|поставк.*по/i.test(s.name)
-            ? 'software_supply'
-            : /интеграц|api|шлюз/i.test(s.name)
-            ? 'integration'
-            : 'functional',
+              ? 'hardware_pac'
+              : /лиценз|поставк.*по/i.test(s.name)
+                ? 'software_supply'
+                : /интеграц|api|шлюз/i.test(s.name)
+                  ? 'integration'
+                  : 'functional',
           title: s.name,
           description: `Выполнение работ и соответствие критериям приёмки этапа «${s.name}».`,
         });
@@ -234,19 +254,17 @@ export function renderCalculationXlsx(
     }
   }
 
-  const matrix = buildFullTraceabilityMatrix(
-    reqsToTrace,
-    stageItems,
-    calc.answers,
-    calc.fields,
-  );
+  const matrix = buildFullTraceabilityMatrix(reqsToTrace, stageItems, calc.answers, calc.fields);
 
   if (matrix.items.length > 0) {
     const matrixRows: (string | number)[][] = [
       ['МАТРИЦА ПРОСЛЕЖИВАЕМОСТИ ТРЕБОВАНИЙ И СТАДИЙ ПРОЕКТА (ГОСТ 34.602)'],
       ['Проект:', calc.name],
       ['Заказчик:', calc.customer],
-      ['Покрытие требований:', `${matrix.metrics.covered} из ${matrix.metrics.total} (${matrix.metrics.coveragePercent}%)`],
+      [
+        'Покрытие требований:',
+        `${matrix.metrics.covered} из ${matrix.metrics.total} (${matrix.metrics.coveragePercent}%)`,
+      ],
       [],
       [
         'Код требования',

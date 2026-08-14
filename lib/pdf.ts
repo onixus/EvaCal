@@ -159,22 +159,61 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
   doc.text(`Трудоемкость этапов: ${stagesHours} ч`, 40, doc.y);
   doc.text(`Управление проектом (РП): ${calc.pmHours} ч`, 40, doc.y);
   doc.text(`Резерв на риски: ${risksHours} ч`, 40, doc.y);
-  doc.font('bold').text(`Итого трудоемкость: ${grandTotal} ч (≈ ${(grandTotal / 8).toFixed(1)} раб. дн.)`, 40, doc.y);
+  doc
+    .font('bold')
+    .text(
+      `Итого трудоемкость: ${grandTotal} ч (≈ ${(grandTotal / 8).toFixed(1)} раб. дн.)`,
+      40,
+      doc.y,
+    );
   doc.moveDown(0.5);
 
-  doc.font('body').text(`Прямая себестоимость: ${formatCurrency(commercial.directLaborCost, commercial.currency)}`, 40, doc.y);
+  doc
+    .font('body')
+    .text(
+      `Прямая себестоимость: ${formatCurrency(commercial.directLaborCost, commercial.currency)}`,
+      40,
+      doc.y,
+    );
   if (commercial.overheadAmount > 0) {
-    doc.text(`Накладные расходы (${commercial.overheadPercent}%): ${formatCurrency(commercial.overheadAmount, commercial.currency)}`, 40, doc.y);
+    doc.text(
+      `Накладные расходы (${commercial.overheadPercent}%): ${formatCurrency(commercial.overheadAmount, commercial.currency)}`,
+      40,
+      doc.y,
+    );
   }
-  doc.text(`Плановая маржа (${commercial.marginPercent}%): ${formatCurrency(commercial.marginAmount, commercial.currency)}`, 40, doc.y);
+  doc.text(
+    `Плановая маржа (${commercial.marginPercent}%): ${formatCurrency(commercial.marginAmount, commercial.currency)}`,
+    40,
+    doc.y,
+  );
   if (commercial.discountAmount > 0) {
-    doc.text(`Скидка (${commercial.discountPercent}%): -${formatCurrency(commercial.discountAmount, commercial.currency)}`, 40, doc.y);
+    doc.text(
+      `Скидка (${commercial.discountPercent}%): -${formatCurrency(commercial.discountAmount, commercial.currency)}`,
+      40,
+      doc.y,
+    );
   }
-  doc.text(`Сумма без НДС: ${formatCurrency(commercial.subtotalExVat, commercial.currency)} (ставка: ${formatCurrency(commercial.blendedHourlyRate, commercial.currency)}/ч)`, 40, doc.y);
+  doc.text(
+    `Сумма без НДС: ${formatCurrency(commercial.subtotalExVat, commercial.currency)} (ставка: ${formatCurrency(commercial.blendedHourlyRate, commercial.currency)}/ч)`,
+    40,
+    doc.y,
+  );
   if (calc.includeVat) {
-    doc.text(`НДС (${commercial.vatPercent}%): ${formatCurrency(commercial.vatAmount, commercial.currency)}`, 40, doc.y);
+    doc.text(
+      `НДС (${commercial.vatPercent}%): ${formatCurrency(commercial.vatAmount, commercial.currency)}`,
+      40,
+      doc.y,
+    );
   }
-  doc.font('bold').fontSize(11).text(`ИТОГО К ОПЛАТЕ: ${formatCurrency(commercial.grandTotal, commercial.currency)}`, 40, doc.y);
+  doc
+    .font('bold')
+    .fontSize(11)
+    .text(
+      `ИТОГО К ОПЛАТЕ: ${formatCurrency(commercial.grandTotal, commercial.currency)}`,
+      40,
+      doc.y,
+    );
   doc.moveDown(1);
 
   if (calc.risks.length > 0) {
