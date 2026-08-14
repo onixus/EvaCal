@@ -13,6 +13,10 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# prisma.config.ts резолвит DATABASE_URL при любом запуске CLI, включая `prisma generate`
+# на этапе сборки. К базе здесь никто не обращается — реальное значение приходит из
+# docker-compose в runtime; это заглушка, совпадающая с путём тома /app/prisma.
+ENV DATABASE_URL="file:./prisma/dev.db"
 RUN npm run build
 
 # --- migrate: one-off schema sync + seed (prisma db push and db:seed against the mounted SQLite volume) ---
@@ -32,7 +36,9 @@ COPY lib ./lib
 COPY docker-migrate-entrypoint.sh /usr/local/bin/docker-migrate-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-migrate-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker-migrate-entrypoint.sh"]
-CMD ["sh", "-c", "npx prisma db push --skip-generate && npx prisma generate && npx tsx prisma/seed.ts"]
+# В Prisma 7 у `db push` больше нет флага --skip-generate: команда и так не генерирует
+# клиент, поэтому generate вызывается отдельно — seed импортирует сгенерированный клиент.
+CMD ["sh", "-c", "npx prisma db push && npx prisma generate && npx tsx prisma/seed.ts"]
 
 # --- runner: minimal production image ---
 FROM node:22-alpine AS runner
