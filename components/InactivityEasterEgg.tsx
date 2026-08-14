@@ -17,10 +17,14 @@ export default function InactivityEasterEgg() {
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  // Читается внутри эффекта открытия, чтобы смена звука не перезапускала видео
+  const isMutedRef = useRef(isMuted);
+  isMutedRef.current = isMuted;
 
   // Listen to theme changes & manual triggers
   useEffect(() => {
@@ -43,8 +47,9 @@ export default function InactivityEasterEgg() {
   useEffect(() => {
     if (isOpen && videoRef.current) {
       setHasError(false);
+      setAutoplayBlocked(false);
       videoRef.current.currentTime = 0;
-      videoRef.current.muted = isMuted;
+      videoRef.current.muted = isMutedRef.current;
 
       const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
@@ -61,8 +66,9 @@ export default function InactivityEasterEgg() {
                 .play()
                 .then(() => setIsPlaying(true))
                 .catch((e) => {
-                  console.error('Muted autoplay failed:', e);
-                  setHasError(true);
+                  // Не ошибка загрузки: браузер ждёт жеста пользователя
+                  console.warn('Muted autoplay rejected, waiting for user gesture:', e);
+                  setAutoplayBlocked(true);
                 });
             }
           });
@@ -72,7 +78,7 @@ export default function InactivityEasterEgg() {
       videoRef.current.pause();
       setIsPlaying(false);
     }
-  }, [isOpen, isMuted]);
+  }, [isOpen]);
 
   const close = useCallback(() => {
     setIsOpen(false);
@@ -121,10 +127,16 @@ export default function InactivityEasterEgg() {
         close();
         resetTimer();
       } else if (e.key === ' ') {
+        // Space на кнопке должен нажимать кнопку, а не переключать видео
+        const target = e.target as HTMLElement | null;
+        if (target?.closest('button, a, input, select, textarea, [contenteditable="true"]')) return;
         e.preventDefault();
         if (videoRef.current) {
           if (videoRef.current.paused) {
-            videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+            videoRef.current
+              .play()
+              .then(() => setIsPlaying(true))
+              .catch(() => {});
           } else {
             videoRef.current.pause();
             setIsPlaying(false);
@@ -147,7 +159,10 @@ export default function InactivityEasterEgg() {
   const togglePlay = () => {
     if (videoRef.current) {
       if (videoRef.current.paused) {
-        videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+        videoRef.current
+          .play()
+          .then(() => setIsPlaying(true))
+          .catch(() => {});
       } else {
         videoRef.current.pause();
         setIsPlaying(false);
@@ -215,7 +230,10 @@ export default function InactivityEasterEgg() {
             playsInline
             preload="auto"
             onClick={togglePlay}
-            onPlay={() => setIsPlaying(true)}
+            onPlay={() => {
+              setIsPlaying(true);
+              setAutoplayBlocked(false);
+            }}
             onPause={() => setIsPlaying(false)}
             onError={() => setHasError(true)}
             style={{
@@ -247,6 +265,29 @@ export default function InactivityEasterEgg() {
                 Файл {VIDEO_SRC} не удалось воспроизвести в браузере.
               </div>
             </div>
+          )}
+
+          {autoplayBlocked && !hasError && (
+            <button
+              onClick={togglePlay}
+              style={{
+                position: 'relative',
+                zIndex: 20,
+                color: '#e9d5ff',
+                textAlign: 'center',
+                padding: '20px 28px',
+                background: 'rgba(0,0,0,0.8)',
+                borderRadius: '12px',
+                border: '1px solid rgba(168,85,247,0.5)',
+                cursor: 'pointer',
+                animation: 'ee-btn-glow 2s ease-in-out infinite',
+              }}
+            >
+              <div style={{ fontSize: '18px', fontWeight: 'bold' }}>▶ Запустить видео</div>
+              <div style={{ fontSize: '13px', marginTop: '6px', color: '#d4d4d8' }}>
+                Браузер заблокировал автозапуск — нажмите, чтобы воспроизвести.
+              </div>
+            </button>
           )}
 
           {/* Controls Bar — top right */}
