@@ -161,3 +161,15 @@ docker compose up -d --build
 4. **Typecheck**: статическая типизация TypeScript (`tsc --noEmit`).
 5. **Test**: запуск сьюта тестов с публикацией отчетов JUnit (`test-results.xml`).
 6. **Build**: компиляция production-бандла Next.js.
+
+---
+
+## 📚 Документация
+
+| Документ                                                                           | О чём                                                                        |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [docs/RELEASE_REGISTRY_PLAN.md](docs/RELEASE_REGISTRY_PLAN.md)                     | **Текущий горизонт:** проект, снимок мастера, неизменяемый ZIP, согласование |
+| [docs/CRITICAL_ASSESSMENT_AND_ROADMAP.md](docs/CRITICAL_ASSESSMENT_AND_ROADMAP.md) | Критика продукта и горизонты A–D                                             |
+| [docs/GOST34_MODERNIZATION_PLAN.md](docs/GOST34_MODERNIZATION_PLAN.md)             | Domain-план модуля ГОСТ 34                                                   |
+| [docs/SECURITY_PERIMETER.md](docs/SECURITY_PERIMETER.md)                           | ACL, share-токены, audit                                                     |
+| [docs/BackLog.MD](docs/BackLog.MD)                                                 | Статус вех                                                                   |

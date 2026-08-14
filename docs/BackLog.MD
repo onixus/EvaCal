@@ -46,8 +46,25 @@
 
 ---
 
-## 🔮 Future Horizon Roadmap
+## 🗂 Next Horizon — Реестр выпуска (закрытие Horizon B)
 
-- [ ] Acceptance Testing Protocol (ПСИ / Акт приемки) document generator.
-- [ ] Document Version Diff & Revision History tracker.
-- [ ] Multi-tenant workspace isolation.
+Полный план: [RELEASE_REGISTRY_PLAN.md](RELEASE_REGISTRY_PLAN.md).
+
+Цель: один проект = одна правда. Расчёт, смета, требования и комплект ГОСТ — версии одного объекта; утверждённый ZIP воспроизводится по checksum.
+
+- [ ] **RR-1** Проект как первый экран (`/projects`, карточка, навбар).
+- [ ] **RR-2** Снимок мастера в `GostPackage` (требования v2, trace-links, применимость, overrides).
+- [ ] **RR-3** Неизменяемый ZIP + обязательный SHA-256; экспорт падает, если пакет не записался.
+- [ ] **RR-4** Согласование комплекта по share-ссылке (`review`), без staff-логина.
+- [ ] **RR-5** Структурный diff двух версий пакета.
+- [ ] **RR-6** Playwright e2e «Северный банк» (login → пресет → выпуск → approve → тот же checksum).
+
+Не в этом горизонте: Postgres, multi-tenant, очередь генерации, ПСИ/акт, новые пресеты, LLM как автор ТЗ.
+
+---
+
+## 🔮 Later Horizon Roadmap
+
+- [ ] Acceptance Testing Protocol (ПСИ / Акт приемки) document generator — после реестра выпуска.
+- [ ] Semantic document diff (LLM-assisted) — после структурного diff RR-5.
+- [ ] Multi-tenant workspace isolation — Horizon C.

@@ -751,27 +751,28 @@ Migrate to ГОСТ 34.602-2020
 
 # 6. Приоритеты
 
-| Приоритет | Работа                            |
-| --------- | --------------------------------- |
-| P0        | Standards Registry                |
-| P0        | ГОСТ 34.602-2020 profile          |
-| P0        | Новая структура ТЗ                |
-| P0        | Requirement v2                    |
-| P0        | ProjectContext                    |
-| P0        | Applicability Engine              |
-| P0        | Удаление fake traceability        |
-| P0        | SSRF / LLM security               |
-| P0        | Базовый GOST Validator            |
-| P1        | LLM proposal workflow             |
-| P1        | Traceability до test cases        |
-| P1        | Новый UI Wizard                   |
-| P1        | Модернизация PZ / AF / PMI / SPEC |
-| P1        | DOCX layout profiles              |
-| P1        | Regression suite                  |
-| P2        | Автогенерация acceptance criteria |
-| P2        | Version / diff документов         |
-| P2        | Compliance dashboards             |
-| P2        | Customer-specific profiles        |
+| Приоритет | Работа                                                                                             |
+| --------- | -------------------------------------------------------------------------------------------------- |
+| P0        | Standards Registry                                                                                 |
+| P0        | ГОСТ 34.602-2020 profile                                                                           |
+| P0        | Новая структура ТЗ                                                                                 |
+| P0        | Requirement v2                                                                                     |
+| P0        | ProjectContext                                                                                     |
+| P0        | Applicability Engine                                                                               |
+| P0        | Удаление fake traceability                                                                         |
+| P0        | SSRF / LLM security                                                                                |
+| P0        | Базовый GOST Validator                                                                             |
+| P1        | LLM proposal workflow                                                                              |
+| P1        | Traceability до test cases                                                                         |
+| P1        | Новый UI Wizard                                                                                    |
+| P1        | Модернизация PZ / AF / PMI / SPEC                                                                  |
+| P1        | DOCX layout profiles                                                                               |
+| P1        | Regression suite                                                                                   |
+| P2        | Автогенерация acceptance criteria                                                                  |
+| P0        | Реестр выпуска (снимок + ZIP + approve) — см. [RELEASE_REGISTRY_PLAN.md](RELEASE_REGISTRY_PLAN.md) |
+| P1        | Структурный version / diff документов (RR-5)                                                       |
+| P2        | Compliance dashboards                                                                              |
+| P2        | Customer-specific profiles                                                                         |
 
 ---
 
@@ -873,6 +874,11 @@ Migrate to ГОСТ 34.602-2020
 структурные проверки Word — `lib/gost34/exporters/__tests__/docxStructure.test.ts`,
 нормативная привязка и diff миграции — `lib/gost34/migration/`, экран миграции —
 `components/gost34/MigrationPanel.tsx`, описание — [GOST34_MIGRATION.md](GOST34_MIGRATION.md).
+
+Следующий продуктовый горизонт поверх этого плана — **реестр выпуска**
+([RELEASE_REGISTRY_PLAN.md](RELEASE_REGISTRY_PLAN.md)): проект как корень UI,
+персистентный снимок мастера, неизменяемый ZIP, share-approve. Без него
+PR-11 (новые виды документов) снова сядет на эфемерную модель требований.
 
 ---
 
