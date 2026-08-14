@@ -326,7 +326,11 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (platformsList) {
     infrastructure.platforms = platformsList;
     record(state, 'infrastructure.platforms', 'questionnaire', platformsAnswer!.key);
-  } else if (answers.ngfw_clusters_count || answers.storage_audits_count || answers.vpn_tunnels_count) {
+  } else if (
+    answers.ngfw_clusters_count ||
+    answers.storage_audits_count ||
+    answers.vpn_tunnels_count
+  ) {
     infrastructure.platforms = [
       'Межсетевые экраны NGFW UserGate в отказоустойчивом кластере HA',
       'СЗИ от вредоносного ПО Kaspersky Endpoint Security',
@@ -416,7 +420,10 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     availability.rpoMinutes = toNumber(rpoAnswer.value);
     record(state, 'availability.rpoMinutes', 'questionnaire', rpoAnswer.key);
   }
-  if (Object.keys(availability).length === 0 && (answers.servers_count || answers.db_clusters_count || answers.ngfw_clusters_count)) {
+  if (
+    Object.keys(availability).length === 0 &&
+    (answers.servers_count || answers.db_clusters_count || answers.ngfw_clusters_count)
+  ) {
     availability.availabilityTargetPercent = 99.9;
     availability.rtoMinutes = 15;
     availability.rpoMinutes = 5;
@@ -476,7 +483,10 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     security.kiiObject = kiiValue;
     record(state, 'security.kiiObject', 'questionnaire', kiiAnswer!.key);
   }
-  const securityClassAnswer = findAnswer(answers, /класс защищ|уровень защищ|target_security_level/i);
+  const securityClassAnswer = findAnswer(
+    answers,
+    /класс защищ|уровень защищ|target_security_level/i,
+  );
   if (securityClassAnswer) {
     security.securityClass = toText(securityClassAnswer.value);
     record(state, 'security.securityClass', 'questionnaire', securityClassAnswer.key);
@@ -490,7 +500,9 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
 
   if (answers.ngfw_clusters_count || answers.storage_audits_count || answers.vpn_tunnels_count) {
     if (security.personalDataProcessed === undefined) security.personalDataProcessed = true;
-    if (!security.securityClass) security.securityClass = 'Класс защищенности УЗ-1..3 / К1..К3 в соответствии с требованиями ФСТЭК России';
+    if (!security.securityClass)
+      security.securityClass =
+        'Класс защищенности УЗ-1..3 / К1..К3 в соответствии с требованиями ФСТЭК России';
     if (!security.regulatoryScope) {
       security.regulatoryScope = [
         'Приказ ФСТЭК России № 21 (ПДн)',
@@ -504,7 +516,8 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     security.kiiObject = true;
     security.personalDataProcessed = true;
     if (!security.securityClass) {
-      security.securityClass = toText(answers.target_security_level) || '1-3 категория КИИ / К1-К3 ГИС';
+      security.securityClass =
+        toText(answers.target_security_level) || '1-3 категория КИИ / К1-К3 ГИС';
     }
     if (!security.regulatoryScope) {
       security.regulatoryScope = [

@@ -46,9 +46,9 @@ describe('lib/commercial', () => {
         currency: 'RUB',
         roleRates: {
           developer: 3000, // 40 * 3000 = 120 000
-          analyst: 4000,   // 20 * 4000 = 80 000
+          analyst: 4000, // 20 * 4000 = 80 000
           architect: 5000, // 10 * 5000 = 50 000
-          pm: 4000,        // 10 * 4000 = 40 000
+          pm: 4000, // 10 * 4000 = 40 000
         },
         overheadPercent: 10,
         marginPercent: 20,

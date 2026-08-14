@@ -54,8 +54,14 @@ export interface FullTraceabilityMatrix {
 /**
  * Maps a requirement category / keywords to the canonical GOST 34.602 section.
  */
-export function resolveGostSection(req: { code: string; title: string; category?: string; description?: string }) {
-  const text = `${req.code} ${req.title} ${req.description || ''} ${req.category || ''}`.toLowerCase();
+export function resolveGostSection(req: {
+  code: string;
+  title: string;
+  category?: string;
+  description?: string;
+}) {
+  const text =
+    `${req.code} ${req.title} ${req.description || ''} ${req.category || ''}`.toLowerCase();
 
   // 1. Информационная безопасность, СЗИ, СКЗИ, ФСТЭК, 152-ФЗ, КИИ -> п. 4.1.2
   if (
@@ -185,67 +191,105 @@ export function resolveGostSection(req: { code: string; title: string; category?
 /**
  * Generates corresponding PMI (ГОСТ 34.603) testing method and procedure.
  */
-export function resolvePmiTest(req: { code: string; title: string; category?: string; description?: string }, idx: number) {
-  const text = `${req.code} ${req.title} ${req.description || ''} ${req.category || ''}`.toLowerCase();
+export function resolvePmiTest(
+  req: { code: string; title: string; category?: string; description?: string },
+  idx: number,
+) {
+  const text =
+    `${req.code} ${req.title} ${req.description || ''} ${req.category || ''}`.toLowerCase();
   const testNum = String(idx).padStart(2, '0');
 
   // ПАК и серверное оборудование
-  if (/пак|сервер|схд|оборудован|стойк|коммутатор|ибп|raid|nvme|ipmi|ilo|idrac|bmc|yadro|аквариус|fplus/i.test(text) || req.category === 'hardware_pac') {
+  if (
+    /пак|сервер|схд|оборудован|стойк|коммутатор|ибп|raid|nvme|ipmi|ilo|idrac|bmc|yadro|аквариус|fplus/i.test(
+      text,
+    ) ||
+    req.category === 'hardware_pac'
+  ) {
     return {
       testCode: `ПМИ-ПАК-${testNum}`,
       testTitle: `Проверка работоспособности аппаратных компонентов ПАК и серверного оборудования`,
-      method: 'Визуальный контроль монтажа, проверка индикации, диагностика через IPMI/BMC, симуляция отказа блока питания и диска RAID',
-      expectedResult: 'Оборудование инициализируется без ошибок, модули удаленного управления доступны, резервирование срабатывает штатно.',
+      method:
+        'Визуальный контроль монтажа, проверка индикации, диагностика через IPMI/BMC, симуляция отказа блока питания и диска RAID',
+      expectedResult:
+        'Оборудование инициализируется без ошибок, модули удаленного управления доступны, резервирование срабатывает штатно.',
     };
   }
 
   // Поставка ПО и лицензии
-  if (/поставк.*по|лицензи|сублиценз|реестр.*(программ|по|188-фз)|дистрибутив|формуляр/i.test(text) || req.category === 'software_supply') {
+  if (
+    /поставк.*по|лицензи|сублиценз|реестр.*(программ|по|188-фз)|дистрибутив|формуляр/i.test(text) ||
+    req.category === 'software_supply'
+  ) {
     return {
       testCode: `ПМИ-ЛИЦ-${testNum}`,
       testTitle: `Проверка лицензионной чистоты, формуляров и контрольных сумм дистрибутивов ПО`,
-      method: 'Сверка номеров лицензий, проверка сертификатов подлинности и формуляров, вычисление контрольных сумм дистрибутивов (ГОСТ Р 34.11 / SHA-256)',
-      expectedResult: 'Лицензии успешно активированы, контрольные суммы соответствуют эталонным значениям из формуляра.',
+      method:
+        'Сверка номеров лицензий, проверка сертификатов подлинности и формуляров, вычисление контрольных сумм дистрибутивов (ГОСТ Р 34.11 / SHA-256)',
+      expectedResult:
+        'Лицензии успешно активированы, контрольные суммы соответствуют эталонным значениям из формуляра.',
     };
   }
 
   // ИБ и СЗИ
-  if (/безопасн|иб|сзи|скзи|нсд|шифр|152-фз|187-фз|фстэк|фсб|usergate|kaspersky|cyberpeak|positive|vipnet|континент|secret net|dallas lock|криптопро/i.test(text) || req.category === 'security') {
+  if (
+    /безопасн|иб|сзи|скзи|нсд|шифр|152-фз|187-фз|фстэк|фсб|usergate|kaspersky|cyberpeak|positive|vipnet|континент|secret net|dallas lock|криптопро/i.test(
+      text,
+    ) ||
+    req.category === 'security'
+  ) {
     return {
       testCode: `ПМИ-ИБ-${testNum}`,
       testTitle: `Проверка подсистемы информационной безопасности, средств защиты (СЗИ/СКЗИ) и разграничения доступа`,
-      method: 'Инструментальное сканирование сетевых портов, проверка блокировок межсетевого экрана (NGFW), аудит парольной политики, проверка неизменяемости журналов безопасности',
-      expectedResult: 'Доступ предоставляется строго по ролевой матрице, попытки НСД блокируются и регистрируются в SIEM/журнале аудита.',
+      method:
+        'Инструментальное сканирование сетевых портов, проверка блокировок межсетевого экрана (NGFW), аудит парольной политики, проверка неизменяемости журналов безопасности',
+      expectedResult:
+        'Доступ предоставляется строго по ролевой матрице, попытки НСД блокируются и регистрируются в SIEM/журнале аудита.',
     };
   }
 
   // Интеграции и API
-  if (/интеграц|api|шлюз|rest|soap|kafka|rabbitmq|1с|смэв/i.test(text) || req.category === 'integration') {
+  if (
+    /интеграц|api|шлюз|rest|soap|kafka|rabbitmq|1с|смэв/i.test(text) ||
+    req.category === 'integration'
+  ) {
     return {
       testCode: `ПМИ-ИНТ-${testNum}`,
       testTitle: `Проверка корректности интеграционного взаимодействия по API и обработки сбоев`,
-      method: 'Автоматизированный вызов эндпоинтов (REST/JSON/SOAP), передача тестовых пакетов, симуляция тайм-аута и разрыва канала связи',
-      expectedResult: 'Пакеты данных передаются без потерь, при сбоях выполняется повторная очередь сообщений с логированием ошибок.',
+      method:
+        'Автоматизированный вызов эндпоинтов (REST/JSON/SOAP), передача тестовых пакетов, симуляция тайм-аута и разрыва канала связи',
+      expectedResult:
+        'Пакеты данных передаются без потерь, при сбоях выполняется повторная очередь сообщений с логированием ошибок.',
     };
   }
 
   // Надежность и кластеризация
-  if (/надежност|sla|отказоустойчив|rto|rpo|бэкап|резервн|кластер/i.test(text) || req.category === 'reliability') {
+  if (
+    /надежност|sla|отказоустойчив|rto|rpo|бэкап|резервн|кластер/i.test(text) ||
+    req.category === 'reliability'
+  ) {
     return {
       testCode: `ПМИ-НАД-${testNum}`,
       testTitle: `Проверка механизмов кластеризации, горячего резервирования и восстановления из резервных копий`,
-      method: 'Имитация аварийного отключения ведущего узла кластера, проверка времени переключения (RTO ≤ 15 мин) и целостности БД (RPO ≤ 5 мин)',
-      expectedResult: 'Кластер автоматически переключает нагрузку на резервный узел без потери транзакций.',
+      method:
+        'Имитация аварийного отключения ведущего узла кластера, проверка времени переключения (RTO ≤ 15 мин) и целостности БД (RPO ≤ 5 мин)',
+      expectedResult:
+        'Кластер автоматически переключает нагрузку на резервный узел без потери транзакций.',
     };
   }
 
   // Производительность и нагрузка
-  if (/производительн|нагрузк|tps|отклик|масштабируем/i.test(text) || req.category === 'performance') {
+  if (
+    /производительн|нагрузк|tps|отклик|масштабируем/i.test(text) ||
+    req.category === 'performance'
+  ) {
     return {
       testCode: `ПМИ-НАГР-${testNum}`,
       testTitle: `Нагрузочное тестирование при пиковом числе одновременных пользователей и транзакций`,
-      method: 'Генерация синтетической нагрузки (k6/JMeter) до достижения целевого профиля одновременных пользователей',
-      expectedResult: 'Время отклика 95-го перцентиля не превышает 1.5 сек при 100% целевой нагрузке.',
+      method:
+        'Генерация синтетической нагрузки (k6/JMeter) до достижения целевого профиля одновременных пользователей',
+      expectedResult:
+        'Время отклика 95-го перцентиля не превышает 1.5 сек при 100% целевой нагрузке.',
     };
   }
 
@@ -253,8 +297,10 @@ export function resolvePmiTest(req: { code: string; title: string; category?: st
   return {
     testCode: `ПМИ-ФУНК-${testNum}`,
     testTitle: `Функциональная проверка сценария выполнения операции: ${req.title}`,
-    method: 'Пошаговое выполнение пользовательского сценария в соответствии с Руководством оператора',
-    expectedResult: 'Операция завершается успешно с формированием целевого результата и фиксацией в БД.',
+    method:
+      'Пошаговое выполнение пользовательского сценария в соответствии с Руководством оператора',
+    expectedResult:
+      'Операция завершается успешно с формированием целевого результата и фиксацией в БД.',
   };
 }
 
@@ -270,7 +316,9 @@ export function buildFullTraceabilityMatrix(
 ): FullTraceabilityMatrix {
   // Normalize requirements
   const normalizedReqs: Gost34RequirementV2[] = requirements.map((r) =>
-    'approval' in r ? (r as Gost34RequirementV2) : fromGost34RequirementItem(r as Gost34RequirementItem),
+    'approval' in r
+      ? (r as Gost34RequirementV2)
+      : fromGost34RequirementItem(r as Gost34RequirementItem),
   );
 
   // Run core matching engine

@@ -188,8 +188,7 @@ export function calculateCommercialSummary(
 
   // Compute share percentages
   for (const item of rolesBreakdown) {
-    item.sharePercent =
-      directLaborCost > 0 ? Math.round((item.cost / directLaborCost) * 100) : 0;
+    item.sharePercent = directLaborCost > 0 ? Math.round((item.cost / directLaborCost) * 100) : 0;
   }
 
   // 6. Overheads
@@ -210,8 +209,7 @@ export function calculateCommercialSummary(
   const grandTotal = subtotalExVat + vatAmount;
 
   // 10. Effective blended rate per hour
-  const blendedHourlyRate =
-    directLaborHours > 0 ? Math.round(subtotalExVat / directLaborHours) : 0;
+  const blendedHourlyRate = directLaborHours > 0 ? Math.round(subtotalExVat / directLaborHours) : 0;
 
   return {
     currency,

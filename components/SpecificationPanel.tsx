@@ -114,7 +114,8 @@ export default function SpecificationPanel({
               </span>
             </div>
             <p className="mt-1 text-sm text-slate-500 dark:text-nord-muted">
-              Ведомость лицензий, реестровых номеров ПО, серверных платформ YADRO/Aquarius, СХД и комплектов ЗИП
+              Ведомость лицензий, реестровых номеров ПО, серверных платформ YADRO/Aquarius, СХД и
+              комплектов ЗИП
             </p>
           </div>
 
@@ -179,9 +180,7 @@ export default function SpecificationPanel({
             <div className="text-xs font-medium text-slate-500 dark:text-nord-muted">
               Гарантия и техподдержка
             </div>
-            <div className="mt-1 text-xl font-bold text-slate-900 dark:text-nord-6">
-              36 мес.
-            </div>
+            <div className="mt-1 text-xl font-bold text-slate-900 dark:text-nord-6">36 мес.</div>
             <div className="mt-1 text-[11px] text-slate-500 dark:text-nord-muted">
               SLA 8x5 / 24x7 NBD
             </div>
@@ -191,7 +190,9 @@ export default function SpecificationPanel({
 
       {loading ? (
         <div className="card p-12 text-center text-slate-500 dark:text-nord-muted">
-          <div className="animate-pulse text-sm">Формирование спецификации по базам реестров РФ...</div>
+          <div className="animate-pulse text-sm">
+            Формирование спецификации по базам реестров РФ...
+          </div>
         </div>
       ) : error ? (
         <div className="card border-red-200 bg-red-50 p-6 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
@@ -204,9 +205,7 @@ export default function SpecificationPanel({
           {swTable && (
             <div className="card overflow-hidden border border-slate-200/80 bg-white shadow-sm dark:border-nord-3 dark:bg-nord-2">
               <div className="border-b border-slate-100 bg-slate-50/80 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/40">
-                <h3 className="font-semibold text-slate-900 dark:text-nord-6">
-                  {swTable.caption}
-                </h3>
+                <h3 className="font-semibold text-slate-900 dark:text-nord-6">{swTable.caption}</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -249,9 +248,7 @@ export default function SpecificationPanel({
           {hwTable && (
             <div className="card overflow-hidden border border-slate-200/80 bg-white shadow-sm dark:border-nord-3 dark:bg-nord-2">
               <div className="border-b border-slate-100 bg-slate-50/80 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/40">
-                <h3 className="font-semibold text-slate-900 dark:text-nord-6">
-                  {hwTable.caption}
-                </h3>
+                <h3 className="font-semibold text-slate-900 dark:text-nord-6">{hwTable.caption}</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -333,9 +330,7 @@ export default function SpecificationPanel({
           {/* Delivery & Documentation Requirements */}
           {sections[4] && (
             <div className="card border border-slate-200/80 bg-slate-50/60 p-6 dark:border-nord-3 dark:bg-nord-1/40">
-              <h3 className="font-semibold text-slate-900 dark:text-nord-6">
-                {sections[4].title}
-              </h3>
+              <h3 className="font-semibold text-slate-900 dark:text-nord-6">{sections[4].title}</h3>
               <div className="mt-3 space-y-2 text-xs text-slate-600 dark:text-nord-muted">
                 {sections[4].paragraphs.map((p, pIdx) => (
                   <p key={pIdx}>{p}</p>

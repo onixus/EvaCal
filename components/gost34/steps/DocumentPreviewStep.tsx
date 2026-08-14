@@ -149,7 +149,10 @@ export default function DocumentPreviewStep({
 
   function renderTable(table: Gost34TableData, idx: number) {
     return (
-      <div key={idx} className="my-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+      <div
+        key={idx}
+        className="my-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800"
+      >
         {table.caption && (
           <div className="bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
             {table.caption}
@@ -159,7 +162,10 @@ export default function DocumentPreviewStep({
           <thead>
             <tr className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400">
               {table.headers.map((h, hIdx) => (
-                <th key={hIdx} className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 font-medium">
+                <th
+                  key={hIdx}
+                  className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 font-medium"
+                >
                   {h}
                 </th>
               ))}
@@ -167,7 +173,10 @@ export default function DocumentPreviewStep({
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {table.rows.map((row, rIdx) => (
-              <tr key={rIdx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+              <tr
+                key={rIdx}
+                className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"
+              >
                 {row.map((cell, cIdx) => (
                   <td key={cIdx} className="px-3 py-2 text-slate-800 dark:text-slate-200 align-top">
                     {String(cell)}
@@ -299,11 +308,14 @@ export default function DocumentPreviewStep({
           <h3 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <span>Предпросмотр и интерактивная правка ТЗ</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300 font-mono font-medium">
-              {decisions.standardProfileId === 'legacy-gost34-602-89' ? 'ГОСТ 34.602-89' : 'ГОСТ 34.602-2020'}
+              {decisions.standardProfileId === 'legacy-gost34-602-89'
+                ? 'ГОСТ 34.602-89'
+                : 'ГОСТ 34.602-2020'}
             </span>
           </h3>
           <p className="text-xs text-slate-500">
-            Интерактивный просмотр сгенерированной структуры документа с возможностью точечного редактирования формулировок
+            Интерактивный просмотр сгенерированной структуры документа с возможностью точечного
+            редактирования формулировок
           </p>
         </div>
 
@@ -363,7 +375,10 @@ export default function DocumentPreviewStep({
                 >
                   <span className="truncate">{section.title}</span>
                   {isOverridden && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Изменён" />
+                    <span
+                      className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0"
+                      title="Изменён"
+                    />
                   )}
                 </button>
               );

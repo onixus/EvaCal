@@ -62,10 +62,7 @@ export async function POST(req: NextRequest) {
   const { name, customer, code, description, status } = body;
 
   if (!name?.trim() || !customer?.trim()) {
-    return NextResponse.json(
-      { error: 'name and customer are required' },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: 'name and customer are required' }, { status: 400 });
   }
 
   const project = await getOrCreateProject({

@@ -1,10 +1,6 @@
 import { StageRow } from '@/components/StageTable';
 import { RiskRow } from '@/components/TotalsSummary';
-import {
-  calculateCommercialSummary,
-  CommercialConfig,
-  CommercialSummary,
-} from './commercial';
+import { calculateCommercialSummary, CommercialConfig, CommercialSummary } from './commercial';
 
 export type ScenarioType = 'optimistic' | 'base' | 'risk_buffer' | 'pessimistic';
 
@@ -179,7 +175,8 @@ export function calculateScenarioVariations(
         ? Math.round((costDiff / baseResult.commercial.grandTotal) * 100)
         : 0;
 
-    const daysDiff = Math.round((r.durationBusinessDays - baseResult.durationBusinessDays) * 10) / 10;
+    const daysDiff =
+      Math.round((r.durationBusinessDays - baseResult.durationBusinessDays) * 10) / 10;
 
     r.diffVsBase = {
       hours: hoursDiff,
@@ -195,11 +192,6 @@ export function calculateScenarioVariations(
     optimistic: resultsMap.optimistic,
     risk_buffer: resultsMap.risk_buffer,
     pessimistic: resultsMap.pessimistic,
-    all: [
-      resultsMap.optimistic,
-      resultsMap.base,
-      resultsMap.risk_buffer,
-      resultsMap.pessimistic,
-    ],
+    all: [resultsMap.optimistic, resultsMap.base, resultsMap.risk_buffer, resultsMap.pessimistic],
   };
 }

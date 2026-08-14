@@ -72,15 +72,35 @@ export function extractRequirementsFromText(
     const line = lines[i];
 
     // Detect section categories
-    if (/пак|программно-аппаратн|сервер|схд|оборудован|стойк|шкаф|коммутатор|маршрутизатор|ибп|apc|yadro|аквариус|aquarius|fplus|скала|depo|гравитон|kraftway|qtech|eltex|cisco|huawei|dell|hpe|lenovo|supermicro|san|nas|raid|nvme|скс|зип/i.test(line)) {
+    if (
+      /пак|программно-аппаратн|сервер|схд|оборудован|стойк|шкаф|коммутатор|маршрутизатор|ибп|apc|yadro|аквариус|aquarius|fplus|скала|depo|гравитон|kraftway|qtech|eltex|cisco|huawei|dell|hpe|lenovo|supermicro|san|nas|raid|nvme|скс|зип/i.test(
+        line,
+      )
+    ) {
       currentCategory = 'hardware_pac';
-    } else if (/безопасн|иб|сзи|скзи|нсд|шифр|152-фз|187-фз|кии|фстэк|фсб|гост-vpn|криптопро|vipnet|континент|соболь|secret net|dallas lock|usergate|kaspersky|cyberpeak|positive technologies|maxpatrol|ngfw|waf|siem|аттестац|модель угроз|орд/i.test(line)) {
+    } else if (
+      /безопасн|иб|сзи|скзи|нсд|шифр|152-фз|187-фз|кии|фстэк|фсб|гост-vpn|криптопро|vipnet|континент|соболь|secret net|dallas lock|usergate|kaspersky|cyberpeak|positive technologies|maxpatrol|ngfw|waf|siem|аттестац|модель угроз|орд/i.test(
+        line,
+      )
+    ) {
       currentCategory = 'security';
-    } else if (/поставк.*по|лицензи|сублиценз|реестр.*(программ|по|188-фз)|дистрибутив|формуляр|сертификат.*подлинност/i.test(line)) {
+    } else if (
+      /поставк.*по|лицензи|сублиценз|реестр.*(программ|по|188-фз)|дистрибутив|формуляр|сертификат.*подлинност/i.test(
+        line,
+      )
+    ) {
       currentCategory = 'software_supply';
-    } else if (/интеграц|api|шлюз|rest|soap|graphql|grpc|kafka|rabbitmq|1с|смэв|еаис|esb|etl|обмен.*данн/i.test(line)) {
+    } else if (
+      /интеграц|api|шлюз|rest|soap|graphql|grpc|kafka|rabbitmq|1с|смэв|еаис|esb|etl|обмен.*данн/i.test(
+        line,
+      )
+    ) {
       currentCategory = 'integration';
-    } else if (/монтаж|пнр|пусконалад|настройк.*ос|astra linux|ред ос|альт линукс|субд|postgresql|postgres pro|виртуализац|zvirt|vmmanager|kubernetes|docker|freeipa|active directory|резервн.*копирован|бэкап|киберпротект|rubackup/i.test(line)) {
+    } else if (
+      /монтаж|пнр|пусконалад|настройк.*ос|astra linux|ред ос|альт линукс|субд|postgresql|postgres pro|виртуализац|zvirt|vmmanager|kubernetes|docker|freeipa|active directory|резервн.*копирован|бэкап|киберпротект|rubackup/i.test(
+        line,
+      )
+    ) {
       currentCategory = 'infra_setup';
     } else if (/производительн|нагруз|откли|время реакц|tps|масштабируем/i.test(line)) {
       currentCategory = 'performance';
@@ -96,7 +116,10 @@ export function extractRequirementsFromText(
 
     // Match requirement pattern (e.g. "ТР-Ф-01", "1.1.", "Система должна...", "Требование к...")
     const isExplicitCode = /(ТР|ФТ|ТТ|БР|REQ|REQ-)[-A-Za-z0-9_.]+/i.test(line);
-    const isRequirementSentence = /должн(а|о|ы)|обязан(а|о|ы)|требование|обеспечивает|поставляется|монтируется|настраивается/i.test(line);
+    const isRequirementSentence =
+      /должн(а|о|ы)|обязан(а|о|ы)|требование|обеспечивает|поставляется|монтируется|настраивается/i.test(
+        line,
+      );
 
     if ((isExplicitCode || isRequirementSentence) && line.length > 15) {
       // Extract code if present or generate standard code

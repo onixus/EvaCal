@@ -30,10 +30,13 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
   // 1. Построение каталога поставляемого ПО
   const softwareItems: SoftwareSpecItem[] = [];
 
-  const textContext = `${platforms.join(' ')} ${JSON.stringify(answers)} ${meta.systemName}`.toLowerCase();
+  const textContext =
+    `${platforms.join(' ')} ${JSON.stringify(answers)} ${meta.systemName}`.toLowerCase();
 
   if (/usergate|ngfw/i.test(textContext)) {
-    const qty = answers.ngfw_clusters_count ? `${Number(answers.ngfw_clusters_count) * 2} шт.` : '2 шт. (HA-кластер)';
+    const qty = answers.ngfw_clusters_count
+      ? `${Number(answers.ngfw_clusters_count) * 2} шт.`
+      : '2 шт. (HA-кластер)';
     softwareItems.push({
       name: 'UserGate NGFW (ПО межсетевого экранирования и обнаружения вторжений)',
       vendor: 'ООО «Юзергейт»',
@@ -96,7 +99,9 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
       reestrNumber: '№ 104',
       certification: 'Сертификат ФСТЭК России № 3637 (4 класс, 4 уровень доверия)',
       licenseType: 'Бессрочная лицензия на серверное ядро (per-Core / per-Socket)',
-      quantity: answers.db_clusters_count ? `${Number(answers.db_clusters_count) * 2} узла` : '2 узла',
+      quantity: answers.db_clusters_count
+        ? `${Number(answers.db_clusters_count) * 2} узла`
+        : '2 узла',
     });
   }
 
@@ -157,7 +162,11 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
     });
   }
 
-  if (/схд|storage|диск/i.test(textContext) || answers.db_clusters_count || ctx?.infrastructure?.storage) {
+  if (
+    /схд|storage|диск/i.test(textContext) ||
+    answers.db_clusters_count ||
+    ctx?.infrastructure?.storage
+  ) {
     const storageSpecs = ctx?.infrastructure?.storage
       ? `${ctx.infrastructure.storage}, All-Flash NVMe, двухконтроллерная архитектура (Active-Active), FC 16/32G / iSCSI 25GbE`
       : 'Двухконтроллерная архитектура (Active-Active), кэш-память 128 GB, полезная емкость от 20 TB NVMe TLC, 8x 16/32Gb FC / 25GbE iSCSI, снапшоты, репликация';
@@ -177,9 +186,12 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
       name: 'Аппаратная платформа межсетевого экрана UserGate Hardware Appliance',
       model: 'UserGate C150 / D200 / F8000',
       reestrMinpromtorg: 'Реестр Минпромторга РФ',
-      specs: 'Отказоустойчивая пара HA (Active-Passive), пропускная способность NGFW от 10 Гбит/с, bypass-порты, резервированные блоки питания',
+      specs:
+        'Отказоустойчивая пара HA (Active-Passive), пропускная способность NGFW от 10 Гбит/с, bypass-порты, резервированные блоки питания',
       formFactor: '1U Rackmount',
-      quantity: answers.ngfw_clusters_count ? `${Number(answers.ngfw_clusters_count) * 2} шт.` : '2 шт.',
+      quantity: answers.ngfw_clusters_count
+        ? `${Number(answers.ngfw_clusters_count) * 2} шт.`
+        : '2 шт.',
     });
   }
 
@@ -188,7 +200,9 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
       name: 'Серверные платформы вычислительного контура',
       model: 'Отечественная серверная платформа (РФ)',
       reestrMinpromtorg: 'ПП РФ № 878 / № 719',
-      specs: computeResources || 'Многоядерная конфигурация, от 128 GB RAM, RAID 10 SSD/NVMe, Redundant PSU',
+      specs:
+        computeResources ||
+        'Многоядерная конфигурация, от 128 GB RAM, RAID 10 SSD/NVMe, Redundant PSU',
       formFactor: 'Rack 1U/2U',
       quantity: '1 компл.',
     });
@@ -279,7 +293,12 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
       tables: [
         {
           caption: 'Таблица 3 — Спецификация серверных стоек, электропитания и СКС',
-          headers: ['№', 'Наименование элемента', 'Назначение и технические характеристики', 'Количество'],
+          headers: [
+            '№',
+            'Наименование элемента',
+            'Назначение и технические характеристики',
+            'Количество',
+          ],
           rows: [
             [
               1,

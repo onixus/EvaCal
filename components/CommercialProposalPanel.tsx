@@ -133,7 +133,14 @@ export default function CommercialProposalPanel({
             {formatCurrency(summary.directLaborCost, summary.currency)}
           </div>
           <div className="mt-1 text-xs text-slate-400 dark:text-nord-muted">
-            {summary.directLaborHours} ч • ср. {formatCurrency(summary.directLaborHours > 0 ? Math.round(summary.directLaborCost / summary.directLaborHours) : 0, summary.currency)}/ч
+            {summary.directLaborHours} ч • ср.{' '}
+            {formatCurrency(
+              summary.directLaborHours > 0
+                ? Math.round(summary.directLaborCost / summary.directLaborHours)
+                : 0,
+              summary.currency,
+            )}
+            /ч
           </div>
         </div>
 
@@ -323,7 +330,12 @@ export default function CommercialProposalPanel({
 
                   <div className="flex items-center gap-3 sm:w-2/3 sm:justify-end">
                     <span className="text-xs text-slate-400 dark:text-nord-muted">
-                      ≈ {formatCurrency(Math.round(summary.riskCost / summary.riskHours), summary.currency)}/ч
+                      ≈{' '}
+                      {formatCurrency(
+                        Math.round(summary.riskCost / summary.riskHours),
+                        summary.currency,
+                      )}
+                      /ч
                     </span>
                     <div className="w-28 text-right text-sm font-bold text-slate-900 dark:text-nord-6">
                       {formatCurrency(summary.riskCost, summary.currency)}

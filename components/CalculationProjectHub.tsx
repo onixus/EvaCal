@@ -42,7 +42,13 @@ interface CalculationData {
 
 export default function CalculationProjectHub({ calculation }: { calculation: CalculationData }) {
   const [activeTab, setActiveTab] = useState<
-    'summary' | 'commercial' | 'scenarios' | 'schedule' | 'traceability' | 'specification' | 'gost34'
+    | 'summary'
+    | 'commercial'
+    | 'scenarios'
+    | 'schedule'
+    | 'traceability'
+    | 'specification'
+    | 'gost34'
   >('summary');
   const [isGostModalOpen, setIsGostModalOpen] = useState(false);
 
