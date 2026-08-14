@@ -47,6 +47,43 @@ const config: Config = {
           green: '#a3be8c',
           purple: '#b48ead',
         },
+        // Dark Fantasy & Heroines theme palette
+        fantasy: {
+          abyss: '#080511', // void abyss background
+          crypt: '#0f0a1d', // deeper background / recessed panels
+          chamber: '#19112e', // cards & surfaces
+          altar: '#241842', // elevated cards & popovers
+          border: '#3c2363', // gothic borders
+          borderGlow: '#9333ea', // glowing arcane border
+          rune: '#a855f7', // arcane purple
+          runeBright: '#c084fc', // glowing lavender
+          crimson: '#e11d48', // blood knightess red
+          crimsonBright: '#fb7185',
+          gold: '#f59e0b', // holy oracle gold
+          goldBright: '#fde047',
+          cyan: '#06b6d4', // astral spirit cyan
+          text: '#f3e8ff', // moonlight white text
+          muted: '#a78bfa', // soft purple muted text
+        },
+      },
+      animation: {
+        'rune-glow': 'runeGlow 3s ease-in-out infinite alternate',
+        'float-slow': 'float 4s ease-in-out infinite',
+        'pulse-subtle': 'pulseSubtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      },
+      keyframes: {
+        runeGlow: {
+          '0%': { boxShadow: '0 0 10px rgba(168, 85, 247, 0.2), inset 0 0 10px rgba(168, 85, 247, 0.1)' },
+          '100%': { boxShadow: '0 0 25px rgba(168, 85, 247, 0.5), inset 0 0 15px rgba(168, 85, 247, 0.25)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-6px)' },
+        },
+        pulseSubtle: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.7' },
+        },
       },
     },
   },
