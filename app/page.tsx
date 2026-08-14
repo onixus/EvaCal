@@ -17,7 +17,6 @@ export default async function HomePage(props: { searchParams: Promise<{ page?: s
       <div className="mx-auto max-w-4xl space-y-8 py-8">
         <DarkFantasyShowcase />
         <div className="card overflow-hidden border-slate-200/80 shadow-md">
-
           <div className="bg-gradient-to-br from-brand-600 to-indigo-700 p-8 text-white dark:from-nord-0 dark:to-nord-1 dark:border-b dark:border-nord-3">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold backdrop-blur-xs">
               <span>🚀 EvaCal v0.2.0</span>

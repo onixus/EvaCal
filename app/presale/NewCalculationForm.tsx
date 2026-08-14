@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import DynamicForm, { FormFieldDef } from '@/components/DynamicForm';
 import { storeShareToken, withShareHeaders } from '@/lib/shareClient';
 
-interface Template {
+export interface TemplateDef {
   id: string;
   name: string;
+  description?: string | null;
   fields: FormFieldDef[];
   defaultStartDate: string | null;
 }
@@ -18,20 +19,33 @@ function todayIso(): string {
 
 export default function NewCalculationForm({
   template,
+  availableTemplates = [],
   createShareToken = null,
 }: {
-  template: Template;
+  template: TemplateDef;
+  availableTemplates?: TemplateDef[];
   /** Optional create-scoped share from `?share=` on /presale. */
   createShareToken?: string | null;
 }) {
   const router = useRouter();
+  const [selectedTemplateId, setSelectedTemplateId] = useState(template.id);
+  const currentTemplate =
+    availableTemplates.find((t) => t.id === selectedTemplateId) || template;
+
   const [name, setName] = useState('');
   const [customer, setCustomer] = useState('');
-  const [startDate, setStartDate] = useState(template.defaultStartDate?.slice(0, 10) ?? todayIso());
+  const [startDate, setStartDate] = useState(
+    currentTemplate.defaultStartDate?.slice(0, 10) ?? todayIso(),
+  );
   const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const startDateLocked = !!template.defaultStartDate;
+  const startDateLocked = !!currentTemplate.defaultStartDate;
+
+  function handleTemplateChange(newId: string) {
+    setSelectedTemplateId(newId);
+    setAnswers({});
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,7 +60,7 @@ export default function NewCalculationForm({
         body: JSON.stringify({
           name,
           customer,
-          templateId: template.id,
+          templateId: currentTemplate.id,
           answers,
           startDate,
         }),
@@ -71,6 +85,39 @@ export default function NewCalculationForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Шаблон опросника */}
+      {availableTemplates.length > 1 && (
+        <div className="space-y-2 border-b border-slate-200/80 pb-5 dark:border-nord-3">
+          <label className="label text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-nord-muted">
+            Выбор отраслевого шаблона
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {availableTemplates.map((tmpl) => {
+              const isSelected = tmpl.id === currentTemplate.id;
+              return (
+                <button
+                  key={tmpl.id}
+                  type="button"
+                  onClick={() => handleTemplateChange(tmpl.id)}
+                  className={`p-3 rounded-lg text-left border transition-all text-xs flex flex-col justify-between ${
+                    isSelected
+                      ? 'border-brand-600 bg-brand-50/50 text-brand-900 ring-1 ring-brand-600 dark:bg-brand-950/40 dark:text-brand-200 dark:border-brand-500'
+                      : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-nord-dark text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <span className="font-semibold">{tmpl.name}</span>
+                  {tmpl.description && (
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                      {tmpl.description}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 1. Основные параметры */}
       <div className="space-y-4">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-nord-muted">
@@ -84,7 +131,7 @@ export default function NewCalculationForm({
             <input
               className="input"
               required
-              placeholder="Например: Модернизация СЭД"
+              placeholder="Например: Внедрение NGFW и СЗИ в головном офисе"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
@@ -96,7 +143,7 @@ export default function NewCalculationForm({
             <input
               className="input"
               required
-              placeholder="Например: ПАО «Газпром»"
+              placeholder="Например: ПАО «Банк Финанс»"
               value={customer}
               onChange={(e) => setCustomer(e.target.value)}
             />
@@ -124,14 +171,15 @@ export default function NewCalculationForm({
       <div className="border-t border-slate-200/80 pt-6 dark:border-nord-3">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-nord-muted">
-            2. Параметры шаблона «{template.name}»
+            2. Параметры опросника «{currentTemplate.name}»
           </h3>
           <span className="text-xs text-slate-400">
-            {template.fields.length} {template.fields.length === 1 ? 'вопрос' : 'вопросов'}
+            {currentTemplate.fields.length}{' '}
+            {currentTemplate.fields.length === 1 ? 'вопрос' : 'вопросов'}
           </span>
         </div>
         <DynamicForm
-          fields={template.fields}
+          fields={currentTemplate.fields}
           values={answers}
           onChange={(key, value) => setAnswers((prev) => ({ ...prev, [key]: value }))}
         />
@@ -143,12 +191,12 @@ export default function NewCalculationForm({
         </div>
       )}
 
-      <div className="border-t border-slate-200/80 pt-4 flex items-center justify-between dark:border-nord-3">
+      <div className="border-t border-slate-200/80 pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 dark:border-nord-3">
         <p className="text-xs text-slate-500 dark:text-nord-muted">
           После отправки форма рассчитает трудозатраты и построит предварительный план.
         </p>
         <button type="submit" className="btn-primary !px-6 shadow-md" disabled={submitting}>
-          {submitting ? 'Выполняется расчёт…' : 'Рассчитать трудозатраты ➔'}
+          {submitting ? 'Создание расчёта...' : 'Рассчитать трудозатраты'}
         </button>
       </div>
     </form>

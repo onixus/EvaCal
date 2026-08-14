@@ -60,16 +60,21 @@ describe('шаги мастера', () => {
       'applicability',
       'traceability',
       'signatures',
+      'preview',
       'compliance',
     ]);
-    expect(WIZARD_STEPS.map((step) => step.order)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(WIZARD_STEPS.map((step) => step.order)).toEqual([1, 2, 3, 4, 5, 6, 7]);
   });
 
   it('ходит по соседним шагам и останавливается на краях', () => {
     expect(adjacentWizardStep('profile', 'next')).toBe('requirements');
     expect(adjacentWizardStep('requirements', 'prev')).toBe('profile');
+    expect(adjacentWizardStep('signatures', 'next')).toBe('preview');
+    expect(adjacentWizardStep('preview', 'next')).toBe('compliance');
+    expect(adjacentWizardStep('preview', 'prev')).toBe('signatures');
     expect(adjacentWizardStep('profile', 'prev')).toBeUndefined();
     expect(adjacentWizardStep('compliance', 'next')).toBeUndefined();
+    expect(getWizardStep('preview').title).toBe('Предпросмотр и правка');
     expect(getWizardStep('compliance').title).toBe('Соответствие и выпуск');
   });
 });

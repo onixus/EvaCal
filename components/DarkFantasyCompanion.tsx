@@ -101,12 +101,8 @@ export default function DarkFantasyCompanion() {
                       </span>
                     )}
                   </div>
-                  <span className="text-xs font-bold text-purple-200 leading-tight">
-                    {h.name}
-                  </span>
-                  <span className="text-[10px] text-purple-400 leading-none">
-                    {h.role}
-                  </span>
+                  <span className="text-xs font-bold text-purple-200 leading-tight">{h.name}</span>
+                  <span className="text-[10px] text-purple-400 leading-none">{h.role}</span>
                 </button>
               );
             })}
@@ -127,9 +123,7 @@ export default function DarkFantasyCompanion() {
               <span className="inline-flex items-center rounded-full bg-purple-950/80 px-2 py-0.5 text-[10px] font-semibold text-purple-300 border border-purple-600/40">
                 {heroine.badge}
               </span>
-              <span className="text-[11px] font-bold text-purple-200">
-                {heroine.name}
-              </span>
+              <span className="text-[11px] font-bold text-purple-200">{heroine.name}</span>
             </div>
 
             <div className="flex items-center gap-1.5 text-xs text-purple-400">
@@ -202,9 +196,7 @@ export default function DarkFantasyCompanion() {
             <span className="text-[11px] font-bold text-purple-200 group-hover:text-white leading-tight">
               {heroine.name}
             </span>
-            <span className="text-[9px] text-purple-400 leading-none">
-              Тёмная Хранительница
-            </span>
+            <span className="text-[9px] text-purple-400 leading-none">Тёмная Хранительница</span>
           </div>
         </button>
       )}

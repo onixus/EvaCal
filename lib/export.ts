@@ -37,6 +37,14 @@ export interface CalculationForExport {
   fields: FieldForExport[];
   stages: StageForExport[];
   risks: RiskForExport[];
+  // Commercial fields (Horizon B4)
+  currency?: string;
+  roleRates?: string | null;
+  overheadPercent?: number;
+  marginPercent?: number;
+  discountPercent?: number;
+  vatPercent?: number;
+  includeVat?: boolean;
 }
 
 /** Shared shape/query for the PDF, XLSX and JSON export routes. */
@@ -63,6 +71,13 @@ export async function loadCalculationForExport(id: string): Promise<CalculationF
     fields: calculation.template.fields,
     stages: calculation.stages,
     risks: calculation.risks,
+    currency: calculation.currency,
+    roleRates: calculation.roleRates,
+    overheadPercent: calculation.overheadPercent,
+    marginPercent: calculation.marginPercent,
+    discountPercent: calculation.discountPercent,
+    vatPercent: calculation.vatPercent,
+    includeVat: calculation.includeVat,
   };
 }
 

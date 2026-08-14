@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import NewTemplateForm from './NewTemplateForm';
 import TemplateList from './TemplateList';
+import PresetImportPanel from '@/components/PresetImportPanel';
 import Pagination from '@/components/Pagination';
 import { PAGE_SIZE, pageArgs, parsePage } from '@/lib/pagination';
 
@@ -36,6 +37,10 @@ export default async function AdminPage(props: { searchParams: Promise<{ page?: 
         <Link href="/admin/users" className="btn-secondary">
           Пользователи
         </Link>
+      </div>
+
+      <div className="card p-6">
+        <PresetImportPanel />
       </div>
 
       <div className="card p-6">

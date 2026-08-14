@@ -141,7 +141,7 @@
     "WARNING": 8,
     "INFO": 5
   },
-  "traceabilityCoveragePercent": 87.5,
+  "traceabilityCoveragePercent": 75,
   "contextGapPaths": [
     "goals",
     "measurableGoalCriteria",

@@ -38,4 +38,3 @@ export function applyTheme(theme: Theme): void {
 export const THEME_INIT_SCRIPT = `(function(){try{var s=localStorage.getItem(${JSON.stringify(
   THEME_STORAGE_KEY,
 )});if(s==='dark-fantasy'){document.documentElement.classList.add('dark','dark-fantasy');document.documentElement.setAttribute('data-theme','dark-fantasy');}else if(s==='dark'){document.documentElement.classList.add('dark');document.documentElement.classList.remove('dark-fantasy');document.documentElement.removeAttribute('data-theme');}else if(s==='light'){document.documentElement.classList.remove('dark','dark-fantasy');document.documentElement.removeAttribute('data-theme');}else{var dark=window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',dark);}}catch(e){}})();`;
-

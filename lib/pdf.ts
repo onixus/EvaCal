@@ -4,6 +4,7 @@ import { roleLabel, STATUS_LABELS } from './roles';
 import { totalLaborHours } from './scheduling';
 import { risksTotalHours } from './totals';
 import { CalculationForExport as CalculationForPdf } from './export';
+import { calculateCommercialSummary, formatCurrency } from './commercial';
 
 // pdfkit's built-in fonts only support WinAnsi (no Cyrillic), so a Cyrillic-capable
 // TTF is bundled via the dejavu-fonts-ttf package instead of relying on the host's fonts.
@@ -141,14 +142,39 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
   const risksHours = risksTotalHours(calc.risks);
   const grandTotal = stagesHours + calc.pmHours + risksHours;
 
-  ensureSpace(90);
-  doc.font('bold').fontSize(13).text('Трудозатраты', 40, doc.y);
+  const commercial = calculateCommercialSummary(calc.stages, calc.pmHours, calc.risks, {
+    currency: calc.currency,
+    roleRates: calc.roleRates,
+    overheadPercent: calc.overheadPercent,
+    marginPercent: calc.marginPercent,
+    discountPercent: calc.discountPercent,
+    vatPercent: calc.vatPercent,
+    includeVat: calc.includeVat,
+  });
+
+  ensureSpace(140);
+  doc.font('bold').fontSize(13).text('Трудозатраты и стоимость', 40, doc.y);
   doc.moveDown(0.3);
   doc.font('body').fontSize(10);
-  doc.text(`Этапы: ${stagesHours} ч`, 40, doc.y);
-  doc.text(`РП: ${calc.pmHours} ч`, 40, doc.y);
-  doc.text(`Риски: ${risksHours} ч`, 40, doc.y);
-  doc.font('bold').text(`Итого: ${grandTotal} ч`, 40, doc.y);
+  doc.text(`Трудоемкость этапов: ${stagesHours} ч`, 40, doc.y);
+  doc.text(`Управление проектом (РП): ${calc.pmHours} ч`, 40, doc.y);
+  doc.text(`Резерв на риски: ${risksHours} ч`, 40, doc.y);
+  doc.font('bold').text(`Итого трудоемкость: ${grandTotal} ч (≈ ${(grandTotal / 8).toFixed(1)} раб. дн.)`, 40, doc.y);
+  doc.moveDown(0.5);
+
+  doc.font('body').text(`Прямая себестоимость: ${formatCurrency(commercial.directLaborCost, commercial.currency)}`, 40, doc.y);
+  if (commercial.overheadAmount > 0) {
+    doc.text(`Накладные расходы (${commercial.overheadPercent}%): ${formatCurrency(commercial.overheadAmount, commercial.currency)}`, 40, doc.y);
+  }
+  doc.text(`Плановая маржа (${commercial.marginPercent}%): ${formatCurrency(commercial.marginAmount, commercial.currency)}`, 40, doc.y);
+  if (commercial.discountAmount > 0) {
+    doc.text(`Скидка (${commercial.discountPercent}%): -${formatCurrency(commercial.discountAmount, commercial.currency)}`, 40, doc.y);
+  }
+  doc.text(`Сумма без НДС: ${formatCurrency(commercial.subtotalExVat, commercial.currency)} (ставка: ${formatCurrency(commercial.blendedHourlyRate, commercial.currency)}/ч)`, 40, doc.y);
+  if (calc.includeVat) {
+    doc.text(`НДС (${commercial.vatPercent}%): ${formatCurrency(commercial.vatAmount, commercial.currency)}`, 40, doc.y);
+  }
+  doc.font('bold').fontSize(11).text(`ИТОГО К ОПЛАТЕ: ${formatCurrency(commercial.grandTotal, commercial.currency)}`, 40, doc.y);
   doc.moveDown(1);
 
   if (calc.risks.length > 0) {

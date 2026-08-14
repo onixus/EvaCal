@@ -31,7 +31,12 @@ const HEROINE_IMAGES: Record<string, { full: string; avatar: string; alt: string
   },
 };
 
-export function HeroinePortrait({ heroineId, size = 120, className = '', showFrame = true }: PortraitProps) {
+export function HeroinePortrait({
+  heroineId,
+  size = 120,
+  className = '',
+  showFrame = true,
+}: PortraitProps) {
   const data = HEROINE_IMAGES[heroineId] || HEROINE_IMAGES.morgana;
   const imageSrc = showFrame ? data.full : data.avatar;
 

@@ -64,6 +64,13 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   const primary = primaryStagesFromTemplate(existing.template.stageTemplates, answers);
   const pmHours = pmHoursFor(existing.template.fields, answers, primary);
 
+  const roleRatesJson =
+    body.roleRates !== undefined
+      ? typeof body.roleRates === 'object'
+        ? JSON.stringify(body.roleRates)
+        : body.roleRates
+      : existing.roleRates;
+
   const calculation = await prisma.calculation.update({
     where: { id: params.id },
     data: {
@@ -73,6 +80,13 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
       startDate,
       pmHours,
       status: existing.status === 'pending_approval' ? 'draft' : existing.status,
+      currency: body.currency ?? existing.currency,
+      roleRates: roleRatesJson,
+      overheadPercent: body.overheadPercent !== undefined ? Number(body.overheadPercent) : existing.overheadPercent,
+      marginPercent: body.marginPercent !== undefined ? Number(body.marginPercent) : existing.marginPercent,
+      discountPercent: body.discountPercent !== undefined ? Number(body.discountPercent) : existing.discountPercent,
+      vatPercent: body.vatPercent !== undefined ? Number(body.vatPercent) : existing.vatPercent,
+      includeVat: body.includeVat !== undefined ? Boolean(body.includeVat) : existing.includeVat,
     },
   });
 
@@ -96,8 +110,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
 }
 
 // Architect/admin override: bypasses the template-level lock on startDate
-// (but not the global "already approved" lock). Rescheduling preserves every stage's
-// current hours and per-stage requirements — it only shifts dates, it never re-runs formulas.
+// and allows updating commercial parameters, dates, or schedule.
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const auth = await requireStaff();
@@ -118,27 +131,43 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       { status: 409 },
     );
   }
-  if (!body.startDate) {
-    return NextResponse.json({ error: 'startDate is required' }, { status: 400 });
-  }
 
-  const startDate = new Date(body.startDate);
+  const roleRatesJson =
+    body.roleRates !== undefined
+      ? typeof body.roleRates === 'object'
+        ? JSON.stringify(body.roleRates)
+        : body.roleRates
+      : existing.roleRates;
+
+  const startDate = body.startDate ? new Date(body.startDate) : existing.startDate;
+
   await prisma.calculation.update({
     where: { id: params.id },
-    data: { startDate },
+    data: {
+      startDate,
+      currency: body.currency ?? existing.currency,
+      roleRates: roleRatesJson,
+      overheadPercent: body.overheadPercent !== undefined ? Number(body.overheadPercent) : existing.overheadPercent,
+      marginPercent: body.marginPercent !== undefined ? Number(body.marginPercent) : existing.marginPercent,
+      discountPercent: body.discountPercent !== undefined ? Number(body.discountPercent) : existing.discountPercent,
+      vatPercent: body.vatPercent !== undefined ? Number(body.vatPercent) : existing.vatPercent,
+      includeVat: body.includeVat !== undefined ? Boolean(body.includeVat) : existing.includeVat,
+    },
   });
 
-  const primary = existing.stages
-    .filter((s) => !s.isApprovalTask)
-    .map((s) => ({
-      name: s.name,
-      role: s.role,
-      hours: s.hours,
-      requirements: s.requirements,
-      parallel: s.parallel,
-      approvalDays: s.approvalDays,
-    }));
-  await rebuildStages(params.id, primary, startDate, scheduleConfigFromTemplate(existing.template));
+  if (body.startDate) {
+    const primary = existing.stages
+      .filter((s) => !s.isApprovalTask)
+      .map((s) => ({
+        name: s.name,
+        role: s.role,
+        hours: s.hours,
+        requirements: s.requirements,
+        parallel: s.parallel,
+        approvalDays: s.approvalDays,
+      }));
+    await rebuildStages(params.id, primary, startDate, scheduleConfigFromTemplate(existing.template));
+  }
 
   return NextResponse.json({ ok: true });
 }

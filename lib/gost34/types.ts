@@ -74,7 +74,13 @@ export type RequirementCategory =
   | 'ergonomics'
   | 'technical'
   | 'software'
-  | 'organizational';
+  | 'organizational'
+  | 'hardware_pac'
+  | 'software_supply'
+  | 'infra_setup'
+  | 'integration'
+  | 'testing_acceptance'
+  | 'training_support';
 
 export interface Gost34RequirementItem {
   id: string;

@@ -12,6 +12,7 @@ export interface WizardDecisions {
   applicabilityOverrides: Record<string, ApplicabilityOverride>;
   manualLinks: TraceLink[];
   signatures: Record<string, string>;
+  sectionOverrides?: Record<string, { title?: string; paragraphs?: string[] }>;
 }
 
 export interface WizardStepProps {

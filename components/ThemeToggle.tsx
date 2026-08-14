@@ -76,8 +76,8 @@ export default function ThemeToggle() {
           theme === 'dark-fantasy'
             ? 'border border-purple-500/50 bg-purple-950/40 text-purple-200 shadow-[0_0_12px_rgba(168,85,247,0.35)] hover:bg-purple-900/60'
             : theme === 'dark'
-            ? 'border border-nord-3 bg-nord-2 text-nord-4 hover:bg-nord-3 hover:text-nord-6'
-            : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              ? 'border border-nord-3 bg-nord-2 text-nord-4 hover:bg-nord-3 hover:text-nord-6'
+              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
         }`}
       >
         <span className="text-sm">

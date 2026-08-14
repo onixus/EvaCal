@@ -52,8 +52,7 @@ export async function parseVendorDocument(
 
 /**
  * Heuristic requirement extraction logic from vendor specification text.
- * Searches for lines containing "ТР-", "ФТ-", "ТТ-", "Требование", "Должен", "Система должна",
- * numbered lists, or section headers.
+ * Enhanced with full IT, Cybersecurity (ИБ), Software Supply, Hardware/PAC, and Infrastructure categories.
  */
 export function extractRequirementsFromText(
   text: string,
@@ -73,22 +72,31 @@ export function extractRequirementsFromText(
     const line = lines[i];
 
     // Detect section categories
-    if (/безопасн|шифров|авториз|права док/i.test(line)) {
+    if (/пак|программно-аппаратн|сервер|схд|оборудован|стойк|шкаф|коммутатор|маршрутизатор|ибп|apc|yadro|аквариус|aquarius|fplus|скала|depo|гравитон|kraftway|qtech|eltex|cisco|huawei|dell|hpe|lenovo|supermicro|san|nas|raid|nvme|скс|зип/i.test(line)) {
+      currentCategory = 'hardware_pac';
+    } else if (/безопасн|иб|сзи|скзи|нсд|шифр|152-фз|187-фз|кии|фстэк|фсб|гост-vpn|криптопро|vipnet|континент|соболь|secret net|dallas lock|usergate|kaspersky|cyberpeak|positive technologies|maxpatrol|ngfw|waf|siem|аттестац|модель угроз|орд/i.test(line)) {
       currentCategory = 'security';
-    } else if (/производительн|нагруз|откли|время реакц/i.test(line)) {
+    } else if (/поставк.*по|лицензи|сублиценз|реестр.*(программ|по|188-фз)|дистрибутив|формуляр|сертификат.*подлинност/i.test(line)) {
+      currentCategory = 'software_supply';
+    } else if (/интеграц|api|шлюз|rest|soap|graphql|grpc|kafka|rabbitmq|1с|смэв|еаис|esb|etl|обмен.*данн/i.test(line)) {
+      currentCategory = 'integration';
+    } else if (/монтаж|пнр|пусконалад|настройк.*ос|astra linux|ред ос|альт линукс|субд|postgresql|postgres pro|виртуализац|zvirt|vmmanager|kubernetes|docker|freeipa|active directory|резервн.*копирован|бэкап|киберпротект|rubackup/i.test(line)) {
+      currentCategory = 'infra_setup';
+    } else if (/производительн|нагруз|откли|время реакц|tps|масштабируем/i.test(line)) {
       currentCategory = 'performance';
-    } else if (/надежн|отказоустойч|резерв|восстановл/i.test(line)) {
+    } else if (/надежн|отказоустойч|резерв|восстановл|sla|rto|rpo|кластер/i.test(line)) {
       currentCategory = 'reliability';
-    } else if (/интерфейс|эргоном|удобств|wcag/i.test(line)) {
+    } else if (/интерфейс|эргоном|удобств|wcag|экран|форма|дизайн/i.test(line)) {
       currentCategory = 'ergonomics';
-    } else if (/технич|сервер|субд|бд|архитектур/i.test(line)) {
-      currentCategory = 'technical';
+    } else if (/испытан|пми|приемк|тестирован|опытн.*эксплуатац/i.test(line)) {
+      currentCategory = 'testing_acceptance';
+    } else if (/обучен|персонал|руководств|сопровожден|техподдержк/i.test(line)) {
+      currentCategory = 'training_support';
     }
 
     // Match requirement pattern (e.g. "ТР-Ф-01", "1.1.", "Система должна...", "Требование к...")
     const isExplicitCode = /(ТР|ФТ|ТТ|БР|REQ|REQ-)[-A-Za-z0-9_.]+/i.test(line);
-    const isRequirementSentence = /должн(а|о|ы)|обязан(а|о|ы)|требование|обеспечивает/i.test(line);
-    const isNumberedItem = /^\d+(\.\d+)*[\s\)\.-]/.test(line);
+    const isRequirementSentence = /должн(а|о|ы)|обязан(а|о|ы)|требование|обеспечивает|поставляется|монтируется|настраивается/i.test(line);
 
     if ((isExplicitCode || isRequirementSentence) && line.length > 15) {
       // Extract code if present or generate standard code
@@ -100,7 +108,6 @@ export function extractRequirementsFromText(
       // Clean up tab stops and multiple spaces
       const cleanLine = line.replace(/\t+/g, ' ').replace(/\s+/g, ' ').trim();
 
-      // Preserve FULL title without arbitrary character truncation
       const title = cleanLine;
       const description = cleanLine;
 
@@ -119,18 +126,20 @@ export function extractRequirementsFromText(
 
   // Fallback: If no explicit requirements found, split text into logical paragraphs as requirements
   if (requirements.length === 0 && lines.length > 0) {
-    lines.slice(0, 15).forEach((line, idx) => {
+    let pIdx = 1;
+    for (const line of lines) {
       if (line.length > 20) {
         requirements.push({
-          id: `req-vendor-fallback-${idx + 1}`,
-          code: `ТР-ВЕНД-${String(idx + 1).padStart(2, '0')}`,
+          id: `req-vendor-${pIdx}`,
+          code: `ТР-ВЕНД-${String(pIdx).padStart(2, '0')}`,
           category: 'functional',
-          title: `Вендорское требование № ${idx + 1}`,
+          title: line,
           description: line,
           sourceFile,
         });
+        pIdx++;
       }
-    });
+    }
   }
 
   return requirements;

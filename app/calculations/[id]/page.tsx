@@ -58,6 +58,13 @@ export default async function CalculationViewPage(props: { params: Promise<{ id:
       hours: r.hours,
     })),
     answers,
+    currency: calculation.currency,
+    roleRates: calculation.roleRates,
+    overheadPercent: calculation.overheadPercent,
+    marginPercent: calculation.marginPercent,
+    discountPercent: calculation.discountPercent,
+    vatPercent: calculation.vatPercent,
+    includeVat: calculation.includeVat,
   };
 
   return <CalculationProjectHub calculation={serializedCalculation} />;

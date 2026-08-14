@@ -16,6 +16,7 @@ import RequirementsStep from './steps/RequirementsStep';
 import ApplicabilityStep from './steps/ApplicabilityStep';
 import TraceabilityStep from './steps/TraceabilityStep';
 import SignaturesStep from './steps/SignaturesStep';
+import DocumentPreviewStep from './steps/DocumentPreviewStep';
 import ComplianceStep from './steps/ComplianceStep';
 
 const DEFAULT_SIGNATURES: Record<string, string> = {
@@ -58,6 +59,9 @@ export default function Gost34WizardModal({
   const [signatures, setSignatures] = useState<Record<string, string>>(DEFAULT_SIGNATURES);
   const [contractNumber, setContractNumber] = useState('Договор № 01-ГС/2026');
   const [city, setCity] = useState('Москва');
+  const [sectionOverrides, setSectionOverrides] = useState<
+    Record<string, { title?: string; paragraphs?: string[]; items?: string[] }>
+  >({});
 
   // Результат серверной проверки
   const [review, setReview] = useState<WizardReviewResult | null>(null);
@@ -162,6 +166,7 @@ export default function Gost34WizardModal({
       rawRequirements: requirements,
       /** Подтверждённые связи печатаются в матрице прослеживаемости документа. */
       manualLinks,
+      sectionOverrides,
     }),
     [
       layoutProfileId,
@@ -173,6 +178,7 @@ export default function Gost34WizardModal({
       signatures,
       requirements,
       manualLinks,
+      sectionOverrides,
     ],
   );
 
@@ -257,7 +263,7 @@ export default function Gost34WizardModal({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-5 border-b border-[#2e3440] pb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-5 border-b border-[#2e3440] pb-4">
           {WIZARD_STEPS.map((step) => {
             const isActive = activeStep === step.id;
             const status = stepStatus(step.id);
@@ -269,7 +275,7 @@ export default function Gost34WizardModal({
                 type="button"
                 onClick={() => setActiveStep(step.id)}
                 aria-current={isActive ? 'step' : undefined}
-                className={`p-3 rounded-xl border text-left transition-all ${
+                className={`p-2.5 rounded-xl border text-left transition-all ${
                   isActive
                     ? 'bg-blue-600 border-blue-400 text-white font-bold shadow-lg shadow-blue-600/30 ring-1 ring-blue-300'
                     : 'bg-[#242832] border-[#3b4252] text-slate-300 hover:bg-[#2c313d] hover:text-white'
@@ -346,6 +352,26 @@ export default function Gost34WizardModal({
               onContractNumberChange={setContractNumber}
               city={city}
               onCityChange={setCity}
+            />
+          )}
+
+          {activeStep === 'preview' && (
+            <DocumentPreviewStep
+              decisions={{
+                standardProfileId,
+                layoutProfileId,
+                docType,
+                rawRequirements: requirements,
+                applicabilityOverrides,
+                manualLinks,
+                signatures,
+                sectionOverrides,
+              }}
+              calculationId={calculationId}
+              review={review}
+              isReviewLoading={isReviewLoading}
+              reviewError={reviewError}
+              onUpdateSectionOverrides={setSectionOverrides}
             />
           )}
 

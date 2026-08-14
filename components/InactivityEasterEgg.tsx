@@ -74,7 +74,9 @@ export default function InactivityEasterEgg() {
       return;
     }
     const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
-    const onActivity = () => { if (!isOpen) resetTimer(); };
+    const onActivity = () => {
+      if (!isOpen) resetTimer();
+    };
     events.forEach((ev) => window.addEventListener(ev, onActivity, { passive: true }));
     resetTimer();
     return () => {
@@ -103,21 +105,27 @@ export default function InactivityEasterEgg() {
     <>
       {/* Inactivity progress bar */}
       {!isOpen && (
-        <div style={{
-          position: 'fixed',
-          bottom: 0, left: 0, right: 0,
-          height: '2px',
-          zIndex: 30,
-          pointerEvents: 'none',
-          background: 'rgba(30, 0, 50, 0.4)',
-        }}>
-          <div style={{
-            height: '100%',
-            width: `${((45 - timeLeft) / 45) * 100}%`,
-            background: 'linear-gradient(90deg, #e879f9, #c084fc, #38bdf8, #f43f5e)',
-            opacity: 0.5,
-            transition: 'width 1s linear',
-          }} />
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '2px',
+            zIndex: 30,
+            pointerEvents: 'none',
+            background: 'rgba(30, 0, 50, 0.4)',
+          }}
+        >
+          <div
+            style={{
+              height: '100%',
+              width: `${((45 - timeLeft) / 45) * 100}%`,
+              background: 'linear-gradient(90deg, #e879f9, #c084fc, #38bdf8, #f43f5e)',
+              opacity: 0.5,
+              transition: 'width 1s linear',
+            }}
+          />
         </div>
       )}
 
@@ -160,7 +168,10 @@ export default function InactivityEasterEgg() {
 
           {/* Close button — top right */}
           <button
-            onClick={() => { close(); resetTimer(); }}
+            onClick={() => {
+              close();
+              resetTimer();
+            }}
             style={{
               position: 'absolute',
               top: '24px',
@@ -197,30 +208,38 @@ export default function InactivityEasterEgg() {
           </button>
 
           {/* Bottom hint */}
-          <div style={{
-            position: 'absolute',
-            bottom: '24px',
-            left: 0, right: 0,
-            textAlign: 'center',
-            zIndex: 10,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '12px',
-            animation: 'ee-fade-in 3s ease-out',
-          }}>
-            <span style={{
-              fontFamily: 'monospace',
-              fontSize: '11px',
-              letterSpacing: '0.2em',
-              color: 'rgba(168,85,247,0.6)',
-              textTransform: 'uppercase',
-              textShadow: '0 0 20px rgba(0,0,0,0.8)',
-            }}>
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '24px',
+              left: 0,
+              right: 0,
+              textAlign: 'center',
+              zIndex: 10,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '12px',
+              animation: 'ee-fade-in 3s ease-out',
+            }}
+          >
+            <span
+              style={{
+                fontFamily: 'monospace',
+                fontSize: '11px',
+                letterSpacing: '0.2em',
+                color: 'rgba(168,85,247,0.6)',
+                textTransform: 'uppercase',
+                textShadow: '0 0 20px rgba(0,0,0,0.8)',
+              }}
+            >
               ✦ Тёмное Видение — пасхалка 45с бездействия ✦
             </span>
             <button
-              onClick={() => { close(); resetTimer(); }}
+              onClick={() => {
+                close();
+                resetTimer();
+              }}
               style={{
                 padding: '8px 24px',
                 borderRadius: '999px',

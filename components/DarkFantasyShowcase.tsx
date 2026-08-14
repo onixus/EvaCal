@@ -47,7 +47,8 @@ export default function DarkFantasyShowcase() {
 
         <div className="flex items-center gap-2">
           <span className="rounded-full bg-purple-950/90 px-3 py-1 text-[11px] font-semibold text-purple-200 border border-purple-500/40 shadow-inner">
-            Активная дева: <strong style={{ color: selectedHeroine.themeColor }}>{selectedHeroine.name}</strong>
+            Активная дева:{' '}
+            <strong style={{ color: selectedHeroine.themeColor }}>{selectedHeroine.name}</strong>
           </span>
         </div>
       </div>
@@ -87,7 +88,9 @@ export default function DarkFantasyShowcase() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent pointer-events-none" />
                 <div className="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between text-xs">
-                  <span className="font-bold text-white drop-shadow font-serif tracking-wider">{h.name}</span>
+                  <span className="font-bold text-white drop-shadow font-serif tracking-wider">
+                    {h.name}
+                  </span>
                   <span className="text-[10px] font-mono font-bold" style={{ color: h.themeColor }}>
                     {h.stats.affinity}
                   </span>
