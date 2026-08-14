@@ -169,6 +169,7 @@ docker compose up -d --build
 | Документ                                                                           | О чём                                                                        |
 | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | [docs/RELEASE_REGISTRY_PLAN.md](docs/RELEASE_REGISTRY_PLAN.md)                     | **Текущий горизонт:** проект, снимок мастера, неизменяемый ZIP, согласование |
+| [docs/LLM_TZ_AUTHOR_DESIGN.md](docs/LLM_TZ_AUTHOR_DESIGN.md)                       | LLM-черновики разделов ТЗ: схема остаётся истиной, человек принимает         |
 | [docs/CRITICAL_ASSESSMENT_AND_ROADMAP.md](docs/CRITICAL_ASSESSMENT_AND_ROADMAP.md) | Критика продукта и горизонты A–D                                             |
 | [docs/GOST34_MODERNIZATION_PLAN.md](docs/GOST34_MODERNIZATION_PLAN.md)             | Domain-план модуля ГОСТ 34                                                   |
 | [docs/SECURITY_PERIMETER.md](docs/SECURITY_PERIMETER.md)                           | ACL, share-токены, audit                                                     |

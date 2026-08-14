@@ -59,7 +59,27 @@
 - [ ] **RR-5** Структурный diff двух версий пакета.
 - [ ] **RR-6** Playwright e2e «Северный банк» (login → пресет → выпуск → approve → тот же checksum).
 
-Не в этом горизонте: Postgres, multi-tenant, очередь генерации, ПСИ/акт, новые пресеты, LLM как автор ТЗ.
+Не в этом горизонте: Postgres, multi-tenant, очередь генерации, ПСИ/акт, новые пресеты. LLM-автор ТЗ спроектирован отдельно и идёт после RR-2 (снимок пакета).
+
+---
+
+## 📝 Designed — LLM как автор ТЗ (после RR-2)
+
+Принятый дизайн: [LLM_TZ_AUTHOR_DESIGN.md](LLM_TZ_AUTHOR_DESIGN.md).
+
+LLM пишет **черновики разделов** по `SchemaNode.id`. Человек Accept / Edit / Reject. В ZIP только `ACCEPTED` / `ACCEPTED_EDITED`. Схема `TZ_SCHEMA_2020` остаётся baseline; LLM не renderer и не юридический автор.
+
+- [ ] **PR-01** Shared LLM client + флаг `EVACAL_LLM_TZ_AUTHOR` (prod off).
+- [ ] **PR-02** Overlay по `nodeId`, нумерация пунктов на сервере.
+- [ ] **PR-03** Grounding pack + промпт `tz-author-v1`.
+- [ ] **PR-04** `detectDraftFlags` + eval-фикстуры (без сети).
+- [ ] **PR-05** `POST /api/gost34/draft-tz` (один раздел, staff).
+- [ ] **PR-06a** Persist в мастере, preview, export 409 на hard-флагах.
+- [ ] **PR-06b** Снимок в `GostPackage` — **после RR-2**.
+- [ ] **PR-07** Side-by-side ревью в предпросмотре.
+- [ ] **PR-08** Клиентский batch «весь ТЗ».
+- [ ] **PR-09** Eval-гейт в CI.
+- [ ] **PR-10** Redact audit + injection tests.
 
 ---
 

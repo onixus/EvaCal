@@ -4,7 +4,8 @@
 Версия продукта: 0.2.0  
 База: репозиторий `/Users/onixus/Git/EvaCal`, `origin/main` @ merge PR #51.
 
-Дополнение 2026-08-14: принят план закрытия Horizon B — [RELEASE_REGISTRY_PLAN.md](RELEASE_REGISTRY_PLAN.md).
+Дополнение 2026-08-14: принят план закрытия Horizon B — [RELEASE_REGISTRY_PLAN.md](RELEASE_REGISTRY_PLAN.md).  
+Дополнение 2026-08-14: принят дизайн «LLM как автор ТЗ» — [LLM_TZ_AUTHOR_DESIGN.md](LLM_TZ_AUTHOR_DESIGN.md) (после RR-2, флаг off).
 
 ---
 
@@ -254,6 +255,7 @@ Postgres + queue — **после** реестра выпуска, не вмес
 | `docs/GOST34_MODERNIZATION_PLAN.md` | Технический план domain ГОСТ 34 (продолжать)                 |
 | `docs/GOST34_MIGRATION.md`          | Миграция legacy проектов                                     |
 | `docs/RELEASE_REGISTRY_PLAN.md`     | **Текущий горизонт:** проект + снимок + ZIP + approve        |
+| `docs/LLM_TZ_AUTHOR_DESIGN.md`      | LLM-черновики разделов ТЗ + human gate (после RR-2)          |
 | `docs/SECURITY_PERIMETER.md`        | Horizon A as-implemented                                     |
 | **Этот документ**                   | Критика + продуктово-платформенный roadmap поверх ГОСТ-плана |
 
