@@ -1,33 +1,53 @@
-# EvaCal Security & Production Readiness Review
+# EvaCal Product Backlog & Horizon Roadmap
 
-## Summary
+## 🏁 Completed Milestones
 
-## P1 Findings
+### 1. GOST 34 Generator & Modern Standards
 
-- Enforce mustChangePassword server-side
-- Revocable sessions / sessionVersion
-- Replace URL bearer share tokens
-- ShareGrant storage and revoke
-- Docker Compose environment propagation
-- Transactional calculation creation
-- API schema validation
-- Login rate limiting
-- CI release gate
+- [x] Full support for **ГОСТ 34.602-2020** & **ГОСТ 34.201-2020** + legacy **РД 50-34.698-90**.
+- [x] Complete 5-document set (TZ, PZ, AF, PMI, SPEC).
+- [x] ESKD stamp frames (ГОСТ 2.104-2006 Form 2 and 2a) with precise margin offsets.
+- [x] 7-step interactive wizard pipeline (`profile` → `requirements` → `applicability` → `traceability` → `signatures` → `preview` → `compliance`).
+- [x] Live Split-Screen AST preview & Inline Editor with override badges and export integration.
 
-## P2 Findings
+### 2. Industry Presets & Russian Domain Knowledge
 
-- Remove xlsx-latest dependency
-- Pin GitHub Actions SHA
-- Container digest pinning
-- SBOM + vulnerability scanning
-- Cosign/signatures
-- Nginx security headers
-- External audit sink
-- Jenkins/GitHub Actions convergence
-- UI decomposition
-- Documentation drift
-- DNS-aware SSRF protection
+- [x] NGFW (UserGate) preset with HA clusters, FSTEK certificate #3905, 188-FZ Registry #1199.
+- [x] Hardware & PAC (YADRO Vegman / Aquarius / All-Flash NVMe TATLIN) preset with Minpromtorg Registry (PP RF #878/#719).
+- [x] Endpoint Security (Kaspersky) preset with FSTEK certificate #4238.
+- [x] Unstructured Data Audit (Cyberpeak) preset with Registry #12590.
+- [x] GOST-VPN (ViPNet) preset with FSB (KS1/KS2/KS3) and FSTEK #4118 certificates.
+- [x] OS & DBMS (Astra Linux SE, Postgres Pro Enterprise) with FSTEK certificates.
 
-## Recommended Horizon B roadmap
+### 3. Traceability Engine & Multi-Channel Matrices
 
-## Acceptance criteria
+- [x] 5-level requirement-to-stage and requirement-to-PMI matching engine.
+- [x] Dedicated 13-column Traceability Matrix sheet in Excel export (`.xlsx`).
+- [x] Interactive Traceability Matrix UI panel with category grouping and status metrics.
+
+### 4. Commercial Proposals, Roles & Scenarios
+
+- [x] Comprehensive role grid (Architect/GAP, Lead/Senior Engineers, Lead Analysts, Consultants, Security Experts, Developers, PM).
+- [x] Commercial estimate calculation (direct labor cost, overhead, margin, discount, VAT).
+- [x] Scenario modeling (Target, Best Case, Worst Case).
+- [x] Interactive GANTT timeline with customer approval task automation.
+
+### 5. Equipment & Software Specification (SPEC)
+
+- [x] GOST 34 Specification document generator (188-FZ software registry, Minpromtorg hardware registry, 42U racks, ZIP sets).
+- [x] Interactive UI Specification tab and panel with instant DOCX export.
+
+### 6. Security, RBAC & CI/CD
+
+- [x] Strict RBAC (Architect & Admin protected routes).
+- [x] Local LLM Normalizer with safe endpoint guard.
+- [x] Jenkins CI/CD pipeline with JUnit XML reporting (`test:ci`).
+- [x] Automated test suite: 36 files, 338 tests (100% pass).
+
+---
+
+## 🔮 Future Horizon Roadmap
+
+- [ ] Acceptance Testing Protocol (ПСИ / Акт приемки) document generator.
+- [ ] Document Version Diff & Revision History tracker.
+- [ ] Multi-tenant workspace isolation.
