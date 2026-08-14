@@ -128,6 +128,13 @@ export default function DarkFantasyCompanion() {
 
             <div className="flex items-center gap-1.5 text-xs text-purple-400">
               <button
+                onClick={() => window.dispatchEvent(new CustomEvent('evacal-easter-egg-trigger'))}
+                className="rounded px-1.5 py-0.5 text-[10px] hover:bg-purple-900/50 hover:text-purple-200 transition-colors"
+                title="Открыть полноэкранное видео (пасхалка)"
+              >
+                🎬 Видение
+              </button>
+              <button
                 onClick={() => setShowRoster(!showRoster)}
                 className="rounded px-1.5 py-0.5 text-[10px] hover:bg-purple-900/50 hover:text-purple-200 transition-colors"
                 title="Сменить героиню"
