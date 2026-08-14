@@ -194,12 +194,21 @@ function complianceStep(input: ComplianceInput): WizardStepReport {
   };
 }
 
+function previewStep(): WizardStepReport {
+  return {
+    id: 'preview',
+    status: 'ready',
+    issues: [],
+  };
+}
+
 const STEP_BUILDERS: Record<WizardStepId, (input: ComplianceInput) => WizardStepReport> = {
   profile: profileStep,
   requirements: requirementsStep,
   applicability: applicabilityStep,
   traceability: traceabilityStep,
   signatures: signaturesStep,
+  preview: previewStep,
   compliance: complianceStep,
 };
 

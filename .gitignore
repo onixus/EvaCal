@@ -14,3 +14,9 @@ nginx/certs/*.pem
 .claude/
 .husky/
 !/.husky/
+test-results.xml
+*.apk
+*.mp4
+screenshot*.png
+android-app/
+evacal-android/

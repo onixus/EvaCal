@@ -20,6 +20,7 @@ import {
 import { requireCalcAccess } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 import { handleApiError } from '@/lib/apiHelpers';
+import { createGostPackageVersion } from '@/lib/project';
 
 /**
  * Fallback signatories used when the caller supplies none. Single source of
@@ -36,18 +37,34 @@ const DEFAULT_SIGNATURES = {
 };
 
 /**
- * Фиксирует в расчёте, каким нормативным профилем и какой версией генератора
- * выпущен комплект (раздел 5 плана модернизации). Сбой записи не должен
+ * Фиксирует в расчёте и проекте, каким нормативным профилем и какой версией генератора
+ * выпущен комплект (Horizon B1). Сбой записи не должен
  * ломать уже сформированный документ — он только логируется.
  */
-async function recordRelease(calculationId: string, standardProfileId?: string) {
+async function recordRelease(
+  calculationId: string,
+  standardProfileId?: string,
+  docTypes: string[] = ['tz'],
+  metadata?: Record<string, unknown>,
+) {
   try {
+    const binding = buildBindingUpdate(standardProfileId);
     await prisma.calculation.update({
       where: { id: calculationId },
-      data: buildBindingUpdate(standardProfileId),
+      data: binding,
+    });
+
+    await createGostPackageVersion({
+      calculationId,
+      name: `Комплект ГОСТ 34 (${docTypes.join(', ').toUpperCase()})`,
+      standardProfileId: binding.standardProfileId,
+      standardProfileVersion: binding.standardProfileVersion,
+      generatorVersion: binding.generatorVersion,
+      documentTypes: docTypes,
+      metadata,
     });
   } catch (err) {
-    console.error('Failed to record GOST 34 release binding:', err);
+    console.error('Failed to record GOST 34 release package:', err);
   }
 }
 
@@ -141,6 +158,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       layoutProfileId,
       rawRequirements,
       manualLinks,
+      sectionOverrides,
     } = body;
 
     const layout = resolveLayoutProfileId(layoutProfileId);
@@ -168,6 +186,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
             calculation: calc,
             rawRequirements,
             manualTraceLinks: manualLinks,
+            sectionOverrides,
             metadataOverride: {
               docType: entry.docType,
               contractNumber,
@@ -191,7 +210,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
       const zipFilename = `GOST34_Full_Package_${safeFileName(calc.name)}.zip`;
 
-      await recordRelease(params.id, standardProfileId);
+      await recordRelease(
+        params.id,
+        standardProfileId,
+        zipEntries.map((e) => e.docType.toLowerCase()),
+        { isBatchZip: true, signatures: commonSignatures },
+      );
 
       await writeAudit({
         actorType: actorTypeFromAccess(access.kind),
@@ -217,6 +241,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       calculation: calc,
       rawRequirements,
       manualTraceLinks: manualLinks,
+      sectionOverrides,
       metadataOverride: {
         docType,
         contractNumber,
@@ -230,7 +255,10 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       },
     });
 
-    await recordRelease(params.id, standardProfileId);
+    await recordRelease(params.id, standardProfileId, [docType.toLowerCase()], {
+      docType,
+      signatures: commonSignatures,
+    });
 
     await writeAudit({
       actorType: actorTypeFromAccess(access.kind),

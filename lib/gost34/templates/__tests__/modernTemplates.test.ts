@@ -104,14 +104,14 @@ describe('Modern Document Generators (PZ, AF, PMI, SPEC)', () => {
 
   it('buildSPEC34Sections formats software & hardware specs from projectContext', () => {
     const sections = buildSPEC34Sections(mockPayload);
-    expect(sections).toHaveLength(4);
+    expect(sections).toHaveLength(5);
 
     const swTable = sections[1].tables?.[0];
-    expect(swTable?.rows[0][1]).toContain('Astra Linux SE');
-    expect(swTable?.rows[1][1]).toContain('PostgreSQL 15');
+    expect(swTable?.rows[0][1]).toContain('Astra Linux');
+    expect(swTable?.rows[1][1]).toContain('Postgres');
 
     const hwTable = sections[2].tables?.[0];
-    expect(hwTable?.rows[0][2]).toContain('8 vCPU');
-    expect(hwTable?.rows[1][2]).toContain('500 ГБ');
+    expect(hwTable?.rows[0][4]).toContain('8 vCPU');
+    expect(hwTable?.rows[1][4]).toContain('500 ГБ');
   });
 });

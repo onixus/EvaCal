@@ -64,6 +64,12 @@ async function seedDefaultUsers() {
 async function main() {
   await seedDefaultUsers();
 
+  const { seedAllIndustryPresets } = await import('../lib/presets/importer');
+  const seededPresets = await seedAllIndustryPresets();
+  if (seededPresets.length > 0) {
+    console.log(`Импортировано отраслевых пресетов ИТ/ИБ: ${seededPresets.length} шт.`);
+  }
+
   const existing = await prisma.formTemplate.findFirst();
   if (existing) {
     console.log('Демо-шаблон и расчёт уже существуют, пропускаю.');
@@ -209,7 +215,7 @@ async function main() {
     scheduleConfigFromTemplate(template),
   );
 
-  console.log('Сид выполнен: создан шаблон и демонстрационный расчёт.');
+  console.log('Сид выполнен: создан базовый шаблон и демонстрационный расчёт.');
 }
 
 main()

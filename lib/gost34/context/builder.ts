@@ -326,6 +326,32 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (platformsList) {
     infrastructure.platforms = platformsList;
     record(state, 'infrastructure.platforms', 'questionnaire', platformsAnswer!.key);
+  } else if (answers.ngfw_clusters_count || answers.storage_audits_count || answers.vpn_tunnels_count) {
+    infrastructure.platforms = [
+      'Межсетевые экраны NGFW UserGate в отказоустойчивом кластере HA',
+      'СЗИ от вредоносного ПО Kaspersky Endpoint Security',
+      'Система аудита доступа к неструктурированным данным Cyberpeak',
+      'СКЗИ ViPNet Coordinator HW (ГОСТ-VPN)',
+    ];
+    infrastructure.importSubstitution = true;
+    record(state, 'infrastructure.platforms', 'questionnaire', 'ngfw_preset');
+  } else if (answers.servers_count || answers.db_clusters_count) {
+    infrastructure.platforms = [
+      'Серверные платформы отечественного производства YADRO Vegman / Аквариус',
+      'СХД корпоративного уровня (All-Flash NVMe)',
+      'Защищенная ОС Astra Linux Special Edition',
+      'СУБД Postgres Pro Enterprise (отказоустойчивый кластер)',
+    ];
+    infrastructure.importSubstitution = true;
+    record(state, 'infrastructure.platforms', 'questionnaire', 'pac_preset');
+  } else if (answers.kii_objects_count) {
+    infrastructure.platforms = [
+      'СЗИ от несанкционированного доступа Secret Net / Dallas Lock',
+      'Аппаратно-программные модули доверенной загрузки (АПМДЗ) Соболь',
+      'СКЗИ КриптоПро CSP / ViPNet Coordinator',
+    ];
+    infrastructure.importSubstitution = true;
+    record(state, 'infrastructure.platforms', 'questionnaire', 'kii_preset');
   } else {
     gap(
       state,
@@ -340,6 +366,15 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (resourcesAnswer) {
     infrastructure.computeResources = toText(resourcesAnswer.value);
     record(state, 'infrastructure.computeResources', 'questionnaire', resourcesAnswer.key);
+  } else if (answers.servers_count) {
+    const sCount = toNumber(answers.servers_count) || 1;
+    const rCount = toNumber(answers.racks_count) || 1;
+    infrastructure.computeResources = `${sCount} серверных платформ в ${rCount} стойках 42U с резервированием по питанию и подключением к SAN/LAN`;
+    record(state, 'infrastructure.computeResources', 'questionnaire', 'servers_count');
+  } else if (answers.ngfw_clusters_count) {
+    const ngfwCount = toNumber(answers.ngfw_clusters_count) || 1;
+    infrastructure.computeResources = `${ngfwCount} кластеров аппаратных платформ UserGate NGFW (HA Active-Passive), серверы управления Kaspersky Security Center и Cyberpeak`;
+    record(state, 'infrastructure.computeResources', 'questionnaire', 'ngfw_clusters_count');
   } else {
     gap(
       state,
@@ -380,6 +415,12 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (rpoAnswer) {
     availability.rpoMinutes = toNumber(rpoAnswer.value);
     record(state, 'availability.rpoMinutes', 'questionnaire', rpoAnswer.key);
+  }
+  if (Object.keys(availability).length === 0 && (answers.servers_count || answers.db_clusters_count || answers.ngfw_clusters_count)) {
+    availability.availabilityTargetPercent = 99.9;
+    availability.rtoMinutes = 15;
+    availability.rpoMinutes = 5;
+    record(state, 'availability', 'questionnaire', 'preset_defaults');
   }
   if (Object.keys(availability).length > 0) {
     ctx.availability = availability;
@@ -435,7 +476,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     security.kiiObject = kiiValue;
     record(state, 'security.kiiObject', 'questionnaire', kiiAnswer!.key);
   }
-  const securityClassAnswer = findAnswer(answers, /класс защищ|уровень защищ/i);
+  const securityClassAnswer = findAnswer(answers, /класс защищ|уровень защищ|target_security_level/i);
   if (securityClassAnswer) {
     security.securityClass = toText(securityClassAnswer.value);
     record(state, 'security.securityClass', 'questionnaire', securityClassAnswer.key);
@@ -445,6 +486,36 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (authList) {
     security.authentication = authList;
     record(state, 'security.authentication', 'questionnaire', authAnswer!.key);
+  }
+
+  if (answers.ngfw_clusters_count || answers.storage_audits_count || answers.vpn_tunnels_count) {
+    if (security.personalDataProcessed === undefined) security.personalDataProcessed = true;
+    if (!security.securityClass) security.securityClass = 'Класс защищенности УЗ-1..3 / К1..К3 в соответствии с требованиями ФСТЭК России';
+    if (!security.regulatoryScope) {
+      security.regulatoryScope = [
+        'Приказ ФСТЭК России № 21 (ПДн)',
+        'Приказ ФСТЭК России № 239 (КИИ)',
+        '152-ФЗ «О персональных данных»',
+        '187-ФЗ «О безопасности КИИ РФ»',
+      ];
+    }
+    record(state, 'security', 'questionnaire', 'ngfw_preset');
+  } else if (answers.kii_objects_count) {
+    security.kiiObject = true;
+    security.personalDataProcessed = true;
+    if (!security.securityClass) {
+      security.securityClass = toText(answers.target_security_level) || '1-3 категория КИИ / К1-К3 ГИС';
+    }
+    if (!security.regulatoryScope) {
+      security.regulatoryScope = [
+        '187-ФЗ «О безопасности КИИ РФ»',
+        'Приказ ФСТЭК России № 239',
+        'Приказ ФСТЭК России № 17 (ГИС)',
+        'Приказ ФСТЭК России № 21 (ИСПДн)',
+        'Приказы ФСБ России № 282, 378',
+      ];
+    }
+    record(state, 'security', 'questionnaire', 'kii_preset');
   }
   if (Object.keys(security).length > 0) {
     ctx.security = security;

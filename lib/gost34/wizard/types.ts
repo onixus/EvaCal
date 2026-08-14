@@ -15,7 +15,13 @@ import type { ValidationReport } from '../validation/types';
 import type { TraceLink, TraceabilityResult } from '../traceability/types';
 
 export type WizardStepId =
-  'profile' | 'requirements' | 'applicability' | 'traceability' | 'signatures' | 'compliance';
+  | 'profile'
+  | 'requirements'
+  | 'applicability'
+  | 'traceability'
+  | 'signatures'
+  | 'preview'
+  | 'compliance';
 
 export interface WizardStepDefinition {
   id: WizardStepId;

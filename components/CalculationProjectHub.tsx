@@ -8,6 +8,10 @@ import GanttChart, { GanttStage } from './GanttChart';
 import TotalsSummary, { RiskRow } from './TotalsSummary';
 import ExportLinks from './ExportLinks';
 import Gost34WizardModal from './gost34/Gost34WizardModal';
+import CommercialProposalPanel from './CommercialProposalPanel';
+import TraceabilityMatrixView from './gost34/TraceabilityMatrixView';
+import ScenarioAnalysisPanel from './ScenarioAnalysisPanel';
+import SpecificationPanel from './SpecificationPanel';
 
 interface FieldForView {
   id: string;
@@ -27,10 +31,19 @@ interface CalculationData {
   stages: StageRow[];
   risks: RiskRow[];
   answers: Record<string, unknown>;
+  currency?: string;
+  roleRates?: string | null;
+  overheadPercent?: number;
+  marginPercent?: number;
+  discountPercent?: number;
+  vatPercent?: number;
+  includeVat?: boolean;
 }
 
 export default function CalculationProjectHub({ calculation }: { calculation: CalculationData }) {
-  const [activeTab, setActiveTab] = useState<'summary' | 'schedule' | 'gost34'>('summary');
+  const [activeTab, setActiveTab] = useState<
+    'summary' | 'commercial' | 'scenarios' | 'schedule' | 'traceability' | 'specification' | 'gost34'
+  >('summary');
   const [isGostModalOpen, setIsGostModalOpen] = useState(false);
 
   const startDateFormatted = new Date(calculation.startDate).toLocaleDateString('ru-RU', {
@@ -120,6 +133,23 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
             <span>📊 Сводка и опросник</span>
           </button>
           <button
+            onClick={() => setActiveTab('commercial')}
+            className={`tab-btn ${activeTab === 'commercial' ? 'tab-btn-active' : ''}`}
+          >
+            <span>💰 Смета и КП</span>
+            {calculation.marginPercent !== undefined && (
+              <span className="rounded-full bg-emerald-100 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-700 dark:bg-nord-frost3/20 dark:text-nord-frost3">
+                {calculation.marginPercent}%
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('scenarios')}
+            className={`tab-btn ${activeTab === 'scenarios' ? 'tab-btn-active' : ''}`}
+          >
+            <span>📈 Сценарии</span>
+          </button>
+          <button
             onClick={() => setActiveTab('schedule')}
             className={`tab-btn ${activeTab === 'schedule' ? 'tab-btn-active' : ''}`}
           >
@@ -129,6 +159,18 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
             </span>
           </button>
           <button
+            onClick={() => setActiveTab('traceability')}
+            className={`tab-btn ${activeTab === 'traceability' ? 'tab-btn-active' : ''}`}
+          >
+            <span>🔗 Трассируемость</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('specification')}
+            className={`tab-btn ${activeTab === 'specification' ? 'tab-btn-active' : ''}`}
+          >
+            <span>📦 Спецификация ПАК и ПО</span>
+          </button>
+          <button
             onClick={() => setActiveTab('gost34')}
             className={`tab-btn ${activeTab === 'gost34' ? 'tab-btn-active' : ''}`}
           >
@@ -136,6 +178,61 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
           </button>
         </div>
       </div>
+
+      {/* Tab: Commercial Proposal & Costing */}
+      {activeTab === 'commercial' && (
+        <CommercialProposalPanel
+          calculationId={calculation.id}
+          stages={calculation.stages}
+          pmHours={calculation.pmHours}
+          risks={calculation.risks}
+          initialCurrency={calculation.currency}
+          initialRoleRates={calculation.roleRates}
+          initialOverheadPercent={calculation.overheadPercent}
+          initialMarginPercent={calculation.marginPercent}
+          initialDiscountPercent={calculation.discountPercent}
+          initialVatPercent={calculation.vatPercent}
+          initialIncludeVat={calculation.includeVat}
+        />
+      )}
+
+      {/* Tab: Scenario Analysis */}
+      {activeTab === 'scenarios' && (
+        <ScenarioAnalysisPanel
+          calculationId={calculation.id}
+          calculationName={calculation.name}
+          stages={calculation.stages}
+          pmHours={calculation.pmHours}
+          risks={calculation.risks}
+          currency={calculation.currency}
+          roleRates={calculation.roleRates}
+          overheadPercent={calculation.overheadPercent}
+          marginPercent={calculation.marginPercent}
+          discountPercent={calculation.discountPercent}
+          vatPercent={calculation.vatPercent}
+          includeVat={calculation.includeVat}
+        />
+      )}
+
+      {/* Tab: Traceability Matrix */}
+      {activeTab === 'traceability' && (
+        <TraceabilityMatrixView
+          stages={calculation.stages}
+          answers={calculation.answers}
+          fields={calculation.template.fields}
+        />
+      )}
+
+      {/* Tab: Hardware & Software Specification */}
+      {activeTab === 'specification' && (
+        <SpecificationPanel
+          calculationId={calculation.id}
+          calculationName={calculation.name}
+          customerName={calculation.customer}
+          answers={calculation.answers}
+          onOpenGostWizard={() => setIsGostModalOpen(true)}
+        />
+      )}
 
       {/* Tab 1: Summary */}
       {activeTab === 'summary' && (

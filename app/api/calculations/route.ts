@@ -11,6 +11,7 @@ import { grandTotalHours } from '@/lib/totals';
 import { pageArgs, paginationHeaders, parseLimit, parsePage } from '@/lib/pagination';
 import { createShareToken, requireCalcAccess, requireStaff } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
+import { getOrCreateProject } from '@/lib/project';
 
 // List is staff-only: no anonymous dump of the commercial archive.
 export async function GET(req: NextRequest) {
@@ -93,6 +94,23 @@ export async function POST(req: NextRequest) {
         ? 'presale-share'
         : 'presale';
 
+  let targetProjectId = body.projectId;
+  if (!targetProjectId) {
+    const project = await getOrCreateProject({
+      name,
+      customer,
+      createdBy,
+    });
+    targetProjectId = project.id;
+  }
+
+  const latestInProject = await prisma.calculation.findFirst({
+    where: { projectId: targetProjectId },
+    orderBy: { version: 'desc' },
+    select: { version: true },
+  });
+  const version = (latestInProject?.version ?? 0) + 1;
+
   const calculation = await prisma.calculation.create({
     data: {
       name,
@@ -102,6 +120,8 @@ export async function POST(req: NextRequest) {
       startDate: start,
       pmHours,
       createdBy,
+      projectId: targetProjectId,
+      version,
     },
   });
 

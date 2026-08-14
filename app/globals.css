@@ -89,3 +89,170 @@ body {
 .dark .text-brand-700 {
   color: theme('colors.nord.frost2');
 }
+
+/* =========================================================================
+   DARK FANTASY & HEROINES THEME OVERRIDES (Gothic Dark Anime Aesthetic)
+   ========================================================================= */
+
+.dark-fantasy {
+  --df-bg-abyss: #040207;
+  --df-bg-crypt: #090511;
+  --df-bg-chamber: #11091f;
+  --df-bg-altar: #1b0f30;
+  --df-border: #2e164e;
+  --df-border-glow: #a855f7;
+  --df-rune: #c084fc;
+  --df-crimson: #e11d48;
+  --df-sapphire: #38bdf8;
+  --df-gold: #f59e0b;
+  --df-text: #f5f3ff;
+  --df-muted: #c4b5fd;
+}
+
+.dark-fantasy body {
+  background-color: var(--df-bg-abyss);
+  background-image:
+    radial-gradient(circle at 10% 5%, rgba(147, 51, 234, 0.18) 0%, transparent 40%),
+    radial-gradient(circle at 90% 15%, rgba(225, 29, 72, 0.14) 0%, transparent 35%),
+    radial-gradient(circle at 50% 85%, rgba(56, 189, 248, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 75% 80%, rgba(168, 85, 247, 0.12) 0%, transparent 40%);
+  background-attachment: fixed;
+  color: var(--df-text);
+}
+
+.dark-fantasy .card {
+  background-color: rgba(9, 5, 17, 0.85);
+  border-color: rgba(168, 85, 247, 0.22);
+  box-shadow:
+    0 10px 35px -5px rgba(0, 0, 0, 0.9),
+    0 0 15px rgba(168, 85, 247, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.dark-fantasy .card-interactive:hover {
+  border-color: rgba(192, 132, 252, 0.55);
+  box-shadow:
+    0 14px 45px -5px rgba(0, 0, 0, 0.95),
+    0 0 25px rgba(168, 85, 247, 0.25);
+  transform: translateY(-2px);
+}
+
+.dark-fantasy .btn-primary {
+  background: linear-gradient(135deg, #7e22ce 0%, #a855f7 50%, #9333ea 100%);
+  border: 1px solid rgba(232, 121, 249, 0.5);
+  color: #ffffff;
+  box-shadow:
+    0 0 20px rgba(168, 85, 247, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+
+.dark-fantasy .btn-primary:hover {
+  background: linear-gradient(135deg, #9333ea 0%, #c084fc 50%, #a855f7 100%);
+  box-shadow:
+    0 0 30px rgba(192, 132, 252, 0.6),
+    inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.dark-fantasy .btn-secondary {
+  background-color: rgba(17, 9, 31, 0.85);
+  border-color: rgba(168, 85, 247, 0.3);
+  color: var(--df-text);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+}
+
+.dark-fantasy .btn-secondary:hover {
+  background-color: rgba(27, 15, 48, 0.95);
+  border-color: rgba(192, 132, 252, 0.6);
+  color: #ffffff;
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.35);
+}
+
+.dark-fantasy .btn-danger {
+  background-color: rgba(225, 29, 72, 0.15);
+  border-color: rgba(225, 29, 72, 0.4);
+  color: #fca5a5;
+  box-shadow: 0 0 15px rgba(225, 29, 72, 0.2);
+}
+
+.dark-fantasy .btn-danger:hover {
+  background-color: rgba(225, 29, 72, 0.3);
+  border-color: rgba(244, 63, 94, 0.7);
+  color: #ffffff;
+  box-shadow: 0 0 25px rgba(244, 63, 94, 0.45);
+}
+
+.dark-fantasy .input {
+  background-color: rgba(9, 5, 17, 0.9);
+  border-color: rgba(168, 85, 247, 0.3);
+  color: var(--df-text);
+}
+
+.dark-fantasy .input:focus {
+  border-color: var(--df-rune);
+  box-shadow:
+    0 0 0 3px rgba(168, 85, 247, 0.25),
+    0 0 15px rgba(168, 85, 247, 0.3);
+}
+
+.dark-fantasy .label {
+  color: var(--df-muted);
+  letter-spacing: 0.08em;
+}
+
+.dark-fantasy .tab-btn-active {
+  border-color: var(--df-rune);
+  color: var(--df-rune);
+  text-shadow: 0 0 12px rgba(192, 132, 252, 0.6);
+}
+
+.dark-fantasy header,
+.dark-fantasy nav {
+  background-color: rgba(4, 2, 7, 0.88) !important;
+  border-color: rgba(168, 85, 247, 0.25) !important;
+  backdrop-filter: blur(20px) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.85);
+}
+
+.dark-fantasy .text-slate-900 {
+  color: var(--df-text) !important;
+}
+.dark-fantasy .text-slate-700,
+.dark-fantasy .text-slate-600 {
+  color: var(--df-muted) !important;
+}
+.dark-fantasy .text-slate-500,
+.dark-fantasy .text-slate-400 {
+  color: #a78bfa !important;
+}
+.dark-fantasy .bg-slate-50,
+.dark-fantasy .bg-slate-100 {
+  background-color: rgba(17, 9, 31, 0.7) !important;
+}
+.dark-fantasy .border-slate-100,
+.dark-fantasy .border-slate-200,
+.dark-fantasy .border-slate-300 {
+  border-color: rgba(168, 85, 247, 0.22) !important;
+}
+.dark-fantasy .text-brand-700 {
+  color: #c084fc;
+}
+
+/* Ornate Gothic Rune Accents */
+.dark-fantasy .gothic-glow {
+  text-shadow:
+    0 0 12px rgba(192, 132, 252, 0.6),
+    0 0 24px rgba(168, 85, 247, 0.3);
+}
+
+.dark-fantasy .crimson-glow {
+  text-shadow:
+    0 0 12px rgba(251, 113, 133, 0.6),
+    0 0 24px rgba(225, 29, 72, 0.3);
+}
+
+.dark-fantasy .gold-glow {
+  text-shadow:
+    0 0 12px rgba(253, 224, 71, 0.6),
+    0 0 24px rgba(245, 158, 11, 0.3);
+}

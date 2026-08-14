@@ -36,8 +36,14 @@ export const WIZARD_STEPS: WizardStepDefinition[] = [
     subtitle: 'Основная надпись по ГОСТ 2.104',
   },
   {
-    id: 'compliance',
+    id: 'preview',
     order: 6,
+    title: 'Предпросмотр и правка',
+    subtitle: 'Интерактивный просмотр и редактирование разделов ТЗ',
+  },
+  {
+    id: 'compliance',
+    order: 7,
     title: 'Соответствие и выпуск',
     subtitle: 'Итоговая проверка и экспорт',
   },

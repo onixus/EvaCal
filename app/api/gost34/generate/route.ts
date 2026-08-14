@@ -11,12 +11,22 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { calculation, metadataOverride, rawRequirements } = body;
+    const {
+      calculation,
+      metadataOverride,
+      rawRequirements,
+      projectContext,
+      manualTraceLinks,
+      sectionOverrides,
+    } = body;
 
     const { buffer, filename } = await generateGost34Document({
       calculation,
       metadataOverride,
       rawRequirements,
+      projectContext,
+      manualTraceLinks,
+      sectionOverrides,
     });
 
     return new NextResponse(responseBody(buffer), {

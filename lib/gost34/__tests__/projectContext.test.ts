@@ -151,3 +151,46 @@ describe('analyzeAndNormalizeInput', () => {
     expect(payload.projectContext?.users?.[0]?.approximateCount).toBe(80);
   });
 });
+
+describe('buildProjectContext: автоматическое обогащение из отраслевых пресетов', () => {
+  it('обогащает контекст ГОСТ 34 спецификацией NGFW / СЗИ (UserGate, Kaspersky, Cyberpeak, ViPNet)', () => {
+    const ctx = buildProjectContext({
+      answers: {
+        ngfw_clusters_count: 2,
+        endpoints_count: 150,
+        storage_audits_count: 4,
+        vpn_tunnels_count: 6,
+      },
+      stages: [{ id: 's1', order: 1, name: 'Внедрение NGFW', role: 'engineer', hours: 80 }],
+    });
+
+    expect(ctx.infrastructure?.platforms).toContain('Межсетевые экраны NGFW UserGate в отказоустойчивом кластере HA');
+    expect(ctx.infrastructure?.platforms).toContain('СЗИ от вредоносного ПО Kaspersky Endpoint Security');
+    expect(ctx.infrastructure?.platforms).toContain('Система аудита доступа к неструктурированным данным Cyberpeak');
+    expect(ctx.infrastructure?.platforms).toContain('СКЗИ ViPNet Coordinator HW (ГОСТ-VPN)');
+    expect(ctx.infrastructure?.computeResources).toContain('2 кластеров аппаратных платформ UserGate NGFW');
+    expect(ctx.security?.personalDataProcessed).toBe(true);
+    expect(ctx.security?.regulatoryScope).toContain('187-ФЗ «О безопасности КИИ РФ»');
+    expect(ctx.availability?.availabilityTargetPercent).toBe(99.9);
+  });
+
+  it('обогащает контекст ГОСТ 34 спецификацией ПАК и СУБД (YADRO, Astra Linux, Postgres Pro)', () => {
+    const ctx = buildProjectContext({
+      answers: {
+        servers_count: 6,
+        racks_count: 2,
+        db_clusters_count: 2,
+        datacenter_count: 1,
+      },
+      stages: [{ id: 's1', order: 1, name: 'ПНР ПАК', role: 'engineer', hours: 100 }],
+    });
+
+    expect(ctx.infrastructure?.platforms).toContain('Серверные платформы отечественного производства YADRO Vegman / Аквариус');
+    expect(ctx.infrastructure?.platforms).toContain('Защищенная ОС Astra Linux Special Edition');
+    expect(ctx.infrastructure?.platforms).toContain('СУБД Postgres Pro Enterprise (отказоустойчивый кластер)');
+    expect(ctx.infrastructure?.computeResources).toBe('6 серверных платформ в 2 стойках 42U с резервированием по питанию и подключением к SAN/LAN');
+    expect(ctx.availability?.availabilityTargetPercent).toBe(99.9);
+    expect(ctx.availability?.rtoMinutes).toBe(15);
+    expect(ctx.availability?.rpoMinutes).toBe(5);
+  });
+});

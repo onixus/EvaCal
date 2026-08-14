@@ -5,15 +5,32 @@ import { getStaffSession, isAnonymousPresaleAllowed } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PresalePage(props: { searchParams: Promise<{ share?: string }> }) {
+export default async function PresalePage(props: { searchParams: Promise<{ share?: string; templateId?: string }> }) {
   const searchParams = await props.searchParams;
   const staff = await getStaffSession();
   const anonymousOk = isAnonymousPresaleAllowed();
 
-  const template = await prisma.formTemplate.findFirst({
+  const allTemplates = await prisma.formTemplate.findMany({
     where: { isActive: true },
     include: { fields: { orderBy: { order: 'asc' } } },
+    orderBy: { name: 'asc' },
   });
+
+  // Fallback: if no templates are marked isActive, get the latest available template
+  const fallbackTemplates =
+    allTemplates.length === 0
+      ? await prisma.formTemplate.findMany({
+          take: 10,
+          include: { fields: { orderBy: { order: 'asc' } } },
+          orderBy: { createdAt: 'desc' },
+        })
+      : [];
+
+  const availableTemplates = allTemplates.length > 0 ? allTemplates : fallbackTemplates;
+  const selectedTemplate =
+    availableTemplates.find((t) => t.id === searchParams.templateId) ||
+    availableTemplates[0] ||
+    null;
 
   // Draft list is staff-only — no cross-tenant leak of other presale work.
   const drafts = staff
@@ -52,9 +69,9 @@ export default async function PresalePage(props: { searchParams: Promise<{ share
         </div>
       )}
 
-      {!template ? (
+      {!selectedTemplate ? (
         <div className="card p-6 text-slate-600">
-          Нет активного шаблона опросника. Создайте и активируйте шаблон в{' '}
+          Нет активного шаблона опросника. Создайте или импортируйте отраслевые шаблоны в{' '}
           <Link href="/admin" className="text-brand-700 underline">
             интерфейсе администратора
           </Link>
@@ -63,7 +80,8 @@ export default async function PresalePage(props: { searchParams: Promise<{ share
       ) : canCreate ? (
         <div className="card p-6">
           <NewCalculationForm
-            template={JSON.parse(JSON.stringify(template))}
+            template={JSON.parse(JSON.stringify(selectedTemplate))}
+            availableTemplates={JSON.parse(JSON.stringify(availableTemplates))}
             createShareToken={searchParams.share ?? null}
           />
         </div>
