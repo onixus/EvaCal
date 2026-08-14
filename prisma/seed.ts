@@ -1,6 +1,6 @@
+import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import {
   primaryStagesFromTemplate,
@@ -9,8 +9,7 @@ import {
   scheduleConfigFromTemplate,
 } from '../lib/calc';
 import { generatePassword } from '../lib/password';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma';
 
 async function seedDefaultUsers() {
   const existingUsers = await prisma.user.count();

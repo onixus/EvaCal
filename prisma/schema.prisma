@@ -1,14 +1,14 @@
 // EvaCal: labor-cost calculator
 // Lightweight embedded DB (SQLite) via Prisma.
 
+// Prisma 7: Rust-free клиент, генерируется в репозиторий, а не в node_modules
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
 }
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
 }
 
 // RBAC: only the architect and admin interfaces require a login; presale stays open.

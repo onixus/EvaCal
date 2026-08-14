@@ -11,6 +11,8 @@ on:
 env:
   CI: 'true'
   NEXT_TELEMETRY_DISABLED: '1'
+  # prisma.config.ts резолвит DATABASE_URL при любом запуске CLI, включая generate
+  DATABASE_URL: 'file:./prisma/dev.db'
 
 jobs:
   verify:
@@ -25,7 +27,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
       - name: Install dependencies
