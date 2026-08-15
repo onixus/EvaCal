@@ -1,13 +1,13 @@
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { resolveDatabaseUrl } from './databaseUrl';
 import { PrismaClient } from './generated/prisma/client';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 // Prisma 7 требует driver adapter вместо встроенного Rust-движка.
-// URL берётся из DATABASE_URL (вида "file:./dev.db"), путь резолвится от prisma/.
+// URL берётся из DATABASE_URL и нормализуется: см. lib/databaseUrl.
 function createClient(): PrismaClient {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('DATABASE_URL не задан');
+  const url = resolveDatabaseUrl();
   const client = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url }) });
   if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = client;
   return client;
