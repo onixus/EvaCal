@@ -20,3 +20,6 @@ test-results.xml
 screenshot*.png
 android-app/
 evacal-android/
+
+# Prisma 7 генерирует клиент в исходники — артефакт сборки, не исходный код
+lib/generated/

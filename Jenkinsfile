@@ -1,7 +1,7 @@
 pipeline {
     agent {
         docker {
-            image 'node:20-alpine'
+            image 'node:22-alpine'
             args '-u root:root'
         }
     }
@@ -10,6 +10,8 @@ pipeline {
         CI = 'true'
         NEXT_TELEMETRY_DISABLED = '1'
         NPM_CONFIG_UPDATE_NOTIFIER = 'false'
+        // prisma.config.ts резолвит DATABASE_URL при любом запуске CLI, включая generate
+        DATABASE_URL = 'file:./prisma/dev.db'
     }
 
     options {
@@ -26,7 +28,6 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                sh 'apk add --no-cache openssl'
                 sh 'npm ci'
                 sh 'npx prisma generate'
             }
