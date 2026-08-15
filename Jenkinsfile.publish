@@ -1,0 +1,125 @@
+// Публикация образа в ghcr.io — замена .github/workflows/docker-publish.yml.
+//
+// Лимиты GitHub, из-за которых мы ушли с Actions, считаются в минутах
+// раннеров; сам ghcr.io тарифицируется отдельно. Реестр остаётся прежним,
+// меняется только то, КТО пушит.
+//
+// Отличие от исходного workflow: тот пушил ещё и на каждый push в main и в
+// ветку fix/docker-migrate-perms-and-seed, плодя теги по имени ветки. Здесь
+// публикация ручная и по тегу — образ наружу должен уезжать осознанно.
+// Отдельный REF позволяет при необходимости собрать ветку, как раньше.
+
+pipeline {
+  agent any
+
+  parameters {
+    string(
+      name: 'REF',
+      defaultValue: '',
+      description: 'Что собирать: тег (v1.2.3) или ветка (main). Обязательно.'
+    )
+    booleanParam(
+      name: 'DRY_RUN',
+      defaultValue: true,
+      description: 'Собрать и залогиниться, но НЕ пушить. Снять галочку для реальной публикации.'
+    )
+    booleanParam(
+      name: 'MULTIARCH',
+      defaultValue: true,
+      description: 'linux/amd64 + linux/arm64. amd64 на этой машине эмулируется QEMU и заметно медленнее.'
+    )
+  }
+
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '30'))
+    timeout(time: 90, unit: 'MINUTES')
+  }
+
+  environment {
+    REGISTRY = 'ghcr.io'
+    // Имя пакета в нижнем регистре — ghcr.io требует этого, в workflow это
+    // делал шаг "Lowercase image name" через ${GITHUB_REPOSITORY,,}.
+    IMAGE    = 'ghcr.io/onixus/evacal'
+  }
+
+  stages {
+    stage('Checkout ref') {
+      steps {
+        script {
+          if (!params.REF?.trim()) {
+            error('REF обязателен: укажи тег (например v1.2.3) или ветку (main)')
+          }
+        }
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: params.REF]],
+          userRemoteConfigs: [[
+            url: '/Users/onixus/Git/EvaCal',
+            refspec: '+refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/*',
+          ]],
+        ])
+        sh 'git --no-pager log --oneline -1'
+      }
+    }
+
+    stage('Login') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'GHCR_USER', variable: 'GHCR_USER'),
+          string(credentialsId: 'GHCR_TOKEN', variable: 'GHCR_TOKEN'),
+        ]) {
+          sh '''
+            set -eu
+            if [ -z "${GHCR_TOKEN}" ] || [ -z "${GHCR_USER}" ]; then
+              echo "GHCR_USER/GHCR_TOKEN пустые — заполни их в Manage Jenkins → Credentials." >&2
+              echo "Нужен PAT с правом write:packages." >&2
+              exit 1
+            fi
+            printf '%s' "${GHCR_TOKEN}" | docker login ${REGISTRY} -u "${GHCR_USER}" --password-stdin
+          '''
+        }
+      }
+    }
+
+    stage('Build & push') {
+      steps {
+        script {
+          // Тег vX.Y.Z → X.Y.Z + latest, как semver-правило в metadata-action.
+          // Ветка → тег по её имени, слеши в дефисы (ghcr не любит слеши).
+          def ref = params.REF.trim()
+          def isTag = ref ==~ /^v?\d+\.\d+.*/
+          def tags = isTag
+            ? ["${env.IMAGE}:${ref.replaceFirst(/^v/, '')}", "${env.IMAGE}:latest"]
+            : ["${env.IMAGE}:${ref.replaceAll('/', '-')}"]
+          def tagArgs = tags.collect { "-t ${it}" }.join(' ')
+          def platforms = params.MULTIARCH ? 'linux/amd64,linux/arm64' : 'linux/arm64'
+          def output = params.DRY_RUN ? '' : '--push'
+
+          sh """
+            set -eu
+            docker buildx inspect evacal-publisher >/dev/null 2>&1 \
+              || docker buildx create --name evacal-publisher --driver docker-container --bootstrap
+
+            docker buildx build --builder evacal-publisher \
+              --platform ${platforms} \
+              ${tagArgs} ${output} .
+          """
+
+          if (params.DRY_RUN) {
+            echo "DRY_RUN: собрано, публикации не было. Теги были бы: ${tags.join(', ')}"
+          } else {
+            echo "Опубликовано: ${tags.join(', ')}"
+          }
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      sh 'docker logout ${REGISTRY} || true'
+    }
+  }
+}
