@@ -1,7 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { resolveDatabaseUrl } from '../databaseUrl';
 
 describe('resolveDatabaseUrl', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('переписывает унаследованный от Prisma 5 путь на актуальный', () => {
     expect(resolveDatabaseUrl('file:./dev.db')).toBe('file:./prisma/dev.db');
     expect(resolveDatabaseUrl('file:dev.db')).toBe('file:./prisma/dev.db');
@@ -21,7 +25,15 @@ describe('resolveDatabaseUrl', () => {
   });
 
   it('падает, если переменная не задана', () => {
-    expect(() => resolveDatabaseUrl(undefined)).toThrow('DATABASE_URL не задан');
+    // Значение по умолчанию берётся из process.env, поэтому окружение задаётся явно:
+    // иначе тест зелёный там, где DATABASE_URL просто не выставлен, и красный в CI.
+    vi.stubEnv('DATABASE_URL', '');
+    expect(() => resolveDatabaseUrl()).toThrow('DATABASE_URL не задан');
     expect(() => resolveDatabaseUrl('')).toThrow('DATABASE_URL не задан');
+  });
+
+  it('без аргумента берёт значение из окружения и нормализует его', () => {
+    vi.stubEnv('DATABASE_URL', 'file:./dev.db');
+    expect(resolveDatabaseUrl()).toBe('file:./prisma/dev.db');
   });
 });
