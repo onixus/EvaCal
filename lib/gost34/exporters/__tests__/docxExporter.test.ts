@@ -4,7 +4,7 @@ import { Gost34DocumentAST } from '../../types';
 import JSZip from 'jszip';
 import { convertMillimetersToTwip } from 'docx';
 import { xml2js } from 'xml-js';
-import { LAYOUT_PROFILES, getLayoutProfile, resolveLayoutProfileId } from '../layout';
+import { getLayoutProfile, resolveLayoutProfileId } from '../layout';
 
 describe('DOCX Exporter and Layout Profiles', () => {
   const dummyAst: Gost34DocumentAST = {
@@ -36,14 +36,21 @@ describe('DOCX Exporter and Layout Profiles', () => {
     ],
   };
 
-  it('should default to the ESKD frame layout profile if omitted', () => {
+  /** Рамка ЕСКД в ТЗ не применяется (замечание нормоконтроля), см. registry.ts */
+  /** Оформление с рамками и штампами теперь выбирается явно. */
+  const eskdAst: Gost34DocumentAST = {
+    ...dummyAst,
+    metadata: { ...dummyAst.metadata, layoutProfileId: 'gost34-eskd-frame' as const },
+  };
+
+  it('should default to the modern layout profile without ESKD frames', () => {
     const profile = getLayoutProfile();
-    expect(profile.id).toBe('gost34-eskd-frame');
-    expect(profile.showEskdFrames).toBe(true);
+    expect(profile.id).toBe('gost34-modern');
+    expect(profile.showEskdFrames).toBe(false);
   });
 
   it('should ignore unknown layout ids and fall back to the default profile', () => {
-    expect(getLayoutProfile('nonsense').id).toBe('gost34-eskd-frame');
+    expect(getLayoutProfile('nonsense').id).toBe('gost34-modern');
     expect(resolveLayoutProfileId('nonsense')).toBeUndefined();
     expect(resolveLayoutProfileId(null)).toBeUndefined();
     expect(resolveLayoutProfileId('gost34-modern')).toBe('gost34-modern');
@@ -51,13 +58,14 @@ describe('DOCX Exporter and Layout Profiles', () => {
     // Унаследованные из Object.prototype ключи профилями не являются
     for (const inherited of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
       expect(resolveLayoutProfileId(inherited)).toBeUndefined();
-      expect(getLayoutProfile(inherited).id).toBe('gost34-eskd-frame');
+      expect(getLayoutProfile(inherited).id).toBe('gost34-modern');
     }
   });
 
   it('should keep body tables inside the frame and out of the page edge', async () => {
     const withTable: Gost34DocumentAST = {
       ...dummyAst,
+      metadata: { ...dummyAst.metadata, layoutProfileId: 'gost34-eskd-frame' as const },
       sections: [
         {
           ...dummyAst.sections[0],
@@ -77,7 +85,7 @@ describe('DOCX Exporter and Layout Profiles', () => {
   });
 
   it('should number sheets through PAGE fields in the stamps', async () => {
-    const zip = await JSZip.loadAsync(await exportGost34ToDocx(dummyAst));
+    const zip = await JSZip.loadAsync(await exportGost34ToDocx(eskdAst));
     const footers = Object.keys(zip.files).filter((n) => /^word\/footer\d+\.xml$/.test(n));
     const footerContents = await Promise.all(footers.map((n) => zip.file(n)!.async('string')));
 
@@ -115,8 +123,8 @@ describe('DOCX Exporter and Layout Profiles', () => {
     expect(documentXml).toContain(`<w:sz w:val="${profile.fontSizePt * 2}"/>`);
   });
 
-  it('should render ESKD frames and stamps when no layout is specified', async () => {
-    const buffer = await exportGost34ToDocx(dummyAst);
+  it('should render ESKD frames and stamps for the eskd-frame layout profile', async () => {
+    const buffer = await exportGost34ToDocx(eskdAst);
     const zip = await JSZip.loadAsync(buffer);
 
     const documentXml = await zip.file('word/document.xml')!.async('string');
@@ -178,11 +186,20 @@ describe('DOCX Exporter and Layout Profiles', () => {
 
     const zip = await JSZip.loadAsync(await exportGost34ToDocx(ast));
     const headers = Object.keys(zip.files).filter((n) => /^word\/header\d+\.xml$/.test(n));
-    expect(headers.length).toBe(0);
+    const headerContents = await Promise.all(headers.map((n) => zip.file(n)!.async('string')));
+    // Рамки нет; в колонтитуле остаётся только номер страницы сверху по центру
+    expect(headerContents.every((xml) => !xml.includes('<v:rect'))).toBe(true);
+    expect(headerContents.some((xml) => xml.includes('PAGE'))).toBe(true);
+    expect(headerContents.some((xml) => xml.includes('<w:jc w:val="center"/>'))).toBe(true);
 
     const footers = Object.keys(zip.files).filter((n) => /^word\/footer\d+\.xml$/.test(n));
-    const footerContents = await Promise.all(footers.map((n) => zip.file(n)!.async('string')));
-    expect(footerContents.every((xml) => !xml.includes('№ докум.'))).toBe(true);
+    expect(footers.length).toBe(0);
+  });
+
+  it('should start body numbering from the second page after the title sheet', async () => {
+    const zip = await JSZip.loadAsync(await exportGost34ToDocx(dummyAst));
+    const documentXml = await zip.file('word/document.xml')!.async('string');
+    expect(documentXml).toContain('<w:pgNumType w:start="2"/>');
   });
 
   it('should retrieve specified layout profiles correctly', () => {

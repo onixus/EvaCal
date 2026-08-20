@@ -39,8 +39,8 @@ const sectionGeneralInfo: SchemaNode = {
       `Полное наименование системы: ${meta.fullSystemName}.`,
       `Краткое наименование системы: ${meta.systemName}.`,
       `Обозначение документа: ${meta.documentCode}.`,
-      `Наименование Заказчика: ${meta.customerName}.`,
-      `Наименование Разработчика: ${meta.developerName}.`,
+      `Наименование организации Заказчика: ${meta.customerName}.`,
+      `Наименование организации Разработчика: ${meta.developerName}.`,
     ];
 
     items.push(
@@ -363,14 +363,8 @@ const sectionWorkScope: SchemaNode = {
     if (stages.length > 0) {
       tables.push({
         caption: 'Состав и содержание работ по созданию системы',
-        headers: [
-          '№',
-          'Наименование этапа',
-          'Роль исполнителя',
-          'Трудоёмкость, ч',
-          'Содержание работ',
-        ],
-        rows: stages.map((s) => [s.order, s.name, s.role, s.hours, s.requirements || '—']),
+        headers: ['Наименование этапа', 'Роль исполнителя', 'Трудоёмкость, ч', 'Содержание работ'],
+        rows: stages.map((s) => [s.name, s.role, s.hours, s.requirements || '—']),
       });
     }
     if (reqs.length > 0 && stages.length > 0) {
