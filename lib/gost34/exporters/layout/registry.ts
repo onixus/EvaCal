@@ -10,11 +10,12 @@ export const LAYOUT_PROFILES: Record<LayoutProfileId, LayoutProfile> = {
 };
 
 /**
- * По умолчанию документы выпускаются с рамками и штампами ЕСКД (ГОСТ 2.104-2006):
- * это ожидаемое «гостовское» оформление. Современный стиль без рамок доступен
- * явным выбором профиля `gost34-modern`.
+ * По умолчанию документы выпускаются без чертёжной рамки: по замечаниям
+ * нормоконтроля рамка ЕСКД в ТЗ не нужна, а номер страницы печатается сверху
+ * по центру. Оформление с рамками и штампами доступно явным выбором профиля
+ * `gost34-eskd-frame`.
  */
-export const DEFAULT_LAYOUT_PROFILE: LayoutProfile = GOST34_ESKD_FRAME_LAYOUT;
+export const DEFAULT_LAYOUT_PROFILE: LayoutProfile = GOST34_MODERN_LAYOUT;
 
 export function getLayoutProfile(id?: string): LayoutProfile {
   const resolved = resolveLayoutProfileId(id);

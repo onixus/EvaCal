@@ -1,15 +1,22 @@
 name: Build and Push Docker Image to GHCR
 
+# ОТКЛЮЧЕНО: заменено локальным Jenkins (Jenkinsfile.publish, джоба
+# evacal-publish). Образы по-прежнему уезжают в ghcr.io — лимит у нас на
+# минуты раннеров, а не на реестр, поэтому деплой не меняется.
+# Учти отличие: тут пуш шёл на КАЖДЫЙ коммит в main и в ветку
+# fix/docker-migrate-perms-and-seed; в Jenkins публикация ручная, по REF.
+# Вернуть: раскомментировать push/pull_request ниже.
 on:
-  push:
-    branches:
-      - main
-      - fix/docker-migrate-perms-and-seed
-    tags:
-      - 'v*'
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
+  # push:
+  #   branches:
+  #     - main
+  #     - fix/docker-migrate-perms-and-seed
+  #   tags:
+  #     - 'v*'
+  # pull_request:
+  #   branches:
+  #     - main
 
 env:
   REGISTRY: ghcr.io
