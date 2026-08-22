@@ -31,6 +31,14 @@ interface CalculationData {
   stages: StageRow[];
   risks: RiskRow[];
   answers: Record<string, unknown>;
+  version?: number;
+  versionComment?: string | null;
+  project?: {
+    id: string;
+    name: string;
+    customer: string;
+    code?: string | null;
+  } | null;
   currency?: string;
   roleRates?: string | null;
   overheadPercent?: number;
@@ -73,12 +81,39 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <nav className="flex items-center gap-2 text-xs text-slate-500 dark:text-nord-muted">
+        <Link href="/projects" className="hover:text-brand-600 dark:hover:text-nord-frost2">
+          Проекты
+        </Link>
+        {calculation.project && (
+          <>
+            <span>/</span>
+            <Link
+              href={`/projects/${calculation.project.id}`}
+              className="hover:text-brand-600 dark:hover:text-nord-frost2 font-medium"
+            >
+              {calculation.project.name}
+            </Link>
+          </>
+        )}
+        <span>/</span>
+        <span className="font-semibold text-slate-900 dark:text-nord-5">
+          {calculation.name} {calculation.version ? `(v${calculation.version})` : ''}
+        </span>
+      </nav>
+
       {/* Project Hero Bar */}
       <div className="card overflow-hidden">
         <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5 dark:border-nord-3 dark:from-nord-1/40 dark:to-nord-2">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-3">
+                {calculation.version && (
+                  <span className="rounded bg-slate-900 px-2 py-0.5 font-mono text-xs font-bold text-white dark:bg-nord-frost4 dark:text-nord-0">
+                    v{calculation.version}
+                  </span>
+                )}
                 <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-nord-6">
                   {calculation.name}
                 </h1>
@@ -103,10 +138,24 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
                 <span>•</span>
                 <span>Создан: {createdDateFormatted}</span>
               </div>
+              {calculation.versionComment && (
+                <p className="text-xs text-slate-600 dark:text-nord-4 italic pt-0.5">
+                  💬 {calculation.versionComment}
+                </p>
+              )}
             </div>
 
             {/* Quick Actions */}
             <div className="flex flex-wrap items-center gap-2">
+              {calculation.project && (
+                <Link
+                  href={`/projects/${calculation.project.id}`}
+                  className="btn-secondary !py-1.5 !px-3 text-xs font-semibold"
+                  title="Перейти в карточку проекта"
+                >
+                  📁 Карточка проекта
+                </Link>
+              )}
               <Link
                 href={`/architect/${calculation.id}`}
                 className="btn-secondary !py-1.5 !px-3 text-xs font-semibold"

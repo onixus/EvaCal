@@ -13,6 +13,7 @@ export default async function CalculationViewPage(props: { params: Promise<{ id:
   const calculation = await prisma.calculation.findUnique({
     where: { id: params.id },
     include: {
+      project: { select: { id: true, name: true, customer: true, code: true } },
       template: { include: { fields: { orderBy: { order: 'asc' } } } },
       stages: { orderBy: { order: 'asc' } },
       risks: { orderBy: { order: 'asc' } },
@@ -26,6 +27,16 @@ export default async function CalculationViewPage(props: { params: Promise<{ id:
     id: calculation.id,
     name: calculation.name,
     customer: calculation.customer,
+    version: calculation.version,
+    versionComment: calculation.versionComment,
+    project: calculation.project
+      ? {
+          id: calculation.project.id,
+          name: calculation.project.name,
+          customer: calculation.project.customer,
+          code: calculation.project.code,
+        }
+      : null,
     status: calculation.status,
     startDate: calculation.startDate.toISOString(),
     createdAt: calculation.createdAt.toISOString(),

@@ -159,6 +159,104 @@ describe('Project API routes', () => {
     });
   });
 
+  describe('PUT /api/projects/[id]', () => {
+    it('updates project metadata and writes audit', async () => {
+      vi.mocked(requireStaff).mockResolvedValue({
+        userId: 'u1',
+        username: 'arch',
+        role: 'architect',
+        exp: Date.now() + 10000,
+      });
+
+      vi.mocked(prisma.project.findUnique).mockResolvedValue({
+        id: 'p1',
+        name: 'Старое название',
+        customer: 'Старый заказчик',
+        code: 'PRJ-1',
+        description: 'Старое описание',
+        status: 'active',
+      } as any);
+
+      vi.mocked(prisma.project.update).mockResolvedValue({
+        id: 'p1',
+        name: 'Новое название',
+        customer: 'Новый заказчик',
+        code: 'PRJ-2',
+        description: 'Новое описание',
+        status: 'completed',
+      } as any);
+
+      const req = new NextRequest('http://localhost:3000/api/projects/p1', {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: 'Новое название',
+          customer: 'Новый заказчик',
+          code: 'PRJ-2',
+          description: 'Новое описание',
+          status: 'completed',
+        }),
+      });
+
+      const res = await updateProject(req, { params: Promise.resolve({ id: 'p1' }) });
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.name).toBe('Новое название');
+      expect(prisma.project.update).toHaveBeenCalledWith({
+        where: { id: 'p1' },
+        data: {
+          name: 'Новое название',
+          customer: 'Новый заказчик',
+          code: 'PRJ-2',
+          description: 'Новое описание',
+          status: 'completed',
+        },
+      });
+    });
+  });
+
+  describe('DELETE /api/projects/[id]', () => {
+    it('allows admin to delete project', async () => {
+      vi.mocked(requireStaff).mockResolvedValue({
+        userId: 'admin_1',
+        username: 'admin',
+        role: 'admin',
+        exp: Date.now() + 10000,
+      });
+
+      vi.mocked(prisma.project.findUnique).mockResolvedValue({
+        id: 'p1',
+        name: 'Проект для удаления',
+        customer: 'Банк',
+      } as any);
+
+      const req = new NextRequest('http://localhost:3000/api/projects/p1', {
+        method: 'DELETE',
+      });
+
+      const res = await deleteProject(req, { params: Promise.resolve({ id: 'p1' }) });
+      expect(res.status).toBe(200);
+      expect(prisma.project.delete).toHaveBeenCalledWith({
+        where: { id: 'p1' },
+      });
+    });
+
+    it('forbids non-admin from deleting project', async () => {
+      vi.mocked(requireStaff).mockResolvedValue({
+        userId: 'arch_1',
+        username: 'arch',
+        role: 'architect',
+        exp: Date.now() + 10000,
+      });
+
+      const req = new NextRequest('http://localhost:3000/api/projects/p1', {
+        method: 'DELETE',
+      });
+
+      const res = await deleteProject(req, { params: Promise.resolve({ id: 'p1' }) });
+      expect(res.status).toBe(403);
+    });
+  });
+
   describe('POST /api/calculations/[id]/version', () => {
     it('creates a new version for an authorized calculation', async () => {
       vi.mocked(requireCalcAccess).mockResolvedValue({

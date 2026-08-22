@@ -21,7 +21,8 @@ export default function Pagination({
   pageParam?: string;
 }) {
   const pages = totalPages(total, pageSize);
-  const href = (target: number) => `${basePath}?${pageParam}=${target}`;
+  const sep = basePath.includes('?') ? '&' : '?';
+  const href = (target: number) => `${basePath}${sep}${pageParam}=${target}`;
 
   // A stale bookmark or hand-edited URL can point past the end of the list. The page
   // renders empty there, so it must still offer a way back — otherwise the screen just

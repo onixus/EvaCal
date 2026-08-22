@@ -21,18 +21,24 @@ export default function NewCalculationForm({
   template,
   availableTemplates = [],
   createShareToken = null,
+  initialProjectId = null,
+  initialProjectName = '',
+  initialCustomer = '',
 }: {
   template: TemplateDef;
   availableTemplates?: TemplateDef[];
   /** Optional create-scoped share from `?share=` on /presale. */
   createShareToken?: string | null;
+  initialProjectId?: string | null;
+  initialProjectName?: string;
+  initialCustomer?: string;
 }) {
   const router = useRouter();
   const [selectedTemplateId, setSelectedTemplateId] = useState(template.id);
   const currentTemplate = availableTemplates.find((t) => t.id === selectedTemplateId) || template;
 
-  const [name, setName] = useState('');
-  const [customer, setCustomer] = useState('');
+  const [name, setName] = useState(initialProjectName);
+  const [customer, setCustomer] = useState(initialCustomer);
   const [startDate, setStartDate] = useState(
     currentTemplate.defaultStartDate?.slice(0, 10) ?? todayIso(),
   );
@@ -62,6 +68,7 @@ export default function NewCalculationForm({
           templateId: currentTemplate.id,
           answers,
           startDate,
+          projectId: initialProjectId || undefined,
         }),
       });
       if (!res.ok) {
@@ -113,6 +120,18 @@ export default function NewCalculationForm({
                 </button>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Привязка к проекту */}
+      {initialProjectId && (
+        <div className="flex items-center gap-2.5 rounded-lg border border-brand-200 bg-brand-50/60 p-3 text-xs text-brand-900 dark:border-nord-frost4/40 dark:bg-nord-frost4/10 dark:text-nord-frost2">
+          <span className="text-base">📁</span>
+          <div>
+            <span>Расчёт будет привязан к проекту: </span>
+            <strong className="font-semibold">{initialProjectName || 'Выбранный проект'}</strong>
+            {initialCustomer && <span> ({initialCustomer})</span>}
           </div>
         </div>
       )}

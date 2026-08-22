@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import ThemeToggle from './ThemeToggle';
 
 const LINKS = [
+  { href: '/projects', label: 'Проекты' },
   { href: '/', label: 'Все расчёты' },
   { href: '/presale', label: 'Пресейл' },
   { href: '/architect', label: 'Архитектор' },

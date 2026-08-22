@@ -294,6 +294,7 @@ export async function getProjectDetails(projectId: string) {
       calculations: {
         orderBy: { version: 'desc' },
         include: {
+          template: { select: { id: true, name: true } },
           stages: { orderBy: { order: 'asc' } },
           risks: { orderBy: { order: 'asc' } },
           gostPackages: { orderBy: { version: 'desc' } },

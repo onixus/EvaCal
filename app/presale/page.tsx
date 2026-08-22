@@ -6,11 +6,18 @@ import { getStaffSession, isAnonymousPresaleAllowed } from '@/lib/access';
 export const dynamic = 'force-dynamic';
 
 export default async function PresalePage(props: {
-  searchParams: Promise<{ share?: string; templateId?: string }>;
+  searchParams: Promise<{ share?: string; templateId?: string; projectId?: string }>;
 }) {
   const searchParams = await props.searchParams;
   const staff = await getStaffSession();
   const anonymousOk = isAnonymousPresaleAllowed();
+
+  const linkedProject = searchParams.projectId
+    ? await prisma.project.findUnique({
+        where: { id: searchParams.projectId },
+        select: { id: true, name: true, customer: true },
+      })
+    : null;
 
   const allTemplates = await prisma.formTemplate.findMany({
     where: { isActive: true },
@@ -85,6 +92,9 @@ export default async function PresalePage(props: {
             template={JSON.parse(JSON.stringify(selectedTemplate))}
             availableTemplates={JSON.parse(JSON.stringify(availableTemplates))}
             createShareToken={searchParams.share ?? null}
+            initialProjectId={linkedProject?.id ?? null}
+            initialProjectName={linkedProject?.name ?? ''}
+            initialCustomer={linkedProject?.customer ?? ''}
           />
         </div>
       ) : null}
