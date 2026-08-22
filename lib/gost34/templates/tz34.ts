@@ -1,72 +1,18 @@
-import { Gost34InputPayload, Gost34RequirementItem, Gost34Section } from '../types';
+import { Gost34InputPayload, Gost34Section } from '../types';
 import { buildProjectContext } from '../context/builder';
 import { normalizeProjectContextForGeneration } from '../context/normalize';
-import { CONTEXT_GAP_PLACEHOLDER, ContextGap } from '../context/types';
-import { toGost34RequirementItems } from '../requirements/adapters';
+import { ContextGap } from '../context/types';
 import { LEGACY_GOST34_PROFILE_ID } from '../standards';
 import { renderDocumentSchema, validateSchemaCoverage } from '../schema/renderer';
 import { SchemaValidationIssue } from '../schema/types';
 import { TZ_SCHEMA_2020 } from '../schema/tz34-2020';
 import { buildTZ34LegacySections } from './tz34-legacy89';
+import { applyTraceabilityToRequirements, reconcileRenderedSections } from './tz34Helpers';
 
 export interface TZ34BuildResult {
   sections: Gost34Section[];
   gaps: ContextGap[];
   issues: SchemaValidationIssue[];
-}
-
-function applyTraceabilityToRequirements(payload: Gost34InputPayload): Gost34InputPayload {
-  const sourceRequirements: Gost34RequirementItem[] = payload.customRequirements?.length
-    ? payload.customRequirements
-    : payload.requirementsV2?.length
-      ? toGost34RequirementItems(payload.requirementsV2)
-      : [];
-
-  if (sourceRequirements.length === 0) return payload;
-
-  const stagesById = new Map(payload.stages.map((stage) => [stage.id, stage]));
-  const linksByRequirementId = new Map(
-    (payload.traceability?.links || [])
-      .filter((link) => stagesById.has(link.targetId))
-      .map((link) => [link.sourceId, link]),
-  );
-
-  const customRequirements = sourceRequirements.map((requirement) => {
-    const link = linksByRequirementId.get(requirement.id);
-    if (!link) return requirement;
-
-    const stage = stagesById.get(link.targetId)!;
-    return {
-      ...requirement,
-      mappedStageId: stage.id,
-      mappedStageName: stage.name,
-      mappedRole: stage.role,
-    };
-  });
-
-  return { ...payload, customRequirements };
-}
-
-function reconcileRenderedSections(
-  sections: Gost34Section[],
-  payload: Gost34InputPayload,
-): Gost34Section[] {
-  if (payload.stages.length > 0) return sections;
-
-  return sections.map((section) => {
-    if (section.id !== 'tz2020-work-scope') return section;
-
-    return {
-      ...section,
-      paragraphs: section.paragraphs.map((paragraph) =>
-        paragraph.includes(
-          'Перечень стадий и этапов работ, их содержание и трудоёмкость приведены в таблице',
-        )
-          ? `${section.numStr}.1 Состав стадий и этапов работ — ${CONTEXT_GAP_PLACEHOLDER}.`
-          : paragraph,
-      ),
-    };
-  });
 }
 
 export function buildTZ34Document(payload: Gost34InputPayload): TZ34BuildResult {

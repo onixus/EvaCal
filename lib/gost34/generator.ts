@@ -14,6 +14,20 @@ export interface Gost34BuildDiagnostics {
   issues: SchemaValidationIssue[];
 }
 
+type DocumentBuilder = (payload: Gost34InputPayload) => {
+  sections: Gost34Section[];
+  gaps?: ContextGap[];
+  issues?: SchemaValidationIssue[];
+};
+
+const BUILDERS: Record<string, DocumentBuilder> = {
+  PZ: (payload) => ({ sections: buildPZ34Sections(payload) }),
+  AF: (payload) => ({ sections: buildAF34Sections(payload) }),
+  PMI: (payload) => ({ sections: buildPMI34Sections(payload) }),
+  SPEC: (payload) => ({ sections: buildSPEC34Sections(payload) }),
+  TZ: buildTZ34Document,
+};
+
 /**
  * Builds the complete document AST according to GOST 34 / RD 50-34.698-90
  */
@@ -23,36 +37,16 @@ export function buildGost34DocumentAST(
   const meta = payload.metadata;
   const docType = meta.docType || 'TZ';
 
-  let sections: Gost34Section[];
-  const diagnostics: Gost34BuildDiagnostics = { gaps: [], issues: [] };
-
-  switch (docType) {
-    case 'PZ':
-      sections = buildPZ34Sections(payload);
-      break;
-    case 'AF':
-      sections = buildAF34Sections(payload);
-      break;
-    case 'PMI':
-      sections = buildPMI34Sections(payload);
-      break;
-    case 'SPEC':
-      sections = buildSPEC34Sections(payload);
-      break;
-    case 'TZ':
-    default: {
-      const tz = buildTZ34Document(payload);
-      sections = tz.sections;
-      diagnostics.gaps = tz.gaps;
-      diagnostics.issues = tz.issues;
-      break;
-    }
-  }
+  const builder = BUILDERS[docType] || BUILDERS['TZ'];
+  const result = builder(payload);
 
   return {
     metadata: meta,
-    sections,
+    sections: result.sections,
     standardProfile: payload.standardProfile,
-    diagnostics,
+    diagnostics: {
+      gaps: result.gaps || [],
+      issues: result.issues || [],
+    },
   };
 }
