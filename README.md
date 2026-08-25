@@ -97,8 +97,8 @@
 - **Styling**: Tailwind CSS (высококонтрастная тема + темная тема Nord + Dark Fantasy).
 - **ORM & Database**: Prisma ORM, SQLite (`prisma/dev.db`).
 - **Генерация документов**: `docx`, `mammoth`, `jszip`, `pdfkit`, `xlsx` (SheetJS).
-- **Тестирование**: Vitest (36 test suites, 338 tests, JUnit XML reporter).
-- **CI/CD**: Jenkins Pipeline (`Jenkinsfile`) & GitHub Actions (Docker Build & GHCR).
+- **Тестирование**: Vitest (39 test suites, 360+ tests, Golden Tests ГОСТ 34, JUnit XML reporter).
+- **CI/CD & Инфраструктура**: Docker multi-stage (standalone runner, non-root user, healthcheck), Docker Compose, Nginx (TLS, HSTS, Gzip, Security Headers), Jenkins Pipeline (`Jenkinsfile`) & GitHub Actions (Docker Build & GHCR).
 
 ---
 

@@ -111,5 +111,21 @@ describe('lib/commercial', () => {
       expect(result.vatAmount).toBe(0);
       expect(result.grandTotal).toBe(30000);
     });
+
+    it('safely handles NaN and negative inputs without NaN propagation', () => {
+      const stages = [{ hours: 10, role: 'developer' }];
+      const result = calculateCommercialSummary(stages, 0, [], {
+        overheadPercent: NaN,
+        marginPercent: -10 as unknown as number,
+        discountPercent: undefined,
+        vatPercent: 'invalid' as unknown as number,
+      });
+
+      expect(Number.isFinite(result.totalCost)).toBe(true);
+      expect(Number.isFinite(result.grandTotal)).toBe(true);
+      expect(result.overheadPercent).toBe(0);
+      expect(result.marginPercent).toBe(20);
+      expect(result.vatPercent).toBe(20);
+    });
   });
 });
