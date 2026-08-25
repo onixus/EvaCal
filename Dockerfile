@@ -1,5 +1,5 @@
 # --- deps: install dependencies ---
-FROM node:22-alpine AS deps
+FROM node:22.14-alpine3.21 AS deps
 WORKDIR /app
 # The `prepare` script runs format+typecheck for local installs and skips itself when CI
 # is set. Only package.json and the lockfile exist at this layer, so without CI it would
@@ -9,7 +9,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # --- builder: generate prisma client and build the app ---
-FROM node:22-alpine AS builder
+FROM node:22.14-alpine3.21 AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -22,7 +22,7 @@ RUN npm run build
 # --- migrate: one-off schema sync + seed (prisma db push and db:seed against the mounted SQLite volume) ---
 # Kept separate from `runner` so the app image stays slim; the CLI and its schema-engine
 # binary aren't needed to serve requests, only to initialize/update the DB before startup.
-FROM node:22-alpine AS migrate
+FROM node:22.14-alpine3.21 AS migrate
 WORKDIR /app
 # su-exec drops from root (needed to chown the mounted volume) to the app's uid before running prisma,
 # so files in the volume end up owned by the same uid the runner stage serves requests as.
@@ -41,7 +41,7 @@ ENTRYPOINT ["/usr/local/bin/docker-migrate-entrypoint.sh"]
 CMD ["sh", "-c", "npx prisma db push && npx prisma generate && npx tsx prisma/seed.ts"]
 
 # --- runner: minimal production image ---
-FROM node:22-alpine AS runner
+FROM node:22.14-alpine3.21 AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
