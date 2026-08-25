@@ -30,6 +30,55 @@ function safeEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
+// In-memory revocation store for invalidated sessions/tokens with TTL cleanup
+const revokedTokens = new Map<string, number>();
+
+function cleanRevokedTokens(): void {
+  const now = Date.now();
+  for (const [sig, exp] of revokedTokens.entries()) {
+    if (exp <= now) {
+      revokedTokens.delete(sig);
+    }
+  }
+}
+
+/** Explicitly revokes a session token so it cannot be reused before TTL expiry. */
+export function revokeSession(token: string | undefined | null): void {
+  if (!token) return;
+  const parts = token.split('.');
+  if (parts.length < 2) return;
+  const [data, signature] = parts;
+  try {
+    const payload = JSON.parse(Buffer.from(data, 'base64url').toString()) as SessionPayload;
+    const exp =
+      typeof payload.exp === 'number' ? payload.exp : Date.now() + SESSION_MAX_AGE_SECONDS * 1000;
+    revokedTokens.set(signature, exp);
+    if (revokedTokens.size > 1000) cleanRevokedTokens();
+  } catch {
+    revokedTokens.set(signature, Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
+  }
+}
+
+/** Checks whether a session token has been revoked. */
+export function isSessionRevoked(token: string | undefined | null): boolean {
+  if (!token) return true;
+  const parts = token.split('.');
+  if (parts.length < 2) return true;
+  const [, signature] = parts;
+  const exp = revokedTokens.get(signature);
+  if (!exp) return false;
+  if (exp <= Date.now()) {
+    revokedTokens.delete(signature);
+    return false;
+  }
+  return true;
+}
+
+/** Clears revoked tokens store (intended for unit tests). */
+export function clearRevocationsForTesting(): void {
+  revokedTokens.clear();
+}
+
 export function createSessionToken(user: { id: string; username: string; role: string }): string {
   const payload: SessionPayload = {
     userId: user.id,
@@ -43,6 +92,7 @@ export function createSessionToken(user: { id: string; username: string; role: s
 
 export function verifySessionToken(token: string | undefined | null): SessionPayload | null {
   if (!token) return null;
+  if (isSessionRevoked(token)) return null;
   const [data, signature] = token.split('.');
   if (!data || !signature || !safeEqual(signature, sign(data))) return null;
   try {

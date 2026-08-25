@@ -3,10 +3,12 @@ import { buildPZ34Sections } from '../pz34';
 import { buildAF34Sections } from '../af34';
 import { buildPMI34Sections } from '../pmi34';
 import { buildSPEC34Sections } from '../spec34';
+import { buildRP34Sections } from '../rp34';
+import { buildRA34Sections } from '../ra34';
 import { Gost34InputPayload } from '../../types';
 import { GOST34_2020_PROFILE, GOST34_LEGACY_PROFILE } from '../../standards/profiles';
 
-describe('Modern Document Generators (PZ, AF, PMI, SPEC)', () => {
+describe('Modern Document Generators (PZ, AF, PMI, SPEC, RP, RA)', () => {
   const mockPayload: Gost34InputPayload = {
     metadata: {
       docType: 'PZ',
@@ -113,5 +115,30 @@ describe('Modern Document Generators (PZ, AF, PMI, SPEC)', () => {
     const hwTable = sections[2].tables?.[0];
     expect(hwTable?.rows[0][4]).toContain('8 vCPU');
     expect(hwTable?.rows[1][4]).toContain('500 ГБ');
+  });
+
+  it('buildRP34Sections generates User Manual according to GOST 34.201 / RD 50-34.698', () => {
+    const sections = buildRP34Sections(mockPayload);
+    expect(sections).toHaveLength(5);
+
+    const sec1 = sections.find((s) => s.id === 'sec-1');
+    expect(sec1?.title).toContain('ВВЕДЕНИЕ');
+    expect(sec1?.paragraphs[0]).toContain('Руководство пользователя');
+
+    const sec4 = sections.find((s) => s.id === 'sec-4');
+    const table = sec4?.tables?.[0];
+    expect(table?.rows[0][0]).toBe('ТР-01');
+  });
+
+  it('buildRA34Sections generates System Administrator Guide', () => {
+    const sections = buildRA34Sections(mockPayload);
+    expect(sections).toHaveLength(5);
+
+    const sec1 = sections.find((s) => s.id === 'sec-1');
+    expect(sec1?.title).toContain('ВВЕДЕНИЕ');
+    expect(sec1?.paragraphs[0]).toContain('Руководство системного администратора');
+
+    const sec3 = sections.find((s) => s.id === 'sec-3');
+    expect(sec3?.paragraphs[0]).toContain('Docker Compose');
   });
 });

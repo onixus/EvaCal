@@ -8,7 +8,7 @@ import type { ProjectContext } from './context/types';
 import type { ValidationReport } from './validation/types';
 import type { ApplicabilityResult } from './applicability/types';
 
-export type GostDocumentType = 'TZ' | 'PZ' | 'AF' | 'PMI' | 'SPEC';
+export type GostDocumentType = 'TZ' | 'PZ' | 'AF' | 'PMI' | 'SPEC' | 'RP' | 'RA';
 
 /** What an export request may ask for: one document, or the full batch as a ZIP. */
 export type GostExportType = GostDocumentType | 'ZIP';

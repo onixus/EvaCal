@@ -6,6 +6,8 @@ import { buildPZ34Sections } from './templates/pz34';
 import { buildAF34Sections } from './templates/af34';
 import { buildPMI34Sections } from './templates/pmi34';
 import { buildSPEC34Sections } from './templates/spec34';
+import { buildRP34Sections } from './templates/rp34';
+import { buildRA34Sections } from './templates/ra34';
 
 export interface Gost34BuildDiagnostics {
   /** Сведения проектного контекста, требующие уточнения. */
@@ -25,6 +27,8 @@ const BUILDERS: Record<string, DocumentBuilder> = {
   AF: (payload) => ({ sections: buildAF34Sections(payload) }),
   PMI: (payload) => ({ sections: buildPMI34Sections(payload) }),
   SPEC: (payload) => ({ sections: buildSPEC34Sections(payload) }),
+  RP: (payload) => ({ sections: buildRP34Sections(payload) }),
+  RA: (payload) => ({ sections: buildRA34Sections(payload) }),
   TZ: buildTZ34Document,
 };
 
