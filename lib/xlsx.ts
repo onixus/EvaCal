@@ -16,6 +16,19 @@ function fmtDate(d: Date | null): string {
   });
 }
 
+function sanitizeCell<T extends string | number | boolean | null | undefined>(val: T): T {
+  if (typeof val === 'string' && /^[=+\-@\t\r]/.test(val)) {
+    return `'${val}` as T;
+  }
+  return val;
+}
+
+function sanitizeRows(
+  rows: (string | number | boolean | null | undefined)[][],
+): (string | number | boolean | null | undefined)[][] {
+  return rows.map((row) => row.map((cell) => sanitizeCell(cell)));
+}
+
 export function renderCalculationXlsx(
   calc: CalculationForExport,
   options?: { customRequirements?: Gost34RequirementItem[] },
@@ -37,22 +50,24 @@ export function renderCalculationXlsx(
   const wb = XLSX.utils.book_new();
 
   // 1. Overview Sheet
-  const overviewSheet = XLSX.utils.aoa_to_sheet([
-    ['Название', calc.name],
-    ['Заказчик', calc.customer],
-    ['Шаблон', calc.templateName],
-    ['Статус', STATUS_LABELS[calc.status] ?? calc.status],
-    ['Дата старта', fmtDate(calc.startDate)],
-    [],
-    ['Трудозатраты, этапы, ч', stagesHours],
-    ['Трудозатраты, РП, ч', calc.pmHours],
-    ['Трудозатраты, риски, ч', risksHours],
-    ['Трудозатраты, итого, ч', grandTotal],
-    [],
-    ['Стоимость без НДС, ' + commercial.currencySymbol, commercial.subtotalExVat],
-    ['НДС (' + commercial.vatPercent + '%), ' + commercial.currencySymbol, commercial.vatAmount],
-    ['Итого к оплате, ' + commercial.currencySymbol, commercial.grandTotal],
-  ]);
+  const overviewSheet = XLSX.utils.aoa_to_sheet(
+    sanitizeRows([
+      ['Название', calc.name],
+      ['Заказчик', calc.customer],
+      ['Шаблон', calc.templateName],
+      ['Статус', STATUS_LABELS[calc.status] ?? calc.status],
+      ['Дата старта', fmtDate(calc.startDate)],
+      [],
+      ['Трудозатраты, этапы, ч', stagesHours],
+      ['Трудозатраты, РП, ч', calc.pmHours],
+      ['Трудозатраты, риски, ч', risksHours],
+      ['Трудозатраты, итого, ч', grandTotal],
+      [],
+      ['Стоимость без НДС, ' + commercial.currencySymbol, commercial.subtotalExVat],
+      ['НДС (' + commercial.vatPercent + '%), ' + commercial.currencySymbol, commercial.vatAmount],
+      ['Итого к оплате, ' + commercial.currencySymbol, commercial.grandTotal],
+    ]),
+  );
   overviewSheet['!cols'] = [{ wch: 28 }, { wch: 40 }];
   XLSX.utils.book_append_sheet(wb, overviewSheet, 'Расчёт');
 
@@ -135,45 +150,49 @@ export function renderCalculationXlsx(
     ],
   );
 
-  const commercialSheet = XLSX.utils.aoa_to_sheet(commercialRows);
+  const commercialSheet = XLSX.utils.aoa_to_sheet(sanitizeRows(commercialRows));
   commercialSheet['!cols'] = [{ wch: 36 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 22 }];
   XLSX.utils.book_append_sheet(wb, commercialSheet, 'Смета КП');
 
   // 3. Questionnaire Answers
   if (calc.fields.length > 0) {
-    const answersSheet = XLSX.utils.aoa_to_sheet([
-      ['Вопрос', 'Ответ'],
-      ...calc.fields.map((f) => [f.label, String(calc.answers[f.key] ?? '')]),
-    ]);
+    const answersSheet = XLSX.utils.aoa_to_sheet(
+      sanitizeRows([
+        ['Вопрос', 'Ответ'],
+        ...calc.fields.map((f) => [f.label, String(calc.answers[f.key] ?? '')]),
+      ]),
+    );
     answersSheet['!cols'] = [{ wch: 32 }, { wch: 40 }];
     XLSX.utils.book_append_sheet(wb, answersSheet, 'Ответы');
   }
 
   // 4. Stages Sheet
-  const stagesSheet = XLSX.utils.aoa_to_sheet([
-    [
-      'Этап',
-      'Роль',
-      'Параллельно',
-      'Часы',
-      'Начало',
-      'Окончание',
-      'Срок согласования',
-      'Статус',
-      'Требования',
-    ],
-    ...calc.stages.map((s) => [
-      s.name,
-      roleLabel(s.role),
-      s.parallel ? 'Да' : '',
-      s.isApprovalTask ? '' : s.hours,
-      fmtDate(s.startDate),
-      fmtDate(s.endDate),
-      fmtDate(s.dueDate),
-      STATUS_LABELS[s.status] ?? s.status,
-      s.requirements ?? '',
+  const stagesSheet = XLSX.utils.aoa_to_sheet(
+    sanitizeRows([
+      [
+        'Этап',
+        'Роль',
+        'Параллельно',
+        'Часы',
+        'Начало',
+        'Окончание',
+        'Срок согласования',
+        'Статус',
+        'Требования',
+      ],
+      ...calc.stages.map((s) => [
+        s.name,
+        roleLabel(s.role),
+        s.parallel ? 'Да' : '',
+        s.isApprovalTask ? '' : s.hours,
+        fmtDate(s.startDate),
+        fmtDate(s.endDate),
+        fmtDate(s.dueDate),
+        STATUS_LABELS[s.status] ?? s.status,
+        s.requirements ?? '',
+      ]),
     ]),
-  ]);
+  );
   stagesSheet['!cols'] = [
     { wch: 34 },
     { wch: 14 },
@@ -189,10 +208,9 @@ export function renderCalculationXlsx(
 
   // 5. Risks Sheet
   if (calc.risks.length > 0) {
-    const risksSheet = XLSX.utils.aoa_to_sheet([
-      ['Описание', 'Часы'],
-      ...calc.risks.map((r) => [r.description, r.hours]),
-    ]);
+    const risksSheet = XLSX.utils.aoa_to_sheet(
+      sanitizeRows([['Описание', 'Часы'], ...calc.risks.map((r) => [r.description, r.hours])]),
+    );
     risksSheet['!cols'] = [{ wch: 70 }, { wch: 10 }];
     XLSX.utils.book_append_sheet(wb, risksSheet, 'Риски');
   }
@@ -301,7 +319,7 @@ export function renderCalculationXlsx(
       ]);
     }
 
-    const matrixSheet = XLSX.utils.aoa_to_sheet(matrixRows);
+    const matrixSheet = XLSX.utils.aoa_to_sheet(sanitizeRows(matrixRows));
     matrixSheet['!cols'] = [
       { wch: 14 },
       { wch: 16 },

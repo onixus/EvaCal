@@ -114,6 +114,12 @@ export function resolveRoleRates(
   };
 }
 
+function safePercent(val: unknown, fallback: number): number {
+  if (val === undefined || val === null) return fallback;
+  const num = typeof val === 'number' ? val : Number(val);
+  return Number.isFinite(num) && num >= 0 ? num : fallback;
+}
+
 /**
  * Calculates complete financial and commercial metrics for a calculation.
  */
@@ -126,10 +132,10 @@ export function calculateCommercialSummary(
   const currency = config.currency || 'RUB';
   const currencySymbol = SUPPORTED_CURRENCIES[currency]?.symbol || '₽';
   const roleRates = resolveRoleRates(config.roleRates);
-  const overheadPercent = Math.max(0, config.overheadPercent ?? 0);
-  const marginPercent = Math.max(0, config.marginPercent ?? 20);
-  const discountPercent = Math.max(0, config.discountPercent ?? 0);
-  const vatPercent = Math.max(0, config.vatPercent ?? 20);
+  const overheadPercent = safePercent(config.overheadPercent, 0);
+  const marginPercent = safePercent(config.marginPercent, 20);
+  const discountPercent = safePercent(config.discountPercent, 0);
+  const vatPercent = safePercent(config.vatPercent, 20);
   const includeVat = config.includeVat ?? true;
 
   // 1. Group stages by role

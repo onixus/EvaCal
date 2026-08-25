@@ -88,6 +88,34 @@ describe('Commercial Exports', () => {
     expect(matrixText).toContain('ПМИ-');
   });
 
+  it('escapes formulas to prevent CSV/XLSX injection (CWE-1236)', () => {
+    const maliciousCalc: CalculationForExport = {
+      ...mockCalc,
+      name: '=cmd|"/C calc"!A0',
+      customer: '+1234567890',
+      answers: { users: '=1+1' },
+      stages: [
+        {
+          ...mockCalc.stages[0],
+          name: '@malicious_stage',
+          requirements: '-some_formula()',
+        },
+      ],
+    };
+
+    const buffer = renderCalculationXlsx(maliciousCalc);
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const overviewSheet = workbook.Sheets['Расчёт'];
+    const overviewData = XLSX.utils.sheet_to_json<string[]>(overviewSheet, { header: 1 });
+
+    // Ensure cell strings are prefixed with single quote
+    const nameRow = overviewData.find((row) => row[0] === 'Название');
+    expect(nameRow?.[1]).toBe('\'=cmd|"/C calc"!A0');
+
+    const customerRow = overviewData.find((row) => row[0] === 'Заказчик');
+    expect(customerRow?.[1]).toBe("'+1234567890");
+  });
+
   it('renders PDF document without errors including commercial estimate', () => {
     const doc = renderCalculationPdf(mockCalc);
     expect(doc).toBeDefined();
