@@ -65,6 +65,20 @@ export const KII_GIS_COMPLIANCE_PRESET: IndustryPreset = {
       required: false,
       order: 5,
     },
+    {
+      label: 'Цели создания системы (через точку с запятой)',
+      key: 'project_goals',
+      type: 'textarea',
+      required: false,
+      order: 6,
+    },
+    {
+      label: 'Измеримые критерии достижения целей («показатель = целевое значение»)',
+      key: 'goal_criteria',
+      type: 'textarea',
+      required: false,
+      order: 7,
+    },
   ],
   stageTemplates: [
     {

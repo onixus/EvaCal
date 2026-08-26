@@ -145,7 +145,7 @@
   },
   "validation": {
     "ERROR": 0,
-    "WARNING": 15,
+    "WARNING": 16,
     "INFO": 14
   },
   "traceabilityCoveragePercent": 86.67,

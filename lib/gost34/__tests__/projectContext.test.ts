@@ -208,3 +208,38 @@ describe('buildProjectContext: автоматическое обогащение
     expect(ctx.availability?.rpoMinutes).toBe(5);
   });
 });
+
+describe('buildProjectContext: цели и измеримые критерии из опросника', () => {
+  it('извлекает цели и критерии, снимая соответствующие пробелы', () => {
+    const ctx = buildProjectContext({
+      answers: {
+        project_goals: 'Сократить время обработки заявок; Повысить прозрачность процессов',
+        goal_criteria:
+          'Время обработки заявки = не более 15 мин; Доля автоматизированных операций = 80 %',
+      },
+      stages: [],
+    });
+
+    expect(ctx.goals?.map((g) => g.statement)).toEqual([
+      'Сократить время обработки заявок',
+      'Повысить прозрачность процессов',
+    ]);
+    expect(ctx.measurableGoalCriteria).toEqual([
+      { metric: 'Время обработки заявки', target: 'не более 15 мин' },
+      { metric: 'Доля автоматизированных операций', target: '80 %' },
+    ]);
+    const paths = (ctx.gaps || []).map((g) => g.path);
+    expect(paths).not.toContain('goals');
+    expect(paths).not.toContain('measurableGoalCriteria');
+  });
+
+  it('не принимает ключ критериев за цели', () => {
+    const ctx = buildProjectContext({
+      answers: { goal_criteria: 'Время отклика = 1 с' },
+      stages: [],
+    });
+    expect(ctx.goals).toBeUndefined();
+    expect((ctx.gaps || []).map((g) => g.path)).toContain('goals');
+    expect(ctx.measurableGoalCriteria).toEqual([{ metric: 'Время отклика', target: '1 с' }]);
+  });
+});

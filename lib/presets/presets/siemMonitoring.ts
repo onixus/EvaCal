@@ -77,6 +77,20 @@ export const SIEM_MONITORING_PRESET: IndustryPreset = {
       required: false,
       order: 6,
     },
+    {
+      label: 'Цели создания системы (через точку с запятой)',
+      key: 'project_goals',
+      type: 'textarea',
+      required: false,
+      order: 7,
+    },
+    {
+      label: 'Измеримые критерии достижения целей («показатель = целевое значение»)',
+      key: 'goal_criteria',
+      type: 'textarea',
+      required: false,
+      order: 8,
+    },
   ],
   stageTemplates: [
     {

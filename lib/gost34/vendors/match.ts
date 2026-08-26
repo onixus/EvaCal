@@ -45,3 +45,22 @@ export function registryLine(p: VendorSoftwareProduct): string {
     ? `${p.reestrMinTsifry} (Единый реестр российского ПО)`
     : 'Единый реестр российского ПО (188-ФЗ)';
 }
+
+/** Максимальный возраст сверки реквизитов, после которого нужна повторная проверка. */
+export const REQUISITE_MAX_AGE_DAYS = 365;
+
+/**
+ * Нужна ли повторная сверка реквизитов продукта: конкретный номер записан,
+ * но давность сверки с источником превышает допустимую (или сверки не было).
+ * Записи без номеров нейтральны и в сверке не нуждаются.
+ */
+export function requisiteNeedsReview(
+  p: { reestrMinTsifry?: string; certification?: string; verifiedAt?: string },
+  now: Date = new Date(),
+): boolean {
+  const hasNumber = /№ ?\d|СФ\//.test(`${p.reestrMinTsifry || ''} ${p.certification || ''}`);
+  if (!hasNumber) return false;
+  if (!p.verifiedAt) return true;
+  const ageDays = (now.getTime() - new Date(p.verifiedAt).getTime()) / 86_400_000;
+  return ageDays > REQUISITE_MAX_AGE_DAYS;
+}

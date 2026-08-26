@@ -1,10 +1,27 @@
 import mammoth from 'mammoth';
 import { Gost34RequirementItem, RequirementCategory } from '../types';
+import { VENDOR_SOFTWARE } from '../vendors/registry';
 
 export interface ParsedVendorDocument {
   filename: string;
   rawText: string;
   extractedRequirements: Gost34RequirementItem[];
+  /** Реквизиты (сертификаты, записи реестров), найденные в тексте документа. */
+  extractedRequisites: VendorRequisite[];
+}
+
+/** Реквизит продукта, извлечённый из вендорского документа. */
+export interface VendorRequisite {
+  kind: 'fstek' | 'fsb' | 'reestr-min-tsifry';
+  /** Номер в каноническом виде: «№ 2557» или «№ СФ/124-4900». */
+  number: string;
+  /** Фрагмент исходного текста вокруг находки. */
+  context: string;
+  /**
+   * Идентификатор продукта базы знаний вендоров, чей записанный реквизит
+   * совпал с найденным; расхождение — повод пересверить базу.
+   */
+  matchesKnownProductId?: string;
 }
 
 /**
@@ -42,12 +59,63 @@ export async function parseVendorDocument(
   }
 
   const extractedRequirements = extractRequirementsFromText(rawText, filename);
+  const extractedRequisites = extractVendorRequisites(rawText);
 
   return {
     filename,
     rawText,
     extractedRequirements,
+    extractedRequisites,
   };
+}
+
+/**
+ * Извлекает из текста вендорского документа номера сертификатов ФСТЭК/ФСБ
+ * и записей Единого реестра российского ПО и сверяет их с базой знаний
+ * вендоров: совпавший номер подтверждает реквизит базы, несовпавший —
+ * сигнал пересверить её с актуальным вендорским документом.
+ */
+export function extractVendorRequisites(text: string): VendorRequisite[] {
+  const found: VendorRequisite[] = [];
+  const seen = new Set<string>();
+
+  const push = (kind: VendorRequisite['kind'], rawNumber: string, index: number) => {
+    const number = `№ ${rawNumber}`;
+    const key = `${kind}:${number}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const context = text
+      .slice(Math.max(0, index - 60), index + 80)
+      .replace(/\s+/g, ' ')
+      .trim();
+    const known = VENDOR_SOFTWARE.find((p) =>
+      `${p.reestrMinTsifry || ''} ${p.certification || ''}`.includes(number),
+    );
+    found.push({ kind, number, context, matchesKnownProductId: known?.id });
+  };
+
+  // «Сертификат (соответствия) ФСТЭК России № 2557», «сертификат ФСТЭК №4063»
+  const fstekRe = /сертификат[^.;\n]{0,60}?ФСТЭК[^.;\n]{0,30}?№\s*([\d]{3,5}(?:\/\d+)?)/gi;
+  // Обратный порядок: «ФСТЭК России ... сертификат № 3905»
+  const fstekRe2 = /ФСТЭК[^.;\n]{0,60}?сертификат[^.;\n]{0,30}?№\s*([\d]{3,5}(?:\/\d+)?)/gi;
+  // Сертификаты ФСБ России вида «СФ/124-4900»
+  const fsbRe = /№\s*(СФ\/\d{3}-\d{4})/gi;
+  // «реестр ... № 369», «запись в реестре № 4984», «реестровая запись № 1194»
+  const reestrRe = /реестр[^.;\n]{0,80}?№\s*(\d{2,6})/gi;
+
+  for (const [re, kind] of [
+    [fstekRe, 'fstek'],
+    [fstekRe2, 'fstek'],
+    [fsbRe, 'fsb'],
+    [reestrRe, 'reestr-min-tsifry'],
+  ] as const) {
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      push(kind, m[1], m.index);
+    }
+  }
+
+  return found;
 }
 
 /**

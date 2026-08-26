@@ -6,6 +6,7 @@ import {
   findVendorSoftware,
   quantityFromRule,
   registryLine,
+  requisiteNeedsReview,
 } from '../vendors';
 
 interface SoftwareSpecItem {
@@ -42,7 +43,9 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
     name: p.name,
     vendor: p.vendor,
     reestrNumber: registryLine(p),
-    certification: p.certification || 'Единый реестр российского ПО (188-ФЗ)',
+    certification:
+      (p.certification || 'Единый реестр российского ПО (188-ФЗ)') +
+      (requisiteNeedsReview(p) ? ' [реквизит подлежит повторной сверке]' : ''),
     licenseType: p.licenseType,
     quantity: quantityFromRule(p.quantity, answers),
   }));

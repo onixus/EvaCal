@@ -151,7 +151,8 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   }
 
   // ── Цели и измеримые критерии ────────────────────────────────────────
-  const goalsAnswer = findAnswer(answers, /goals?|цели/i);
+  // Негативный просмотр исключает ключи критериев (goal_criteria и т. п.).
+  const goalsAnswer = findAnswer(answers, /goals?(?!_?criteri)|цели(?!.*критери)/i);
   const goalsList = goalsAnswer ? toList(goalsAnswer.value) : undefined;
   if (goalsList && goalsList.length > 0) {
     ctx.goals = goalsList.map<ProjectGoal>((statement, idx) => ({
@@ -169,14 +170,25 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
       'Опросник: цели проекта, согласованные с Заказчиком',
     );
   }
-  // Измеримые критерии целей задаются только вручную: выводить их из опросника нельзя.
-  gap(
-    state,
-    'measurableGoalCriteria',
-    'Измеримые критерии достижения целей',
-    'major',
-    'Согласуются с Заказчиком при утверждении целей',
-  );
+
+  // Измеримые критерии: из опросника («показатель = целевое значение»), иначе gap.
+  const criteriaAnswer = findAnswer(answers, /criteri|критери|kpi/i);
+  const criteriaList = criteriaAnswer ? toList(criteriaAnswer.value) : undefined;
+  if (criteriaList && criteriaList.length > 0) {
+    ctx.measurableGoalCriteria = criteriaList.map((entry) => {
+      const parts = entry.match(/^(.{3,}?)\s*(?:=|:|—|->)\s*(.+)$/);
+      return parts ? { metric: parts[1].trim(), target: parts[2].trim() } : { metric: entry };
+    });
+    record(state, 'measurableGoalCriteria', 'questionnaire', criteriaAnswer!.key);
+  } else {
+    gap(
+      state,
+      'measurableGoalCriteria',
+      'Измеримые критерии достижения целей',
+      'major',
+      'Согласуются с Заказчиком при утверждении целей',
+    );
+  }
 
   // ── Пользователи и роли ──────────────────────────────────────────────
   const usersAnswer = findAnswer(answers, /users?_?count|пользоват/i);
