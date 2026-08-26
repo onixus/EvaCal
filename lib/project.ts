@@ -491,13 +491,23 @@ export async function releaseGostPackage(input: {
 }
 
 /**
- * Reviews a GOST 34 package (approve or reject) and records reviewer audit details.
+ * Решение по комплекту ГОСТ 34 на текущем этапе ревью.
+ *
+ * Ревью двухэтапное: нормоконтроль тех.писателя (`tw`), затем финальное ревью
+ * ГАП (`gap`). «Утвердить» на первом этапе не выпускает комплект, а передаёт
+ * его на второй — утверждает только ГАП. «Вернуть с замечаниями» на любом
+ * этапе отклоняет выпуск и возвращает комплект автору.
+ *
+ * Блокеры проверяются вызывающей стороной (ей видны чек-лист и комментарии), но
+ * страховка нужна и здесь: утвердить комплект мимо UI нельзя.
  */
 export async function reviewGostPackage(input: {
   packageId: string;
   decision: 'approve' | 'reject';
   actorId?: string;
   comment?: string;
+  /** Открытые блокеры на момент решения; при них утверждение запрещено. */
+  openBlockers?: number;
 }) {
   const pkg = await prisma.gostPackage.findUnique({
     where: { id: input.packageId },
@@ -511,14 +521,43 @@ export async function reviewGostPackage(input: {
     throw new Error('Утверждённый комплект документов неизменяем.');
   }
 
-  const nextStatus = input.decision === 'approve' ? 'approved' : 'rejected';
+  if (input.decision === 'approve' && (input.openBlockers ?? 0) > 0) {
+    throw new Error('Утверждение недоступно, пока открыт хотя бы один блокер.');
+  }
+
+  const stage = pkg.reviewStage === 'gap' ? 'gap' : 'tw';
+
+  if (input.decision === 'reject') {
+    return prisma.gostPackage.update({
+      where: { id: pkg.id },
+      data: {
+        status: 'rejected',
+        // Этап не сбрасывается: вернувшись после правок, комплект продолжает
+        // с того места, где его отклонили, а не начинает нормоконтроль заново.
+        reviewComment: input.comment?.trim() || null,
+      },
+    });
+  }
+
+  // Утверждение тех.писателем — это передача на второй этап, а не выпуск.
+  if (stage === 'tw') {
+    return prisma.gostPackage.update({
+      where: { id: pkg.id },
+      data: {
+        status: 'under_review',
+        reviewStage: 'gap',
+        reviewComment: input.comment?.trim() || null,
+      },
+    });
+  }
 
   return prisma.gostPackage.update({
     where: { id: pkg.id },
     data: {
-      status: nextStatus,
-      approvedAt: input.decision === 'approve' ? new Date() : undefined,
-      approvedBy: input.decision === 'approve' ? input.actorId || 'reviewer' : undefined,
+      status: 'approved',
+      reviewStage: 'done',
+      approvedAt: new Date(),
+      approvedBy: input.actorId || 'reviewer',
       reviewComment: input.comment?.trim() || null,
     },
   });

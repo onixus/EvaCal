@@ -1,8 +1,8 @@
 'use client';
 
 import { WIZARD_STEPS } from '@/lib/gost34/wizard/steps';
-import type { WizardReviewResult, WizardStepId } from '@/lib/gost34/wizard/types';
-import { PANEL_CLASS, STEP_STATUS_STYLES, SUBPANEL_CLASS } from '../wizardShared';
+import type { WizardIssue, WizardReviewResult, WizardStepId } from '@/lib/gost34/wizard/types';
+import { PANEL_CLASS, STEP_STATUS_STYLES } from '../wizardShared';
 
 interface ComplianceStepProps {
   review: WizardReviewResult | null;
@@ -13,7 +13,7 @@ interface ComplianceStepProps {
   requirementCount: number;
   isExporting: boolean;
   exportError: string;
-  onGoToStep: (step: WizardStepId) => void;
+  onGoToIssue: (issue: WizardIssue) => void;
   onExportDocument: () => void;
   onExportZip: () => void;
 }
@@ -27,7 +27,7 @@ export default function ComplianceStep({
   requirementCount,
   isExporting,
   exportError,
-  onGoToStep,
+  onGoToIssue,
   onExportDocument,
   onExportZip,
 }: ComplianceStepProps) {
@@ -35,79 +35,94 @@ export default function ComplianceStep({
   const canExport = Boolean(compliance?.canExport) && !isReviewLoading && !reviewError;
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-150">
+    <div className="animate-in fade-in space-y-4 duration-150">
       <div className={`${PANEL_CLASS} space-y-3`}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-[#3b4252] pb-3">
+        <div className="flex flex-col justify-between gap-3 border-b border-slate-200 pb-3 md:flex-row md:items-center dark:border-nord-3">
           <div>
-            <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider">
-              ✅ Соответствие нормативному профилю
-            </h4>
-            <p className="text-xs text-slate-300 mt-1">
-              Выпуск блокируют только несоответствия: ошибки формулировок, пустая основная надпись и
-              незаполненные обязательные сведения о проекте.
+            <h3 className="text-sm font-bold text-slate-900 dark:text-nord-6">
+              Соответствие и выпуск
+            </h3>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-nord-muted">
+              Каждая проверка указывает шаг и поле-источник. Предупреждения не блокируют выпуск.
             </p>
           </div>
 
           {compliance && (
-            <span
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
-                compliance.canExport
-                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
-                  : 'bg-red-500/15 text-red-300 border-red-500/40'
-              }`}
-            >
+            <span className={compliance.canExport ? 'chip-ok' : 'chip-block'}>
               {compliance.canExport ? 'Готово к выпуску' : 'Выпуск заблокирован'}
             </span>
           )}
         </div>
 
         {reviewError && (
-          <div className="text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-nord-red/40 dark:bg-nord-red/10 dark:text-nord-redText">
             {reviewError}
           </div>
         )}
 
-        {isReviewLoading && <div className="text-xs text-slate-400">Идёт проверка комплекта…</div>}
+        {isReviewLoading && (
+          <div className="text-xs text-slate-500 dark:text-nord-muted">
+            Идёт проверка комплекта…
+          </div>
+        )}
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {WIZARD_STEPS.filter((step) => step.id !== 'compliance').map((step) => {
             const report = compliance?.steps.find((s) => s.id === step.id);
             const style = STEP_STATUS_STYLES[report?.status || 'empty'];
+            // Кнопка «Исправить» ведёт к самому серьёзному замечанию шага —
+            // блокеры уже отсортированы вперёд движком соответствия.
+            const primaryIssue = report?.issues[0];
 
             return (
-              <div key={step.id} className={`${SUBPANEL_CLASS} p-3.5`}>
-                <div className="flex items-start justify-between gap-3">
+              <div
+                key={step.id}
+                className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2.5 dark:border-nord-3"
+              >
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <span className={`status-dot mt-1 ${style.dot}`} />
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${style.dot}`} />
-                      <span className="font-bold text-sm text-white">
-                        {step.order}. {step.title}
-                      </span>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold border ${style.chip}`}
-                      >
-                        {style.label}
-                      </span>
+                    <div className="text-xs font-bold text-slate-900 dark:text-nord-6">
+                      {step.order}. {step.title}
                     </div>
-                    {report && report.issues.length > 0 && (
-                      <ul className="mt-1.5 space-y-1">
+                    {report && report.issues.length > 0 ? (
+                      <ul className="mt-1 space-y-1">
                         {report.issues.map((issue, idx) => (
-                          <li key={idx} className="text-[11px] text-slate-300 leading-relaxed">
-                            • {issue}
+                          <li
+                            key={idx}
+                            className="text-[11px] leading-relaxed text-slate-600 dark:text-nord-4"
+                          >
+                            {issue.text}
+                            {issue.fieldLabel && (
+                              <span className="text-slate-400 dark:text-nord-muted">
+                                {' '}
+                                — источник: шаг {step.order}, {issue.fieldLabel}
+                              </span>
+                            )}
+                            {issue.severity === 'warning' && (
+                              <span className="text-slate-400 dark:text-nord-muted">
+                                {' '}
+                                (не блокирует)
+                              </span>
+                            )}
                           </li>
                         ))}
                       </ul>
+                    ) : (
+                      <div className={`mt-0.5 text-[11px] ${style.text}`}>{step.subtitle}</div>
                     )}
                   </div>
+                </div>
 
+                {primaryIssue && (
                   <button
                     type="button"
-                    onClick={() => onGoToStep(step.id)}
-                    className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#2e3440] text-slate-300 border border-[#434c5e] hover:text-white transition-colors"
+                    onClick={() => onGoToIssue(primaryIssue)}
+                    className="btn-secondary shrink-0 !px-2.5 !py-1 !text-[11px] !font-bold"
                   >
-                    Перейти
+                    Исправить →
                   </button>
-                </div>
+                )}
               </div>
             );
           })}
@@ -115,26 +130,22 @@ export default function ComplianceStep({
       </div>
 
       <div
-        className={`${PANEL_CLASS} flex flex-col md:flex-row items-center justify-between gap-4`}
+        className={`${PANEL_CLASS} flex flex-col items-start justify-between gap-4 md:flex-row md:items-center`}
       >
-        <div className="space-y-1.5 text-xs w-full md:w-auto">
-          <div className="font-bold text-white">Сводка выпуска:</div>
-          <div className="text-slate-300 leading-relaxed">
-            • Профиль:{' '}
-            <strong className="text-blue-400 font-bold">
+        <div className="w-full space-y-1.5 text-xs md:w-auto">
+          <div className="font-bold text-slate-900 dark:text-nord-6">Сводка выпуска</div>
+          <div className="leading-relaxed text-slate-600 dark:text-nord-4">
+            Профиль{' '}
+            <strong className="font-bold text-brand-700 dark:text-nord-frost2">
               {review ? `${review.profile.name} (${review.profile.version})` : '—'}
-            </strong>
-            <br />• Документ: <strong className="text-white font-bold">{docType}</strong>
-            <br />• Оформление:{' '}
-            <strong className="text-white font-bold">{layoutProfileName}</strong>
-            <br />• Требований вендора:{' '}
-            <strong className="text-white font-bold">{requirementCount}</strong>
-            <br />• Применимых нормативов:{' '}
-            <strong className="text-white font-bold">
-              {review ? review.applicability.summary.applicable : 0}
-            </strong>
+            </strong>{' '}
+            · документ <strong className="font-bold">{docType}</strong> · оформление{' '}
+            <strong className="font-bold">{layoutProfileName}</strong> ·{' '}
+            <span className="nums">{requirementCount}</span> требований ·{' '}
+            <span className="nums">{review ? review.applicability.summary.applicable : 0}</span>{' '}
+            применимых нормативов
             {review && review.applicability.summary.unknown > 0 && (
-              <span className="text-amber-300">
+              <span className="text-amber-700 dark:text-nord-yellow">
                 {' '}
                 (не подтверждено: {review.applicability.summary.unknown})
               </span>
@@ -145,34 +156,36 @@ export default function ComplianceStep({
             иначе Word при открытии файла спрашивает про внешние связи.
             Номера страниц подставляются при обновлении поля.
           */}
-          <div className="text-[11px] text-slate-400 pt-1 leading-relaxed">
+          <div className="pt-1 text-[11px] leading-relaxed text-slate-400 dark:text-nord-muted">
             Содержание в выгруженном DOCX уже содержит перечень разделов, но без номеров страниц:
-            откройте файл в Word и обновите поле (выделить всё → F9 или правый клик по содержанию →
-            «Обновить поле»).
+            откройте файл в Word и обновите поле (выделить всё → F9).
           </div>
-          {exportError && <div className="text-[11px] text-red-300 pt-1">{exportError}</div>}
+          {exportError && (
+            <div className="pt-1 text-[11px] text-rose-600 dark:text-nord-redText">
+              {exportError}
+            </div>
+          )}
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+        <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row md:w-auto">
           <button
             type="button"
             onClick={onExportDocument}
             disabled={!canExport || isExporting}
-            title={
-              canExport ? undefined : 'Устраните блокирующие замечания на предыдущих шагах мастера'
-            }
-            className="w-full sm:w-auto px-6 py-3 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 transition-all border border-blue-400/30 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={canExport ? undefined : 'Устраните блокирующие замечания на предыдущих шагах'}
+            className="btn-primary !text-xs"
           >
-            {isExporting ? 'Формирование…' : `Сформировать ${docType} (.docx)`}
+            {isExporting ? 'Формирование…' : `${docType} (.docx)`}
           </button>
 
           <button
             type="button"
             onClick={onExportZip}
             disabled={!canExport || isExporting}
-            className="w-full sm:w-auto px-6 py-3 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 transition-all border border-emerald-400/30 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={canExport ? undefined : 'Устраните блокирующие замечания на предыдущих шагах'}
+            className="btn bg-emerald-600 !text-xs text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
           >
-            📦 Скачать весь комплект (ZIP)
+            Весь комплект (ZIP)
           </button>
         </div>
       </div>

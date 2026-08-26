@@ -4,13 +4,26 @@ import { primaryStagesFromTemplate, risksFromTemplate } from '@/lib/calc';
 
 describe('Industry Presets Library', () => {
   it('contains valid and comprehensive industry presets for IT, IB, PAC, and Dev', () => {
-    expect(INDUSTRY_PRESETS.length).toBeGreaterThanOrEqual(4);
+    expect(INDUSTRY_PRESETS.length).toBeGreaterThanOrEqual(7);
 
     const categories = INDUSTRY_PRESETS.map((p) => p.category);
     expect(categories).toContain('security');
     expect(categories).toContain('hardware_pac');
     expect(categories).toContain('compliance');
     expect(categories).toContain('development');
+    expect(categories).toContain('migration');
+    expect(categories).toContain('monitoring');
+    expect(categories).toContain('infrastructure');
+  });
+
+  it('keeps preset ids and field keys unique', () => {
+    const ids = INDUSTRY_PRESETS.map((p) => p.id);
+    expect(new Set(ids).size).toBe(ids.length);
+
+    for (const preset of INDUSTRY_PRESETS) {
+      const keys = preset.fields.map((f) => f.key);
+      expect(new Set(keys).size, `duplicate field keys in ${preset.id}`).toBe(keys.length);
+    }
   });
 
   it('validates that all stage driver keys reference existing fields in the preset', () => {
@@ -100,6 +113,41 @@ describe('Industry Presets Library', () => {
 
     const totalHours = stages.reduce((sum, s) => sum + s.hours, 0);
     expect(totalHours).toBe(222);
+  });
+
+  it('correctly calculates labor hours for the import substitution preset', () => {
+    const preset = INDUSTRY_PRESETS.find((p) => p.id === 'preset-import-substitution')!;
+    expect(preset).toBeDefined();
+
+    const answers = {
+      vm_count: 50,
+      hypervisor_hosts_count: 4,
+      workstations_count: 100,
+      db_instances_count: 2,
+      directory_target: 'ALD Pro',
+      complexity: 'Высокий',
+    };
+
+    const stages = primaryStagesFromTemplate(preset.stageTemplates, answers);
+    expect(stages).toHaveLength(preset.stageTemplates.length);
+
+    // Аудит: 32 + 0.3 * 50 = 47
+    expect(stages[0].hours).toBe(47);
+    // zVirt: 24 + 6 * 4 = 48
+    expect(stages[1].hours).toBe(48);
+    // ALD Pro: 24 + 0.2 * 100 = 44
+    expect(stages[2].hours).toBe(44);
+    // Миграция ВМ: 16 + 2 * 50 = 116
+    expect(stages[3].hours).toBe(116);
+    // Миграция БД: 24 + 16 * 2 = 56
+    expect(stages[4].hours).toBe(56);
+    // АРМ: 16 + 0.5 * 100 = 66
+    expect(stages[5].hours).toBe(66);
+    // ОЭ и ПМИ: 24 + 0.1 * 50 = 29
+    expect(stages[6].hours).toBe(29);
+
+    const totalHours = stages.reduce((sum, s) => sum + s.hours, 0);
+    expect(totalHours).toBe(406);
   });
 
   it('preserves risk template integrity', () => {

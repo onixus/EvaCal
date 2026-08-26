@@ -99,12 +99,12 @@ export default function RequirementsStep({
 
       {/* Таблица извлечённых требований и действия */}
       <div className={`${PANEL_CLASS} space-y-3`}>
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-[#3b4252] pb-3 gap-3">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-200 dark:border-nord-3 pb-3 gap-3">
           <div>
-            <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider">
+            <h4 className="text-sm font-bold text-brand-700 dark:text-nord-frost2 uppercase tracking-wider">
               Извлечённые требования ({requirements.length})
             </h4>
-            <p className="text-xs text-slate-300 mt-0.5">
+            <p className="text-xs text-slate-600 dark:text-nord-4 mt-0.5">
               Нормализация не перезаписывает исходный текст: он хранится вместе с требованием
             </p>
           </div>
@@ -114,7 +114,7 @@ export default function RequirementsStep({
               <button
                 type="button"
                 onClick={() => onRequirementsChange(normalizeRequirementItems(requirements))}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#2e3440] text-slate-200 border border-[#434c5e] hover:bg-[#3b4252] transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-nord-3 text-slate-800 dark:text-nord-5 border border-slate-300 dark:border-nord-3 hover:bg-slate-200 dark:hover:bg-nord-3 transition-colors cursor-pointer"
                 title="Удалить спецсимволы, буллеты и присвоить стандартные коды ГОСТ 34"
               >
                 🧹 Очистить (правила)
@@ -126,8 +126,8 @@ export default function RequirementsStep({
                 disabled={isLlmNormalizing}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   llmAvailable
-                    ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-600/30 border border-purple-400/40'
-                    : 'bg-[#2e3440] text-slate-400 border border-[#434c5e] hover:bg-[#3b4252]'
+                    ? 'bg-purple-600 hover:bg-purple-500 text-slate-900 dark:text-nord-6 shadow-md shadow-purple-600/30 border border-purple-400/40'
+                    : 'bg-slate-100 dark:bg-nord-3 text-slate-500 dark:text-nord-muted border border-slate-300 dark:border-nord-3 hover:bg-slate-200 dark:hover:bg-nord-3'
                 }`}
                 title={
                   llmAvailable
@@ -146,7 +146,7 @@ export default function RequirementsStep({
               <button
                 type="button"
                 onClick={() => setShowLlmSettings(!showLlmSettings)}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#2e3440] text-slate-300 border border-[#434c5e] hover:text-white hover:bg-[#3b4252] transition-colors cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-nord-3 text-slate-600 dark:text-nord-4 border border-slate-300 dark:border-nord-3 hover:text-slate-900 dark:text-nord-6 hover:bg-slate-200 dark:hover:bg-nord-3 transition-colors cursor-pointer"
               >
                 ⚙️ Настройки ИИ
               </button>
@@ -154,7 +154,7 @@ export default function RequirementsStep({
               <button
                 type="button"
                 onClick={() => onRequirementsChange([])}
-                className="text-xs font-bold text-red-400 hover:text-red-300 hover:underline px-2 py-1 cursor-pointer"
+                className="text-xs font-bold text-rose-700 dark:text-nord-redText hover:text-rose-700 dark:text-nord-redText hover:underline px-2 py-1 cursor-pointer"
               >
                 Очистить список
               </button>

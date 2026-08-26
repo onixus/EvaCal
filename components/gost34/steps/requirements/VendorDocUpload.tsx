@@ -53,10 +53,10 @@ export default function VendorDocUpload({
     <div className={`${PANEL_CLASS} space-y-3`}>
       <div className="flex items-center justify-between">
         <div>
-          <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider">
+          <h4 className="text-sm font-bold text-brand-700 dark:text-nord-frost2 uppercase tracking-wider">
             Загрузка исходных спецификаций ТЗ / ФТ / ТТ
           </h4>
-          <p className="text-xs text-slate-300 mt-1">
+          <p className="text-xs text-slate-600 dark:text-nord-4 mt-1">
             Загрузите файлы вендора (.docx, .txt, .md, .json) для авто-извлечения требований.
             Исходная формулировка сохраняется неизменной.
           </p>
@@ -68,14 +68,14 @@ export default function VendorDocUpload({
         )}
       </div>
 
-      <label className="cursor-pointer flex flex-col items-center justify-center p-7 rounded-xl border-2 border-dashed border-[#434c5e] hover:border-blue-400 bg-[#1c1f26] hover:bg-[#20242e] transition-all">
+      <label className="cursor-pointer flex flex-col items-center justify-center p-7 rounded-xl border-2 border-dashed border-slate-300 dark:border-nord-3 hover:border-brand-500 bg-slate-50 dark:bg-nord-1 hover:bg-slate-100 dark:hover:bg-nord-3 transition-all">
         <span className="text-3xl mb-2">📁</span>
-        <span className="text-sm font-bold text-white">
+        <span className="text-sm font-bold text-slate-900 dark:text-nord-6">
           {isParsing
             ? 'Идёт обработка и анализ документа...'
             : 'Нажмите или перетащите файлы вендорского ТЗ сюда'}
         </span>
-        <span className="text-xs text-slate-400 mt-1">
+        <span className="text-xs text-slate-500 dark:text-nord-muted mt-1">
           Поддерживаются MS Word (.docx) и текстовые спецификации (.txt, .md, .json)
         </span>
         <input
@@ -95,11 +95,11 @@ export default function VendorDocUpload({
       )}
 
       {uploadedFiles.length > 0 && (
-        <div className="flex flex-wrap gap-2 pt-2 border-t border-[#3b4252]">
+        <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200 dark:border-nord-3">
           {uploadedFiles.map((fn, idx) => (
             <span
               key={`${fn}-${idx}`}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#2e3440] text-white border border-[#434c5e]"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-nord-3 text-slate-900 dark:text-nord-6 border border-slate-300 dark:border-nord-3"
             >
               📄 {fn}
             </span>

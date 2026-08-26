@@ -11,10 +11,40 @@ import crypto from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession, SessionPayload } from '@/lib/auth';
 
+/**
+ * Роли с полными правами на расчёты и проекты. Намеренно не расширяется
+ * пресейлом и ревьювером: `requireStaff` охраняет удаление расчётов, правку
+ * проектов и выпуск share-ссылок — там нужен именно архитектор или админ.
+ */
 export const STAFF_ROLES = ['architect', 'admin'] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export type ShareScope = 'read' | 'write' | 'export' | 'create' | 'review';
+
+/**
+ * Права ролей на конкретный расчёт. Пресейл создаёт и правит свои расчёты, но
+ * не согласовывает; ревьювер читает и выносит вердикт, но не переписывает
+ * расчёт. Архитектор и админ могут всё.
+ *
+ * Набор нарочно совпадает по форме с `ShareScope`, чтобы вошедший сотрудник и
+ * гость по ссылке проверялись одной и той же логикой, а не двумя разными.
+ */
+const ROLE_SCOPES: Record<string, ShareScope[]> = {
+  admin: ['read', 'write', 'export', 'create', 'review'],
+  architect: ['read', 'write', 'export', 'create', 'review'],
+  presale: ['read', 'write', 'export', 'create'],
+  reviewer: ['read', 'export', 'review'],
+};
+
+function scopesForRole(role: string | undefined | null): ShareScope[] {
+  return (role && ROLE_SCOPES[role]) || [];
+}
+
+/** Хватает ли роли вошедшего сотрудника на запрошенные права. */
+function roleCovers(role: string | undefined | null, need: ShareScope[]): boolean {
+  const granted = new Set(scopesForRole(role));
+  return need.every((scope) => granted.has(scope));
+}
 
 export interface SharePayload {
   /** Bound calculation; omit for create-only tokens. */
@@ -108,6 +138,21 @@ function forbidden(message = 'Недостаточно прав') {
   return NextResponse.json({ error: message }, { status: 403 });
 }
 
+/**
+ * Гейт для роутов, которые открыты нескольким внутренним ролям, но не гостям:
+ * список расчётов видят и пресейл, и ревьювер, а share-ссылка на него права не
+ * даёт. Отличается от `requireCalcAccess` тем, что не принимает ни share-токен,
+ * ни анонимный режим — только сессию с достаточной ролью.
+ */
+export async function requireInternalRole(
+  need: ShareScope[],
+): Promise<SessionPayload | NextResponse> {
+  const session = await getSession();
+  if (!session) return unauthorized('Требуется вход в систему');
+  if (!roleCovers(session.role, need)) return forbidden();
+  return session;
+}
+
 /** Staff-only gate (architect or admin). */
 export async function requireStaff(): Promise<SessionPayload | NextResponse> {
   const session = await getSession();
@@ -126,7 +171,10 @@ export async function requireCalcAccess(
   need: ShareScope[],
 ): Promise<AccessContext | NextResponse> {
   const session = await getSession();
-  if (session && isStaffRole(session.role)) {
+  if (session && scopesForRole(session.role).length > 0) {
+    if (!roleCovers(session.role, need)) {
+      return forbidden(`Роль «${session.role}» не даёт права: ${need.join(', ')}`);
+    }
     return {
       kind: 'staff',
       session,
@@ -197,7 +245,8 @@ export async function resolvePageAccess(
   shareToken?: string | null,
 ): Promise<AccessContext | null> {
   const session = await getSession();
-  if (session && isStaffRole(session.role)) {
+  if (session && scopesForRole(session.role).length > 0) {
+    if (!roleCovers(session.role, need)) return null;
     return {
       kind: 'staff',
       session,
@@ -232,6 +281,18 @@ export async function resolvePageAccess(
   }
 
   return null;
+}
+
+/**
+ * Сессия любого внутреннего сотрудника для RSC-страниц, или null.
+ *
+ * Отличается от `getStaffSession` шириной: пресейл и ревьювер — тоже свои, и
+ * список расчётов им показывать можно, а править чужие проекты нельзя.
+ */
+export async function getInternalSession(): Promise<SessionPayload | null> {
+  const session = await getSession();
+  if (!session || scopesForRole(session.role).length === 0) return null;
+  return session;
 }
 
 /** Staff session for RSC pages, or null. Does not redirect. */

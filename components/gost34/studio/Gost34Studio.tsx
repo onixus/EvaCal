@@ -1,23 +1,25 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import type { GostDocumentType, Gost34RequirementItem } from '@/lib/gost34/types';
 import type { ApplicabilityOverride } from '@/lib/gost34/applicability/types';
 import type { TraceLink } from '@/lib/gost34/traceability/types';
-import type { WizardReviewResult, WizardStepId } from '@/lib/gost34/wizard/types';
+import type { WizardIssue, WizardReviewResult, WizardStepId } from '@/lib/gost34/wizard/types';
 import { WIZARD_STEPS, adjacentWizardStep } from '@/lib/gost34/wizard/steps';
 import { CURRENT_GOST34_PROFILE_ID } from '@/lib/gost34/standards';
 import { LAYOUT_PROFILES, DEFAULT_LAYOUT_PROFILE } from '@/lib/gost34/exporters/layout';
-import { withShareHeaders } from '@/lib/shareClient';
 import type { LayoutProfileId } from '@/lib/gost34/exporters/layout';
-import { STEP_STATUS_STYLES } from './wizardShared';
-import ProfileStep from './steps/ProfileStep';
-import RequirementsStep from './steps/RequirementsStep';
-import ApplicabilityStep from './steps/ApplicabilityStep';
-import TraceabilityStep from './steps/TraceabilityStep';
-import SignaturesStep from './steps/SignaturesStep';
-import DocumentPreviewStep from './steps/DocumentPreviewStep';
-import ComplianceStep from './steps/ComplianceStep';
+import { withShareHeaders } from '@/lib/shareClient';
+import { STEP_STATUS_STYLES, fieldAnchorId } from '../wizardShared';
+import BlockerPanel from './BlockerPanel';
+import ProfileStep from '../steps/ProfileStep';
+import RequirementsStep from '../steps/RequirementsStep';
+import ApplicabilityStep from '../steps/ApplicabilityStep';
+import TraceabilityStep from '../steps/TraceabilityStep';
+import SignaturesStep from '../steps/SignaturesStep';
+import DocumentPreviewStep from '../steps/DocumentPreviewStep';
+import ComplianceStep from '../steps/ComplianceStep';
 
 const DEFAULT_SIGNATURES: Record<string, string> = {
   developer: 'Иванов А.В.',
@@ -27,22 +29,37 @@ const DEFAULT_SIGNATURES: Record<string, string> = {
   customerApprover: 'Александров И.В.',
 };
 
-interface Gost34WizardModalProps {
+type SectionOverrides = Record<string, { title?: string; paragraphs?: string[]; items?: string[] }>;
+
+interface Gost34StudioProps {
   calculationId: string;
-  calculationName?: string;
-  customerName?: string;
-  isOpen: boolean;
-  onClose: () => void;
+  calculationName: string;
+  customerName: string;
 }
 
-export default function Gost34WizardModal({
+function pluralRu(n: number, one: string, few: string, many: string): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
+/**
+ * Студия ГОСТ 34 — полноэкранная замена модального «Мастера выпуска».
+ *
+ * Модал был тёмным островом посреди светлого приложения и прятал контекст:
+ * закрыть его, чтобы свериться с расчётом, значило потерять место в мастере.
+ * Студия — обычный экран: остаётся адресуемой ссылкой, живёт в общей теме и
+ * держит сводку блокеров всегда на виду, а не только на последнем шаге.
+ */
+export default function Gost34Studio({
   calculationId,
-  calculationName = 'Проект',
-  customerName = 'Заказчик',
-  isOpen,
-  onClose,
-}: Gost34WizardModalProps) {
+  calculationName,
+  customerName,
+}: Gost34StudioProps) {
   const [activeStep, setActiveStep] = useState<WizardStepId>('profile');
+  const [blockersOpen, setBlockersOpen] = useState(true);
 
   // Решения пользователя
   const [standardProfileId, setStandardProfileId] = useState<string>(CURRENT_GOST34_PROFILE_ID);
@@ -59,9 +76,7 @@ export default function Gost34WizardModal({
   const [signatures, setSignatures] = useState<Record<string, string>>(DEFAULT_SIGNATURES);
   const [contractNumber, setContractNumber] = useState('Договор № 01-ГС/2026');
   const [city, setCity] = useState('Москва');
-  const [sectionOverrides, setSectionOverrides] = useState<
-    Record<string, { title?: string; paragraphs?: string[]; items?: string[] }>
-  >({});
+  const [sectionOverrides, setSectionOverrides] = useState<SectionOverrides>({});
 
   // Результат серверной проверки
   const [review, setReview] = useState<WizardReviewResult | null>(null);
@@ -70,7 +85,7 @@ export default function Gost34WizardModal({
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState('');
 
-  // Сохранение и восстановление снимка мастера (RR-2)
+  // Черновик снимка мастера (RR-2)
   const [isDraftLoading, setIsDraftLoading] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [lastDraftSavedAt, setLastDraftSavedAt] = useState<string | null>(null);
@@ -88,9 +103,8 @@ export default function Gost34WizardModal({
     }
   }, []);
 
-  // Автозагрузка сохранённого черновика снимка при открытии мастера
+  // Автозагрузка сохранённого черновика снимка при открытии студии
   useEffect(() => {
-    if (!isOpen) return;
     let cancelled = false;
 
     async function fetchDraft() {
@@ -141,11 +155,10 @@ export default function Gost34WizardModal({
     }
 
     fetchDraft();
-
     return () => {
       cancelled = true;
     };
-  }, [isOpen, calculationId]);
+  }, [calculationId]);
 
   const requirementsKey = JSON.stringify(requirements);
   const overridesKey = JSON.stringify(applicabilityOverrides);
@@ -157,11 +170,10 @@ export default function Gost34WizardModal({
    * трассировки остаются единственным источником истины и для UI, и для экспорта.
    */
   useEffect(() => {
-    if (!isOpen) return;
     let cancelled = false;
 
-    // Обзор устаревает сразу, а не через debounce: пока идёт пересчёт, экран
-    // соответствия не должен считать прежний вердикт действующим.
+    // Обзор устаревает сразу, а не через debounce: пока идёт пересчёт, панель
+    // блокеров не должна считать прежний вердикт действующим.
     setIsReviewLoading(true);
 
     const timer = setTimeout(async () => {
@@ -188,8 +200,12 @@ export default function Gost34WizardModal({
         }
         setReviewError('');
         setReview(data as WizardReviewResult);
-      } catch (err: any) {
-        if (!cancelled) setReviewError(err?.message || 'Не удалось выполнить проверку комплекта.');
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setReviewError(
+            err instanceof Error ? err.message : 'Не удалось выполнить проверку комплекта.',
+          );
+        }
       } finally {
         if (!cancelled) setIsReviewLoading(false);
       }
@@ -200,7 +216,6 @@ export default function Gost34WizardModal({
       clearTimeout(timer);
     };
   }, [
-    isOpen,
     calculationId,
     standardProfileId,
     requirementsKey,
@@ -215,6 +230,39 @@ export default function Gost34WizardModal({
       review?.compliance.steps.find((step) => step.id === id)?.status ?? 'empty',
     [review],
   );
+
+  const issues = useMemo(() => review?.compliance.issues ?? [], [review]);
+  const blockerCount = issues.filter((i) => i.severity === 'blocker').length;
+  const canExport = Boolean(review?.compliance.canExport) && !isReviewLoading && !reviewError;
+
+  /**
+   * Переход к источнику замечания: сменить шаг, доскроллить до поля и мигнуть
+   * рамкой. Скролл откладывается на кадр — до перерисовки шага якоря в DOM ещё
+   * нет, и `getElementById` вернул бы null.
+   */
+  const pendingAnchor = useRef<string | null>(null);
+
+  const goToIssue = useCallback((issue: WizardIssue) => {
+    setActiveStep(issue.stepId);
+    pendingAnchor.current = issue.fieldRef ? fieldAnchorId(issue.fieldRef) : null;
+    setBlockersOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const anchorId = pendingAnchor.current;
+    if (!anchorId) return;
+    pendingAnchor.current = null;
+
+    const frame = requestAnimationFrame(() => {
+      const el = document.getElementById(anchorId);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('field-flash');
+      window.setTimeout(() => el.classList.remove('field-flash'), 2100);
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [activeStep]);
 
   const exportPayload = useMemo(
     () => ({
@@ -260,6 +308,57 @@ export default function Gost34WizardModal({
     }
   };
 
+  /** Запись в лист внутренних изменений — побочный эффект, не блокирующий действие. */
+  const recordChange = useCallback(
+    async (docRef: string, text: string, source: string) => {
+      try {
+        await fetch(`/api/calculations/${calculationId}/changelog`, {
+          method: 'POST',
+          headers: withShareHeaders(calculationId, { 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ docRef, text, source }),
+        });
+      } catch (err) {
+        console.error('Не удалось записать строку листа изменений:', err);
+      }
+    },
+    [calculationId],
+  );
+
+  /**
+   * Правка раздела в предпросмотре попадает в лист изменений. Сравниваем с
+   * прежним состоянием, чтобы отличить правку от сброса и не писать строку на
+   * каждый повторный сейв без изменений.
+   */
+  const handleSectionOverrides = (next: SectionOverrides) => {
+    const prevTitles = new Set(Object.keys(sectionOverrides));
+    const nextTitles = new Set(Object.keys(next));
+
+    for (const title of nextTitles) {
+      const changed = JSON.stringify(sectionOverrides[title]) !== JSON.stringify(next[title]);
+      if (changed) {
+        recordChange(
+          `${docType} · ${title}`,
+          prevTitles.has(title)
+            ? `Раздел «${title}» отредактирован вручную в студии.`
+            : `Раздел «${title}» изменён вручную: текст заменён авторской редакцией.`,
+          'studio-inline',
+        );
+      }
+    }
+
+    for (const title of prevTitles) {
+      if (!nextTitles.has(title)) {
+        recordChange(
+          `${docType} · ${title}`,
+          `Ручная правка раздела «${title}» отменена, восстановлен сгенерированный текст.`,
+          'studio-inline',
+        );
+      }
+    }
+
+    setSectionOverrides(next);
+  };
+
   const handleSaveDraft = async () => {
     setIsSavingDraft(true);
     try {
@@ -281,18 +380,12 @@ export default function Gost34WizardModal({
       const res = await fetch(`/api/calculations/${calculationId}/gost34/draft`, {
         method: 'POST',
         headers: withShareHeaders(calculationId, { 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          snapshot,
-          standardProfileId,
-        }),
+        body: JSON.stringify({ snapshot, standardProfileId }),
       });
 
       if (res.ok) {
         setLastDraftSavedAt(
-          new Date().toLocaleTimeString('ru-RU', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
+          new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
         );
       }
     } catch (err) {
@@ -302,7 +395,11 @@ export default function Gost34WizardModal({
     }
   };
 
-  const download = async (payload: Record<string, unknown>, filename: string) => {
+  const download = async (
+    payload: Record<string, unknown>,
+    filename: string,
+    changeText: string,
+  ) => {
     setIsExporting(true);
     setExportError('');
     try {
@@ -326,107 +423,110 @@ export default function Gost34WizardModal({
       a.click();
       a.remove();
       URL.revokeObjectURL(downloadUrl);
-      onClose();
-    } catch (err: any) {
-      setExportError(err?.message || 'Ошибка сервера');
+
+      await recordChange('Комплект', changeText, 'release');
+    } catch (err: unknown) {
+      setExportError(err instanceof Error ? err.message : 'Ошибка сервера');
     } finally {
       setIsExporting(false);
     }
   };
-
-  if (!isOpen) return null;
 
   const activeStepDefinition = WIZARD_STEPS.find((step) => step.id === activeStep)!;
   const prevStep = adjacentWizardStep(activeStep, 'prev');
   const nextStep = adjacentWizardStep(activeStep, 'next');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 animate-in fade-in duration-150">
-      <div className="w-full max-w-6xl rounded-2xl bg-[#1a1d24] border border-[#3b4252] p-6 text-slate-100 shadow-2xl flex flex-col max-h-[92vh]">
-        <div className="flex items-center justify-between border-b border-[#2e3440] pb-4 mb-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <h3 className="text-xl font-bold text-white tracking-wide">
-                Мастер выпуска документации ГОСТ 34
-              </h3>
-              {review && (
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-600/30 text-blue-300 border border-blue-400/50">
-                  {review.profile.name}
-                </span>
-              )}
-              {isDraftLoading && (
-                <span className="text-[11px] text-blue-400 animate-pulse">
-                  Загрузка черновика...
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-300 mt-1">
-              Проект: <strong className="text-white font-semibold">{calculationName}</strong> •
-              Заказчик: <strong className="text-white font-semibold">{customerName}</strong>
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {lastDraftSavedAt && (
-              <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
-                Черновик: {lastDraftSavedAt}
-              </span>
-            )}
-            <button
-              onClick={handleSaveDraft}
-              disabled={isSavingDraft}
-              type="button"
-              className="btn-secondary !py-1.5 !px-3 text-xs bg-[#242832] border-[#3b4252] text-slate-200 hover:text-white hover:bg-[#2e3440] disabled:opacity-50"
-              title="Сохранить текущие требования и решения мастера"
-            >
-              {isSavingDraft ? 'Сохранение...' : '💾 Сохранить черновик'}
-            </button>
-            <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-white bg-[#2e3440] hover:bg-[#3b4252] text-lg font-bold w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
-              title="Закрыть"
-            >
-              ✕
-            </button>
-          </div>
+    <div className="space-y-3">
+      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
+            Студия ГОСТ 34 — {calculationName}
+          </h1>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
+            {docType} · {review ? review.profile.name : 'профиль загружается'} ·{' '}
+            {LAYOUT_PROFILES[layoutProfileId].name} · {customerName}
+            {lastDraftSavedAt && <> · черновик сохранён в {lastDraftSavedAt}</>}
+            {isDraftLoading && <> · загрузка черновика…</>}
+          </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-5 border-b border-[#2e3440] pb-4">
-          {WIZARD_STEPS.map((step) => {
-            const isActive = activeStep === step.id;
-            const status = stepStatus(step.id);
-            const style = STEP_STATUS_STYLES[status];
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href={`/calculations/${calculationId}/changelog`}
+            className="btn-ghost !px-2.5 !py-1.5 !text-xs"
+          >
+            Лист изменений
+          </Link>
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            disabled={isSavingDraft}
+            className="btn-secondary !text-xs"
+            title="Сохранить текущие требования и решения студии"
+          >
+            {isSavingDraft ? 'Сохранение…' : 'Сохранить черновик'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveStep('compliance')}
+            disabled={!canExport}
+            title={
+              canExport
+                ? undefined
+                : `Устраните ${blockerCount} ${pluralRu(blockerCount, 'блокер', 'блокера', 'блокеров')}`
+            }
+            className="btn-primary !text-xs"
+          >
+            Выпустить комплект
+          </button>
+        </div>
+      </div>
 
-            return (
-              <button
-                key={step.id}
-                type="button"
-                onClick={() => setActiveStep(step.id)}
-                aria-current={isActive ? 'step' : undefined}
-                className={`p-2.5 rounded-xl border text-left transition-all ${
-                  isActive
-                    ? 'bg-blue-600 border-blue-400 text-white font-bold shadow-lg shadow-blue-600/30 ring-1 ring-blue-300'
-                    : 'bg-[#242832] border-[#3b4252] text-slate-300 hover:bg-[#2c313d] hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${style.dot}`} />
-                  <span className="font-bold text-[11px] truncate">
-                    {step.order}. {step.title}
-                  </span>
-                </div>
-                <div
-                  className={`text-[10px] truncate mt-0.5 ${
-                    isActive ? 'text-blue-100 font-medium' : 'text-slate-400'
+      <BlockerPanel
+        issues={issues}
+        isOpen={blockersOpen}
+        onToggle={() => setBlockersOpen((v) => !v)}
+        onGoToIssue={goToIssue}
+        isLoading={isReviewLoading}
+      />
+
+      <div className="grid gap-3 lg:grid-cols-[236px_minmax(0,1fr)]">
+        <div className="lg:sticky lg:top-[calc(var(--app-header-h)+1rem)] lg:self-start">
+          <nav className="card-flat space-y-0.5 p-2">
+            {WIZARD_STEPS.map((step) => {
+              const isActive = activeStep === step.id;
+              const status = stepStatus(step.id);
+              const style = STEP_STATUS_STYLES[status];
+
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => setActiveStep(step.id)}
+                  aria-current={isActive ? 'step' : undefined}
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                    isActive
+                      ? 'bg-brand-50 text-brand-700 dark:bg-nord-3 dark:text-nord-frost2'
+                      : 'text-slate-700 hover:bg-slate-50 dark:text-nord-4 dark:hover:bg-nord-3'
                   }`}
                 >
-                  {style.label}
-                </div>
-              </button>
-            );
-          })}
+                  <span className={`status-dot ${style.dot}`} />
+                  <span className="flex min-w-0 flex-col leading-tight">
+                    <span className="truncate text-[11px] font-bold">
+                      {step.order}. {step.title}
+                    </span>
+                    <span className={`mt-0.5 text-[10px] font-semibold ${style.text}`}>
+                      {style.label}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-1 min-h-[380px]">
+        <div className="min-w-0 space-y-3">
           {activeStep === 'profile' && (
             <ProfileStep
               calculationId={calculationId}
@@ -498,7 +598,7 @@ export default function Gost34WizardModal({
               review={review}
               isReviewLoading={isReviewLoading}
               reviewError={reviewError}
-              onUpdateSectionOverrides={setSectionOverrides}
+              onUpdateSectionOverrides={handleSectionOverrides}
             />
           )}
 
@@ -512,54 +612,50 @@ export default function Gost34WizardModal({
               requirementCount={requirements.length}
               isExporting={isExporting}
               exportError={exportError}
-              onGoToStep={setActiveStep}
+              onGoToIssue={goToIssue}
               onExportDocument={() =>
-                download({ ...exportPayload, docType }, `${docType}_GOST34_Document.docx`)
+                download(
+                  { ...exportPayload, docType },
+                  `${docType}_GOST34_Document.docx`,
+                  `Выпущен документ ${docType} из студии ГОСТ 34 (профиль ${review?.profile.name ?? standardProfileId}).`,
+                )
               }
               onExportZip={() =>
                 download(
                   { ...exportPayload, docType: 'ZIP', isBatchZip: true },
                   `GOST34_Full_Package_${calculationName.replace(/\s+/g, '_')}.zip`,
+                  `Выпущен полный комплект ГОСТ 34 (ZIP) из студии, профиль ${review?.profile.name ?? standardProfileId}.`,
                 )
               }
             />
           )}
-        </div>
 
-        <div className="flex items-center justify-between border-t border-[#2e3440] pt-4 mt-4 gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-[#2e3440] text-slate-300 hover:text-white hover:bg-[#3b4252] transition-colors"
-          >
-            Закрыть
-          </button>
+          <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-3 dark:border-nord-3">
+            <div className="hidden min-w-0 flex-1 truncate text-[11px] text-slate-400 md:block dark:text-nord-muted">
+              {activeStepDefinition.subtitle}
+              {isReviewLoading && ' · идёт проверка…'}
+            </div>
 
-          <div className="text-[11px] text-slate-400 hidden md:block flex-1 text-center truncate">
-            {activeStepDefinition.subtitle}
-            {isReviewLoading && ' • идёт проверка…'}
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            {prevStep && (
-              <button
-                type="button"
-                onClick={() => setActiveStep(prevStep)}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-[#2e3440] text-white hover:bg-[#3b4252] border border-[#434c5e] transition-colors"
-              >
-                ← Назад
-              </button>
-            )}
-
-            {nextStep && (
-              <button
-                type="button"
-                onClick={() => setActiveStep(nextStep)}
-                className="px-6 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/30 transition-colors"
-              >
-                Далее →
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {prevStep && (
+                <button
+                  type="button"
+                  onClick={() => setActiveStep(prevStep)}
+                  className="btn-secondary !text-xs"
+                >
+                  ← Назад
+                </button>
+              )}
+              {nextStep && (
+                <button
+                  type="button"
+                  onClick={() => setActiveStep(nextStep)}
+                  className="btn-primary !text-xs"
+                >
+                  Далее →
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

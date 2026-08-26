@@ -2,13 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================================================================
+   ПЛОТНОСТЬ (рефакторинг UI)
+   Базовый кегль 13px вместо 16px, радиусы 8-12 вместо 12-16, шапка 52px,
+   сайдбар 248px. Значения вынесены в переменные, чтобы шапка и сайдбар
+   считали отступы от одного источника.
+   ========================================================================= */
+:root {
+  --app-header-h: 52px;
+  --app-sidebar-w: 248px;
+}
+
+/*
+  Базовый кегль задаётся на body, а не на html: rem-единицы Tailwind считаются
+  от корня, и сдвиг корня на 13px пересчитал бы заодно всю шкалу отступов
+  (p-4 стал бы 13px) на экранах, которых рефакторинг не касается. Тут же
+  меняется только наследуемый размер текста.
+*/
 body {
+  font-size: 13px;
   @apply bg-slate-50 text-slate-900 dark:bg-nord-0 dark:text-nord-6 transition-colors duration-200 antialiased;
+}
+
+/* Каркас: сайдбар фиксирован, контент занимает остаток ширины. */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--app-sidebar-w) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+@media (max-width: 1023px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.app-header {
+  height: var(--app-header-h);
+}
+
+/* Числовые колонки таблиц не должны «прыгать» при пересчёте. */
+.nums {
+  font-variant-numeric: tabular-nums;
 }
 
 .card {
   @apply bg-white rounded-xl border border-slate-200/80 shadow-sm
     dark:bg-nord-2 dark:border-nord-3;
+}
+
+/*
+  Плоская карточка новой плотности: бордер вместо тени, радиус 12.
+  `.card` остаётся как есть — на нём держатся экраны, которые рефакторинг
+  не трогает, и менять их вид заодно было бы регрессией.
+*/
+.card-flat {
+  @apply rounded-xl border border-slate-200 bg-white
+    dark:border-nord-3 dark:bg-nord-2;
+}
+
+/* Вложенная строка внутри карточки: чуть светлее бордер, радиус 8. */
+.row-flat {
+  @apply rounded-lg border border-slate-100 bg-white
+    dark:border-nord-3 dark:bg-nord-1;
 }
 
 .card-interactive {
@@ -50,6 +106,84 @@ body {
 
 .badge {
   @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
+}
+
+/* =========================================================================
+   СЕМАНТИКА СТАТУСОВ
+   Одна палитра на панель блокеров студии, чек-лист нормоконтроля, лист
+   изменений и бейджи очереди ревью: ok / warn / block / muted.
+   ========================================================================= */
+.chip {
+  @apply inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-px text-[10px] font-bold;
+}
+
+.chip-ok {
+  @apply chip border-emerald-200 bg-emerald-50 text-emerald-700
+    dark:border-nord-green/40 dark:bg-nord-green/15 dark:text-nord-green;
+}
+
+.chip-warn {
+  @apply chip border-amber-200 bg-amber-50 text-amber-700
+    dark:border-nord-yellow/40 dark:bg-nord-yellow/15 dark:text-nord-yellow;
+}
+
+.chip-block {
+  @apply chip border-rose-200 bg-rose-50 text-rose-700
+    dark:border-nord-red/40 dark:bg-nord-red/15 dark:text-nord-redText;
+}
+
+.chip-muted {
+  @apply chip border-slate-200 bg-slate-100 text-slate-500
+    dark:border-nord-3 dark:bg-nord-1 dark:text-nord-muted;
+}
+
+/* Точка статуса шага в рельсе студии и в списке проверок выпуска. */
+.status-dot {
+  @apply h-2 w-2 shrink-0 rounded-full;
+}
+
+/* Круглый маркер пункта чек-листа нормоконтроля (✓ / ✕ / ! / ·). */
+.check-mark {
+  @apply flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold;
+}
+
+/* Контейнер панели блокеров: тревожная рамка вокруг белых строк. */
+.blocker-panel {
+  @apply rounded-[10px] border border-rose-200 bg-rose-50/70
+    dark:border-nord-red/40 dark:bg-nord-red/10;
+}
+
+/* Поле, обязательное к заполнению и не заполненное: рамка ведёт взгляд. */
+.input-error {
+  @apply border-rose-300 bg-rose-50/40
+    focus:border-rose-400 focus:ring-rose-400/20
+    dark:border-nord-red/60 dark:bg-nord-red/10;
+}
+
+/*
+  Подсветка поля после перехода из панели блокеров. Гаснет сама — иначе после
+  исправления рамка осталась бы висеть и читалась как незакрытое замечание.
+*/
+@keyframes fieldFlash {
+  0%,
+  60% {
+    box-shadow: 0 0 0 3px theme('colors.brand.500 / 35%');
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+
+.field-flash {
+  animation: fieldFlash 2s ease-out 1;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field-flash {
+    animation: none;
+    box-shadow: 0 0 0 3px theme('colors.brand.500 / 35%');
+  }
 }
 
 /* Tab button styles */

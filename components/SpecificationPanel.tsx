@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Gost34Section } from '@/lib/gost34/types';
 
 interface SpecificationPanelProps {
@@ -8,7 +9,8 @@ interface SpecificationPanelProps {
   calculationName: string;
   customerName: string;
   answers: Record<string, unknown>;
-  onOpenGostWizard?: () => void;
+  /** Ссылка на студию ГОСТ 34; не передана — кнопка не показывается. */
+  studioHref?: string;
 }
 
 export default function SpecificationPanel({
@@ -16,7 +18,7 @@ export default function SpecificationPanel({
   calculationName,
   customerName,
   answers,
-  onOpenGostWizard,
+  studioHref,
 }: SpecificationPanelProps) {
   const [sections, setSections] = useState<Gost34Section[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,13 +129,13 @@ export default function SpecificationPanel({
             >
               <span>{downloadingDocx ? '⏳ Генерация...' : '📄 Скачать DOCX (Спецификация)'}</span>
             </button>
-            {onOpenGostWizard && (
-              <button
-                onClick={onOpenGostWizard}
+            {studioHref && (
+              <Link
+                href={studioHref}
                 className="btn-secondary flex items-center gap-1.5 text-xs font-semibold"
               >
-                <span>🚀 Выпустить в мастере ГОСТ 34</span>
-              </button>
+                <span>🚀 Выпустить в студии ГОСТ 34</span>
+              </Link>
             )}
           </div>
         </div>

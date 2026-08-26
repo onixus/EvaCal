@@ -149,7 +149,7 @@ export default function TraceabilityMatrixView({
               <div className="text-2xl font-black text-slate-900 dark:text-nord-6">
                 {matrix.metrics.coveragePercent}%
               </div>
-              <div className="text-[11px] font-medium text-slate-400 dark:text-nord-muted">
+              <div className="text-[11px] font-medium text-slate-500 dark:text-nord-muted dark:text-nord-muted">
                 Покрытие требований
               </div>
             </div>
@@ -269,7 +269,7 @@ export default function TraceabilityMatrixView({
                 <tr>
                   <td
                     colSpan={5}
-                    className="py-8 text-center text-xs text-slate-400 dark:text-nord-muted"
+                    className="py-8 text-center text-xs text-slate-500 dark:text-nord-muted dark:text-nord-muted"
                   >
                     Требований, удовлетворяющих условиям фильтрации, не найдено.
                   </td>
@@ -301,7 +301,7 @@ export default function TraceabilityMatrixView({
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-nord-2 dark:text-nord-muted">
                             Нормативный профиль
                           </span>
-                          <div className="text-[11px] text-slate-400 dark:text-nord-muted">
+                          <div className="text-[11px] text-slate-500 dark:text-nord-muted dark:text-nord-muted">
                             Обязательный отраслевой стандарт
                           </div>
                         </div>
@@ -351,7 +351,7 @@ export default function TraceabilityMatrixView({
                         <div className="font-medium text-slate-800 dark:text-nord-5">
                           {item.pmiTest.testTitle}
                         </div>
-                        <div className="text-[10px] text-slate-400 dark:text-nord-muted">
+                        <div className="text-[10px] text-slate-500 dark:text-nord-muted dark:text-nord-muted">
                           Метод: {item.pmiTest.method}
                         </div>
                       </div>
@@ -378,7 +378,7 @@ export default function TraceabilityMatrixView({
                         </select>
 
                         <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-slate-400 dark:text-nord-muted">
+                          <span className="text-slate-500 dark:text-nord-muted dark:text-nord-muted">
                             Способ: {item.mappingMethod}
                           </span>
                           {item.stage && (

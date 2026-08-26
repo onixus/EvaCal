@@ -18,8 +18,12 @@ async function seedDefaultUsers() {
     return;
   }
 
+  // Ролевая навигация опирается на четыре роли: у пресейла и ревьювера свои
+  // экраны, поэтому учётки заводятся вместе с архитектором и админом.
   const accounts = [
+    { username: 'presale', role: 'presale' },
     { username: 'architect', role: 'architect' },
+    { username: 'reviewer', role: 'reviewer' },
     { username: 'admin', role: 'admin' },
   ];
 

@@ -67,16 +67,33 @@ describe('Modern Document Generators (PZ, AF, PMI, SPEC, RP, RA)', () => {
     },
   };
 
-  it('buildPZ34Sections generates correct sections using projectContext and standardProfile', () => {
+  it('buildPZ34Sections generates the four RD 50-34.698-90 sections from projectContext', () => {
     const sections = buildPZ34Sections(mockPayload);
-    expect(sections.length).toBeGreaterThanOrEqual(5);
+    expect(sections.map((s) => s.title)).toEqual([
+      'ОБЩИЕ ПОЛОЖЕНИЯ',
+      'ОПИСАНИЕ ПРОЦЕССА ДЕЯТЕЛЬНОСТИ',
+      'ОСНОВНЫЕ ТЕХНИЧЕСКИЕ РЕШЕНИЯ',
+      'МЕРОПРИЯТИЯ ПО ПОДГОТОВКЕ ОБЪЕКТА АВТОМАТИЗАЦИИ К ВВОДУ СИСТЕМЫ В ДЕЙСТВИЕ',
+    ]);
 
     const sec1 = sections.find((s) => s.id === 'sec-1');
     expect(sec1?.paragraphs[4]).toContain('ГОСТ Р 59795-2021');
+    // Очередность создания: этапы расчёта попадают в Таблицу 1 раздела 1.
+    expect(sec1?.tables?.[0].rows[0][1]).toBe('Разработка БД');
 
     const sec3 = sections.find((s) => s.id === 'sec-3');
     expect(sec3?.paragraphs[0]).toContain('Микросервисная архитектура');
     expect(sec3?.paragraphs[1]).toContain('PostgreSQL Cluster');
+
+    // Обоснование выбора ПО строится из базы знаний вендоров РФ.
+    const vendorTable = sec3?.tables?.find((t) => t.caption?.includes('Обоснование'));
+    expect(vendorTable).toBeDefined();
+    expect(vendorTable!.rows.map((r) => r[0]).join(' ')).toContain('Astra Linux');
+    expect(vendorTable!.rows.map((r) => r[3]).join(' ')).toContain('№ 2557');
+
+    // Незаполненные поля контекста помечаются, а не выдумываются.
+    const sec2 = sections.find((s) => s.id === 'sec-2');
+    expect(sec2?.paragraphs[0]).toContain('Требует уточнения у Заказчика');
   });
 
   it('buildPZ34Sections falls back gracefully when standardProfile is legacy', () => {
@@ -111,6 +128,11 @@ describe('Modern Document Generators (PZ, AF, PMI, SPEC, RP, RA)', () => {
     const swTable = sections[1].tables?.[0];
     expect(swTable?.rows[0][1]).toContain('Astra Linux');
     expect(swTable?.rows[1][1]).toContain('Postgres');
+    // Реквизиты берутся из базы знаний вендоров, сверенной с реестрами.
+    expect(swTable?.rows[0][3]).toContain('№ 369');
+    expect(swTable?.rows[0][4]).toContain('№ 2557');
+    expect(swTable?.rows[1][3]).toContain('№ 104');
+    expect(swTable?.rows[1][4]).toContain('№ 4063');
 
     const hwTable = sections[2].tables?.[0];
     expect(hwTable?.rows[0][4]).toContain('8 vCPU');

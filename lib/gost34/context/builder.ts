@@ -356,6 +356,31 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     ];
     infrastructure.importSubstitution = true;
     record(state, 'infrastructure.platforms', 'questionnaire', 'kii_preset');
+  } else if (answers.vm_count || answers.hypervisor_hosts_count) {
+    infrastructure.platforms = [
+      'Платформа серверной виртуализации zVirt',
+      'Служба каталога ALD Pro',
+      'Защищенная ОС Astra Linux Special Edition / РЕД ОС',
+      'СУБД Postgres Pro Enterprise',
+    ];
+    infrastructure.importSubstitution = true;
+    record(state, 'infrastructure.platforms', 'questionnaire', 'migration_preset');
+  } else if (answers.event_sources_count || answers.siem_platform) {
+    const siemPlatform = toText(answers.siem_platform);
+    infrastructure.platforms = [
+      siemPlatform && !/определить/i.test(siemPlatform)
+        ? `SIEM-платформа ${siemPlatform}`
+        : 'SIEM-платформа (MaxPatrol SIEM / Kaspersky KUMA)',
+    ];
+    infrastructure.importSubstitution = true;
+    record(state, 'infrastructure.platforms', 'questionnaire', 'siem_preset');
+  } else if (answers.protected_vms_count || answers.backup_volume_tb) {
+    infrastructure.platforms = [
+      'Система резервного копирования «Кибер Бэкап» / RuBackup',
+      'Неизменяемые (immutable) хранилища резервных копий',
+    ];
+    infrastructure.importSubstitution = true;
+    record(state, 'infrastructure.platforms', 'questionnaire', 'backup_preset');
   } else {
     gap(
       state,

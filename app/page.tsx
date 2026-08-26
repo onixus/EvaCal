@@ -5,12 +5,12 @@ import StatusBadge from '@/components/StatusBadge';
 import Pagination from '@/components/Pagination';
 import DarkFantasyShowcase from '@/components/DarkFantasyShowcase';
 import { PAGE_SIZE, pageArgs, parsePage } from '@/lib/pagination';
-import { getStaffSession } from '@/lib/access';
+import { getInternalSession } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage(props: { searchParams: Promise<{ page?: string }> }) {
-  const staff = await getStaffSession();
+  const staff = await getInternalSession();
 
   if (!staff) {
     return (

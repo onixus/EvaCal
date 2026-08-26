@@ -151,16 +151,16 @@ export default function DocumentPreviewStep({
     return (
       <div
         key={idx}
-        className="my-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800"
+        className="my-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-200 dark:border-nord-3"
       >
         {table.caption && (
-          <div className="bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
+          <div className="bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-600 dark:text-nord-4 border-b border-slate-200 dark:border-slate-200 dark:border-nord-3">
             {table.caption}
           </div>
         )}
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400">
+            <tr className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-500 dark:text-nord-muted">
               {table.headers.map((h, hIdx) => (
                 <th
                   key={hIdx}
@@ -178,7 +178,10 @@ export default function DocumentPreviewStep({
                 className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"
               >
                 {row.map((cell, cIdx) => (
-                  <td key={cIdx} className="px-3 py-2 text-slate-800 dark:text-slate-200 align-top">
+                  <td
+                    key={cIdx}
+                    className="px-3 py-2 text-slate-800 dark:text-slate-800 dark:text-nord-5 align-top"
+                  >
                     {String(cell)}
                   </td>
                 ))}
@@ -201,20 +204,20 @@ export default function DocumentPreviewStep({
         className={`p-4 rounded-xl border transition-all ${
           activeSectionTitle === sec.title
             ? 'border-brand-500 bg-brand-50/10 dark:border-brand-500/80'
-            : 'border-slate-200/80 dark:border-slate-800 bg-white dark:bg-nord-dark'
+            : 'border-slate-200/80 dark:border-slate-200 dark:border-nord-3 bg-white dark:bg-nord-dark'
         }`}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-2.5 mb-3">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-200 dark:border-nord-3 pb-2.5 mb-3">
           <div className="flex items-center gap-2">
             <h4
-              className={`font-semibold text-slate-900 dark:text-slate-100 ${
+              className={`font-semibold text-slate-900 dark:text-slate-900 dark:text-nord-6 ${
                 level === 1 ? 'text-base' : level === 2 ? 'text-sm' : 'text-xs'
               }`}
             >
               {sec.title}
             </h4>
             {isOverridden && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 font-medium">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-700 dark:text-nord-yellow font-medium">
                 Изменён вручную
               </span>
             )}
@@ -264,7 +267,7 @@ export default function DocumentPreviewStep({
         {isEditing ? (
           <div className="space-y-3 pt-1">
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-500 dark:text-nord-muted mb-1">
                 Содержимое раздела (абзацы текста / пункты требований, разделяйте пустой строкой):
               </label>
               <textarea
@@ -277,7 +280,7 @@ export default function DocumentPreviewStep({
             </div>
           </div>
         ) : (
-          <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+          <div className="space-y-2 text-xs text-slate-700 dark:text-slate-600 dark:text-nord-4 leading-relaxed">
             {sec.paragraphs &&
               sec.paragraphs.map((p, pIdx) => (
                 <p key={pIdx} className="text-justify">
@@ -288,7 +291,7 @@ export default function DocumentPreviewStep({
             {sec.tables && sec.tables.map((tbl, tIdx) => renderTable(tbl, tIdx))}
 
             {sec.subsections && sec.subsections.length > 0 && (
-              <div className="space-y-3 mt-4 pt-2 border-t border-slate-100 dark:border-slate-800/80 pl-2 sm:pl-4">
+              <div className="space-y-3 mt-4 pt-2 border-t border-slate-100 dark:border-slate-200 dark:border-nord-3/80 pl-2 sm:pl-4">
                 {sec.subsections.map((subSec) => renderSectionBlock(subSec, level + 1))}
               </div>
             )}
@@ -303,9 +306,9 @@ export default function DocumentPreviewStep({
   return (
     <div className="space-y-4">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-200 dark:border-nord-3 pb-3">
         <div>
-          <h3 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h3 className="font-semibold text-slate-900 dark:text-slate-900 dark:text-nord-6 flex items-center gap-2">
             <span>Предпросмотр и интерактивная правка ТЗ</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300 font-mono font-medium">
               {decisions.standardProfileId === 'legacy-gost34-602-89'
@@ -350,8 +353,8 @@ export default function DocumentPreviewStep({
       {!loading && !error && ast && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* Section Outline (Left) */}
-          <div className="lg:col-span-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-nord-dark p-3 space-y-1.5 max-h-[600px] overflow-y-auto">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 py-1">
+          <div className="lg:col-span-4 rounded-xl border border-slate-200 dark:border-slate-200 dark:border-nord-3 bg-slate-50/50 dark:bg-nord-dark p-3 space-y-1.5 max-h-[600px] overflow-y-auto">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-nord-muted dark:text-slate-500 px-2 py-1">
               Оглавление ТЗ ({flatSections.length} разд.)
             </div>
             {filteredSections.map(({ section, level }) => {
@@ -370,7 +373,7 @@ export default function DocumentPreviewStep({
                   className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors flex items-center justify-between gap-1.5 ${
                     isActive
                       ? 'bg-brand-600 text-white font-medium shadow-sm'
-                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
+                      : 'text-slate-700 dark:text-nord-4 hover:bg-slate-100 dark:hover:bg-nord-3'
                   } ${level > 1 ? 'pl-5 text-[11px]' : ''}`}
                 >
                   <span className="truncate">{section.title}</span>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Gost34WizardModal from './gost34/Gost34WizardModal';
+import Link from 'next/link';
 import { withShareHeaders } from '@/lib/shareClient';
 
 type ExportFormat = 'pdf' | 'xlsx' | 'json';
@@ -42,7 +42,6 @@ export default function ExportLinks({
   calculationName?: string;
   customerName?: string;
 }) {
-  const [isGostModalOpen, setIsGostModalOpen] = useState(false);
   const [busy, setBusy] = useState<ExportFormat | null>(null);
   const [error, setError] = useState('');
 
@@ -80,15 +79,14 @@ export default function ExportLinks({
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setIsGostModalOpen(true)}
+        <Link
+          href={`/calculations/${calculationId}/studio`}
           className="btn-primary !py-1.5 !px-3 text-xs font-semibold shadow-xs"
-          title="Мастер ГОСТ 34: профиль, требования, применимость, трассируемость и выпуск"
+          title="Студия ГОСТ 34: профиль, требования, применимость, трассируемость и выпуск"
         >
           <span className="text-sm">📑</span>
-          <span>Мастер ГОСТ 34</span>
-        </button>
+          <span>Студия ГОСТ 34</span>
+        </Link>
 
         <div className="flex items-center rounded-lg border border-slate-200 bg-white p-0.5 shadow-xs dark:border-nord-3 dark:bg-nord-2">
           {(['pdf', 'xlsx', 'json'] as const).map((format) => {
@@ -118,14 +116,6 @@ export default function ExportLinks({
       {error ? (
         <p className="mt-1 text-xs font-medium text-rose-600 dark:text-nord-redText">{error}</p>
       ) : null}
-
-      <Gost34WizardModal
-        calculationId={calculationId}
-        calculationName={calculationName}
-        customerName={customerName}
-        isOpen={isGostModalOpen}
-        onClose={() => setIsGostModalOpen(false)}
-      />
     </>
   );
 }

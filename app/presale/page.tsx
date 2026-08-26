@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import NewCalculationForm from './NewCalculationForm';
-import { getStaffSession, isAnonymousPresaleAllowed } from '@/lib/access';
+import { getInternalSession, isAnonymousPresaleAllowed } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +9,7 @@ export default async function PresalePage(props: {
   searchParams: Promise<{ share?: string; templateId?: string; projectId?: string }>;
 }) {
   const searchParams = await props.searchParams;
-  const staff = await getStaffSession();
+  const staff = await getInternalSession();
   const anonymousOk = isAnonymousPresaleAllowed();
 
   const linkedProject = searchParams.projectId
@@ -55,13 +55,6 @@ export default async function PresalePage(props: {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Интерфейс пресейла</h1>
-        <p className="text-sm text-slate-500">
-          Заполните опросник — этапы и трудозатраты в человеко-часах рассчитаются автоматически.
-        </p>
-      </div>
-
       {!canCreate && (
         <div className="card space-y-2 p-5 text-sm text-slate-600">
           <p>
@@ -87,16 +80,14 @@ export default async function PresalePage(props: {
           .
         </div>
       ) : canCreate ? (
-        <div className="card p-6">
-          <NewCalculationForm
-            template={JSON.parse(JSON.stringify(selectedTemplate))}
-            availableTemplates={JSON.parse(JSON.stringify(availableTemplates))}
-            createShareToken={searchParams.share ?? null}
-            initialProjectId={linkedProject?.id ?? null}
-            initialProjectName={linkedProject?.name ?? ''}
-            initialCustomer={linkedProject?.customer ?? ''}
-          />
-        </div>
+        <NewCalculationForm
+          template={JSON.parse(JSON.stringify(selectedTemplate))}
+          availableTemplates={JSON.parse(JSON.stringify(availableTemplates))}
+          createShareToken={searchParams.share ?? null}
+          initialProjectId={linkedProject?.id ?? null}
+          initialProjectName={linkedProject?.name ?? ''}
+          initialCustomer={linkedProject?.customer ?? ''}
+        />
       ) : null}
 
       {drafts.length > 0 && (

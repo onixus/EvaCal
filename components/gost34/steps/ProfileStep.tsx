@@ -46,10 +46,10 @@ export default function ProfileStep({
 
       <div className={`${PANEL_CLASS} space-y-4`}>
         <div>
-          <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider">
+          <h4 className="text-sm font-bold text-brand-700 dark:text-nord-frost2 uppercase tracking-wider">
             Редакция нормативного профиля
           </h4>
-          <p className="text-xs text-slate-300 mt-1">
+          <p className="text-xs text-slate-600 dark:text-nord-4 mt-1">
             Профиль задаёт структуру документа, ссылки на стандарты и состав комплекта.
             Legacy-профиль применяется только к ранее выпущенным проектам.
           </p>
@@ -67,8 +67,8 @@ export default function ProfileStep({
                 aria-pressed={isSelected}
                 className={`p-4 rounded-xl border text-left transition-all ${
                   isSelected
-                    ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-600/25 ring-1 ring-blue-300'
-                    : 'bg-[#1c1f26] border-[#3b4252] text-slate-300 hover:border-slate-400 hover:text-white'
+                    ? 'bg-brand-600 border-brand-500 text-white shadow-lg shadow-brand-600/20 ring-1 ring-brand-200'
+                    : 'bg-white dark:bg-nord-1 border-slate-200 dark:border-nord-3 text-slate-700 dark:text-nord-4 hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-nord-3'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -79,7 +79,7 @@ export default function ProfileStep({
                         ? 'bg-white text-blue-700'
                         : isLegacy
                           ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                          : 'bg-[#2e3440] text-blue-300 border border-[#434c5e]'
+                          : 'bg-slate-100 dark:bg-nord-3 text-blue-300 border border-slate-300 dark:border-nord-3'
                     }`}
                   >
                     {isLegacy ? 'legacy' : 'актуальный'}
@@ -87,13 +87,15 @@ export default function ProfileStep({
                 </div>
                 <p
                   className={`text-[11px] mt-1.5 leading-relaxed ${
-                    isSelected ? 'text-blue-100' : 'text-slate-400'
+                    isSelected
+                      ? 'text-brand-700 dark:text-nord-frost2'
+                      : 'text-slate-500 dark:text-nord-muted'
                   }`}
                 >
                   {profile.primaryStandard.title} • действует с {profile.effectiveFrom}
                 </p>
                 <p
-                  className={`text-[11px] mt-1 ${isSelected ? 'text-blue-100/80' : 'text-slate-500'}`}
+                  className={`text-[11px] mt-1 ${isSelected ? 'text-brand-700 dark:text-nord-frost2/80' : 'text-slate-500'}`}
                 >
                   {[profile.primaryStandard, ...profile.documentStandards]
                     .map((std) => std.id.toUpperCase())
@@ -107,10 +109,10 @@ export default function ProfileStep({
 
       <div className={`${PANEL_CLASS} space-y-3`}>
         <div>
-          <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider">
+          <h4 className="text-sm font-bold text-brand-700 dark:text-nord-frost2 uppercase tracking-wider">
             Документ комплекта
           </h4>
-          <p className="text-xs text-slate-300 mt-1">
+          <p className="text-xs text-slate-600 dark:text-nord-4 mt-1">
             Состав и обозначения документов взяты из выбранного профиля ({activeProfile.name}).
           </p>
         </div>
@@ -126,8 +128,8 @@ export default function ProfileStep({
                 aria-pressed={isSelected}
                 className={`p-4 rounded-xl border text-left transition-all ${
                   isSelected
-                    ? 'bg-blue-600 border-blue-400 text-white font-bold shadow-xl shadow-blue-600/30 ring-2 ring-blue-300'
-                    : 'bg-[#1c1f26] border-[#3b4252] text-slate-300 hover:border-slate-400 hover:text-white'
+                    ? 'bg-brand-600 border-brand-500 text-white font-bold shadow-xl shadow-brand-600/20 ring-2 ring-brand-200'
+                    : 'bg-white dark:bg-nord-1 border-slate-200 dark:border-nord-3 text-slate-700 dark:text-nord-4 hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-nord-3'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1 gap-2">
@@ -136,7 +138,7 @@ export default function ProfileStep({
                     className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded whitespace-nowrap ${
                       isSelected
                         ? 'bg-white text-blue-700'
-                        : 'bg-[#2e3440] text-blue-300 border border-[#434c5e]'
+                        : 'bg-slate-100 dark:bg-nord-3 text-brand-700 dark:text-nord-frost2 border border-slate-300 dark:border-nord-3'
                     }`}
                   >
                     {item.standardCitation}
@@ -144,7 +146,9 @@ export default function ProfileStep({
                 </div>
                 <p
                   className={`text-xs mt-2 leading-relaxed ${
-                    isSelected ? 'text-blue-100' : 'text-slate-400'
+                    isSelected
+                      ? 'text-brand-700 dark:text-nord-frost2'
+                      : 'text-slate-500 dark:text-nord-muted'
                   }`}
                 >
                   {item.uiDescription}
@@ -157,10 +161,10 @@ export default function ProfileStep({
 
       <div className={`${PANEL_CLASS} space-y-3`}>
         <div>
-          <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider">
+          <h4 className="text-sm font-bold text-brand-700 dark:text-nord-frost2 uppercase tracking-wider">
             Оформление документа
           </h4>
-          <p className="text-xs text-slate-300 mt-1">
+          <p className="text-xs text-slate-600 dark:text-nord-4 mt-1">
             Рамка по ГОСТ 2.301-68 (20 мм слева, 5 мм с прочих сторон) и основные надписи форм 2 /
             2а по ГОСТ 2.104-2006.
           </p>
@@ -177,8 +181,8 @@ export default function ProfileStep({
                 aria-pressed={isSelected}
                 className={`p-3 rounded-xl border text-left transition-all ${
                   isSelected
-                    ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-600/25 ring-1 ring-blue-300'
-                    : 'bg-[#1c1f26] border-[#3b4252] text-slate-300 hover:border-slate-400 hover:text-white'
+                    ? 'bg-brand-600 border-brand-500 text-white shadow-lg shadow-brand-600/20 ring-1 ring-brand-200'
+                    : 'bg-white dark:bg-nord-1 border-slate-200 dark:border-nord-3 text-slate-700 dark:text-nord-4 hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-nord-3'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -188,7 +192,7 @@ export default function ProfileStep({
                       className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                         isSelected
                           ? 'bg-white text-blue-700'
-                          : 'bg-[#2e3440] text-blue-300 border border-[#434c5e]'
+                          : 'bg-slate-100 dark:bg-nord-3 text-brand-700 dark:text-nord-frost2 border border-slate-300 dark:border-nord-3'
                       }`}
                     >
                       рамка
@@ -197,7 +201,9 @@ export default function ProfileStep({
                 </div>
                 <p
                   className={`text-[11px] mt-1.5 leading-relaxed ${
-                    isSelected ? 'text-blue-100' : 'text-slate-400'
+                    isSelected
+                      ? 'text-brand-700 dark:text-nord-frost2'
+                      : 'text-slate-500 dark:text-nord-muted'
                   }`}
                 >
                   {profile.description}

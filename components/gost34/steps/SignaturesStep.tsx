@@ -1,7 +1,7 @@
 'use client';
 
 import { REQUIRED_SIGNATURE_FIELDS } from '@/lib/gost34/wizard/compliance';
-import { PANEL_CLASS } from '../wizardShared';
+import { PANEL_CLASS, fieldAnchorId } from '../wizardShared';
 
 const EXECUTOR_FIELDS = ['developer', 'checker', 'normControl', 'approver'];
 
@@ -24,23 +24,23 @@ export default function SignaturesStep({
 }: SignaturesStepProps) {
   const field = (key: string, label: string) => {
     const isEmpty = !String(signatures[key] ?? '').trim();
+
     return (
-      <div key={key}>
-        <label className="block text-slate-300 text-[11px] font-bold mb-1">{label} (ФИО)</label>
+      // id совпадает с fieldRef замечания («signatures.approver»): по нему
+      // панель блокеров находит поле и подсвечивает его.
+      <div key={key} id={fieldAnchorId(`signatures.${key}`)}>
+        <label className="label">{label} (ФИО)</label>
         <input
           type="text"
           value={signatures[key] ?? ''}
           onChange={(e) => onSignatureChange(key, e.target.value)}
           aria-invalid={isEmpty}
-          className={`w-full bg-[#242832] border rounded-lg px-3 py-2 text-white focus:outline-none ${
-            isEmpty
-              ? 'border-red-500/60 focus:border-red-400'
-              : 'border-[#434c5e] focus:border-blue-400'
-          }`}
+          placeholder="ФИО"
+          className={`input ${isEmpty ? 'input-error' : ''}`}
         />
         {isEmpty && (
-          <span className="text-[10px] text-red-300 mt-1 block">
-            Поле основной надписи обязательно
+          <span className="mt-1 block text-[10px] font-semibold text-rose-600 dark:text-nord-redText">
+            Обязательное поле основной надписи — блокирует выпуск
           </span>
         )}
       </div>
@@ -48,59 +48,54 @@ export default function SignaturesStep({
   };
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-150">
+    <div className="animate-in fade-in space-y-4 duration-150">
       <div className={`${PANEL_CLASS} space-y-4`}>
         <div>
-          <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider">
-            ✍️ Данные основной надписи (ГОСТ 2.104-2006, формы 2 и 2а)
-          </h4>
-          <p className="text-xs text-slate-300 mt-1">
-            Заполните ФИО должностных лиц для вывода в штампах нормоконтроля документа
+          <h3 className="text-sm font-bold text-slate-900 dark:text-nord-6">Реквизиты и подписи</h3>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-nord-muted">
+            Основная надпись по ГОСТ 2.104-2006 (формы 2 и 2а). Пустые обязательные поля блокируют
+            выпуск.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-[#1c1f26] p-4 rounded-xl border border-[#3b4252] space-y-3">
-            <span className="text-xs font-bold text-white uppercase tracking-wider block border-b border-[#3b4252] pb-2">
-              Согласующие от Исполнителя
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3.5 dark:border-nord-3 dark:bg-nord-1/50">
+            <span className="block border-b border-slate-200 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:border-nord-3 dark:text-nord-4">
+              От Исполнителя
             </span>
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3">
               {REQUIRED_SIGNATURE_FIELDS.filter((item) => EXECUTOR_FIELDS.includes(item.key)).map(
                 (item) => field(item.key, item.label),
               )}
             </div>
           </div>
 
-          <div className="bg-[#1c1f26] p-4 rounded-xl border border-[#3b4252] space-y-3">
-            <span className="text-xs font-bold text-white uppercase tracking-wider block border-b border-[#3b4252] pb-2">
-              Согласующие от Заказчика и реквизиты
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3.5 dark:border-nord-3 dark:bg-nord-1/50">
+            <span className="block border-b border-slate-200 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:border-nord-3 dark:text-nord-4">
+              От Заказчика и реквизиты
             </span>
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3">
               {REQUIRED_SIGNATURE_FIELDS.filter((item) => !EXECUTOR_FIELDS.includes(item.key)).map(
                 (item) => field(item.key, item.label),
               )}
 
               <div>
-                <label className="block text-slate-300 text-[11px] font-bold mb-1">
-                  Номер договора / шифр проекта
-                </label>
+                <label className="label">Номер договора / шифр проекта</label>
                 <input
                   type="text"
                   value={contractNumber}
                   onChange={(e) => onContractNumberChange(e.target.value)}
-                  className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-2 text-white focus:border-blue-400 focus:outline-none"
+                  className="input"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 text-[11px] font-bold mb-1">
-                  Город издания документа
-                </label>
+                <label className="label">Город издания документа</label>
                 <input
                   type="text"
                   value={city}
                   onChange={(e) => onCityChange(e.target.value)}
-                  className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-2 text-white focus:border-blue-400 focus:outline-none"
+                  className="input"
                 />
               </div>
             </div>
