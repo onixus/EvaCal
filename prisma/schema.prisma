@@ -196,8 +196,13 @@ model GostPackage {
 
   documentTypes          String       // JSON-encoded array of document types: ["tz", "pmi", "tp"]
   metadata               String?      // JSON snapshot of wizard choices, profile overrides, checklist
+  snapshot               String?      // JSON snapshot of wizard state (requirements v2, links, applicability, signatures, overrides)
+  artifactPath           String?      // Relative path to saved immutable ZIP on storage volume
   checksum               String?      // SHA-256 integrity hash of document definitions/artifacts
 
+  releasedAt             DateTime?
+  releasedBy             String?
+  reviewComment          String?      // Review comment on approve/reject
   approvedAt             DateTime?
   approvedBy             String?
   createdBy              String       @default("architect")

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import StatusBadge from '@/components/StatusBadge';
 import { calculateCommercialSummary, formatCurrency } from '@/lib/commercial';
 import { safeJsonParse } from '@/lib/json';
+import type { PackageDiffResult } from '@/lib/gost34/diff';
 
 export interface SerializedStage {
   id: string;
@@ -62,9 +63,14 @@ export interface SerializedGostPackage {
   generatorVersion: string;
   documentTypes: string; // JSON
   metadata: string | null; // JSON
+  artifactPath?: string | null;
+  hasArtifact?: boolean;
   checksum: string | null;
+  releasedAt?: string | null;
+  releasedBy?: string | null;
   approvedAt: string | null;
   approvedBy: string | null;
+  reviewComment?: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -108,8 +114,131 @@ export default function ProjectDetailClient({ project }: { project: SerializedPr
   const [isSavingProject, setIsSavingProject] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Package review state (RR-4)
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [selectedPkgForReview, setSelectedPkgForReview] = useState<SerializedGostPackage | null>(
+    null,
+  );
+  const [reviewDecision, setReviewDecision] = useState<'approve' | 'reject'>('approve');
+  const [reviewCommentText, setReviewCommentText] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  // Share review link state (RR-4)
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [selectedPkgForShare, setSelectedPkgForShare] = useState<SerializedGostPackage | null>(
+    null,
+  );
+  const [shareLink, setShareLink] = useState('');
+  const [isGeneratingShare, setIsGeneratingShare] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  // Package structural diff state (RR-5)
+  const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
+  const [fromPkgId, setFromPkgId] = useState<string>(
+    project.packages[1]?.id || project.packages[0]?.id || '',
+  );
+  const [toPkgId, setToPkgId] = useState<string>(project.packages[0]?.id || '');
+  const [diffResult, setDiffResult] = useState<PackageDiffResult | null>(null);
+  const [isDiffLoading, setIsDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
+
   // Latest calculation for commercial summary
   const latestCalc = project.calculations[0] || null;
+
+  async function handleOpenReviewModal(pkg: SerializedGostPackage, decision: 'approve' | 'reject') {
+    setSelectedPkgForReview(pkg);
+    setReviewDecision(decision);
+    setReviewCommentText('');
+    setReviewError(null);
+    setIsReviewModalOpen(true);
+  }
+
+  async function handleSubmitReview(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedPkgForReview) return;
+    setIsSubmittingReview(true);
+    setReviewError(null);
+    try {
+      const res = await fetch(`/api/gost34/packages/${selectedPkgForReview.id}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decision: reviewDecision,
+          comment: reviewCommentText,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Не удалось отправить согласование');
+      }
+      setIsReviewModalOpen(false);
+      router.refresh();
+    } catch (err) {
+      setReviewError(err instanceof Error ? err.message : 'Ошибка при согласовании');
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  }
+
+  async function handleOpenShareModal(pkg: SerializedGostPackage) {
+    setSelectedPkgForShare(pkg);
+    setIsShareModalOpen(true);
+    setIsGeneratingShare(true);
+    setIsCopied(false);
+    try {
+      const res = await fetch(`/api/calculations/${pkg.calculationId}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scopes: ['review', 'export', 'read'],
+          ttlSeconds: 60 * 60 * 24 * 14,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error('Не удалось создать share-ссылку');
+      }
+      const data = await res.json();
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      setShareLink(`${origin}/review/${pkg.id}?share=${data.token}`);
+    } catch (err) {
+      setShareLink('');
+      alert('Ошибка при генерации ссылки для согласования');
+    } finally {
+      setIsGeneratingShare(false);
+    }
+  }
+
+  async function handleLoadDiff(fromId = fromPkgId, toId = toPkgId) {
+    if (!fromId || !toId || fromId === toId) return;
+    setIsDiffLoading(true);
+    setDiffError(null);
+    try {
+      const res = await fetch(
+        `/api/projects/${project.id}/packages/diff?from=${fromId}&to=${toId}`,
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Не удалось сравнить версии');
+      }
+      const data = await res.json();
+      setDiffResult(data.diff);
+    } catch (err) {
+      setDiffError(err instanceof Error ? err.message : 'Ошибка при вычислении diff');
+    } finally {
+      setIsDiffLoading(false);
+    }
+  }
+
+  function handleOpenDiffModal() {
+    if (project.packages.length < 2) return;
+    const toId = project.packages[0].id;
+    const fromId = project.packages[1].id;
+    setFromPkgId(fromId);
+    setToPkgId(toId);
+    setIsDiffModalOpen(true);
+    handleLoadDiff(fromId, toId);
+  }
 
   async function handleUpdateProject(e: React.FormEvent) {
     e.preventDefault();
@@ -509,18 +638,29 @@ export default function ProjectDetailClient({ project }: { project: SerializedPr
                 Реестр комплектов документов ГОСТ 34
               </h2>
               <p className="text-xs text-slate-500 dark:text-nord-muted">
-                Официальные выпуски ТЗ, ПМИ, ТП и сопутствующих документов с фиксацией профиля и
-                контрольных сумм.
+                Официальные выпуски ТЗ, ПМИ, ТП и сопутствующих документов с фиксацией профиля,
+                неизменяемых ZIP-артефактов и контрольных сумм.
               </p>
             </div>
-            {latestCalc && (
-              <Link
-                href={`/calculations/${latestCalc.id}`}
-                className="btn-secondary !py-1.5 !px-3 text-xs"
-              >
-                + Выпустить комплект в мастере
-              </Link>
-            )}
+            <div className="flex items-center gap-2">
+              {project.packages.length >= 2 && (
+                <button
+                  type="button"
+                  onClick={handleOpenDiffModal}
+                  className="btn-secondary !py-1.5 !px-3 text-xs bg-brand-50 border-brand-200 text-brand-700 hover:bg-brand-100 dark:bg-nord-3 dark:text-nord-frost3 font-bold"
+                >
+                  📊 Сравнить версии
+                </button>
+              )}
+              {latestCalc && (
+                <Link
+                  href={`/calculations/${latestCalc.id}`}
+                  className="btn-secondary !py-1.5 !px-3 text-xs"
+                >
+                  + Выпустить комплект в мастере
+                </Link>
+              )}
+            </div>
           </div>
 
           {project.packages.length === 0 ? (
@@ -591,7 +731,21 @@ export default function ProjectDetailClient({ project }: { project: SerializedPr
                               year: 'numeric',
                             })}
                           </span>
+                          {pkg.approvedBy && (
+                            <>
+                              <span>•</span>
+                              <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                                Согласовал: {pkg.approvedBy}
+                              </span>
+                            </>
+                          )}
                         </div>
+
+                        {pkg.reviewComment && (
+                          <div className="rounded-md bg-amber-50 p-2.5 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                            <strong>💬 Комментарий согласования:</strong> {pkg.reviewComment}
+                          </div>
+                        )}
 
                         {pkg.checksum && (
                           <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400 dark:text-nord-muted">
@@ -616,12 +770,50 @@ export default function ProjectDetailClient({ project }: { project: SerializedPr
                           </div>
                         )}
 
-                        <div className="flex items-center gap-2 pt-1">
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          {pkg.hasArtifact && (
+                            <a
+                              href={`/api/gost34/packages/${pkg.id}/artifact`}
+                              download
+                              className="btn-secondary !py-1 !px-2.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-nord-2"
+                              title="Скачать неизменяемый ZIP-архив выпуска с контрольной суммой SHA-256"
+                            >
+                              ⬇ Скачать ZIP
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenShareModal(pkg)}
+                            className="btn-secondary !py-1 !px-2.5 text-xs font-bold"
+                            title="Сгенерировать share-ссылку для согласования Заказчиком"
+                          >
+                            🔗 Поделиться
+                          </button>
+                          {pkg.status !== 'approved' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenReviewModal(pkg, 'approve')}
+                                className="btn-secondary !py-1 !px-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-nord-2"
+                                title="Утвердить данный выпуск"
+                              >
+                                ✓ Согласовать
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenReviewModal(pkg, 'reject')}
+                                className="btn-secondary !py-1 !px-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-nord-2"
+                                title="Отклонить выпуск с комментарием"
+                              >
+                                ✕ Отклонить
+                              </button>
+                            </>
+                          )}
                           <Link
                             href={`/calculations/${pkg.calculationId}`}
                             className="btn-primary !py-1 !px-2.5 text-xs"
                           >
-                            Открыть в хабе →
+                            В хаб →
                           </Link>
                         </div>
                       </div>
@@ -1020,6 +1212,443 @@ export default function ProjectDetailClient({ project }: { project: SerializedPr
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Package Review Modal (RR-4) */}
+      {isReviewModalOpen && selectedPkgForReview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="card w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/60 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-nord-6">
+                  {reviewDecision === 'approve'
+                    ? '✅ Утверждение комплекта'
+                    : '❌ Отклонение комплекта'}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-nord-muted">
+                  {selectedPkgForReview.name} (v{selectedPkgForReview.version})
+                </p>
+              </div>
+              <button
+                onClick={() => setIsReviewModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-nord-4 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitReview} className="p-6 space-y-4">
+              {reviewError && (
+                <div className="rounded-lg bg-rose-50 p-3 text-xs text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">
+                  {reviewError}
+                </div>
+              )}
+
+              <div>
+                <label className="label text-xs font-bold text-slate-700 dark:text-nord-4">
+                  Решение
+                </label>
+                <div className="grid grid-cols-2 gap-3 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setReviewDecision('approve')}
+                    className={`p-3 rounded-xl border text-center transition-all ${
+                      reviewDecision === 'approve'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-bold dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-500'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-nord-3 dark:text-nord-4'
+                    }`}
+                  >
+                    ✓ Согласовать (Approve)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReviewDecision('reject')}
+                    className={`p-3 rounded-xl border text-center transition-all ${
+                      reviewDecision === 'reject'
+                        ? 'border-rose-500 bg-rose-50 text-rose-800 font-bold dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-500'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-nord-3 dark:text-nord-4'
+                    }`}
+                  >
+                    ✕ Отклонить (Reject)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="label text-xs font-bold text-slate-700 dark:text-nord-4">
+                  Комментарий / замечания
+                </label>
+                <textarea
+                  rows={3}
+                  value={reviewCommentText}
+                  onChange={(e) => setReviewCommentText(e.target.value)}
+                  placeholder={
+                    reviewDecision === 'approve'
+                      ? 'Опциональный комментарий к согласованию (например, Утверждено на рабочей группе)'
+                      : 'Укажите причину отклонения выпуска'
+                  }
+                  className="input text-sm"
+                />
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-nord-3">
+                <button
+                  type="button"
+                  onClick={() => setIsReviewModalOpen(false)}
+                  className="btn-secondary text-xs"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingReview}
+                  className={`btn text-xs font-bold ${
+                    reviewDecision === 'approve'
+                      ? 'btn-primary'
+                      : 'bg-rose-600 hover:bg-rose-700 text-white'
+                  }`}
+                >
+                  {isSubmittingReview ? 'Отправка...' : 'Подтвердить решение'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Share Review Modal (RR-4) */}
+      {isShareModalOpen && selectedPkgForShare && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="card w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/60 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-nord-6">
+                  🔗 Ссылка для согласования Заказчиком
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-nord-muted">
+                  Безопасный доступ без необходимости регистрации и staff-логина
+                </p>
+              </div>
+              <button
+                onClick={() => setIsShareModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-nord-4 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-600 dark:text-nord-4">
+                По этой ссылке представитель Заказчика может изучить комплект ГОСТ 34, скачать
+                неизменяемый ZIP-архив (с проверкой SHA-256) и утвердить или отклонить выпуск.
+              </p>
+
+              {isGeneratingShare ? (
+                <div className="text-xs text-slate-500 animate-pulse text-center py-4">
+                  Генерация криптографического токена доступа...
+                </div>
+              ) : shareLink ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={shareLink}
+                      className="input text-xs font-mono select-all flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(shareLink);
+                        setIsCopied(true);
+                        setTimeout(() => setIsCopied(false), 2500);
+                      }}
+                      className="btn-primary text-xs font-bold whitespace-nowrap"
+                    >
+                      {isCopied ? '✓ Скопировано!' : 'Скопировать'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Срок действия ссылки: 14 дней. Права: просмотр, скачивание ZIP, согласование
+                    (без права изменения сметы).
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="pt-3 flex items-center justify-end border-t border-slate-100 dark:border-nord-3">
+                <button
+                  type="button"
+                  onClick={() => setIsShareModalOpen(false)}
+                  className="btn-secondary text-xs"
+                >
+                  Закрыть
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Package Structural Diff Modal (RR-5) */}
+      {isDiffModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-4">
+          <div className="card w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/60 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-nord-6">
+                  📊 Структурное сравнение версий комплектов ГОСТ 34
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-nord-muted">
+                  Анализ изменений требований, покрытия трассировки, применимости и оверрайдов
+                </p>
+              </div>
+              <button
+                onClick={() => setIsDiffModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-nord-4 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="border-b border-slate-200 bg-white p-4 dark:border-nord-3 dark:bg-nord-0 shrink-0">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-600 dark:text-nord-4">
+                    Базовая версия (Откуда):
+                  </span>
+                  <select
+                    value={fromPkgId}
+                    onChange={(e) => {
+                      setFromPkgId(e.target.value);
+                      handleLoadDiff(e.target.value, toPkgId);
+                    }}
+                    className="input text-xs !py-1"
+                  >
+                    {project.packages.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        v{p.version} — {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="text-slate-400">→</div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-600 dark:text-nord-4">
+                    Целевая версия (Куда):
+                  </span>
+                  <select
+                    value={toPkgId}
+                    onChange={(e) => {
+                      setToPkgId(e.target.value);
+                      handleLoadDiff(fromPkgId, e.target.value);
+                    }}
+                    className="input text-xs !py-1"
+                  >
+                    {project.packages.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        v{p.version} — {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleLoadDiff(fromPkgId, toPkgId)}
+                  disabled={isDiffLoading || fromPkgId === toPkgId}
+                  className="btn-secondary !py-1 !px-2.5 text-xs font-bold"
+                >
+                  {isDiffLoading ? 'Сравнение...' : 'Обновить'}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {fromPkgId === toPkgId && (
+                <div className="rounded-lg bg-amber-50 p-4 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 text-center">
+                  Выберите две разные версии для сравнения.
+                </div>
+              )}
+
+              {diffError && (
+                <div className="rounded-lg bg-rose-50 p-4 text-xs text-rose-800 dark:bg-rose-950/40 dark:text-rose-300">
+                  {diffError}
+                </div>
+              )}
+
+              {isDiffLoading && (
+                <div className="py-12 text-center text-xs text-slate-500 animate-pulse">
+                  Вычисление структурной дельты документов...
+                </div>
+              )}
+
+              {diffResult && !isDiffLoading && (
+                <div className="space-y-5">
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="card p-3 bg-slate-50 dark:bg-nord-1/40">
+                      <div className="text-[11px] text-slate-500 dark:text-nord-muted">
+                        Требования
+                      </div>
+                      <div className="text-lg font-bold text-slate-900 dark:text-nord-6">
+                        {diffResult.requirements.totalFrom} → {diffResult.requirements.totalTo}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        +{diffResult.requirements.added.length} / -
+                        {diffResult.requirements.removed.length} / ~
+                        {diffResult.requirements.modified.length}
+                      </div>
+                    </div>
+
+                    <div className="card p-3 bg-slate-50 dark:bg-nord-1/40">
+                      <div className="text-[11px] text-slate-500 dark:text-nord-muted">
+                        Покрытие трассировки
+                      </div>
+                      <div className="text-lg font-bold text-slate-900 dark:text-nord-6">
+                        {diffResult.traceability.coverageFrom}% →{' '}
+                        {diffResult.traceability.coverageTo}%
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        +{diffResult.traceability.addedLinks.length} связей / -
+                        {diffResult.traceability.removedLinks.length}
+                      </div>
+                    </div>
+
+                    <div className="card p-3 bg-slate-50 dark:bg-nord-1/40">
+                      <div className="text-[11px] text-slate-500 dark:text-nord-muted">
+                        Нормативный профиль
+                      </div>
+                      <div className="text-xs font-bold text-slate-900 dark:text-nord-6 truncate">
+                        {diffResult.general.profileChanged ? 'ИЗМЕНЁН' : 'Без изменений'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 truncate">
+                        {diffResult.general.profileTo}
+                      </div>
+                    </div>
+
+                    <div className="card p-3 bg-slate-50 dark:bg-nord-1/40">
+                      <div className="text-[11px] text-slate-500 dark:text-nord-muted">
+                        Правки разделов (Overrides)
+                      </div>
+                      <div className="text-lg font-bold text-slate-900 dark:text-nord-6">
+                        {diffResult.sections.overrides.length}
+                      </div>
+                      <div className="text-[10px] text-slate-400">кастомных правок разделов</div>
+                    </div>
+                  </div>
+
+                  {/* Requirements Added */}
+                  {diffResult.requirements.added.length > 0 && (
+                    <div className="card p-4 border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/30 dark:bg-emerald-950/10">
+                      <h4 className="text-xs font-bold text-emerald-800 dark:text-emerald-300 mb-2">
+                        + Добавленные требования ({diffResult.requirements.added.length})
+                      </h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {diffResult.requirements.added.map((r) => (
+                          <div
+                            key={r.id}
+                            className="p-2 rounded bg-white dark:bg-nord-1 text-xs border border-emerald-100 dark:border-emerald-900/40"
+                          >
+                            <div className="font-semibold text-slate-800 dark:text-nord-5">
+                              {r.originalText}
+                            </div>
+                            {r.source && (
+                              <div className="text-[10px] text-slate-400">Источник: {r.source}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Requirements Removed */}
+                  {diffResult.requirements.removed.length > 0 && (
+                    <div className="card p-4 border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/10">
+                      <h4 className="text-xs font-bold text-rose-800 dark:text-rose-300 mb-2">
+                        - Удалённые требования ({diffResult.requirements.removed.length})
+                      </h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {diffResult.requirements.removed.map((r) => (
+                          <div
+                            key={r.id}
+                            className="p-2 rounded bg-white dark:bg-nord-1 text-xs border border-rose-100 dark:border-rose-900/40"
+                          >
+                            <div className="line-through text-slate-500 dark:text-nord-muted">
+                              {r.originalText}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Requirements Modified */}
+                  {diffResult.requirements.modified.length > 0 && (
+                    <div className="card p-4 border-amber-200 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-950/10">
+                      <h4 className="text-xs font-bold text-amber-800 dark:text-amber-300 mb-2">
+                        ~ Изменённые требования ({diffResult.requirements.modified.length})
+                      </h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {diffResult.requirements.modified.map((m) => (
+                          <div
+                            key={m.id}
+                            className="p-2 rounded bg-white dark:bg-nord-1 text-xs border border-amber-100 dark:border-amber-900/40"
+                          >
+                            <div className="text-slate-400 line-through text-[11px]">
+                              {m.from.originalText}
+                            </div>
+                            <div className="text-slate-900 dark:text-nord-6 font-semibold">
+                              {m.to.originalText}
+                            </div>
+                            <div className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">
+                              Изменено: {m.changes.join(', ')}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section Overrides */}
+                  {diffResult.sections.overrides.length > 0 && (
+                    <div className="card p-4">
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-nord-5 mb-2">
+                        Кастомные правки разделов ТЗ ({diffResult.sections.overrides.length})
+                      </h4>
+                      <div className="space-y-1.5">
+                        {diffResult.sections.overrides.map((sec, i) => (
+                          <div
+                            key={i}
+                            className="text-xs p-2 rounded bg-slate-50 dark:bg-nord-1 flex items-center justify-between"
+                          >
+                            <span className="font-mono text-slate-700 dark:text-nord-4">
+                              {sec.sectionKey}
+                            </span>
+                            <span className="text-[10px] uppercase font-bold text-brand-700 dark:text-nord-frost3">
+                              {sec.type}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-slate-200 bg-slate-50 px-6 py-3 dark:border-nord-3 dark:bg-nord-1/60 flex items-center justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsDiffModalOpen(false)}
+                className="btn-secondary text-xs"
+              >
+                Закрыть
+              </button>
+            </div>
           </div>
         </div>
       )}
