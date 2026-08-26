@@ -42,21 +42,21 @@
 - [x] Strict RBAC (Architect & Admin protected routes).
 - [x] Local LLM Normalizer with safe endpoint guard.
 - [x] Jenkins CI/CD pipeline with JUnit XML reporting (`test:ci`).
-- [x] Automated test suite: 36 files, 338 tests (100% pass).
+- [x] Automated test suite: 44 files, 378 tests (100% pass).
 
 ---
 
-## 🗂 Next Horizon — Реестр выпуска (закрытие Horizon B)
+## 🗂 Horizon B — Реестр выпуска ГОСТ 34 (Release Registry)
 
 Полный план: [RELEASE_REGISTRY_PLAN.md](RELEASE_REGISTRY_PLAN.md).
 
 Цель: один проект = одна правда. Расчёт, смета, требования и комплект ГОСТ — версии одного объекта; утверждённый ZIP воспроизводится по checksum.
 
-- [ ] **RR-1** Проект как первый экран (`/projects`, карточка, навбар).
-- [ ] **RR-2** Снимок мастера в `GostPackage` (требования v2, trace-links, применимость, overrides).
-- [ ] **RR-3** Неизменяемый ZIP + обязательный SHA-256; экспорт падает, если пакет не записался.
-- [ ] **RR-4** Согласование комплекта по share-ссылке (`review`), без staff-логина.
-- [ ] **RR-5** Структурный diff двух версий пакета.
+- [x] **RR-1** Проект как первый экран (`/projects`, карточка, навбар).
+- [x] **RR-2** Снимок мастера в `GostPackage` (требования v2, trace-links, применимость, signatures, sectionOverrides).
+- [x] **RR-3** Неизменяемый ZIP + обязательный SHA-256; хранилище артефактов на диске, экспорт падает, если пакет не записался.
+- [x] **RR-4** Согласование комплекта по share-ссылке (`review`), портал Заказчика без staff-логина, аудит и иммутабельность утверждённых версий.
+- [x] **RR-5** Структурный diff двух версий пакета (дельта требований, профиля, покрытия, стандартов, оверрайдов).
 - [ ] **RR-6** Playwright e2e «Северный банк» (login → пресет → выпуск → approve → тот же checksum).
 
 Не в этом горизонте: Postgres, multi-tenant, очередь генерации, ПСИ/акт, новые пресеты. LLM-автор ТЗ спроектирован отдельно и идёт после RR-2 (снимок пакета).

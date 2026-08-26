@@ -14,7 +14,7 @@ import { getSession, SessionPayload } from '@/lib/auth';
 export const STAFF_ROLES = ['architect', 'admin'] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
-export type ShareScope = 'read' | 'write' | 'export' | 'create';
+export type ShareScope = 'read' | 'write' | 'export' | 'create' | 'review';
 
 export interface SharePayload {
   /** Bound calculation; omit for create-only tokens. */
@@ -137,8 +137,10 @@ export async function requireCalcAccess(
   const share = verifyShareToken(extractShareToken(req));
   if (share) {
     const effective = new Set<ShareScope>(share.scopes);
-    // export implies read (load-then-render); write implies read.
-    if (effective.has('export') || effective.has('write')) effective.add('read');
+    // export implies read (load-then-render); write implies read; review implies read.
+    if (effective.has('export') || effective.has('write') || effective.has('review')) {
+      effective.add('read');
+    }
     const missing = need.filter((s) => !effective.has(s));
     if (missing.length > 0) {
       return forbidden(`Share-токен не даёт права: ${missing.join(', ')}`);
@@ -206,7 +208,9 @@ export async function resolvePageAccess(
   const share = verifyShareToken(shareToken);
   if (share) {
     const effective = new Set<ShareScope>(share.scopes);
-    if (effective.has('export') || effective.has('write')) effective.add('read');
+    if (effective.has('export') || effective.has('write') || effective.has('review')) {
+      effective.add('read');
+    }
     if (need.some((s) => !effective.has(s))) return null;
     if (calculationId) {
       if (share.calculationId && share.calculationId !== calculationId) return null;

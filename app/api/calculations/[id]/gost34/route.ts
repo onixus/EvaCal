@@ -20,7 +20,11 @@ import {
 import { requireCalcAccess } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 import { handleApiError } from '@/lib/apiHelpers';
-import { createGostPackageVersion } from '@/lib/project';
+import {
+  createGostPackageVersion,
+  releaseGostPackage,
+  type GostWizardSnapshot,
+} from '@/lib/project';
 
 /**
  * Fallback signatories used when the caller supplies none. Single source of
@@ -38,34 +42,36 @@ const DEFAULT_SIGNATURES = {
 
 /**
  * Фиксирует в расчёте и проекте, каким нормативным профилем и какой версией генератора
- * выпущен комплект (Horizon B1). Сбой записи не должен
- * ломать уже сформированный документ — он только логируется.
+ * выпущен комплект (Horizon B1). Сбой записи прерывает экспорт, чтобы реестр не расходился с фактом.
  */
 async function recordRelease(
   calculationId: string,
   standardProfileId?: string,
   docTypes: string[] = ['tz'],
   metadata?: Record<string, unknown>,
+  snapshot?: GostWizardSnapshot,
+  actorId?: string,
 ) {
-  try {
-    const binding = buildBindingUpdate(standardProfileId);
-    await prisma.calculation.update({
-      where: { id: calculationId },
-      data: binding,
-    });
+  const binding = buildBindingUpdate(standardProfileId);
+  await prisma.calculation.update({
+    where: { id: calculationId },
+    data: binding,
+  });
 
-    await createGostPackageVersion({
-      calculationId,
-      name: `Комплект ГОСТ 34 (${docTypes.join(', ').toUpperCase()})`,
-      standardProfileId: binding.standardProfileId,
-      standardProfileVersion: binding.standardProfileVersion,
-      generatorVersion: binding.generatorVersion,
-      documentTypes: docTypes,
-      metadata,
-    });
-  } catch (err) {
-    console.error('Failed to record GOST 34 release package:', err);
-  }
+  return createGostPackageVersion({
+    calculationId,
+    name: `Комплект ГОСТ 34 (${docTypes.join(', ').toUpperCase()})`,
+    standardProfileId: binding.standardProfileId,
+    standardProfileVersion: binding.standardProfileVersion,
+    generatorVersion: binding.generatorVersion,
+    documentTypes: docTypes,
+    metadata,
+    snapshot,
+    status: 'under_review',
+    releasedAt: new Date(),
+    releasedBy: actorId || 'architect',
+    createdBy: actorId || 'architect',
+  });
 }
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -210,20 +216,45 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
       const zipFilename = `GOST34_Full_Package_${safeFileName(calc.name)}.zip`;
 
-      await recordRelease(
-        params.id,
+      const snapshot: GostWizardSnapshot = {
         standardProfileId,
-        zipEntries.map((e) => e.docType.toLowerCase()),
-        { isBatchZip: true, signatures: commonSignatures },
-      );
+        layoutProfileId: layout,
+        docType: 'ZIP',
+        contractNumber,
+        city,
+        requirements: rawRequirements,
+        applicabilityOverrides,
+        manualLinks,
+        signatures: commonSignatures,
+        sectionOverrides,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const binding = buildBindingUpdate(standardProfileId);
+      const releasedPkg = await releaseGostPackage({
+        calculationId: params.id,
+        name: `Комплект ГОСТ 34 (${zipEntries.map((e) => e.docType.toUpperCase()).join(', ')})`,
+        standardProfileId: binding.standardProfileId,
+        standardProfileVersion: binding.standardProfileVersion,
+        generatorVersion: binding.generatorVersion,
+        documentTypes: zipEntries.map((e) => e.docType.toLowerCase()),
+        snapshot,
+        zipBuffer,
+        actorId: access.actorId,
+      });
 
       await writeAudit({
         actorType: actorTypeFromAccess(access.kind),
         actorId: access.actorId,
-        action: 'calculation.export.gost34',
-        entityType: 'calculation',
-        entityId: params.id,
-        meta: { method: 'POST', exportType: 'full-package-zip', docs: generatedDocs.length },
+        action: 'gost_package.release',
+        entityType: 'gost_package',
+        entityId: releasedPkg.id,
+        meta: {
+          method: 'POST',
+          exportType: 'full-package-zip',
+          docs: generatedDocs.length,
+          checksum: releasedPkg.checksum,
+        },
         ip: clientIp(req),
       });
 
@@ -232,6 +263,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
           'Content-Type': 'application/zip',
           'Content-Disposition': contentDisposition(zipFilename.replace(/\.zip$/, ''), 'zip'),
           'Content-Length': String(zipBuffer.length),
+          'X-Checksum-SHA256': releasedPkg.checksum || '',
+          'X-Package-ID': releasedPkg.id,
         },
       });
     }
@@ -255,10 +288,31 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       },
     });
 
-    await recordRelease(params.id, standardProfileId, [docType.toLowerCase()], {
+    const singleSnapshot: GostWizardSnapshot = {
+      standardProfileId,
+      layoutProfileId: layout,
       docType,
+      contractNumber,
+      city,
+      requirements: rawRequirements,
+      applicabilityOverrides,
+      manualLinks,
       signatures: commonSignatures,
-    });
+      sectionOverrides,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const pkg = await recordRelease(
+      params.id,
+      standardProfileId,
+      [docType.toLowerCase()],
+      {
+        docType,
+        signatures: commonSignatures,
+      },
+      singleSnapshot,
+      access.actorId,
+    );
 
     await writeAudit({
       actorType: actorTypeFromAccess(access.kind),
@@ -266,7 +320,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       action: 'calculation.export.gost34',
       entityType: 'calculation',
       entityId: params.id,
-      meta: { method: 'POST', docType },
+      meta: { method: 'POST', docType, packageId: pkg.id },
       ip: clientIp(req),
     });
 

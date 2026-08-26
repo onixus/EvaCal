@@ -70,6 +70,11 @@ export default function Gost34WizardModal({
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState('');
 
+  // Сохранение и восстановление снимка мастера (RR-2)
+  const [isDraftLoading, setIsDraftLoading] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [lastDraftSavedAt, setLastDraftSavedAt] = useState<string | null>(null);
+
   // One-time cleanup: earlier versions kept an API key in localStorage.
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -82,6 +87,65 @@ export default function Gost34WizardModal({
       localStorage.removeItem(key);
     }
   }, []);
+
+  // Автозагрузка сохранённого черновика снимка при открытии мастера
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+
+    async function fetchDraft() {
+      setIsDraftLoading(true);
+      try {
+        const res = await fetch(`/api/calculations/${calculationId}/gost34/draft`, {
+          headers: withShareHeaders(calculationId),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !data?.draft?.snapshot) return;
+
+        const snap = data.draft.snapshot;
+        if (snap.standardProfileId) setStandardProfileId(snap.standardProfileId);
+        if (snap.layoutProfileId) setLayoutProfileId(snap.layoutProfileId);
+        if (snap.docType) setDocType(snap.docType);
+        if (Array.isArray(snap.requirements) && snap.requirements.length > 0) {
+          setRequirements(snap.requirements);
+        }
+        if (snap.applicabilityOverrides && Object.keys(snap.applicabilityOverrides).length > 0) {
+          setApplicabilityOverrides(snap.applicabilityOverrides);
+        }
+        if (Array.isArray(snap.manualLinks) && snap.manualLinks.length > 0) {
+          setManualLinks(snap.manualLinks);
+        }
+        if (snap.signatures && Object.keys(snap.signatures).length > 0) {
+          setSignatures(snap.signatures);
+        }
+        if (snap.contractNumber) setContractNumber(snap.contractNumber);
+        if (snap.city) setCity(snap.city);
+        if (snap.sectionOverrides && Object.keys(snap.sectionOverrides).length > 0) {
+          setSectionOverrides(snap.sectionOverrides);
+        }
+        if (snap.activeStep) setActiveStep(snap.activeStep);
+        if (data.draft.updatedAt) {
+          setLastDraftSavedAt(
+            new Date(data.draft.updatedAt).toLocaleTimeString('ru-RU', {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          );
+        }
+      } catch (err) {
+        console.error('Failed to load wizard draft snapshot:', err);
+      } finally {
+        if (!cancelled) setIsDraftLoading(false);
+      }
+    }
+
+    fetchDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, calculationId]);
 
   const requirementsKey = JSON.stringify(requirements);
   const overridesKey = JSON.stringify(applicabilityOverrides);
@@ -196,6 +260,48 @@ export default function Gost34WizardModal({
     }
   };
 
+  const handleSaveDraft = async () => {
+    setIsSavingDraft(true);
+    try {
+      const snapshot = {
+        standardProfileId,
+        layoutProfileId,
+        docType,
+        contractNumber,
+        city,
+        requirements,
+        applicabilityOverrides,
+        manualLinks,
+        signatures,
+        sectionOverrides,
+        activeStep,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const res = await fetch(`/api/calculations/${calculationId}/gost34/draft`, {
+        method: 'POST',
+        headers: withShareHeaders(calculationId, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          snapshot,
+          standardProfileId,
+        }),
+      });
+
+      if (res.ok) {
+        setLastDraftSavedAt(
+          new Date().toLocaleTimeString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+        );
+      }
+    } catch (err) {
+      console.error('Failed to save draft:', err);
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
   const download = async (payload: Record<string, unknown>, filename: string) => {
     setIsExporting(true);
     setExportError('');
@@ -248,19 +354,40 @@ export default function Gost34WizardModal({
                   {review.profile.name}
                 </span>
               )}
+              {isDraftLoading && (
+                <span className="text-[11px] text-blue-400 animate-pulse">
+                  Загрузка черновика...
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-300 mt-1">
               Проект: <strong className="text-white font-semibold">{calculationName}</strong> •
               Заказчик: <strong className="text-white font-semibold">{customerName}</strong>
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white bg-[#2e3440] hover:bg-[#3b4252] text-lg font-bold w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
-            title="Закрыть"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-3">
+            {lastDraftSavedAt && (
+              <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
+                Черновик: {lastDraftSavedAt}
+              </span>
+            )}
+            <button
+              onClick={handleSaveDraft}
+              disabled={isSavingDraft}
+              type="button"
+              className="btn-secondary !py-1.5 !px-3 text-xs bg-[#242832] border-[#3b4252] text-slate-200 hover:text-white hover:bg-[#2e3440] disabled:opacity-50"
+              title="Сохранить текущие требования и решения мастера"
+            >
+              {isSavingDraft ? 'Сохранение...' : '💾 Сохранить черновик'}
+            </button>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white bg-[#2e3440] hover:bg-[#3b4252] text-lg font-bold w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+              title="Закрыть"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-5 border-b border-[#2e3440] pb-4">
