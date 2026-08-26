@@ -20,6 +20,31 @@ model User {
   mustChangePassword Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+  harnessAgents      HarnessAgent[]
+}
+
+// Внешний «харнесс-агент» архитектора/ГИПа: HTTP-endpoint, который платформа
+// вызывает в режимах ревью и обогащения комплекта ГОСТ 34. Токен хранится
+// только на сервере и никогда не сериализуется клиенту.
+model HarnessAgent {
+  id          String    @id @default(cuid())
+  ownerId     String
+  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  endpoint    String
+  // Bearer-токен для Authorization; пустой — агент без аутентификации.
+  authToken   String?
+  // JSON-массив режимов: подмножество ["review","enrichment"].
+  modes       String    @default("[\"review\"]")
+  enabled     Boolean   @default(true)
+  // Итог последнего вызова («ok» или текст ошибки) — для диагностики в UI.
+  lastStatus  String?
+  lastRunAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([ownerId])
 }
 
 // A questionnaire template built in the admin's visual form constructor.
@@ -38,7 +63,7 @@ model FormTemplate {
   includeWeekends      Boolean         @default(false)
   // Commercial defaults (Horizon B4)
   defaultCurrency      String          @default("RUB")
-  defaultRoleRates     String?         // JSON-encoded { [role]: hourlyRate }
+  defaultRoleRates     String? // JSON-encoded { [role]: hourlyRate }
   defaultMarginPercent Float           @default(20)
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
@@ -104,15 +129,15 @@ model RiskTemplate {
 
 // A business/presale project aggregating calculations and released GOST 34 document packages.
 model Project {
-  id           String        @id @default(cuid())
-  name         String
-  code         String?       // Readable project code/slug (e.g., "PRJ-2026-001")
-  customer     String        // Customer organization name
-  description  String?
-  status       String        @default("active") // active | on_hold | completed | archived
-  createdBy    String        @default("presale")
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  code        String? // Readable project code/slug (e.g., "PRJ-2026-001")
+  customer    String // Customer organization name
+  description String?
+  status      String   @default("active") // active | on_hold | completed | archived
+  createdBy   String   @default("presale")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   calculations Calculation[]
   packages     GostPackage[]
@@ -123,20 +148,20 @@ model Project {
 
 // A concrete labor-cost calculation, produced by presale, refined by the architect.
 model Calculation {
-  id                     String        @id @default(cuid())
+  id                     String       @id @default(cuid())
   name                   String
   customer               String
   templateId             String
-  template               FormTemplate  @relation(fields: [templateId], references: [id])
+  template               FormTemplate @relation(fields: [templateId], references: [id])
   answers                String // JSON-encoded { [fieldKey]: value }
-  status                 String        @default("draft") // draft | pending_approval | approved
-  startDate              DateTime      @default(now()) // anchors the whole Gantt schedule
+  status                 String       @default("draft") // draft | pending_approval | approved
+  startDate              DateTime     @default(now()) // anchors the whole Gantt schedule
   // РП (project manager) allowance: 8h start + 8h close + complexity overhead.
   // Counted only in the calculation's total labor hours — never shown as a Gantt stage.
-  pmHours                Float         @default(0)
-  createdBy              String        @default("presale")
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
+  pmHours                Float        @default(0)
+  createdBy              String       @default("presale")
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
   // Нормативная привязка выпущенного комплекта ГОСТ 34 (PR-12). Пустые поля —
   // это проект, выпущенный до реестра профилей: он читается как
   // gost34-legacy-89 и может быть мигрирован на действующую редакцию.
@@ -146,26 +171,27 @@ model Calculation {
   generatedAt            DateTime?
 
   // Project link and versioning (Horizon B1)
-  projectId              String?
-  project                Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  version                Int           @default(1)
-  parentCalculationId    String?
-  parentCalculation      Calculation?  @relation("CalculationVersions", fields: [parentCalculationId], references: [id], onDelete: SetNull)
-  derivedCalculations    Calculation[] @relation("CalculationVersions")
-  versionComment         String?       // Version change note (e.g. "Base estimate with risk buffer")
+  projectId           String?
+  project             Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  version             Int           @default(1)
+  parentCalculationId String?
+  parentCalculation   Calculation?  @relation("CalculationVersions", fields: [parentCalculationId], references: [id], onDelete: SetNull)
+  derivedCalculations Calculation[] @relation("CalculationVersions")
+  versionComment      String? // Version change note (e.g. "Base estimate with risk buffer")
 
   // Commercial financial profile (Horizon B4)
-  currency               String        @default("RUB") // RUB | USD | EUR | CNY | KZT | BYN
-  roleRates              String?       // JSON-encoded { [role]: hourlyRate }
-  overheadPercent        Float         @default(0)     // Overhead allowance (%)
-  marginPercent          Float         @default(20)    // Target margin (%)
-  discountPercent        Float         @default(0)     // Negotiated discount (%)
-  vatPercent             Float         @default(20)    // VAT rate (%)
-  includeVat             Boolean       @default(true)  // Whether price inc VAT is quoted
+  currency        String  @default("RUB") // RUB | USD | EUR | CNY | KZT | BYN
+  roleRates       String? // JSON-encoded { [role]: hourlyRate }
+  overheadPercent Float   @default(0) // Overhead allowance (%)
+  marginPercent   Float   @default(20) // Target margin (%)
+  discountPercent Float   @default(0) // Negotiated discount (%)
+  vatPercent      Float   @default(20) // VAT rate (%)
+  includeVat      Boolean @default(true) // Whether price inc VAT is quoted
 
-  stages                 Stage[]
-  risks                  Risk[]
-  gostPackages           GostPackage[]
+  stages          Stage[]
+  risks           Risk[]
+  gostPackages    GostPackage[]
+  internalChanges InternalChange[]
 
   // The calculation list is always sorted newest-first. `id` is part of the index
   // because it is the tie-breaker in the paged ordering: without it, rows sharing a
@@ -179,35 +205,55 @@ model Calculation {
 
 // Versioned released document package under GOST 34 standards (Horizon B1).
 model GostPackage {
-  id                     String       @id @default(cuid())
-  name                   String       // Package title (e.g., "Комплект ТЗ и ПМИ v1.0")
-  version                Int          @default(1)
-  status                 String       @default("draft") // draft | under_review | approved | rejected | archived
+  id      String @id @default(cuid())
+  name    String // Package title (e.g., "Комплект ТЗ и ПМИ v1.0")
+  version Int    @default(1)
+  status  String @default("draft") // draft | under_review | approved | rejected | archived
 
-  projectId              String?
-  project                Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  calculationId          String
-  calculation            Calculation  @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  calculationId String
+  calculation   Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
 
-  standardProfileId      String       // ru-gost34-current | gost34-legacy-89 | custom
+  standardProfileId      String // ru-gost34-current | gost34-legacy-89 | custom
   standardProfileVersion String
   generatorVersion       String
 
-  documentTypes          String       // JSON-encoded array of document types: ["tz", "pmi", "tp"]
-  metadata               String?      // JSON snapshot of wizard choices, profile overrides, checklist
-  snapshot               String?      // JSON snapshot of wizard state (requirements v2, links, applicability, signatures, overrides)
-  artifactPath           String?      // Relative path to saved immutable ZIP on storage volume
-  checksum               String?      // SHA-256 integrity hash of document definitions/artifacts
+  documentTypes String // JSON-encoded array of document types: ["tz", "pmi", "tp"]
+  metadata      String? // JSON snapshot of wizard choices, profile overrides, checklist
+  snapshot      String? // JSON snapshot of wizard state (requirements v2, links, applicability, signatures, overrides)
+  artifactPath  String? // Relative path to saved immutable ZIP on storage volume
+  checksum      String? // SHA-256 integrity hash of document definitions/artifacts
 
-  releasedAt             DateTime?
-  releasedBy             String?
-  reviewComment          String?      // Review comment on approve/reject
-  approvedAt             DateTime?
-  approvedBy             String?
-  createdBy              String       @default("architect")
-  createdAt              DateTime     @default(now())
-  updatedAt              DateTime     @updatedAt
+  releasedAt    DateTime?
+  releasedBy    String?
+  reviewComment String? // Review comment on approve/reject
+  approvedAt    DateTime?
+  approvedBy    String?
+
+  // --- Двухэтапное ревью -------------------------------------------------
+  // Этап 1 — нормоконтроль тех.писателя, этап 2 — финальное ревью ГАП.
+  // Статус пакета проходит review_tw -> review_gap -> approved | rejected.
+  // Хранится отдельно от `status`, чтобы отклонение на любом этапе не стирало
+  // информацию о том, докуда комплект дошёл.
+  reviewStage     String  @default("tw") // tw | gap | done
+  /// Чек-лист нормоконтроля: JSON [{ id, state, note, checkedBy, checkedAt }].
+  reviewChecklist String?
+  /// Комментарии по разделам: JSON [{ id, sectionId, severity, text, author, createdAt }].
+  reviewComments  String?
+
+  // --- Версия тех.писателя -----------------------------------------------
+  // Ревьювер скачивает комплект, правит DOCX и загружает обратно. Загруженная
+  // версия становится приоритетной: выпуск берёт её, а не сгенерированную.
+  twVersionPath       String?
+  twVersionName       String?
+  twVersionUploadedAt DateTime?
+  twVersionUploadedBy String?
+  twVersionIsPriority Boolean   @default(false)
+  createdBy           String    @default("architect")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([projectId, version])
   @@index([calculationId])
@@ -270,4 +316,41 @@ model AuditEvent {
   @@index([entityType, entityId])
   @@index([actorId])
   @@index([action, at])
+}
+
+/// Лист внутренних изменений: сквозной журнал правок комплекта и расчёта.
+///
+/// Отличается от AuditEvent назначением: аудит пишет технические события для
+/// расследования, а этот лист — документ, который выгружается заказчику в
+/// .xlsx и отдельным файлом кладётся в комплект. Поэтому у записи есть
+/// человекочитаемые «документ · раздел» и «изменение», а не JSON-мета.
+model InternalChange {
+  id String @id @default(cuid())
+
+  calculationId String
+  calculation   Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+
+  /// Порядковый номер в листе, 1-based. В UI печатается как «И-01»:
+  /// нумерация сквозная в пределах расчёта и не переиспользуется.
+  seq Int
+
+  occurredAt DateTime @default(now())
+  author     String
+  /// Роль автора на момент правки — она может смениться, а лист неизменяем.
+  role       String
+
+  /// «ТЗ · п. 4.2.1», «Расчёт · этапы», «Комплект · v3».
+  docRef String
+  text   String
+
+  /// Что породило запись: upload | tw-edit | studio-inline | calculation | release | review
+  source String
+
+  /// Пакет, к которому относится правка, если она пришла из ревью или выпуска.
+  packageId String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([calculationId, seq])
+  @@index([calculationId, occurredAt])
 }

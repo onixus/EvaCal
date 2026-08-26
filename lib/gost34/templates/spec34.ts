@@ -1,4 +1,13 @@
 import { Gost34InputPayload, Gost34Section } from '../types';
+import {
+  VENDOR_HARDWARE,
+  buildVendorMatchText,
+  findVendorHardware,
+  findVendorSoftware,
+  quantityFromRule,
+  registryLine,
+  requisiteNeedsReview,
+} from '../vendors';
 
 interface SoftwareSpecItem {
   name: string;
@@ -27,94 +36,19 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
   const platforms = ctx?.infrastructure?.platforms || [];
   const computeResources = ctx?.infrastructure?.computeResources;
 
-  // 1. Построение каталога поставляемого ПО
-  const softwareItems: SoftwareSpecItem[] = [];
+  const matchText = buildVendorMatchText(platforms, answers, meta.systemName);
 
-  const textContext =
-    `${platforms.join(' ')} ${JSON.stringify(answers)} ${meta.systemName}`.toLowerCase();
-
-  if (/usergate|ngfw/i.test(textContext)) {
-    const qty = answers.ngfw_clusters_count
-      ? `${Number(answers.ngfw_clusters_count) * 2} шт.`
-      : '2 шт. (HA-кластер)';
-    softwareItems.push({
-      name: 'UserGate NGFW (ПО межсетевого экранирования и обнаружения вторжений)',
-      vendor: 'ООО «Юзергейт»',
-      reestrNumber: '№ 1199',
-      certification: 'Сертификат ФСТЭК России № 3905 (4 класс, профиль МЭ тип А, Б, СОВ)',
-      licenseType: 'Бессрочная серверная сублицензия + подписка Security Updates 12 мес.',
-      quantity: qty,
-    });
-  }
-
-  if (/kaspersky|касперск/i.test(textContext)) {
-    const endpoints = answers.endpoints_count ? `${answers.endpoints_count} лиц.` : '100 лиц.';
-    softwareItems.push({
-      name: 'Kaspersky Endpoint Security для бизнеса (Расширенный)',
-      vendor: 'АО «Лаборатория Касперского»',
-      reestrNumber: '№ 110',
-      certification: 'Сертификат ФСТЭК России № 4238 (4 класс, 4 уровень доверия)',
-      licenseType: 'Срочная сублицензия на 12/36 месяцев',
-      quantity: endpoints,
-    });
-  }
-
-  if (/cyberpeak|сайберпик|аудит.*данных/i.test(textContext)) {
-    softwareItems.push({
-      name: 'Cyberpeak (Система аудита доступа к неструктурированным данным)',
-      vendor: 'ООО «Сайберпик»',
-      reestrNumber: '№ 12590',
-      certification: 'Свидетельство Роспатента № 2021665421',
-      licenseType: 'Корпоративная сублицензия на защищаемые файловые хранилища',
-      quantity: answers.storage_audits_count ? `${answers.storage_audits_count} серв.` : '2 серв.',
-    });
-  }
-
-  if (/vipnet|випнет/i.test(textContext)) {
-    softwareItems.push({
-      name: 'ПО программного комплекса ViPNet Coordinator / Client',
-      vendor: 'АО «ИнфоТеКС»',
-      reestrNumber: '№ 5877',
-      certification: 'Сертификаты ФСБ России СФ/124-4010 (КС1/КС2/КС3), ФСТЭК № 4118',
-      licenseType: 'Бессрочная сублицензия со знаком соответствия ФСБ/ФСТЭК',
-      quantity: answers.vpn_tunnels_count ? `${answers.vpn_tunnels_count} шт.` : '2 шт.',
-    });
-  }
-
-  if (/astra|астра/i.test(textContext) || platforms.some((p) => /astra/i.test(p))) {
-    softwareItems.push({
-      name: 'Операционная система специального назначения «Astra Linux Special Edition»',
-      vendor: 'ООО «РусБИТех-Астра»',
-      reestrNumber: '№ 369',
-      certification: 'Сертификат ФСТЭК России № 2553 (1 уровень доверия, макс. уровень «Смоленск»)',
-      licenseType: 'Серверная лицензия с пакетом обновлений «Стандартный» / «Расширенный»',
-      quantity: answers.servers_count ? `${answers.servers_count} серв.` : '4 серв.',
-    });
-  }
-
-  if (/postgres|постгрес/i.test(textContext) || platforms.some((p) => /postgres/i.test(p))) {
-    softwareItems.push({
-      name: 'СУБД «Postgres Pro Enterprise»',
-      vendor: 'ООО «Платфома» (Postgres Professional)',
-      reestrNumber: '№ 104',
-      certification: 'Сертификат ФСТЭК России № 3637 (4 класс, 4 уровень доверия)',
-      licenseType: 'Бессрочная лицензия на серверное ядро (per-Core / per-Socket)',
-      quantity: answers.db_clusters_count
-        ? `${Number(answers.db_clusters_count) * 2} узла`
-        : '2 узла',
-    });
-  }
-
-  if (/secret net|dallas lock|соболь|нсд/i.test(textContext)) {
-    softwareItems.push({
-      name: 'СЗИ от НСД Secret Net LSP / Dallas Lock 8.0-C',
-      vendor: 'ООО «Код Безопасности» / ООО «Конфидент»',
-      reestrNumber: '№ 2841',
-      certification: 'Сертификат ФСТЭК России № 3824 (2 уровень доверия, 4 класс)',
-      licenseType: 'Клиентские и серверные лицензии с контролем целостности',
-      quantity: 'По числу хостов',
-    });
-  }
+  // 1. Каталог поставляемого ПО — из базы знаний вендоров РФ
+  const softwareItems: SoftwareSpecItem[] = findVendorSoftware(matchText).map((p) => ({
+    name: p.name,
+    vendor: p.vendor,
+    reestrNumber: registryLine(p),
+    certification:
+      (p.certification || 'Единый реестр российского ПО (188-ФЗ)') +
+      (requisiteNeedsReview(p) ? ' [реквизит подлежит повторной сверке]' : ''),
+    licenseType: p.licenseType,
+    quantity: quantityFromRule(p.quantity, answers),
+  }));
 
   // Если специфических продуктов не найдено, добавляем общесистемные записи из контекста
   if (softwareItems.length === 0) {
@@ -141,57 +75,45 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
     }
   }
 
-  // 2. Построение каталога поставляемого оборудования и ПАК
+  // 2. Каталог поставляемого оборудования и ПАК
   const hardwareItems: HardwareSpecItem[] = [];
+  const matchedHardware = findVendorHardware(matchText);
+  const includedHardwareIds = new Set(matchedHardware.map((h) => h.id));
 
-  const serversQty = answers.servers_count ? `${answers.servers_count} шт.` : '2 шт.';
-  const racksQty = answers.racks_count ? `${answers.racks_count} шт.` : '1 шт.';
-
-  if (/yadro|ядро/i.test(textContext) || answers.servers_count || computeResources) {
-    const customSpecs = computeResources
-      ? `${computeResources}, 2x Intel Xeon / AMD, Hardware RAID, 4x 10/25GbE SFP28, Redundant PSU, IPMI/BMC`
-      : '2x Intel Xeon Scalable / AMD EPYC, 256 GB DDR4/DDR5 ECC, 2x 960 GB NVMe Boot, Hardware RAID, 4x 10/25GbE SFP28, 2x 1200W Redundant PSU, модуль удаленного управления IPMI/BMC';
-
-    hardwareItems.push({
-      name: 'Серверная платформа корпоративного класса YADRO Vegman / Аквариус',
-      model: 'YADRO Vegman R220 G2 (Rack 2U)',
-      reestrMinpromtorg: 'Реестр Минпромторга РФ (ПП РФ № 878 / № 719)',
-      specs: customSpecs,
-      formFactor: '2U Rackmount',
-      quantity: serversQty,
-    });
-  }
-
+  // Серверная платформа нужна и без явного упоминания вендора — по ресурсам расчёта.
   if (
-    /схд|storage|диск/i.test(textContext) ||
-    answers.db_clusters_count ||
-    ctx?.infrastructure?.storage
+    !matchedHardware.some((h) => h.category === 'server') &&
+    (answers.servers_count || computeResources)
   ) {
-    const storageSpecs = ctx?.infrastructure?.storage
-      ? `${ctx.infrastructure.storage}, All-Flash NVMe, двухконтроллерная архитектура (Active-Active), FC 16/32G / iSCSI 25GbE`
-      : 'Двухконтроллерная архитектура (Active-Active), кэш-память 128 GB, полезная емкость от 20 TB NVMe TLC, 8x 16/32Gb FC / 25GbE iSCSI, снапшоты, репликация';
-
-    hardwareItems.push({
-      name: 'Система хранения данных (СХД All-Flash NVMe)',
-      model: 'YADRO TATLIN.UNIFIED / Скала^р СХД',
-      reestrMinpromtorg: 'Реестр Минпромторга РФ (ПП РФ № 878)',
-      specs: storageSpecs,
-      formFactor: '2U/4U Rackmount',
-      quantity: '1 компл.',
-    });
+    const server = VENDOR_HARDWARE.find((h) => h.id === 'yadro-vegman')!;
+    matchedHardware.unshift(server);
+    includedHardwareIds.add(server.id);
+  }
+  // СХД — при наличии кластеров СУБД или заданной подсистемы хранения.
+  if (
+    !matchedHardware.some((h) => h.category === 'storage') &&
+    (answers.db_clusters_count || ctx?.infrastructure?.storage)
+  ) {
+    const storage = VENDOR_HARDWARE.find((h) => h.id === 'yadro-tatlin')!;
+    matchedHardware.push(storage);
+    includedHardwareIds.add(storage.id);
   }
 
-  if (/usergate|ngfw/i.test(textContext)) {
+  for (const hw of matchedHardware) {
+    let specs = hw.defaultSpecs;
+    if (hw.category === 'server' && computeResources) {
+      specs = `${computeResources}, 2x Intel Xeon / AMD, Hardware RAID, 4x 10/25GbE SFP28, Redundant PSU, IPMI/BMC`;
+    }
+    if (hw.category === 'storage' && ctx?.infrastructure?.storage) {
+      specs = `${ctx.infrastructure.storage}, All-Flash NVMe, двухконтроллерная архитектура (Active-Active), FC 16/32G / iSCSI 25GbE`;
+    }
     hardwareItems.push({
-      name: 'Аппаратная платформа межсетевого экрана UserGate Hardware Appliance',
-      model: 'UserGate C150 / D200 / F8000',
-      reestrMinpromtorg: 'Реестр Минпромторга РФ',
-      specs:
-        'Отказоустойчивая пара HA (Active-Passive), пропускная способность NGFW от 10 Гбит/с, bypass-порты, резервированные блоки питания',
-      formFactor: '1U Rackmount',
-      quantity: answers.ngfw_clusters_count
-        ? `${Number(answers.ngfw_clusters_count) * 2} шт.`
-        : '2 шт.',
+      name: hw.name,
+      model: hw.model,
+      reestrMinpromtorg: hw.reestrMinpromtorg,
+      specs,
+      formFactor: hw.formFactor,
+      quantity: quantityFromRule(hw.quantity, answers),
     });
   }
 
@@ -208,6 +130,8 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
     });
   }
 
+  const racksQty = answers.racks_count ? `${answers.racks_count} шт.` : '1 шт.';
+
   return [
     {
       id: 'sec-1',
@@ -217,6 +141,7 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
         `1.1 Настоящая спецификация оборудования и программного обеспечения составлена в соответствии с требованиями ${citations.specificationBasis} на систему «${meta.systemName}» (${meta.fullSystemName}).`,
         `1.2 Документ устанавливает полный перечень, технические характеристики, комплектность и правовые основания применения программных средств, серверного оборудования и программно-аппаратных комплексов (ПАК), поставляемых и внедряемых у Заказчика (${meta.customerName}) в рамках договора ${meta.contractNumber || 'на создание системы'}.`,
         '1.3 Все программные продукты и аппаратные платформы выбраны с соблюдением требований законодательства РФ о защите информации (152-ФЗ, 187-ФЗ) и приоритете отечественных решений из Единого реестра российских программ (188-ФЗ) и Реестра промышленной продукции Минпромторга РФ (ПП РФ № 878 / № 719).',
+        '1.4 Номера записей реестров и сертификатов соответствия приведены по состоянию на дату выпуска документа; перед заключением договора поставки они подлежат контрольной сверке с актуальными данными реестров Минцифры России, Минпромторга России и государственных реестров ФСТЭК/ФСБ России.',
       ],
     },
     {

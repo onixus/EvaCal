@@ -2,11 +2,15 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { isAppRole, ROLE_HOME } from '@/lib/appRoles';
 
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') || '/';
+  // `next` ставит гейт роли, когда пользователя развернули с закрытой страницы.
+  // Без него посадочный экран выбирается по роли: ревьюверу нужна очередь
+  // ревью, а не общий список расчётов, которого нет в его навигации.
+  const next = searchParams.get('next');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +28,9 @@ export default function LoginForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Не удалось войти');
-      router.push(data.mustChangePassword ? '/account' : next);
+      const role = String(data.role ?? '');
+      const home = isAppRole(role) ? ROLE_HOME[role] : '/';
+      router.push(data.mustChangePassword ? '/account' : (next ?? home));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка');

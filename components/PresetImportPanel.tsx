@@ -25,6 +25,21 @@ const CATEGORY_LABELS: Record<string, { label: string; bg: string; text: string 
     bg: 'bg-emerald-50 dark:bg-emerald-950/40',
     text: 'text-emerald-700 dark:text-emerald-300',
   },
+  migration: {
+    label: 'Импортозамещение и миграции',
+    bg: 'bg-sky-50 dark:bg-sky-950/40',
+    text: 'text-sky-700 dark:text-sky-300',
+  },
+  monitoring: {
+    label: 'SIEM и мониторинг ИБ',
+    bg: 'bg-violet-50 dark:bg-violet-950/40',
+    text: 'text-violet-700 dark:text-violet-300',
+  },
+  infrastructure: {
+    label: 'Резервное копирование и инфраструктура',
+    bg: 'bg-teal-50 dark:bg-teal-950/40',
+    text: 'text-teal-700 dark:text-teal-300',
+  },
 };
 
 export default function PresetImportPanel() {

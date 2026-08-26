@@ -56,7 +56,7 @@
         {
           "numStr": "4.3",
           "title": "Требования к видам обеспечения АС",
-          "paragraphs": 4
+          "paragraphs": 6
         },
         {
           "numStr": "4.4",
@@ -140,7 +140,7 @@
   },
   "validation": {
     "ERROR": 0,
-    "WARNING": 10,
+    "WARNING": 11,
     "INFO": 7
   },
   "traceabilityCoveragePercent": 77.78,

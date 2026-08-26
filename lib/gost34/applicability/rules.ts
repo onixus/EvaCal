@@ -277,23 +277,42 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
     },
   },
 
-  // 5. Приказ ФСТЭК России № 117 + ГОСТ Р 56939-2016 (Безопасная разработка ПО)
+  // 5. Приказ ФСТЭК России № 117 (защита ГИС; с 01.03.2026 заменяет приказ № 17)
+  //    + безопасная разработка ПО по ГОСТ Р 56939-2024 (включается в ТЗ по п. требований № 117)
   {
     id: 'fstek_117',
-    title: 'Приказ ФСТЭК России № 117 + ГОСТ Р 56939-2016 (Безопасная разработка ПО)',
+    title: 'Приказ ФСТЭК России № 117 (Защита ГИС) + ГОСТ Р 56939-2024 (Безопасная разработка ПО)',
     category: 'security',
     evaluate: (context) => {
       const evidence: Evidence[] = [];
       const reasons: string[] = [];
 
-      if (inRegulatoryScope(context, ['fstek_117', 'фстэк_117', '56939', 'secure_dev'])) {
+      if (
+        inRegulatoryScope(context, ['fstek_117', 'фстэк_117', '№ 117', '№ 17', '56939', 'secure_dev', '(гис)'])
+      ) {
         evidence.push({
           source: 'security.regulatoryScope',
-          details: 'Приказ ФСТЭК № 117 / ГОСТ Р 56939 явно включён в скоуп',
+          details: 'Приказ ФСТЭК № 117 (№ 17) / ГОСТ Р 56939 явно включён в скоуп',
           value: context.security?.regulatoryScope,
         });
-        reasons.push('Требования к безопасной разработке включены в скоуп проекта.');
+        reasons.push(
+          'Требования к защите ГИС (Приказ ФСТЭК № 117, с 01.03.2026 заменяет приказ № 17) включены в скоуп проекта.',
+        );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 1.0 };
+      }
+
+      const securityClass = context.security?.securityClass || '';
+      const isGis = /гис|К[1-3]/i.test(securityClass);
+      if (isGis) {
+        evidence.push({
+          source: 'security.securityClass',
+          details: 'Заявлен класс защищённости ГИС (К1–К3)',
+          value: securityClass,
+        });
+        reasons.push(
+          'Для государственных информационных систем обязательны требования Приказа ФСТЭК России № 117 от 11.04.2025 (действует с 01.03.2026, заменяет приказ № 17).',
+        );
+        return { status: 'APPLICABLE', reasons, evidence, confidence: 0.9 };
       }
 
       const isProtectedSystem =
@@ -308,13 +327,13 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
           details: 'Заказная разработка ПО для защищаемой информационной системы (КИИ / ИСПДн)',
         });
         reasons.push(
-          'Для разрабатываемого ПО защищаемых систем обязательно применение практик безопасной разработки (SAST/DAST/SCA) по Приказу ФСТЭК № 117.',
+          'Для разрабатываемого ПО защищаемых систем требования безопасной разработки по ГОСТ Р 56939-2024 (SAST/DAST/SCA) включаются в ТЗ; для госсектора это прямо предусмотрено Приказом ФСТЭК № 117.',
         );
         return { status: 'APPLICABLE', reasons, evidence, confidence: 0.85 };
       }
 
       reasons.push(
-        'Применимость обязательных процедур безопасной разработки по ФСТЭК № 117 требует согласования с Заказчиком.',
+        'Применимость требований Приказа ФСТЭК № 117 (ГИС) и безопасной разработки по ГОСТ Р 56939-2024 требует согласования с Заказчиком.',
       );
       return { status: 'UNKNOWN', reasons, evidence, confidence: 0.0 };
     },

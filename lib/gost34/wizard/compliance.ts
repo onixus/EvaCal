@@ -4,6 +4,8 @@ import type { TraceabilityResult } from '../traceability/types';
 import type {
   ApplicabilitySummary,
   ComplianceReport,
+  WizardIssue,
+  WizardIssueSeverity,
   WizardStepId,
   WizardStepReport,
   WizardStepStatus,
@@ -18,6 +20,70 @@ export const REQUIRED_SIGNATURE_FIELDS = [
   { key: 'approver', label: 'Утвердил от Исполнителя' },
   { key: 'customerApprover', label: 'Утвердил от Заказчика' },
 ] as const;
+
+/**
+ * Каталог правил, порождающих замечания. Идентификатор машинный и стабильный —
+ * на него ссылается панель блокеров и лист внутренних изменений; подпись
+ * человекочитаемая и печатается в строке «Правило: …».
+ */
+export const COMPLIANCE_RULES = {
+  profilePreview: {
+    id: 'profile/preview-status',
+    label: 'реестр нормативных профилей',
+  },
+  profileLegacy: {
+    id: 'profile/legacy-edition',
+    label: 'реестр нормативных профилей',
+  },
+  requirementsEmpty: {
+    id: 'requirements/empty',
+    label: 'ГОСТ 34.602, состав требований',
+  },
+  requirementsError: {
+    id: 'requirements/validation-error',
+    label: 'валидатор формулировок ГОСТ 34.602',
+  },
+  requirementsWarning: {
+    id: 'requirements/validation-warning',
+    label: 'валидатор формулировок ГОСТ 34.602',
+  },
+  applicabilityEmpty: {
+    id: 'applicability/not-evaluated',
+    label: 'движок применимости',
+  },
+  applicabilityUnknown: {
+    id: 'applicability/unknown-status',
+    label: 'движок применимости',
+  },
+  applicabilityNone: {
+    id: 'applicability/none-applicable',
+    label: 'движок применимости',
+  },
+  traceabilityEmpty: {
+    id: 'traceability/no-requirements',
+    label: 'покрытие матрицы прослеживаемости',
+  },
+  traceabilityUnmapped: {
+    id: 'traceability/unmapped-requirement',
+    label: 'покрытие матрицы прослеживаемости',
+  },
+  traceabilityUnapproved: {
+    id: 'traceability/unapproved-link',
+    label: 'покрытие матрицы прослеживаемости',
+  },
+  signaturesMissing: {
+    id: 'signatures/required-field-empty',
+    label: 'ГОСТ 2.104-2006, обязательные подписи формы 2',
+  },
+  contextBlocking: {
+    id: 'context/blocking-gap',
+    label: 'опросник расчёта',
+  },
+  contextMajor: {
+    id: 'context/major-gap',
+    label: 'опросник расчёта',
+  },
+} as const;
 
 export interface ComplianceInput {
   profile: { id: string; name: string; version: string; status: 'stable' | 'preview' };
@@ -39,112 +105,211 @@ function pluralRu(n: number, one: string, few: string, many: string): string {
   return many;
 }
 
+/** Собирает замечание, подставляя правило из каталога. */
+function issue(
+  stepId: WizardStepId,
+  severity: WizardIssueSeverity,
+  rule: { id: string; label: string },
+  text: string,
+  field?: { ref: string; label: string },
+): WizardIssue {
+  return {
+    text,
+    severity,
+    stepId,
+    fieldRef: field?.ref,
+    fieldLabel: field?.label,
+    ruleId: rule.id,
+    ruleLabel: rule.label,
+  };
+}
+
+/**
+ * Статус шага выводится из его замечаний, а не задаётся отдельно: блокер делает
+ * шаг блокирующим, предупреждение — требующим внимания. Пустота шага — особый
+ * случай и передаётся явно.
+ */
+function stepFromIssues(
+  id: WizardStepId,
+  issues: WizardIssue[],
+  emptyStatus?: WizardStepStatus,
+): WizardStepReport {
+  if (issues.length === 0) return { id, status: emptyStatus ?? 'ready', issues };
+  const status: WizardStepStatus = issues.some((i) => i.severity === 'blocker')
+    ? 'blocked'
+    : (emptyStatus ?? 'attention');
+  // Блокеры показываются первыми — и в списке шага, и в панели блокеров студии.
+  const ordered = [...issues].sort((a, b) =>
+    a.severity === b.severity ? 0 : a.severity === 'blocker' ? -1 : 1,
+  );
+  return { id, status, issues: ordered };
+}
+
 function profileStep(input: ComplianceInput): WizardStepReport {
-  const issues: string[] = [];
-  let status: WizardStepStatus = 'ready';
+  const issues: WizardIssue[] = [];
 
   if (input.profile.status === 'preview') {
     issues.push(
-      `Профиль «${input.profile.name}» имеет статус preview: структура документа ещё не переведена на эту редакцию.`,
+      issue(
+        'profile',
+        'blocker',
+        COMPLIANCE_RULES.profilePreview,
+        `Профиль «${input.profile.name}» имеет статус preview: структура документа ещё не переведена на эту редакцию.`,
+        { ref: 'profile.standardProfileId', label: 'выбор нормативного профиля' },
+      ),
     );
-    status = 'blocked';
   } else if (input.isLegacyProfile) {
     issues.push(
-      `Выбран legacy-профиль «${input.profile.name}» (${input.profile.version}). Для новых проектов применяется ГОСТ 34.602-2020.`,
+      issue(
+        'profile',
+        'warning',
+        COMPLIANCE_RULES.profileLegacy,
+        `Выбран legacy-профиль «${input.profile.name}» (${input.profile.version}). Для новых проектов применяется ГОСТ 34.602-2020.`,
+        { ref: 'profile.standardProfileId', label: 'выбор нормативного профиля' },
+      ),
     );
-    status = 'attention';
   }
 
-  return { id: 'profile', status, issues };
+  return stepFromIssues('profile', issues);
 }
 
 function requirementsStep(input: ComplianceInput): WizardStepReport {
-  const issues: string[] = [];
-
   if (input.requirementCount === 0) {
-    return {
-      id: 'requirements',
-      status: 'empty',
-      issues: ['Требования не заданы: загрузите документ вендора или добавьте требования вручную.'],
-    };
+    return stepFromIssues(
+      'requirements',
+      [
+        issue(
+          'requirements',
+          'warning',
+          COMPLIANCE_RULES.requirementsEmpty,
+          'Требования не заданы: загрузите документ вендора или добавьте требования вручную.',
+          { ref: 'requirements.list', label: 'список требований' },
+        ),
+      ],
+      'empty',
+    );
   }
 
+  const issues: WizardIssue[] = [];
   const errors = input.validation.counts.ERROR || 0;
   const warnings = input.validation.counts.WARNING || 0;
 
   if (errors > 0) {
     issues.push(
-      `${errors} ${pluralRu(errors, 'требование не удовлетворяет', 'требования не удовлетворяют', 'требований не удовлетворяют')} ГОСТ 34.602 (замечания уровня ERROR).`,
+      issue(
+        'requirements',
+        'blocker',
+        COMPLIANCE_RULES.requirementsError,
+        `${errors} ${pluralRu(errors, 'требование не удовлетворяет', 'требования не удовлетворяют', 'требований не удовлетворяют')} ГОСТ 34.602 (замечания уровня ERROR).`,
+        { ref: 'requirements.list', label: 'строки со статусом ERROR' },
+      ),
     );
   }
   if (warnings > 0) {
     issues.push(
-      `${warnings} ${pluralRu(warnings, 'замечание', 'замечания', 'замечаний')} уровня WARNING: формулировки стоит уточнить.`,
+      issue(
+        'requirements',
+        'warning',
+        COMPLIANCE_RULES.requirementsWarning,
+        `${warnings} ${pluralRu(warnings, 'замечание', 'замечания', 'замечаний')} уровня WARNING: формулировки стоит уточнить.`,
+        { ref: 'requirements.list', label: 'строки со статусом WARNING' },
+      ),
     );
   }
 
-  const status: WizardStepStatus = errors > 0 ? 'blocked' : warnings > 0 ? 'attention' : 'ready';
-  return { id: 'requirements', status, issues };
+  return stepFromIssues('requirements', issues);
 }
 
 function applicabilityStep(input: ComplianceInput): WizardStepReport {
   const { total, unknown, applicable } = input.applicability;
 
   if (total === 0) {
-    return {
-      id: 'applicability',
-      status: 'empty',
-      issues: ['Применимость нормативов не оценена.'],
-    };
+    return stepFromIssues(
+      'applicability',
+      [
+        issue(
+          'applicability',
+          'warning',
+          COMPLIANCE_RULES.applicabilityEmpty,
+          'Применимость нормативов не оценена.',
+        ),
+      ],
+      'empty',
+    );
   }
 
-  const issues: string[] = [];
+  const issues: WizardIssue[] = [];
   if (unknown > 0) {
     issues.push(
-      `${unknown} ${pluralRu(unknown, 'норматив требует', 'норматива требуют', 'нормативов требуют')} подтверждения у Заказчика (статус UNKNOWN).`,
+      issue(
+        'applicability',
+        'warning',
+        COMPLIANCE_RULES.applicabilityUnknown,
+        `${unknown} ${pluralRu(unknown, 'норматив требует', 'норматива требуют', 'нормативов требуют')} подтверждения у Заказчика (статус UNKNOWN).`,
+        { ref: 'applicability.unknown', label: 'нормативы со статусом UNKNOWN' },
+      ),
     );
   }
   if (applicable === 0) {
-    issues.push('Ни один отраслевой норматив не признан применимым.');
+    issues.push(
+      issue(
+        'applicability',
+        'warning',
+        COMPLIANCE_RULES.applicabilityNone,
+        'Ни один отраслевой норматив не признан применимым.',
+        { ref: 'applicability.list', label: 'список нормативов' },
+      ),
+    );
   }
 
-  return {
-    id: 'applicability',
-    status: unknown > 0 ? 'attention' : 'ready',
-    issues,
-  };
+  return stepFromIssues('applicability', issues);
 }
 
 function traceabilityStep(input: ComplianceInput): WizardStepReport {
   const { metrics, links } = input.traceability;
 
   if (metrics.totalRequirements === 0) {
-    return {
-      id: 'traceability',
-      status: 'empty',
-      issues: ['Трассировать нечего: нет требований.'],
-    };
+    return stepFromIssues(
+      'traceability',
+      [
+        issue(
+          'traceability',
+          'warning',
+          COMPLIANCE_RULES.traceabilityEmpty,
+          'Трассировать нечего: нет требований.',
+        ),
+      ],
+      'empty',
+    );
   }
 
-  const issues: string[] = [];
+  const issues: WizardIssue[] = [];
   if (metrics.unmappedRequirements > 0) {
     issues.push(
-      `${metrics.unmappedRequirements} ${pluralRu(metrics.unmappedRequirements, 'требование не связано', 'требования не связаны', 'требований не связаны')} с этапами работ (UNMAPPED). Покрытие ${metrics.coveragePercentage}%.`,
+      issue(
+        'traceability',
+        'warning',
+        COMPLIANCE_RULES.traceabilityUnmapped,
+        `${metrics.unmappedRequirements} ${pluralRu(metrics.unmappedRequirements, 'требование не связано', 'требования не связаны', 'требований не связаны')} с этапами работ (UNMAPPED). Покрытие ${metrics.coveragePercentage}%.`,
+        { ref: 'traceability.unmapped', label: 'строки со статусом UNMAPPED' },
+      ),
     );
   }
 
   const unapproved = links.filter((link) => !link.approved).length;
   if (unapproved > 0) {
     issues.push(
-      `${unapproved} ${pluralRu(unapproved, 'связь предложена', 'связи предложены', 'связей предложено')} автоматически и не подтверждена вручную.`,
+      issue(
+        'traceability',
+        'warning',
+        COMPLIANCE_RULES.traceabilityUnapproved,
+        `${unapproved} ${pluralRu(unapproved, 'связь предложена', 'связи предложены', 'связей предложено')} автоматически и не подтверждена вручную.`,
+        { ref: 'traceability.unapproved', label: 'неподтверждённые связи' },
+      ),
     );
   }
 
-  return {
-    id: 'traceability',
-    status: issues.length > 0 ? 'attention' : 'ready',
-    issues,
-  };
+  return stepFromIssues('traceability', issues);
 }
 
 function signaturesStep(input: ComplianceInput): WizardStepReport {
@@ -153,15 +318,23 @@ function signaturesStep(input: ComplianceInput): WizardStepReport {
 
   const missing = REQUIRED_SIGNATURE_FIELDS.filter(
     (field) => !String(signatures[field.key] ?? '').trim(),
-  ).map((field) => field.label);
+  );
 
-  if (missing.length === 0) return { id: 'signatures', status: 'ready', issues: [] };
+  if (missing.length === 0) return stepFromIssues('signatures', []);
 
-  return {
-    id: 'signatures',
-    status: 'blocked',
-    issues: [`Не заполнены поля основной надписи: ${missing.join(', ')}.`],
-  };
+  // Каждое пустое поле — отдельное замечание: панель блокеров ведёт точно к нему,
+  // а не к шагу целиком.
+  const issues = missing.map((field) =>
+    issue(
+      'signatures',
+      'blocker',
+      COMPLIANCE_RULES.signaturesMissing,
+      `Не заполнено поле основной надписи «${field.label}».`,
+      { ref: `signatures.${field.key}`, label: `поле «${field.label}»` },
+    ),
+  );
+
+  return stepFromIssues('signatures', issues);
 }
 
 /**
@@ -175,31 +348,37 @@ function complianceStep(input: ComplianceInput): WizardStepReport {
   const blocking = gaps.filter((gap) => gap.severity === 'blocking');
   const major = gaps.filter((gap) => gap.severity === 'major');
 
-  const issues: string[] = [];
+  const issues: WizardIssue[] = [];
   if (blocking.length > 0) {
     issues.push(
-      `Обязательные сведения о проекте не заполнены и попадут в документ с отметкой «требует уточнения»: ${blocking
-        .map((gap) => gap.label)
-        .join(', ')}. Источник — опросник расчёта.`,
+      issue(
+        'compliance',
+        'warning',
+        COMPLIANCE_RULES.contextBlocking,
+        `Обязательные сведения о проекте не заполнены и попадут в документ с отметкой «требует уточнения»: ${blocking
+          .map((gap) => gap.label)
+          .join(', ')}. Источник — опросник расчёта.`,
+        { ref: 'context.blocking', label: 'опросник расчёта' },
+      ),
     );
   }
   if (major.length > 0) {
-    issues.push(`Требуют уточнения: ${major.map((gap) => gap.label).join(', ')}.`);
+    issues.push(
+      issue(
+        'compliance',
+        'warning',
+        COMPLIANCE_RULES.contextMajor,
+        `Требуют уточнения: ${major.map((gap) => gap.label).join(', ')}.`,
+        { ref: 'context.major', label: 'опросник расчёта' },
+      ),
+    );
   }
 
-  return {
-    id: 'compliance',
-    status: issues.length > 0 ? 'attention' : 'ready',
-    issues,
-  };
+  return stepFromIssues('compliance', issues);
 }
 
 function previewStep(): WizardStepReport {
-  return {
-    id: 'preview',
-    status: 'ready',
-    issues: [],
-  };
+  return { id: 'preview', status: 'ready', issues: [] };
 }
 
 const STEP_BUILDERS: Record<WizardStepId, (input: ComplianceInput) => WizardStepReport> = {
@@ -223,13 +402,16 @@ const STEP_BUILDERS: Record<WizardStepId, (input: ComplianceInput) => WizardStep
 export function buildComplianceReport(input: ComplianceInput): ComplianceReport {
   const steps = WIZARD_STEP_IDS.map((id) => STEP_BUILDERS[id](input));
 
-  const blockingIssues = steps.filter((s) => s.status === 'blocked').flatMap((s) => s.issues);
-  const warnings = steps.filter((s) => s.status === 'attention').flatMap((s) => s.issues);
+  // Серьёзность берётся у самого замечания, а не у шага: WARNING-замечание,
+  // лежащее на заблокированном шаге, блокером не становится.
+  const issues = steps.flatMap((step) => step.issues);
+  const blockers = issues.filter((i) => i.severity === 'blocker');
 
   return {
     steps,
-    canExport: blockingIssues.length === 0,
-    blockingIssues,
-    warnings,
+    canExport: blockers.length === 0,
+    blockingIssues: blockers.map((i) => i.text),
+    warnings: issues.filter((i) => i.severity === 'warning').map((i) => i.text),
+    issues: [...blockers, ...issues.filter((i) => i.severity === 'warning')],
   };
 }

@@ -45,7 +45,10 @@ function SectionList({
       </div>
       <ul className="mt-2 space-y-1">
         {items.slice(0, LIST_LIMIT).map((item) => (
-          <li key={item.key} className="text-[11px] text-slate-300 leading-relaxed">
+          <li
+            key={item.key}
+            className="text-[11px] text-slate-600 dark:text-nord-4 leading-relaxed"
+          >
             {item.text}
           </li>
         ))}
@@ -122,16 +125,16 @@ export default function MigrationPanel({
     <div className={`${PANEL_CLASS} space-y-4`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider">
+          <h4 className="text-sm font-bold text-brand-700 dark:text-nord-frost2 uppercase tracking-wider">
             Нормативная привязка проекта
           </h4>
-          <p className="text-xs text-slate-300 mt-1">
+          <p className="text-xs text-slate-600 dark:text-nord-4 mt-1">
             Профиль, по которому проект выпускался ранее, хранится в расчёте. Миграция меняет его на
             действующую редакцию — но только после просмотра изменений.
           </p>
         </div>
         {binding && (
-          <span className="shrink-0 px-3 py-1 rounded-full text-[11px] font-bold bg-[#2e3440] text-blue-300 border border-[#434c5e]">
+          <span className="shrink-0 px-3 py-1 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-nord-3 text-brand-700 dark:text-nord-frost2 border border-slate-300 dark:border-nord-3">
             {binding.standardProfileId}@{binding.standardProfileVersion}
             {binding.inferred ? ' • по умолчанию' : ''}
           </span>
@@ -139,26 +142,28 @@ export default function MigrationPanel({
       </div>
 
       {binding && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-slate-400">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-slate-500 dark:text-nord-muted">
           <div className={`${SUBPANEL_CLASS} p-2.5`}>
             Версия генератора:{' '}
-            <strong className="text-slate-200">{binding.generatorVersion}</strong>
+            <strong className="text-slate-800 dark:text-nord-5">{binding.generatorVersion}</strong>
           </div>
           <div className={`${SUBPANEL_CLASS} p-2.5`}>
             Последний выпуск:{' '}
-            <strong className="text-slate-200">
+            <strong className="text-slate-800 dark:text-nord-5">
               {binding.generatedAt
                 ? new Date(binding.generatedAt).toLocaleDateString('ru-RU')
                 : 'не выпускался'}
             </strong>
           </div>
           <div className={`${SUBPANEL_CLASS} p-2.5`}>
-            Документ diff: <strong className="text-slate-200">{docType}</strong>
+            Документ diff: <strong className="text-slate-800 dark:text-nord-5">{docType}</strong>
           </div>
         </div>
       )}
 
-      {isLoading && <p className="text-xs text-slate-400">Расчёт изменений…</p>}
+      {isLoading && (
+        <p className="text-xs text-slate-500 dark:text-nord-muted">Расчёт изменений…</p>
+      )}
 
       {error && (
         <p className="text-xs text-red-300 bg-red-500/10 border border-red-500/40 rounded-xl p-3">
@@ -175,10 +180,12 @@ export default function MigrationPanel({
 
       {diff && !diff.alreadyMigrated && (
         <div className="space-y-3">
-          <p className="text-xs text-slate-300">
-            <strong className="text-white">{diff.from.name}</strong> ({diff.from.primaryStandard}) →{' '}
-            <strong className="text-white">{diff.to.name}</strong> ({diff.to.primaryStandard}).
-            Сохранено разделов без изменения номера: {diff.structure.unchanged}.
+          <p className="text-xs text-slate-600 dark:text-nord-4">
+            <strong className="text-slate-900 dark:text-nord-6">{diff.from.name}</strong> (
+            {diff.from.primaryStandard}) →{' '}
+            <strong className="text-slate-900 dark:text-nord-6">{diff.to.name}</strong> (
+            {diff.to.primaryStandard}). Сохранено разделов без изменения номера:{' '}
+            {diff.structure.unchanged}.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
@@ -261,7 +268,7 @@ export default function MigrationPanel({
             type="button"
             onClick={apply}
             disabled={isApplying || isLoading}
-            className="px-4 py-2.5 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-500 disabled:bg-slate-600 disabled:text-slate-300 text-white transition-colors"
+            className="px-4 py-2.5 rounded-xl text-sm font-bold bg-brand-600 hover:bg-brand-700 disabled:bg-slate-600 disabled:text-slate-300 text-white transition-colors"
           >
             {isApplying ? 'Миграция…' : `Мигрировать на ${diff.to.primaryStandard}`}
           </button>

@@ -7,7 +7,6 @@ import StageTable, { StageRow } from './StageTable';
 import GanttChart, { GanttStage } from './GanttChart';
 import TotalsSummary, { RiskRow } from './TotalsSummary';
 import ExportLinks from './ExportLinks';
-import Gost34WizardModal from './gost34/Gost34WizardModal';
 import CommercialProposalPanel from './CommercialProposalPanel';
 import TraceabilityMatrixView from './gost34/TraceabilityMatrixView';
 import ScenarioAnalysisPanel from './ScenarioAnalysisPanel';
@@ -58,7 +57,6 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
     | 'specification'
     | 'gost34'
   >('summary');
-  const [isGostModalOpen, setIsGostModalOpen] = useState(false);
 
   const startDateFormatted = new Date(calculation.startDate).toLocaleDateString('ru-RU', {
     day: 'numeric',
@@ -285,7 +283,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
           calculationName={calculation.name}
           customerName={calculation.customer}
           answers={calculation.answers}
-          onOpenGostWizard={() => setIsGostModalOpen(true)}
+          studioHref={`/calculations/${calculation.id}/studio`}
         />
       )}
 
@@ -439,14 +437,13 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setIsGostModalOpen(true)}
+              <Link
+                href={`/calculations/${calculation.id}/studio`}
                 className="btn-primary !py-3 !px-5 text-sm font-semibold shadow-md whitespace-nowrap"
               >
                 <span className="text-base">🚀</span>
-                <span>Запустить Мастер ГОСТ 34</span>
-              </button>
+                <span>Открыть Студию ГОСТ 34</span>
+              </Link>
             </div>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -485,14 +482,6 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
           </div>
         </div>
       )}
-
-      <Gost34WizardModal
-        calculationId={calculation.id}
-        calculationName={calculation.name}
-        customerName={calculation.customer}
-        isOpen={isGostModalOpen}
-        onClose={() => setIsGostModalOpen(false)}
-      />
     </div>
   );
 }

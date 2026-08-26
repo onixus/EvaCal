@@ -22,47 +22,71 @@ export interface WizardStepProps {
   reviewError: string;
 }
 
-/** Цветовая схема индикатора шага: одна на вкладки, сводку и бейджи. */
+/**
+ * Цветовая схема индикатора шага: одна на рельс студии, сводку и бейджи.
+ *
+ * `label` — подпись под названием шага в рельсе, поэтому формулировки короткие
+ * и в нижнем регистре: они читаются как состояние, а не как заголовок.
+ */
 export const STEP_STATUS_STYLES: Record<
   WizardStepStatus,
-  { label: string; chip: string; dot: string }
+  { label: string; chip: string; dot: string; text: string }
 > = {
   ready: {
-    label: 'Готово',
-    chip: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
-    dot: 'bg-emerald-400',
+    label: 'готово',
+    chip: 'chip-ok',
+    dot: 'bg-emerald-500 dark:bg-nord-green',
+    text: 'text-slate-400 dark:text-nord-muted',
   },
   attention: {
-    label: 'Требует внимания',
-    chip: 'bg-amber-500/15 text-amber-300 border-amber-500/40',
-    dot: 'bg-amber-400',
+    label: 'есть замечания',
+    chip: 'chip-warn',
+    dot: 'bg-amber-500 dark:bg-nord-yellow',
+    text: 'text-amber-700 dark:text-nord-yellow',
   },
   blocked: {
-    label: 'Блокирует выпуск',
-    chip: 'bg-red-500/15 text-red-300 border-red-500/40',
-    dot: 'bg-red-400',
+    label: 'блокирует выпуск',
+    chip: 'chip-block',
+    dot: 'bg-rose-500 dark:bg-nord-red',
+    text: 'text-rose-700 dark:text-nord-redText',
   },
   empty: {
-    label: 'Не заполнено',
-    chip: 'bg-slate-500/15 text-slate-300 border-slate-500/40',
-    dot: 'bg-slate-400',
+    label: 'не заполнено',
+    chip: 'chip-muted',
+    dot: 'bg-slate-300 dark:bg-nord-3',
+    text: 'text-slate-400 dark:text-nord-muted',
   },
 };
 
 export const APPLICABILITY_STATUS_STYLES: Record<string, { label: string; chip: string }> = {
   APPLICABLE: {
     label: 'Применимо',
-    chip: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
+    chip: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-nord-green/15 dark:text-nord-green dark:border-nord-green/40',
   },
   NOT_APPLICABLE: {
     label: 'Не применимо',
-    chip: 'bg-slate-500/15 text-slate-300 border-slate-500/40',
+    chip: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-nord-1 dark:text-nord-4 dark:border-nord-3',
   },
   UNKNOWN: {
     label: 'Требует подтверждения',
-    chip: 'bg-amber-500/15 text-amber-300 border-amber-500/40',
+    chip: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-nord-yellow/15 dark:text-nord-yellow dark:border-nord-yellow/40',
   },
 };
 
-export const PANEL_CLASS = 'bg-[#242832] p-5 rounded-2xl border border-[#3b4252] shadow-md';
-export const SUBPANEL_CLASS = 'bg-[#1c1f26] rounded-xl border border-[#3b4252]';
+/**
+ * Поверхности студии. Раньше это были тёмные панели модала; студия живёт в
+ * общей светлой теме приложения, поэтому карточки плоские — бордер вместо
+ * тени, радиус 12, как у остальных экранов новой плотности.
+ */
+export const PANEL_CLASS = 'card-flat p-4';
+export const SUBPANEL_CLASS =
+  'rounded-lg border border-slate-200 bg-slate-50/60 dark:border-nord-3 dark:bg-nord-1/50';
+
+/**
+ * DOM-идентификатор поля для навигации из панели блокеров. Тот же `fieldRef`,
+ * что движок соответствия кладёт в замечание, — по нему шаг находит поле,
+ * прокручивает к нему и подсвечивает.
+ */
+export function fieldAnchorId(fieldRef: string): string {
+  return `field-${fieldRef.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
+}

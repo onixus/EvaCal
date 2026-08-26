@@ -85,3 +85,42 @@ export async function loadPackageArtifact(
     throw err;
   }
 }
+
+/**
+ * Сохраняет DOCX, загруженный тех.писателем, рядом с артефактом комплекта.
+ *
+ * Хранится отдельным файлом, а не поверх ZIP: сгенерированный комплект
+ * неизменяем и остаётся доказательством того, что выпустила студия, а
+ * правленая версия — приоритетный, но отдельный документ.
+ */
+export async function storeTechWriterVersion(
+  projectId: string,
+  packageId: string,
+  buffer: Buffer | Uint8Array,
+): Promise<StoredArtifactInfo> {
+  const baseDir = getPackageStorageDir();
+  const safeProject = projectId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safePackage = packageId.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  const projectDir = path.join(baseDir, safeProject);
+  await fs.mkdir(projectDir, { recursive: true });
+
+  const relativePath = path.join(safeProject, `${safePackage}-tw.docx`);
+  await fs.writeFile(path.join(baseDir, relativePath), buffer);
+
+  return {
+    artifactPath: relativePath,
+    checksum: calculateChecksum(buffer),
+    sizeBytes: buffer.length,
+  };
+}
+
+/**
+ * Читает произвольный файл из хранилища комплектов по относительному пути.
+ * Тот же traversal-guard, что и у `loadPackageArtifact`.
+ */
+export async function loadStoredFile(
+  relativePath: string,
+): Promise<{ buffer: Buffer; checksum: string } | null> {
+  return loadPackageArtifact(relativePath);
+}

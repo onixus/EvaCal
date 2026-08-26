@@ -62,12 +62,12 @@ export default function ApplicabilityStep({
   return (
     <div className="space-y-4 animate-in fade-in duration-150">
       <div className={`${PANEL_CLASS} space-y-3`}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-[#3b4252] pb-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200 dark:border-nord-3 pb-3">
           <div>
-            <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider">
+            <h4 className="text-sm font-bold text-brand-700 dark:text-nord-frost2 uppercase tracking-wider">
               🛡️ Применимость нормативных требований
             </h4>
-            <p className="text-xs text-slate-300 mt-1">
+            <p className="text-xs text-slate-600 dark:text-nord-4 mt-1">
               Статус рассчитан по проектному контексту. Ни один норматив не включается автоматически
               без основания; статус «Требует подтверждения» допустим и не блокирует выпуск.
             </p>
@@ -81,7 +81,7 @@ export default function ApplicabilityStep({
               <span className="px-2.5 py-1 rounded-lg border bg-amber-500/15 text-amber-300 border-amber-500/40">
                 Требует подтверждения: {summary.unknown}
               </span>
-              <span className="px-2.5 py-1 rounded-lg border bg-slate-500/15 text-slate-300 border-slate-500/40">
+              <span className="px-2.5 py-1 rounded-lg border bg-slate-100 dark:bg-nord-1 text-slate-600 dark:text-nord-4 border-slate-200 dark:border-nord-3">
                 Не применимо: {summary.notApplicable}
               </span>
             </div>
@@ -102,8 +102,8 @@ export default function ApplicabilityStep({
               onClick={() => setStatusFilter(filter.id)}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
                 statusFilter === filter.id
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-[#1c1f26] text-slate-300 hover:bg-[#2e3440] border border-[#3b4252]'
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'bg-white dark:bg-nord-1 text-slate-600 dark:text-nord-4 hover:bg-slate-50 dark:hover:bg-nord-3 border border-slate-200 dark:border-nord-3'
               }`}
             >
               {filter.label}
@@ -112,11 +112,13 @@ export default function ApplicabilityStep({
         </div>
 
         {isReviewLoading && (
-          <div className="text-xs text-slate-400">Идёт оценка применимости нормативов…</div>
+          <div className="text-xs text-slate-500 dark:text-nord-muted">
+            Идёт оценка применимости нормативов…
+          </div>
         )}
 
         {!isReviewLoading && visible.length === 0 && (
-          <div className="text-xs text-slate-400 italic p-6 text-center border border-dashed border-[#434c5e] rounded-xl bg-[#1c1f26]">
+          <div className="text-xs text-slate-500 dark:text-nord-muted italic p-6 text-center border border-dashed border-slate-300 dark:border-nord-3 rounded-xl bg-slate-50 dark:bg-nord-1">
             Нормативы с выбранным статусом отсутствуют.
           </div>
         )}
@@ -132,7 +134,9 @@ export default function ApplicabilityStep({
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-sm text-white">{item.title}</span>
+                      <span className="font-bold text-sm text-slate-900 dark:text-nord-6">
+                        {item.title}
+                      </span>
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-bold border ${style.chip}`}
                       >
@@ -144,7 +148,7 @@ export default function ApplicabilityStep({
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-1">
+                    <p className="text-[11px] text-slate-500 dark:text-nord-muted mt-1">
                       {CATEGORY_LABELS[item.category] || item.category}
                       {typeof item.confidence === 'number' && (
                         <> • уверенность движка {Math.round(item.confidence * 100)}%</>
@@ -159,7 +163,7 @@ export default function ApplicabilityStep({
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
                         overrides[item.standardId]?.status === 'APPLICABLE'
                           ? 'bg-emerald-600 text-white border-emerald-400'
-                          : 'bg-[#2e3440] text-slate-300 border-[#434c5e] hover:text-white'
+                          : 'bg-white dark:bg-nord-1 text-slate-700 dark:text-nord-4 border-slate-300 dark:border-nord-3 hover:bg-slate-50 dark:hover:bg-nord-3'
                       }`}
                     >
                       Применимо
@@ -169,8 +173,8 @@ export default function ApplicabilityStep({
                       onClick={() => setOverride(item.standardId, 'NOT_APPLICABLE')}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
                         overrides[item.standardId]?.status === 'NOT_APPLICABLE'
-                          ? 'bg-slate-600 text-white border-slate-400'
-                          : 'bg-[#2e3440] text-slate-300 border-[#434c5e] hover:text-white'
+                          ? 'bg-slate-600 text-slate-900 dark:text-nord-6 border-slate-400'
+                          : 'bg-slate-100 dark:bg-nord-3 text-slate-600 dark:text-nord-4 border-slate-300 dark:border-nord-3 hover:text-slate-900 dark:text-nord-6'
                       }`}
                     >
                       Не применимо
@@ -179,7 +183,7 @@ export default function ApplicabilityStep({
                       <button
                         type="button"
                         onClick={() => clearOverride(item.standardId)}
-                        className="px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white"
+                        className="px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500 dark:text-nord-muted hover:text-slate-900 dark:text-nord-6"
                         title="Вернуть решение движка"
                       >
                         ↺
@@ -190,7 +194,7 @@ export default function ApplicabilityStep({
                       onClick={() =>
                         setExpanded((prev) => ({ ...prev, [item.standardId]: !isOpen }))
                       }
-                      className="px-2 py-1 rounded-lg text-[11px] font-bold text-blue-300 hover:text-blue-200"
+                      className="px-2 py-1 rounded-lg text-[11px] font-bold text-brand-700 dark:text-nord-frost2 hover:text-blue-200"
                     >
                       {isOpen ? 'Скрыть' : 'Основание'}
                     </button>
@@ -198,14 +202,17 @@ export default function ApplicabilityStep({
                 </div>
 
                 {isOpen && (
-                  <div className="space-y-2 pt-2 border-t border-[#3b4252]">
+                  <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-nord-3">
                     <div>
-                      <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <div className="text-[11px] font-bold text-slate-600 dark:text-nord-4 uppercase tracking-wider mb-1">
                         Причины решения
                       </div>
                       <ul className="space-y-1">
                         {item.reasons.map((reason, idx) => (
-                          <li key={idx} className="text-[11px] text-slate-300 leading-relaxed">
+                          <li
+                            key={idx}
+                            className="text-[11px] text-slate-600 dark:text-nord-4 leading-relaxed"
+                          >
                             • {reason}
                           </li>
                         ))}
@@ -214,14 +221,19 @@ export default function ApplicabilityStep({
 
                     {item.evidence.length > 0 && (
                       <div>
-                        <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                        <div className="text-[11px] font-bold text-slate-600 dark:text-nord-4 uppercase tracking-wider mb-1">
                           Факты из проектного контекста
                         </div>
                         <ul className="space-y-1">
                           {item.evidence.map((evidence, idx) => (
-                            <li key={idx} className="text-[11px] text-slate-400 leading-relaxed">
-                              <span className="font-mono text-blue-300">{evidence.source}</span> —{' '}
-                              {evidence.details}
+                            <li
+                              key={idx}
+                              className="text-[11px] text-slate-500 dark:text-nord-muted leading-relaxed"
+                            >
+                              <span className="font-mono text-brand-700 dark:text-nord-frost2">
+                                {evidence.source}
+                              </span>{' '}
+                              — {evidence.details}
                             </li>
                           ))}
                         </ul>
@@ -229,7 +241,7 @@ export default function ApplicabilityStep({
                     )}
 
                     {item.calculatedStatus !== item.finalStatus && (
-                      <div className="text-[11px] text-amber-300">
+                      <div className="text-[11px] text-amber-700 dark:text-nord-yellow">
                         Решение движка: {APPLICABILITY_STATUS_STYLES[item.calculatedStatus].label} —
                         переопределено вручную
                         {item.confirmedBy ? ` (${item.confirmedBy})` : ''}.

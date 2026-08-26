@@ -29,6 +29,53 @@ function sanitizeRows(
   return rows.map((row) => row.map((cell) => sanitizeCell(cell)));
 }
 
+/**
+ * Лист внутренних изменений отдельной книгой: он кладётся в комплект ГОСТ 34
+ * самостоятельным файлом и выгружается с экрана листа кнопкой «Выгрузить».
+ */
+export function renderInternalChangesXlsx(
+  calcName: string,
+  rows: {
+    num: string;
+    occurredAt: string;
+    author: string;
+    roleLabel: string;
+    docRef: string;
+    text: string;
+    sourceLabel: string;
+  }[],
+): Buffer {
+  const wb = XLSX.utils.book_new();
+
+  const header = ['№', 'Дата', 'Автор', 'Роль', 'Документ · раздел', 'Изменение', 'Источник'];
+  const body = rows.map((r) => [
+    r.num,
+    fmtDate(new Date(r.occurredAt)),
+    r.author,
+    r.roleLabel,
+    r.docRef,
+    r.text,
+    r.sourceLabel,
+  ]);
+
+  const sheet = XLSX.utils.aoa_to_sheet(
+    sanitizeRows([[`Лист внутренних изменений — ${calcName}`], [], header, ...body]),
+  );
+  sheet['!cols'] = [
+    { wch: 8 },
+    { wch: 12 },
+    { wch: 18 },
+    { wch: 20 },
+    { wch: 26 },
+    { wch: 70 },
+    { wch: 20 },
+  ];
+
+  XLSX.utils.book_append_sheet(wb, sheet, 'Лист изменений');
+
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+}
+
 export function renderCalculationXlsx(
   calc: CalculationForExport,
   options?: { customRequirements?: Gost34RequirementItem[] },

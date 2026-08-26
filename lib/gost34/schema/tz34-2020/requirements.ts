@@ -93,13 +93,17 @@ export const sectionRequirements: SchemaNode = {
       id: 'tz2020-req-support',
       title: 'Требования к видам обеспечения АС',
       required: true,
-      build: ({ context }): SectionContent => {
+      build: ({ context, payload }): SectionContent => {
+        const citations = payload.standardProfile.citations;
         const items: string[] = [];
         items.push(
           ...listOrGap(
             context.dataClasses?.map((d) => d.name),
             'Информационное обеспечение — состав данных',
           ),
+        );
+        items.push(
+          'Лингвистическое обеспечение: интерфейсы пользователя, сообщения системы и эксплуатационная документация выполняются на русском языке.',
         );
         items.push(
           ...listOrGap(
@@ -113,7 +117,7 @@ export const sectionRequirements: SchemaNode = {
         if (context.infrastructure?.importSubstitution !== undefined) {
           items.push(
             context.infrastructure.importSubstitution
-              ? 'Программное обеспечение подлежит выбору из единого реестра российских программ для ЭВМ и баз данных.'
+              ? 'Программное обеспечение подлежит выбору из единого реестра российских программ для ЭВМ и баз данных (188-ФЗ); аппаратные платформы — из реестра промышленной продукции Минпромторга РФ (ПП РФ № 878 / № 719).'
               : 'Требование о применении программного обеспечения из единого реестра российских программ не предъявляется.',
           );
         }
@@ -122,6 +126,9 @@ export const sectionRequirements: SchemaNode = {
             context.roles?.map((r) => r.name),
             'Организационное обеспечение — роли эксплуатирующего персонала',
           ),
+        );
+        items.push(
+          `Методическое обеспечение: комплект эксплуатационной документации разрабатывается в составе и по правилам ${citations.documentsClassifier} и ${citations.projectDocumentation}.`,
         );
 
         return {

@@ -26,8 +26,8 @@ export default function LlmSettingsPanel({
   onCheckStatus,
 }: LlmSettingsPanelProps) {
   return (
-    <div className="bg-[#1c1f26] p-4 rounded-xl border border-purple-500/40 space-y-3">
-      <div className="flex items-center justify-between border-b border-[#3b4252] pb-2">
+    <div className="bg-slate-50 dark:bg-nord-1 p-4 rounded-xl border border-purple-500/40 space-y-3">
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-nord-3 pb-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-purple-400">
             ⚙️ Настройки ИИ-модели (Ollama / LM Studio / OpenAI)
@@ -59,7 +59,9 @@ export default function LlmSettingsPanel({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
         <div>
-          <label className="block text-[#a3be8c] text-[11px] font-bold mb-1">Провайдер ИИ</label>
+          <label className="block text-emerald-600 dark:text-nord-green text-[11px] font-bold mb-1">
+            Провайдер ИИ
+          </label>
           <select
             value={llmProviderId}
             onChange={(e) => {
@@ -67,7 +69,7 @@ export default function LlmSettingsPanel({
               setLlmSelectedModel('');
             }}
             disabled={llmProviders.length === 0}
-            className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-1.5 text-white font-bold focus:border-purple-400 focus:outline-none disabled:opacity-50"
+            className="w-full bg-white dark:bg-nord-2 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-1.5 text-slate-900 dark:text-nord-6 font-bold focus:border-purple-400 focus:outline-none disabled:opacity-50"
           >
             {llmProviders.length === 0 && <option value="">Нет настроенных провайдеров</option>}
             {llmProviders.map((p) => (
@@ -79,14 +81,14 @@ export default function LlmSettingsPanel({
         </div>
 
         <div>
-          <label className="block text-[#a3be8c] text-[11px] font-bold mb-1">
+          <label className="block text-emerald-600 dark:text-nord-green text-[11px] font-bold mb-1">
             Модель нейросети
           </label>
           {llmModels.length > 0 ? (
             <select
               value={llmSelectedModel}
               onChange={(e) => setLlmSelectedModel(e.target.value)}
-              className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-1.5 text-white font-bold focus:border-purple-400 focus:outline-none"
+              className="w-full bg-white dark:bg-nord-2 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-1.5 text-slate-900 dark:text-nord-6 font-bold focus:border-purple-400 focus:outline-none"
             >
               {llmModels.map((m) => (
                 <option key={m} value={m}>
@@ -100,18 +102,18 @@ export default function LlmSettingsPanel({
               value={llmSelectedModel}
               onChange={(e) => setLlmSelectedModel(e.target.value)}
               placeholder="llama3.2 / qwen2.5 / local-model"
-              className="w-full bg-[#242832] border border-[#434c5e] rounded-lg px-3 py-1.5 text-white focus:border-purple-400 focus:outline-none"
+              className="w-full bg-white dark:bg-nord-2 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-1.5 text-slate-900 dark:text-nord-6 focus:border-purple-400 focus:outline-none"
             />
           )}
         </div>
       </div>
 
-      <p className="text-[11px] text-slate-400 pt-1 border-t border-[#3b4252]/60">
+      <p className="text-[11px] text-slate-500 dark:text-nord-muted pt-1 border-t border-slate-200 dark:border-nord-3/60">
         Адреса ИИ-серверов и ключи доступа задаются на сервере (переменные окружения
-        <code className="mx-1 text-slate-300">OLLAMA_HOST</code>,
-        <code className="mx-1 text-slate-300">LMSTUDIO_HOST</code>,
-        <code className="mx-1 text-slate-300">EVACAL_LLM_PROVIDERS</code>) и в браузер не
-        передаются.
+        <code className="mx-1 text-slate-600 dark:text-nord-4">OLLAMA_HOST</code>,
+        <code className="mx-1 text-slate-600 dark:text-nord-4">LMSTUDIO_HOST</code>,
+        <code className="mx-1 text-slate-600 dark:text-nord-4">EVACAL_LLM_PROVIDERS</code>) и в
+        браузер не передаются.
       </p>
     </div>
   );

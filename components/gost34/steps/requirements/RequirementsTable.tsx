@@ -54,8 +54,8 @@ export default function RequirementsTable({
                 onClick={() => setCategoryFilter(cat.id)}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                   categoryFilter === cat.id
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-[#1c1f26] text-slate-300 hover:bg-[#2e3440] border border-[#3b4252]'
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'bg-white dark:bg-nord-1 text-slate-600 dark:text-nord-4 hover:bg-slate-50 dark:hover:bg-nord-3 border border-slate-200 dark:border-nord-3'
                 }`}
               >
                 {cat.label} ({count})
@@ -66,28 +66,39 @@ export default function RequirementsTable({
       )}
 
       {requirements.length === 0 ? (
-        <div className="text-xs text-slate-400 italic p-6 text-center border border-dashed border-[#434c5e] rounded-xl bg-[#1c1f26]">
+        <div className="text-xs text-slate-500 dark:text-nord-muted italic p-6 text-center border border-dashed border-slate-300 dark:border-nord-3 rounded-xl bg-slate-50 dark:bg-nord-1">
           Требования пока не извлечены. Загрузите файл ТЗ (.docx) выше или добавьте пункты вручную.
         </div>
       ) : (
         <div className={`max-h-72 overflow-y-auto ${SUBPANEL_CLASS}`}>
           <table className="w-full text-left text-xs">
-            <thead className="bg-[#2e3440] text-white sticky top-0 border-b border-[#434c5e]">
+            <thead className="bg-slate-100 dark:bg-nord-3 text-slate-900 dark:text-nord-6 sticky top-0 border-b border-slate-300 dark:border-nord-3">
               <tr>
-                <th className="p-3 w-32 font-bold text-blue-300">Код ГОСТ</th>
-                <th className="p-3 w-24 font-bold text-slate-300">Категория</th>
-                <th className="p-3 font-bold text-white">Формулировка и замечания</th>
-                <th className="p-3 w-28 font-bold text-slate-300">Источник</th>
-                <th className="p-3 w-12 text-center font-bold text-slate-300">Удалить</th>
+                <th className="p-3 w-32 font-bold text-brand-700 dark:text-nord-frost2">
+                  Код ГОСТ
+                </th>
+                <th className="p-3 w-24 font-bold text-slate-600 dark:text-nord-4">Категория</th>
+                <th className="p-3 font-bold text-slate-900 dark:text-nord-6">
+                  Формулировка и замечания
+                </th>
+                <th className="p-3 w-28 font-bold text-slate-600 dark:text-nord-4">Источник</th>
+                <th className="p-3 w-12 text-center font-bold text-slate-600 dark:text-nord-4">
+                  Удалить
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#2e3440]">
+            <tbody className="divide-y divide-slate-100 dark:divide-nord-3">
               {filtered.map((req) => {
                 const findings = findingsByCode.get(req.code) || [];
                 const catBadge = CATEGORY_BADGES[req.category] || CATEGORY_BADGES.functional;
                 return (
-                  <tr key={req.id} className="hover:bg-[#282c37] transition-colors">
-                    <td className="p-3 font-mono font-bold text-blue-400 align-top">{req.code}</td>
+                  <tr
+                    key={req.id}
+                    className="hover:bg-slate-100 dark:hover:bg-nord-3 transition-colors"
+                  >
+                    <td className="p-3 font-mono font-bold text-brand-700 dark:text-nord-frost2 align-top">
+                      {req.code}
+                    </td>
                     <td className="p-3 align-top">
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${catBadge.style}`}
@@ -95,10 +106,12 @@ export default function RequirementsTable({
                         {catBadge.label}
                       </span>
                     </td>
-                    <td className="p-3 text-slate-100 break-words align-top space-y-1.5">
-                      <div className="font-semibold text-white">{req.title}</div>
+                    <td className="p-3 text-slate-900 dark:text-nord-6 break-words align-top space-y-1.5">
+                      <div className="font-semibold text-slate-900 dark:text-nord-6">
+                        {req.title}
+                      </div>
                       {req.title !== req.description && (
-                        <div className="text-slate-300 text-[11px] leading-relaxed">
+                        <div className="text-slate-600 dark:text-nord-4 text-[11px] leading-relaxed">
                           {req.description}
                         </div>
                       )}
@@ -112,7 +125,7 @@ export default function RequirementsTable({
                         </div>
                       ))}
                     </td>
-                    <td className="p-3 text-slate-400 text-[11px] align-top space-y-1">
+                    <td className="p-3 text-slate-500 dark:text-nord-muted text-[11px] align-top space-y-1">
                       <div className="truncate">{req.sourceFile || '—'}</div>
                       {req.normalizedBy && (
                         <div

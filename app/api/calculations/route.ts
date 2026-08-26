@@ -9,13 +9,14 @@ import {
 } from '@/lib/calc';
 import { grandTotalHours } from '@/lib/totals';
 import { pageArgs, paginationHeaders, parseLimit, parsePage } from '@/lib/pagination';
-import { createShareToken, requireCalcAccess, requireStaff } from '@/lib/access';
+import { createShareToken, requireCalcAccess, requireInternalRole } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 import { getOrCreateProject } from '@/lib/project';
 
-// List is staff-only: no anonymous dump of the commercial archive.
+// Список виден всем вошедшим сотрудникам (пресейл, архитектор, ревьювер,
+// админ), но не гостям по ссылке: анонимной выгрузки коммерческого архива нет.
 export async function GET(req: NextRequest) {
-  const auth = await requireStaff();
+  const auth = await requireInternalRole(['read']);
   if (auth instanceof NextResponse) return auth;
 
   const { searchParams } = new URL(req.url);
