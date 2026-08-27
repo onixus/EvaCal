@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
+import { appRoleLabel } from '@/lib/appRoles';
 import ChangePasswordForm from './ChangePasswordForm';
 
 export default async function AccountPage() {
@@ -11,7 +12,7 @@ export default async function AccountPage() {
       <div>
         <h1 className="text-xl font-semibold">Аккаунт</h1>
         <p className="text-sm text-slate-500">
-          {session.username} · {session.role === 'admin' ? 'Администратор' : 'Архитектор'}
+          {session.username} · {appRoleLabel(session.role)}
         </p>
       </div>
       <div className="card p-6">
