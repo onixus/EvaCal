@@ -288,7 +288,15 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
       const reasons: string[] = [];
 
       if (
-        inRegulatoryScope(context, ['fstek_117', 'фстэк_117', '№ 117', '№ 17', '56939', 'secure_dev', '(гис)'])
+        inRegulatoryScope(context, [
+          'fstek_117',
+          'фстэк_117',
+          '№ 117',
+          '№ 17',
+          '56939',
+          'secure_dev',
+          '(гис)',
+        ])
       ) {
         evidence.push({
           source: 'security.regulatoryScope',
