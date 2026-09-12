@@ -42,6 +42,13 @@ export function analyzeAndNormalizeInput(input: {
    * автоматическим сопоставлением: документ печатает именно их.
    */
   manualTraceLinks?: TraceLink[];
+  /**
+   * Извлекать ли требования из описаний этапов расчёта.
+   * По умолчанию false: этапы внедрения из расчёта проекта — это интеграторские
+   * работы (Раздел 6 ТЗ, календарный план, матрица трассируемости), а не
+   * функциональные требования к системе (Раздел 4 ТЗ).
+   */
+  includeStageRequirements?: boolean;
 }): Gost34InputPayload {
   const calc = input.calculation;
 
@@ -53,7 +60,10 @@ export function analyzeAndNormalizeInput(input: {
   const pmHours = calc?.pmHours || 0;
   const totalLaborHours = calculateTotals(stages, risks, pmHours);
 
-  const requirementsV2: Gost34RequirementV2[] = extractRequirementsFromStages(stages);
+  const shouldIncludeStages = input.includeStageRequirements ?? false;
+  const requirementsV2: Gost34RequirementV2[] = shouldIncludeStages
+    ? extractRequirementsFromStages(stages)
+    : [];
   requirementsV2.push(...fromGost34RequirementItems(input.rawRequirements || []));
 
   const baseCustomRequirements = toGost34RequirementItems(requirementsV2, {

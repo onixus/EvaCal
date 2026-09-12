@@ -88,6 +88,7 @@ export interface Gost34RequirementItem {
   category: RequirementCategory;
   title: string;
   description: string;
+  criterion?: string; // Критерий приемки / проверки (ПМИ)
   sourceFile?: string; // Имя файла вендорского ТЗ/ФТ/ТТ
   /**
    * Immutable source wording. Templates ignore it; it exists so provenance

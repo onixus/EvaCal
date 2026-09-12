@@ -15,10 +15,26 @@ export const CATEGORY_FILTERS = [
 ];
 
 export const CATEGORY_BADGES: Record<string, { label: string; style: string }> = {
-  security: { label: 'ИБ', style: 'bg-red-500/20 text-red-300 border-red-500/30' },
-  reliability: { label: 'НАД', style: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
-  technical: { label: 'ТЕХ', style: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
-  functional: { label: 'ФУНК', style: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
+  security: {
+    label: 'ИБ',
+    style:
+      'bg-rose-50 text-rose-700 border-rose-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30',
+  },
+  reliability: {
+    label: 'НАД',
+    style:
+      'bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30',
+  },
+  technical: {
+    label: 'ТЕХ',
+    style:
+      'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30',
+  },
+  functional: {
+    label: 'ФУНК',
+    style:
+      'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30',
+  },
 };
 
 interface RequirementsTableProps {
@@ -67,7 +83,7 @@ export default function RequirementsTable({
 
       {requirements.length === 0 ? (
         <div className="text-xs text-slate-500 dark:text-nord-muted italic p-6 text-center border border-dashed border-slate-300 dark:border-nord-3 rounded-xl bg-slate-50 dark:bg-nord-1">
-          Требования пока не извлечены. Загрузите файл ТЗ (.docx) выше или добавьте пункты вручную.
+          Требования пока не извлечены. Загрузите файл ТЗ (.docx) выше, выберите готовый шаблон ГОСТ 34 («Шаблоны ТЗ») или добавьте пункты вручную.
         </div>
       ) : (
         <div className={`max-h-72 overflow-y-auto ${SUBPANEL_CLASS}`}>
@@ -129,7 +145,7 @@ export default function RequirementsTable({
                       <div className="truncate">{req.sourceFile || '—'}</div>
                       {req.normalizedBy && (
                         <div
-                          className="inline-block px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px]"
+                          className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30 text-[10px]"
                           title={
                             req.originalText
                               ? `Исходная формулировка: ${req.originalText}`

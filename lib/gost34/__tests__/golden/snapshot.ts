@@ -55,6 +55,7 @@ export function buildGoldenSnapshot(scenario: GoldenScenario): GoldenSnapshot {
   const payload = analyzeAndNormalizeInput({
     calculation: scenario.calculation,
     projectContext: scenario.projectContext,
+    includeStageRequirements: true,
     metadataOverride: {
       docType: scenario.docType,
       standardProfileId: scenario.standardProfileId,

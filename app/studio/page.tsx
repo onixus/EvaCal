@@ -1,19 +1,20 @@
-import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { requireRole } from '@/lib/auth';
+import type { ReviewStage } from '@/lib/gost34/review/types';
+import StudioPickerClient, { type StudioCalculationItem } from './StudioPickerClient';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Студия открывается для конкретного расчёта, поэтому пункт навигации ведёт
- * на выбор расчёта, а не на пустой экран студии без контекста.
+ * на выбор расчёта, с наглядной подсветкой черновиков и отклонённых на ревью комплектов.
  */
 export default async function StudioPickerPage() {
   await requireRole(['architect', 'admin'], '/studio');
 
-  const calculations = await prisma.calculation.findMany({
+  const rows = await prisma.calculation.findMany({
     orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
-    take: 30,
+    take: 50,
     select: {
       id: true,
       name: true,
@@ -21,43 +22,47 @@ export default async function StudioPickerPage() {
       version: true,
       updatedAt: true,
       standardProfileId: true,
+      project: { select: { customer: true } },
+      gostPackages: {
+        orderBy: [{ version: 'desc' }, { updatedAt: 'desc' }],
+        take: 5,
+        select: {
+          id: true,
+          name: true,
+          version: true,
+          status: true,
+          reviewStage: true,
+          reviewComment: true,
+          reviewComments: true,
+          reviewChecklist: true,
+          updatedAt: true,
+          releasedAt: true,
+        },
+      },
     },
   });
 
-  return (
-    <div className="space-y-3">
-      <div>
-        <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
-          Студия ГОСТ 34
-        </h1>
-        <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
-          Выберите расчёт — студия откроет его требования, применимость, трассируемость и выпуск.
-        </p>
-      </div>
+  const calculations: StudioCalculationItem[] = rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    customer: r.project?.customer || r.customer || 'Заказчик',
+    version: r.version,
+    updatedAt: r.updatedAt.toISOString(),
+    standardProfileId: r.standardProfileId,
+    packages: r.gostPackages.map((p) => ({
+      id: p.id,
+      name: p.name,
+      version: p.version,
+      status: p.status,
+      reviewStage: (p.reviewStage === 'gap' ? 'gap' : p.reviewStage === 'done' ? 'done' : 'tw') as ReviewStage,
+      reviewComment: p.reviewComment,
+      reviewComments: p.reviewComments,
+      reviewChecklist: p.reviewChecklist,
+      updatedAt: p.updatedAt.toISOString(),
+      releasedAt: p.releasedAt ? p.releasedAt.toISOString() : null,
+    })),
+  }));
 
-      {calculations.length === 0 ? (
-        <div className="card-flat p-8 text-center text-xs text-slate-500 dark:text-nord-muted">
-          Расчётов пока нет. Создайте первый в пресейл-мастере.
-        </div>
-      ) : (
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {calculations.map((calc) => (
-            <Link
-              key={calc.id}
-              href={`/calculations/${calc.id}/studio`}
-              className="card-flat space-y-1 p-3.5 transition-colors hover:border-slate-300 dark:hover:border-nord-4/30"
-            >
-              <div className="truncate text-xs font-bold text-slate-900 dark:text-nord-6">
-                {calc.name}
-              </div>
-              <div className="text-[10px] text-slate-400 dark:text-nord-muted">
-                {calc.customer} · v{calc.version} ·{' '}
-                {calc.standardProfileId ? 'профиль закреплён' : 'профиль не выбран'}
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  return <StudioPickerClient calculations={calculations} />;
 }
+

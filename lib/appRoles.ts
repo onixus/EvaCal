@@ -55,9 +55,9 @@ export function hasReviewerPowers(role: string | null | undefined): boolean {
 }
 
 /**
- * Тему Dark Fantasy включает администратор, и доступна она архитекторам и
- * администраторам. Для остальных ролей пункт показывается заблокированным —
- * пользователь видит, что тема существует, но не может её включить.
+ * Тема Dark Fantasy доступна только архитекторам и администраторам (staff).
+ * Для остальных пользователей (пресейл, ревьювер, гости) она полностью скрыта
+ * из интерфейса, чтобы не засорять UI недоступным функционалом.
  */
 export function canUseDarkFantasy(role: string | null | undefined): boolean {
   return hasArchitectPowers(role);

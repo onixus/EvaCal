@@ -33,10 +33,10 @@ function SectionList({
 
   const toneClass =
     tone === 'add'
-      ? 'text-emerald-300 border-emerald-500/40'
+      ? 'text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/40'
       : tone === 'remove'
-        ? 'text-red-300 border-red-500/40'
-        : 'text-amber-300 border-amber-500/40';
+        ? 'text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/40'
+        : 'text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-500/40';
 
   return (
     <div className={`${SUBPANEL_CLASS} p-3`}>
@@ -258,7 +258,7 @@ export default function MigrationPanel({
           </div>
 
           {diff.requiresAttention && (
-            <p className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/40 rounded-xl p-3">
+            <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-300 dark:text-amber-300 dark:bg-amber-500/10 dark:border-amber-500/40 rounded-xl p-3">
               Миграция допустима, но после неё документ ещё не готов к согласованию: устраните
               конфликты, нарушения структуры и незаполненные сведения проектного контекста.
             </p>

@@ -119,6 +119,8 @@ export interface WizardReviewInput {
   /** Ручные связи «требование → этап» (шаг «Трассируемость»). */
   manualLinks?: TraceLink[];
   projectContext?: Partial<ProjectContext>;
+  /** Извлекать ли требования из этапов расчёта (по умолчанию false). */
+  includeStageRequirements?: boolean;
 }
 
 /** Результат обзора: всё, что показывают экраны проверки перед выпуском. */

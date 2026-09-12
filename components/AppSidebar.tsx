@@ -138,6 +138,16 @@ export default function AppSidebar() {
                 <span className="truncate">{item.label}</span>
                 {count ? (
                   <span
+                    title={
+                      item.badgeKey === 'studioDrafts'
+                        ? `Требуют внимания: ${count} (черновики и отклонённые комплекты)`
+                        : item.badgeKey === 'gapQueue'
+                          ? `В очереди финального ревью ГАП: ${count}`
+                          : item.badgeKey === 'reviewQueue'
+                            ? `В очереди нормоконтроля: ${count}`
+                            : undefined
+                    }
+                    aria-label={`${item.label}: ${count}`}
                     className={`nums ml-auto rounded-full px-1.5 py-px text-[10px] font-extrabold ${
                       active
                         ? 'bg-brand-600 text-white dark:bg-nord-frost4'
@@ -157,8 +167,7 @@ export default function AppSidebar() {
         <div>
           <div className="label mb-1.5">Тема</div>
           <div className="space-y-0.5">
-            {THEME_ROWS.map((row) => {
-              const locked = row.id === 'dark-fantasy' && !dfAllowed;
+            {THEME_ROWS.filter((row) => row.id !== 'dark-fantasy' || dfAllowed).map((row) => {
               const active = theme === row.id;
 
               return (
@@ -166,24 +175,14 @@ export default function AppSidebar() {
                   key={row.id}
                   type="button"
                   onClick={() => selectTheme(row.id)}
-                  disabled={locked}
-                  title={
-                    locked
-                      ? 'Тему Dark Fantasy включает администратор; доступна ролям Архитектор и Администратор'
-                      : undefined
-                  }
                   className={`flex w-full items-center justify-between rounded-lg border px-2 py-1.5 text-xs font-semibold transition-colors ${
                     active
                       ? 'border-brand-100 bg-brand-50 text-slate-900 dark:border-nord-3 dark:bg-nord-3 dark:text-nord-6'
-                      : locked
-                        ? 'cursor-not-allowed border-transparent text-slate-400 dark:text-nord-muted'
-                        : 'border-transparent text-slate-600 hover:bg-slate-50 dark:text-nord-4 dark:hover:bg-nord-3'
+                      : 'border-transparent text-slate-600 hover:bg-slate-50 dark:text-nord-4 dark:hover:bg-nord-3'
                   }`}
                 >
                   <span>{row.label}</span>
-                  <span className="text-[10px] font-bold">
-                    {locked ? '🔒 админ' : active ? '✓' : ''}
-                  </span>
+                  <span className="text-[10px] font-bold">{active ? '✓' : ''}</span>
                 </button>
               );
             })}

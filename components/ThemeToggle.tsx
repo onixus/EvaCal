@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { applyTheme, resolveTheme, THEME_STORAGE_KEY, Theme } from '@/lib/theme';
+import { canUseDarkFantasy } from '@/lib/appRoles';
 
 const THEMES: { id: Theme; label: string; icon: string; desc: string; badge?: string }[] = [
   {
@@ -28,7 +29,22 @@ const THEMES: { id: Theme; label: string; icon: string; desc: string; badge?: st
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>('light');
   const [isOpen, setIsOpen] = useState(false);
+  const [dfAllowed, setDfAllowed] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const allowed = canUseDarkFantasy(data?.session?.role);
+        setDfAllowed(allowed);
+        if (!allowed && resolveTheme() === 'dark-fantasy') {
+          localStorage.setItem(THEME_STORAGE_KEY, 'light');
+          applyTheme('light');
+        }
+      })
+      .catch(() => setDfAllowed(false));
+  }, []);
 
   useEffect(() => {
     setTheme(resolveTheme());
@@ -36,6 +52,8 @@ export default function ThemeToggle() {
       const customEvent = e as CustomEvent<{ theme: Theme }>;
       if (customEvent.detail?.theme) {
         setTheme(customEvent.detail.theme);
+      } else {
+        setTheme(resolveTheme());
       }
     };
     window.addEventListener('evacal-theme-change', handler);
@@ -53,7 +71,12 @@ export default function ThemeToggle() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const availableThemes = useMemo(() => {
+    return THEMES.filter((t) => t.id !== 'dark-fantasy' || dfAllowed);
+  }, [dfAllowed]);
+
   function selectTheme(next: Theme) {
+    if (next === 'dark-fantasy' && !dfAllowed) return;
     setTheme(next);
     localStorage.setItem(THEME_STORAGE_KEY, next);
     applyTheme(next);
@@ -61,8 +84,8 @@ export default function ThemeToggle() {
   }
 
   function cycleTheme() {
-    const currentIndex = THEMES.findIndex((t) => t.id === theme);
-    const nextTheme = THEMES[(currentIndex + 1) % THEMES.length].id;
+    const currentIndex = availableThemes.findIndex((t) => t.id === theme);
+    const nextTheme = availableThemes[(currentIndex + 1) % availableThemes.length].id;
     selectTheme(nextTheme);
   }
 
@@ -71,7 +94,7 @@ export default function ThemeToggle() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         aria-label="Выбрать тему интерфейса"
-        title={`Текущая тема: ${THEMES.find((t) => t.id === theme)?.label || theme}`}
+        title={`Текущая тема: ${availableThemes.find((t) => t.id === theme)?.label || theme}`}
         className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all ${
           theme === 'dark-fantasy'
             ? 'border border-purple-500/50 bg-purple-950/40 text-purple-200 shadow-[0_0_12px_rgba(168,85,247,0.35)] hover:bg-purple-900/60'
@@ -96,7 +119,7 @@ export default function ThemeToggle() {
           </div>
 
           <div className="space-y-1">
-            {THEMES.map((t) => {
+            {availableThemes.map((t) => {
               const active = t.id === theme;
               return (
                 <button

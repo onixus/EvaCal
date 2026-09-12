@@ -62,7 +62,7 @@ export default function VendorDocUpload({
           </p>
         </div>
         {uploadedFiles.length > 0 && (
-          <span className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+          <span className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40">
             ✓ Загружено файлов: {uploadedFiles.length}
           </span>
         )}
@@ -89,7 +89,7 @@ export default function VendorDocUpload({
       </label>
 
       {uploadError && (
-        <div className="text-[11px] text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+        <div className="text-[11px] text-rose-800 bg-rose-50 border border-rose-200 dark:text-red-300 dark:bg-red-500/10 dark:border-red-500/30 rounded-lg px-3 py-2">
           {uploadError}
         </div>
       )}

@@ -150,6 +150,41 @@ describe('Industry Presets Library', () => {
     expect(totalHours).toBe(406);
   });
 
+  it('correctly calculates labor hours for new ERP, Fintech, and Data Lake presets', () => {
+    const erp = INDUSTRY_PRESETS.find((p) => p.id === 'preset-erp-crm-enterprise')!;
+    expect(erp).toBeDefined();
+    const erpStages = primaryStagesFromTemplate(erp.stageTemplates, {
+      modules_count: 5,
+      workplaces_count: 100,
+      legacy_databases_count: 2,
+      integrations_count: 4,
+    });
+    expect(erpStages).toHaveLength(6);
+    expect(erpStages.every((s) => s.hours > 0)).toBe(true);
+
+    const fintech = INDUSTRY_PRESETS.find((p) => p.id === 'preset-fintech-banking-platform')!;
+    expect(fintech).toBeDefined();
+    const fintechStages = primaryStagesFromTemplate(fintech.stageTemplates, {
+      payment_methods_count: 4,
+      accounts_scale_thousands: 50,
+      crypto_gateways_count: 2,
+      interfaces_count: 3,
+    });
+    expect(fintechStages).toHaveLength(6);
+    expect(fintechStages.every((s) => s.hours > 0)).toBe(true);
+
+    const dataLake = INDUSTRY_PRESETS.find((p) => p.id === 'preset-data-lake-bi-platform')!;
+    expect(dataLake).toBeDefined();
+    const dataLakeStages = primaryStagesFromTemplate(dataLake.stageTemplates, {
+      sources_count: 6,
+      data_volume_tb: 20,
+      data_marts_count: 4,
+      bi_dashboards_count: 10,
+    });
+    expect(dataLakeStages).toHaveLength(6);
+    expect(dataLakeStages.every((s) => s.hours > 0)).toBe(true);
+  });
+
   it('preserves risk template integrity', () => {
     for (const preset of INDUSTRY_PRESETS) {
       const risks = risksFromTemplate(preset.riskTemplates);

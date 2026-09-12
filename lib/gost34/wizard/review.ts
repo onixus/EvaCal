@@ -23,6 +23,7 @@ export function buildWizardReview(
     rawRequirements: input.rawRequirements,
     vendorFiles: input.vendorFiles,
     projectContext: input.projectContext,
+    includeStageRequirements: input.includeStageRequirements,
     metadataOverride: {
       standardProfileId: input.standardProfileId,
       /**

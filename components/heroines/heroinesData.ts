@@ -130,3 +130,174 @@ export const HEROINES: Heroine[] = [
     },
   },
 ];
+
+export function getHeroineLoreAdvice(
+  heroineId: string,
+  pathname: string,
+): { title: string; text: string } {
+  const isStudio = pathname.includes('/studio');
+  const isCalc = pathname.includes('/calculations/') && !isStudio;
+  const isPresale = pathname.includes('/presale');
+  const isReview = pathname.includes('/review');
+  const isAgents = pathname.includes('/agents');
+
+  switch (heroineId) {
+    case 'morgana':
+      if (isStudio) {
+        return {
+          title: 'Око Архимага на страже ТЗ',
+          text: 'В Студии ГОСТ 34 сплетаются контуры разделов 4 и 6. Помни: требования к системе должны быть неизмеримо чисты, а интеграторские этапы — лежать в разделе работ.',
+        };
+      }
+      if (isAgents) {
+        return {
+          title: 'Астральный резонанс харнесса',
+          text: 'Внешние агенты — словно фамильяры. Проверь отклик через пинг, чтобы ни один сбой сети не нарушил консилиум ревью.',
+        };
+      }
+      if (isCalc) {
+        return {
+          title: 'Архитектурный надзор сметы',
+          text: 'Каждый трудовой этап здесь питает матрицу трассируемости. Следи за связностью ролей архитектора и ведущих разработчиков.',
+        };
+      }
+      return {
+        title: 'Взор Бездны',
+        text: 'Архитектура системы стабильна. Магические потоки данных и технические задания под моим непрерывным надзором.',
+      };
+
+    case 'eir':
+      if (isCalc) {
+        return {
+          title: 'Боевой строй трудозатрат',
+          text: 'Часы измерены сталью! Не забывай про рисковую надбавку — она прикроет бюджет от внезапных атак заказчика.',
+        };
+      }
+      if (isStudio) {
+        return {
+          title: 'План битвы по ГОСТ',
+          text: 'Раздел 6 — это наш боевой график. Проверь даты вех и трудоёмкость пусконаладки, дедлайны не ждут!',
+        };
+      }
+      if (isAgents) {
+        return {
+          title: 'Харнесс-дозор наготове',
+          text: 'Боевые агенты готовы к штурму комплектов. Отправь пинг и убедись, что строй не дрогнет под нагрузкой.',
+        };
+      }
+      return {
+        title: 'Щит Валькирии',
+        text: 'Все сметы проверены, сроки защищены. Ни один человеко-час не будет потрачен впустую!',
+      };
+
+    case 'selene':
+      if (isStudio || isReview) {
+        return {
+          title: 'Лунный Оракул нормативов',
+          text: 'Печать ГОСТ 34.602 и штампы ГОСТ 2.104 освящены лунным светом. Следи за измеримостью формулировок и подписями нормоконтроля.',
+        };
+      }
+      if (isAgents) {
+        return {
+          title: 'Аудит внешних оракулов',
+          text: 'Харнесс-агенты помогают выявить скрытые пороки в тексте ТЗ. Проверь их готовность к валидации.',
+        };
+      }
+      return {
+        title: 'Благословение ГОСТ',
+        text: 'Каноны стандартов РФ соблюдены. Проект движется по истинному пути нормативной безупречности.',
+      };
+
+    case 'lilith':
+    default:
+      if (isPresale) {
+        return {
+          title: 'Чары прибыльного опросника',
+          text: 'Задай правильные вопросы в опроснике, милый! Чем глубже детализация, тем выше маржа и надежнее контракт.',
+        };
+      }
+      if (isCalc) {
+        return {
+          title: 'Соблазн маржинальности',
+          text: 'Маржа выглядит великолепно! Не давай заказчику сбивать ставку без встречных уступок по предоплате.',
+        };
+      }
+      if (isAgents) {
+        return {
+          title: 'Тайные шпионы пресейла',
+          text: 'Подключенные агенты найдут все уязвимости до того, как их заметит клиент. Держи их на коротком поводке!',
+        };
+      }
+      return {
+        title: 'Багровая удача',
+        text: 'Вероятности на нашей стороне. Коммерческое предложение поразит заказчика в самое сердце!',
+      };
+  }
+}
+
+export function getHeroineHarnessPingLore(
+  heroineId: string,
+  agentName: string,
+  success: boolean,
+  errorMsg?: string,
+): string {
+  if (success) {
+    switch (heroineId) {
+      case 'morgana':
+        return `«Астральный канал с агентом «${agentName}» кристально чист. Эхо-сигнал 200 OK вернулся без помех.»`;
+      case 'eir':
+        return `«Агент «${agentName}» подтвердил боеготовность! Связь устойчива, дозор на позиции.»`;
+      case 'selene':
+        return `«Лунный луч коснулся агента «${agentName}». Ответ получен, шлюз готов к проверке нормативов.»`;
+      case 'lilith':
+      default:
+        return `«Агент «${agentName}» послушно отозвался на мой зов. Канал связи налажен безупречно, милый.»`;
+    }
+  } else {
+    const err = errorMsg ? ` (${errorMsg})` : '';
+    switch (heroineId) {
+      case 'morgana':
+        return `«Астральный разрыв! Агент «${agentName}» не отвечает${err}. Проверь endpoint и сетевые барьеры.»`;
+      case 'eir':
+        return `«Агент «${agentName}» потерял строй${err}! Сигнал заглушен, требуется перезапуск контура.»`;
+      case 'selene':
+        return `«Тьма скрыла агента «${agentName}»${err}. Запрос отвергнут, проверь конфигурацию шлюза.»`;
+      case 'lilith':
+      default:
+        return `«Упс... Агент «${agentName}» капризничает и не отвечает${err}. Загляни в настройки, сладкий.»`;
+    }
+  }
+}
+
+export function getHeroineHarnessReviewLore(
+  heroineId: string,
+  agentName: string,
+  findingsCount: number,
+): string {
+  if (findingsCount === 0) {
+    switch (heroineId) {
+      case 'morgana':
+        return `«Агент «${agentName}» завершил ревью: чистота архитектуры абсолютна, замечаний нет!»`;
+      case 'eir':
+        return `«Агент «${agentName}» провел инспекцию: строй без единой бреши, 0 замечаний!»`;
+      case 'selene':
+        return `«Агент «${agentName}» одобрил комплект: полное соответствие канонам, 0 замечаний!»`;
+      case 'lilith':
+      default:
+        return `«Агент «${agentName}» в восторге от комплекта: всё гладко, ни одной претензии!»`;
+    }
+  } else {
+    switch (heroineId) {
+      case 'morgana':
+        return `«Агент «${agentName}» извлёк ${findingsCount} находок. Ознакомься с ними, чтобы укрепить контуры.»`;
+      case 'eir':
+        return `«Внимание! Агент «${agentName}» докладывает о ${findingsCount} уязвимостях в комплекте. Требуется правка!»`;
+      case 'selene':
+        return `«Агент «${agentName}» выявил ${findingsCount} пунктов, требующих нормативного внимания.»`;
+      case 'lilith':
+      default:
+        return `«Агент «${agentName}» нашёл ${findingsCount} зацепок. Давай отшлифуем их до идеала!»`;
+    }
+  }
+}
+

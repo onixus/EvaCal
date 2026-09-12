@@ -225,8 +225,8 @@ describe('обзор мастера', () => {
     risks: [{ id: 'risk-1', description: 'Задержка поставки оборудования', hours: 20 }],
   };
 
-  it('собирает требования, этапы, применимость и трассировку из расчёта', () => {
-    const review = buildWizardReview({ calculation });
+  it('собирает требования, этапы, применимость и трассировку из расчёта при включённом извлечении', () => {
+    const review = buildWizardReview({ calculation, includeStageRequirements: true });
 
     expect(review.profile.id).toBe(CURRENT_GOST34_PROFILE_ID);
     expect(review.stages).toHaveLength(2);
@@ -234,6 +234,15 @@ describe('обзор мастера', () => {
     expect(review.applicability.results.length).toBeGreaterThan(0);
     expect(review.traceability.metrics.totalRequirements).toBe(review.requirements.length);
     expect(review.compliance.steps).toHaveLength(WIZARD_STEP_IDS.length);
+  });
+
+  it('не превращает этапы расчёта в системные требования по умолчанию', () => {
+    const review = buildWizardReview({ calculation });
+
+    // Системные требования по умолчанию не берутся из этапов расчёта
+    expect(review.requirements).toHaveLength(0);
+    // Но сами этапы интегратора полностью присутствуют для Раздела 6 и трассировки
+    expect(review.stages).toHaveLength(2);
   });
 
   it('не подмешивает нормативное обогащение в экран проверки требований', () => {
@@ -335,11 +344,12 @@ describe('обзор мастера', () => {
   });
 
   it('засчитывает ручные связи трассировки', () => {
-    const base = buildWizardReview({ calculation });
+    const base = buildWizardReview({ calculation, includeStageRequirements: true });
     const unmapped = base.traceability.metrics.unmappedRequirements;
 
     const linked = buildWizardReview({
       calculation,
+      includeStageRequirements: true,
       manualLinks: base.requirements.map((req) => ({
         sourceId: req.id,
         targetId: 'stage-1',

@@ -3,18 +3,23 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { WizardStepProps } from '../wizardShared';
 import type { Gost34DocumentAST, Gost34Section, Gost34TableData } from '@/lib/gost34/types';
+import type { SectionComment } from '@/lib/gost34/review/types';
 
 interface DocumentPreviewStepProps extends WizardStepProps {
   calculationId: string;
   onUpdateSectionOverrides: (
     overrides: Record<string, { title?: string; paragraphs?: string[] }>,
   ) => void;
+  reviewComments?: SectionComment[];
+  selectedSectionAnchor?: string | null;
 }
 
 export default function DocumentPreviewStep({
   decisions,
   calculationId,
   onUpdateSectionOverrides,
+  reviewComments,
+  selectedSectionAnchor,
 }: DocumentPreviewStepProps) {
   const [ast, setAst] = useState<Gost34DocumentAST | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,6 +121,35 @@ export default function DocumentPreviewStep({
     });
   }, [flatSections, searchQuery]);
 
+  // Auto-scroll and open edit mode for selectedSectionAnchor
+  useEffect(() => {
+    if (!selectedSectionAnchor || flatSections.length === 0) return;
+    const target = selectedSectionAnchor.trim().toLowerCase();
+    const matched = flatSections.find((s) => {
+      const titleLower = s.section.title.toLowerCase();
+      return (
+        titleLower === target ||
+        titleLower.includes(target) ||
+        target.includes(titleLower) ||
+        (target.startsWith('3') && titleLower.startsWith('3')) ||
+        (target.startsWith('4') && titleLower.startsWith('4')) ||
+        (target.startsWith('6') && titleLower.startsWith('6'))
+      );
+    });
+    if (matched) {
+      setActiveSectionTitle(matched.section.title);
+      startEditing(matched.section);
+      setTimeout(() => {
+        const el = document.getElementById(`sec-${encodeURIComponent(matched.section.title)}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('field-flash');
+          setTimeout(() => el.classList.remove('field-flash'), 2100);
+        }
+      }, 100);
+    }
+  }, [selectedSectionAnchor, flatSections]);
+
   function startEditing(sec: Gost34Section) {
     setEditingSectionTitle(sec.title);
     setEditParagraphs((sec.paragraphs || []).join('\n\n'));
@@ -173,16 +207,10 @@ export default function DocumentPreviewStep({
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {table.rows.map((row, rIdx) => (
-              <tr
-                key={rIdx}
-                className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"
-              >
+              <tr key={rIdx} className="hover:bg-slate-50/50 dark:hover:bg-nord-2">
                 {row.map((cell, cIdx) => (
-                  <td
-                    key={cIdx}
-                    className="px-3 py-2 text-slate-800 dark:text-slate-800 dark:text-nord-5 align-top"
-                  >
-                    {String(cell)}
+                  <td key={cIdx} className="px-3 py-2 text-slate-600 dark:text-nord-4">
+                    {cell}
                   </td>
                 ))}
               </tr>
@@ -197,6 +225,21 @@ export default function DocumentPreviewStep({
     const isEditing = editingSectionTitle === sec.title;
     const isOverridden = !!sectionOverrides[sec.title];
 
+    const titleLower = sec.title.toLowerCase();
+    const sectionReviewComments = (reviewComments || []).filter((c) => {
+      const cLower = c.sectionId.toLowerCase();
+      return (
+        cLower === titleLower ||
+        titleLower.includes(cLower) ||
+        cLower.includes(titleLower) ||
+        (cLower.startsWith('3') && titleLower.startsWith('3')) ||
+        (cLower.startsWith('4') && titleLower.startsWith('4')) ||
+        (cLower.startsWith('6') && titleLower.startsWith('6'))
+      );
+    });
+
+    const hasComments = sectionReviewComments.length > 0;
+
     return (
       <div
         key={sec.title}
@@ -204,9 +247,50 @@ export default function DocumentPreviewStep({
         className={`p-4 rounded-xl border transition-all ${
           activeSectionTitle === sec.title
             ? 'border-brand-500 bg-brand-50/10 dark:border-brand-500/80'
-            : 'border-slate-200/80 dark:border-slate-200 dark:border-nord-3 bg-white dark:bg-nord-dark'
+            : hasComments
+              ? 'border-rose-300 bg-rose-50/20 dark:border-nord-red/40 dark:bg-nord-red/5'
+              : 'border-slate-200/80 dark:border-slate-200 dark:border-nord-3 bg-white dark:bg-nord-dark'
         }`}
       >
+        {/* Замечания ревьювера к разделу */}
+        {hasComments && (
+          <div className="mb-3 space-y-1.5 rounded-lg border border-rose-200 bg-rose-50/80 p-2.5 dark:border-nord-red/40 dark:bg-nord-red/10">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold text-rose-900 dark:text-nord-redText">
+              <span>⚠️</span>
+              <span>Замечания ревьювера к разделу «{sec.title}» ({sectionReviewComments.length}):</span>
+            </div>
+            <div className="space-y-1">
+              {sectionReviewComments.map((c) => (
+                <div key={c.id} className="flex flex-wrap items-start gap-1.5 text-xs">
+                  <span
+                    className={
+                      c.severity === 'blocker'
+                        ? 'chip-block'
+                        : c.severity === 'remark'
+                          ? 'chip-warn'
+                          : 'chip-muted'
+                    }
+                  >
+                    {c.severity === 'blocker'
+                      ? 'блокер'
+                      : c.severity === 'remark'
+                        ? 'замечание'
+                        : 'предложение'}
+                  </span>
+                  <span className="font-medium text-slate-800 dark:text-nord-5 leading-relaxed">
+                    {c.text}
+                  </span>
+                  {c.author && (
+                    <span className="ml-auto text-[10px] text-slate-400 dark:text-nord-muted">
+                      {c.author}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-200 dark:border-nord-3 pb-2.5 mb-3">
           <div className="flex items-center gap-2">
             <h4
@@ -219,6 +303,11 @@ export default function DocumentPreviewStep({
             {isOverridden && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-700 dark:text-nord-yellow font-medium">
                 Изменён вручную
+              </span>
+            )}
+            {hasComments && (
+              <span className="chip-block text-[10px]">
+                требует правок
               </span>
             )}
           </div>

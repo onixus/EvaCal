@@ -789,6 +789,14 @@ export default function ProjectDetailClient({ project }: { project: SerializedPr
                           >
                             🔗 Поделиться
                           </button>
+                          {pkg.status === 'rejected' && pkg.calculation && (
+                            <Link
+                              href={`/calculations/${pkg.calculation.id}/studio`}
+                              className="btn-primary !bg-rose-600 hover:!bg-rose-700 dark:!bg-nord-red !py-1 !px-2.5 text-xs font-bold"
+                            >
+                              ✏️ Исправить в Студии
+                            </Link>
+                          )}
                           {pkg.status !== 'approved' && (
                             <>
                               <button

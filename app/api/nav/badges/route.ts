@@ -25,12 +25,16 @@ export async function GET() {
     }
 
     if (hasArchitectPowers(session.role)) {
-      const [gapQueue, studioDrafts] = await Promise.all([
+      const [gapQueue, studioDrafts, studioRejected] = await Promise.all([
         prisma.gostPackage.count({ where: { status: 'under_review', reviewStage: 'gap' } }),
         prisma.gostPackage.count({ where: { status: 'draft' } }),
+        prisma.gostPackage.count({ where: { status: 'rejected' } }),
       ]);
       badges.gapQueue = gapQueue;
-      badges.studioDrafts = studioDrafts;
+      // В Студии архитектор работает с незавершёнными черновиками и комплектами,
+      // возвращёнными с замечаниями ревьювера.
+      badges.studioDrafts = studioDrafts + studioRejected;
+      badges.studioRejected = studioRejected;
     }
 
     return NextResponse.json({ badges });
