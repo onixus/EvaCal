@@ -8,7 +8,7 @@ import {
 } from '@/lib/access';
 import { clientIp, writeAudit } from '@/lib/audit';
 
-const ALLOWED_SCOPES: ShareScope[] = ['read', 'write', 'export', 'create'];
+const ALLOWED_SCOPES: ShareScope[] = ['read', 'write', 'export', 'create', 'review'];
 
 /**
  * Staff issues a short-lived share token for a calculation (Horizon A2).

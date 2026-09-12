@@ -68,6 +68,30 @@ const LEGACY_DOCUMENT_TYPES: DocumentProfile[] = [
     zipOrder: 5,
     sections: [],
   },
+  {
+    id: 'legacy-89-psi',
+    docType: 'PSI',
+    title: 'ПРОТОКОЛ ИСПЫТАНИЙ',
+    standardCitation: 'ГОСТ 34.603-92',
+    shortLabel: 'ПСИ',
+    uiTitle: 'ПСИ — Протокол испытаний',
+    uiDescription: 'Фактические результаты проведения приемо-сдаточных испытаний.',
+    filenameBase: 'Протокол_испытаний_ГОСТ_34.603-92',
+    zipOrder: 6,
+    sections: [],
+  },
+  {
+    id: 'legacy-89-act',
+    docType: 'ACT',
+    title: 'АКТ ПРИЕМКИ',
+    standardCitation: 'ГОСТ 34.603-92',
+    shortLabel: 'АКТ',
+    uiTitle: 'АКТ — Акт о приемке',
+    uiDescription: 'Официальный акт о приемке системы в опытную или промышленную эксплуатацию.',
+    filenameBase: 'Акт_приемки_ГОСТ_34.603-92',
+    zipOrder: 7,
+    sections: [],
+  },
 ];
 
 /**
@@ -110,6 +134,18 @@ const CURRENT_DOCUMENT_TYPES: DocumentProfile[] = [
     id: 'gost34-2020-spec',
     standardCitation: 'ГОСТ 34.201-2020',
     filenameBase: 'Спецификация_оборудования_и_ПО_ГОСТ_34.201-2020',
+  },
+  {
+    ...LEGACY_DOCUMENT_TYPES[5],
+    id: 'gost34-2020-psi',
+    standardCitation: 'ГОСТ Р 59792-2021',
+    filenameBase: 'Протокол_испытаний_ГОСТ_Р_59792-2021',
+  },
+  {
+    ...LEGACY_DOCUMENT_TYPES[6],
+    id: 'gost34-2020-act',
+    standardCitation: 'ГОСТ Р 59792-2021',
+    filenameBase: 'Акт_приемки_ГОСТ_Р_59792-2021',
   },
 ];
 

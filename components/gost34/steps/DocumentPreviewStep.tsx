@@ -46,6 +46,7 @@ export default function DocumentPreviewStep({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             calculationId,
+            docType: decisions.docType,
             rawRequirements: decisions.rawRequirements,
             standardProfileId: decisions.standardProfileId,
             applicabilityOverrides: decisions.applicabilityOverrides,
@@ -83,6 +84,7 @@ export default function DocumentPreviewStep({
     };
   }, [
     calculationId,
+    decisions.docType,
     decisions.rawRequirements,
     decisions.standardProfileId,
     decisions.applicabilityOverrides,

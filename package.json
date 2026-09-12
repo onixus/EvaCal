@@ -17,7 +17,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:backfill-projects": "tsx scripts/backfill-projects.ts",
     "format": "prettier --write .",
-    "prepare": "if [ -z \"$CI\" ]; then npm run format && npm run typecheck; fi"
+    "prepare": "if [ -z \"$CI\" ]; then npm run format && npm run typecheck; fi",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.9.1",
@@ -35,6 +36,7 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.10",
     "@types/pdfkit": "^0.17.6",
