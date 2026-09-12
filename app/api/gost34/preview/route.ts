@@ -2,27 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadCalculationForExport } from '@/lib/export';
 import { analyzeAndNormalizeInput } from '@/lib/gost34/analyzer';
 import { buildGost34DocumentAST } from '@/lib/gost34/generator';
-import { Gost34Section } from '@/lib/gost34/types';
+import { applySectionOverrides } from '@/lib/gost34/index';
+import { overlaysForDocument } from '@/lib/gost34/llm/tzAuthor/project';
+import { GostDocumentType } from '@/lib/gost34/types';
 import { requireCalcAccess } from '@/lib/access';
 import { handleApiError } from '@/lib/apiHelpers';
 
 export const dynamic = 'force-dynamic';
-
-function applySectionOverrides(
-  sections: Gost34Section[],
-  overrides: Record<string, { title?: string; paragraphs?: string[] }>,
-): Gost34Section[] {
-  return sections.map((sec) => {
-    const override = overrides[sec.title];
-    const updatedSec = {
-      ...sec,
-      title: override?.title ?? sec.title,
-      paragraphs: override?.paragraphs ?? sec.paragraphs,
-      subsections: sec.subsections ? applySectionOverrides(sec.subsections, overrides) : undefined,
-    };
-    return updatedSec;
-  });
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,6 +23,7 @@ export async function POST(req: NextRequest) {
       manualLinks = [],
       projectContext,
       sectionOverrides = {},
+      tzAuthor,
     } = body;
 
     if (!calculationId) {
@@ -65,9 +52,16 @@ export async function POST(req: NextRequest) {
     });
 
     const astWithDiagnostics = buildGost34DocumentAST(normalizedPayload);
+    
+    const effectiveOverrides = overlaysForDocument({
+      docType: docType as GostDocumentType,
+      sectionOverrides,
+      tzAuthor,
+    });
+
     const overriddenSections =
-      Object.keys(sectionOverrides).length > 0
-        ? applySectionOverrides(astWithDiagnostics.sections, sectionOverrides)
+      Object.keys(effectiveOverrides).length > 0
+        ? applySectionOverrides(astWithDiagnostics.sections, effectiveOverrides)
         : astWithDiagnostics.sections;
 
     return NextResponse.json({
