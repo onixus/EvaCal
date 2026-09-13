@@ -38,7 +38,7 @@ export { TZ_SCHEMA_2020 } from './schema/tz34-2020';
 export { renderDocumentSchema, validateSchemaCoverage } from './schema/renderer';
 export type { DocumentSchema, SchemaNode, SchemaValidationIssue } from './schema/types';
 
-const CLAUSE_PREFIX = /^\d+(?:\.\d+)*\s+/;
+const CLAUSE_PREFIX = /^\d+(?:\.\d+)*[\.)]?\s+/;
 
 export function stripClausePrefix(text: string): string {
   return text.replace(CLAUSE_PREFIX, '').trim();

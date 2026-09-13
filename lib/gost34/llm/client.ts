@@ -69,7 +69,13 @@ export async function probeProvider(
         ? `${cleanEndpoint}/models`
         : `${cleanEndpoint}/v1/models`;
 
-      const res = await fetchWithTimeout(modelsUrl, { method: 'GET' }, LLM_PROBE_TIMEOUT_MS);
+      const apiKey = getProviderApiKey(provider);
+      const headers: Record<string, string> = {};
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+
+      const res = await fetchWithTimeout(modelsUrl, { method: 'GET', headers }, LLM_PROBE_TIMEOUT_MS);
       if (res.ok) {
         const data = (await res.json()) as { data?: OpenAiModelItem[] };
         const models = (data.data || [])
@@ -88,7 +94,7 @@ export async function probeProvider(
 export async function chatCompletion(req: LlmChatRequest): Promise<LlmChatResult> {
   const start = Date.now();
   const cleanEndpoint = req.provider.endpoint.replace(/\/+$/, '');
-  const apiKey = getProviderApiKey(req.provider.id);
+  const apiKey = getProviderApiKey(req.provider);
 
   if (req.provider.kind === 'openai_compatible') {
     const chatUrl = cleanEndpoint.endsWith('/v1')
