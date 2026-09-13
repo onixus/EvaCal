@@ -1,0 +1,44 @@
+{
+  "name": "clause-numbers-ignored",
+  "pack": {
+    "node": {
+      "id": "tz2020-req-structure",
+      "title": "Раздел",
+      "required": true,
+      "numStr": "1",
+      "hasChildren": false,
+      "leadInOnly": false
+    },
+    "baseline": {
+      "paragraphs": [],
+      "tableCaptions": [],
+      "gapPaths": [],
+      "gaps": []
+    },
+    "requirements": [],
+    "contextSlice": {},
+    "provenance": [],
+    "applicability": [
+      {
+        "standardId": "fstek_21",
+        "title": "Приказ ФСТЭК России № 21",
+        "finalStatus": "UNKNOWN"
+      }
+    ],
+    "calculationFacts": null,
+    "allowedCitationIds": [
+      "gost-34.602-2020"
+    ],
+    "allowedCitationTexts": [
+      "ГОСТ 34.602-2020"
+    ],
+    "speculate": false
+  },
+  "baselineParagraphs": [
+    "4.1.1 Система должна функционировать штатно."
+  ],
+  "draftParagraphs": [
+    "4.1.2 Система должна функционировать штатно."
+  ],
+  "expectedFlagCodes": []
+}

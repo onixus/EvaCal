@@ -1,0 +1,46 @@
+{
+  "name": "referencesList-must-not-bless",
+  "pack": {
+    "node": {
+      "id": "tz2020-general",
+      "title": "Раздел",
+      "required": true,
+      "numStr": "1",
+      "hasChildren": false,
+      "leadInOnly": false
+    },
+    "baseline": {
+      "paragraphs": [],
+      "tableCaptions": [],
+      "gapPaths": [],
+      "gaps": []
+    },
+    "requirements": [],
+    "contextSlice": {},
+    "provenance": [],
+    "applicability": [
+      {
+        "standardId": "fstek_21",
+        "title": "Приказ ФСТЭК России № 21",
+        "finalStatus": "UNKNOWN"
+      }
+    ],
+    "calculationFacts": null,
+    "allowedCitationIds": [
+      "gost-34.602-2020"
+    ],
+    "allowedCitationTexts": [
+      "ГОСТ 34.602-2020"
+    ],
+    "speculate": false
+  },
+  "baselineParagraphs": [
+    "Система создается в соответствии с ГОСТ 34.602-2020."
+  ],
+  "draftParagraphs": [
+    "Система должна соответствовать Приказу ФСТЭК России № 21."
+  ],
+  "expectedFlagCodes": [
+    "LLM_INVENTED_NORM"
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "name": "cross-unit-200ms-vs-0.2s",
+  "pack": {
+    "node": {
+      "id": "tz2020-req-common-tech",
+      "title": "Раздел",
+      "required": true,
+      "numStr": "1",
+      "hasChildren": false,
+      "leadInOnly": false
+    },
+    "baseline": {
+      "paragraphs": [],
+      "tableCaptions": [],
+      "gapPaths": [],
+      "gaps": []
+    },
+    "requirements": [],
+    "contextSlice": {},
+    "provenance": [],
+    "applicability": [
+      {
+        "standardId": "fstek_21",
+        "title": "Приказ ФСТЭК России № 21",
+        "finalStatus": "UNKNOWN"
+      }
+    ],
+    "calculationFacts": null,
+    "allowedCitationIds": [
+      "gost-34.602-2020"
+    ],
+    "allowedCitationTexts": [
+      "ГОСТ 34.602-2020"
+    ],
+    "speculate": false
+  },
+  "baselineParagraphs": [
+    "Время отклика не более 200 мс."
+  ],
+  "draftParagraphs": [
+    "Время отклика не более 0,2 с."
+  ],
+  "expectedFlagCodes": [
+    "LLM_ADDED_NUMBER",
+    "LLM_REMOVED_CONSTRAINT"
+  ],
+  "expectedSeverities": [
+    "block",
+    "block"
+  ]
+}
