@@ -24,10 +24,15 @@ const APPENDIX_LETTERS = [
 
 export function walkDraftableNodes(
   schema: DocumentSchema,
-  ctx: DocumentBuildContext | { context: ProjectContext; [key: string]: any },
+  ctx?: Partial<DocumentBuildContext> | { context?: Partial<ProjectContext>; [key: string]: any },
 ): DraftableNodeInfo[] {
   const result: DraftableNodeInfo[] = [];
-  const buildCtx = ctx as DocumentBuildContext;
+  const buildCtx = {
+    context: {},
+    requirements: [],
+    payload: { metadata: {} },
+    ...(ctx || {}),
+  } as unknown as DocumentBuildContext;
 
   const bodyNodes = schema.nodes.filter((n) => !n.appendix);
   const appendixNodes = schema.nodes.filter((n) => n.appendix);

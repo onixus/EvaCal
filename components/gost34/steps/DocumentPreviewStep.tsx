@@ -8,6 +8,7 @@ import { type TzAuthorState, TZ_AUTHOR_PROMPT_VERSION } from '@/lib/gost34/llm/t
 import { useLlmProvider } from '../hooks/useLlmProvider';
 import LlmSettingsPanel from './requirements/LlmSettingsPanel';
 import TzDraftReviewPanel from './TzDraftReviewPanel';
+import { useTzAuthorBatch } from '../hooks/useTzAuthorBatch';
 import { getShareToken, withShareHeaders } from '@/lib/shareClient';
 
 interface DocumentPreviewStepProps extends WizardStepProps {
@@ -206,6 +207,39 @@ export default function DocumentPreviewStep({
         sec.id !== 'tz2020-requirements',
     );
   }
+
+  const draftableNodes = useMemo(() => {
+    return flatSections
+      .map((s) => s.section)
+      .filter((sec) => isDraftableSection(sec))
+      .map((sec) => ({ id: sec.id, title: sec.title }));
+  }, [flatSections, canUseTzAuthor]);
+
+  const batch = useTzAuthorBatch({
+    calculationId,
+    providerId: llmProviderId,
+    model: llmSelectedModel,
+    rawRequirements: decisions.rawRequirements,
+    applicabilityOverrides: decisions.applicabilityOverrides,
+    manualLinks: decisions.manualLinks,
+    standardProfileId: decisions.standardProfileId,
+    tzAuthor: decisions.tzAuthor,
+    onUpdateTzAuthor,
+  });
+
+  const unproposedDraftCount = useMemo(() => {
+    const proposals = decisions.tzAuthor?.proposals || {};
+    return draftableNodes.filter(
+      (n) => !proposals[n.id] || proposals[n.id].status === 'REJECTED',
+    ).length;
+  }, [draftableNodes, decisions.tzAuthor]);
+
+  const acceptedCount = useMemo(() => {
+    const proposals = decisions.tzAuthor?.proposals || {};
+    return Object.values(proposals).filter(
+      (p) => p.status === 'ACCEPTED' || p.status === 'ACCEPTED_EDITED',
+    ).length;
+  }, [decisions.tzAuthor]);
 
   function findSectionById(
     sections: Gost34Section[] | undefined,
@@ -644,7 +678,7 @@ export default function DocumentPreviewStep({
                   handleAcceptDraft(sec.id, paragraphs, isEdited)
                 }
                 onReset={() => handleResetDraft(sec.id)}
-                disabled={generatingNodeId !== null && generatingNodeId !== sec.id}
+                disabled={batch.isRunning || (generatingNodeId !== null && generatingNodeId !== sec.id)}
               />
             )}
 
@@ -699,37 +733,139 @@ export default function DocumentPreviewStep({
 
         {/* Top LLM Controls Bar */}
         {canUseTzAuthor && (
-          <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-indigo-100 bg-indigo-50/50 p-2.5 dark:border-nord-blue/20 dark:bg-nord-blue/5">
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-semibold text-brand-800 dark:text-brand-300 flex items-center gap-1.5">
-                <span>✨</span>
-                <span>ИИ-автор ТЗ:</span>
-              </span>
-              <span className="font-mono text-slate-600 dark:text-nord-4 bg-white dark:bg-nord-2 px-2 py-0.5 rounded border border-slate-200 dark:border-nord-3 text-[11px]">
-                {llmProviderId ? `${llmProviderId}${llmSelectedModel ? ` / ${llmSelectedModel}` : ''}` : 'провайдер по умолчанию'}
-              </span>
-              <span
-                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                  llmAvailable
-                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-                    : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${llmAvailable ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                {llmAvailable ? 'Готов к работе' : 'Сервер недоступен'}
-              </span>
+          <div className="space-y-2 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 dark:border-nord-blue/20 dark:bg-nord-blue/5">
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-semibold text-brand-800 dark:text-brand-300 flex items-center gap-1.5">
+                  <span>✨</span>
+                  <span>ИИ-автор ТЗ:</span>
+                </span>
+                <span className="font-mono text-slate-600 dark:text-nord-4 bg-white dark:bg-nord-2 px-2 py-0.5 rounded border border-slate-200 dark:border-nord-3 text-[11px]">
+                  {llmProviderId
+                    ? `${llmProviderId}${llmSelectedModel ? ` / ${llmSelectedModel}` : ''}`
+                    : 'провайдер по умолчанию'}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                    llmAvailable
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                      : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      llmAvailable ? 'bg-emerald-500' : 'bg-rose-500'
+                    }`}
+                  />
+                  {llmAvailable ? 'Готов к работе' : 'Сервер недоступен'}
+                </span>
+                {acceptedCount > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 font-medium">
+                    Принято: {acceptedCount}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {!batch.isRunning ? (
+                  <button
+                    type="button"
+                    onClick={() => batch.startBatch(draftableNodes, { onlyUnproposed: true })}
+                    disabled={!llmAvailable || draftableNodes.length === 0 || generatingNodeId !== null}
+                    className="btn-primary !py-1 !px-3 text-xs flex items-center gap-1.5 font-semibold bg-brand-600 text-white hover:bg-brand-700 shadow-sm disabled:opacity-50"
+                    title="Последовательно сформировать черновики ИИ для всех разделов ТЗ"
+                  >
+                    <span>✨</span>
+                    <span>
+                      {unproposedDraftCount === 0
+                        ? 'Пересоздать всё ТЗ'
+                        : `Черновик всего ТЗ (${unproposedDraftCount})`}
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={batch.cancelBatch}
+                    className="btn-secondary !py-1 !px-3 text-xs flex items-center gap-1.5 font-semibold text-rose-700 border-rose-300 bg-white hover:bg-rose-50 dark:border-rose-800 dark:bg-nord-2 dark:text-rose-300"
+                  >
+                    <span>⏹️</span>
+                    <span>Отмена ({batch.currentIndex}/{batch.totalCount})</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowLlmSettings(!showLlmSettings)}
+                  className="btn-secondary !py-1 !px-2.5 text-xs flex items-center gap-1 font-medium text-slate-700 dark:text-nord-4"
+                >
+                  <span>⚙️</span>
+                  <span>{showLlmSettings ? 'Скрыть настройки' : 'Настройки'}</span>
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowLlmSettings(!showLlmSettings)}
-                className="btn-secondary !py-1 !px-2.5 text-xs flex items-center gap-1 font-medium text-slate-700 dark:text-nord-4"
-              >
-                <span>⚙️</span>
-                <span>{showLlmSettings ? 'Скрыть настройки' : 'Настройки модели'}</span>
-              </button>
-            </div>
+            {/* Batch Progress Bar */}
+            {batch.isRunning && (
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-nord-muted">
+                  <span className="flex items-center gap-1.5 font-medium text-brand-700 dark:text-brand-300">
+                    <span className="animate-spin text-xs">⏳</span>
+                    <span>
+                      Формирование черновиков: {batch.currentIndex} из {batch.totalCount}…
+                      {batch.currentNode ? ` «${batch.currentNode.title}»` : ''}
+                    </span>
+                  </span>
+                  <span className="font-mono">
+                    {Math.round((batch.currentIndex / (batch.totalCount || 1)) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-indigo-200/60 dark:bg-nord-3 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-brand-600 h-1.5 rounded-full transition-all duration-300 ease-out"
+                    style={{
+                      width: `${Math.round((batch.currentIndex / (batch.totalCount || 1)) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Batch Cancelled notification */}
+            {batch.isCancelled && !batch.isRunning && (
+              <div className="flex items-center justify-between text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-lg px-2.5 py-1.5">
+                <span>Пакетная генерация остановлена пользователем.</span>
+                <button
+                  type="button"
+                  onClick={() => batch.startBatch(draftableNodes, { onlyUnproposed: true })}
+                  className="text-amber-900 dark:text-amber-200 font-semibold underline hover:no-underline ml-2"
+                >
+                  Продолжить
+                </button>
+              </div>
+            )}
+
+            {/* Batch Errors notification */}
+            {batch.failedNodes.length > 0 && !batch.isRunning && (
+              <div className="flex items-center justify-between text-[11px] text-rose-800 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-lg px-2.5 py-1.5">
+                <span>Ошибок при генерации: {batch.failedNodes.length} из {batch.totalCount}.</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => batch.retryFailed()}
+                    className="text-rose-900 dark:text-rose-200 font-semibold underline hover:no-underline"
+                  >
+                    Повторить ошибки
+                  </button>
+                  <button
+                    type="button"
+                    onClick={batch.resetBatch}
+                    className="text-slate-500 hover:text-slate-700 dark:text-nord-muted"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
