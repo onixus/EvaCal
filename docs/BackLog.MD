@@ -5,30 +5,33 @@
 ### 1. GOST 34 Generator & Modern Standards
 
 - [x] Full support for **ГОСТ 34.602-2020** & **ГОСТ 34.201-2020** + legacy **РД 50-34.698-90**.
-- [x] Complete 5-document set (TZ, PZ, AF, PMI, SPEC).
-- [x] ESKD stamp frames (ГОСТ 2.104-2006 Form 2 and 2a) with precise margin offsets.
+- [x] Complete 5-document core set (TZ, PZ, AF, PMI, SPEC).
+- [x] Acceptance testing documents: **ПСИ** (Программа и методика испытаний) and **Акт приёмки в опытную/промышленную эксплуатацию**.
+- [x] ESKD stamp frames (ГОСТ 2.104-2006 Form 2 and 2a) with precise margin offsets and modern profile `gost34-modern`.
 - [x] 7-step interactive wizard pipeline (`profile` → `requirements` → `applicability` → `traceability` → `signatures` → `preview` → `compliance`).
 - [x] Live Split-Screen AST preview & Inline Editor with override badges and export integration.
 
 ### 2. Industry Presets & Russian Domain Knowledge
 
-- [x] NGFW (UserGate) preset with HA clusters, FSTEK certificate #3905, 188-FZ Registry #1199.
+- [x] NGFW (UserGate) preset with HA clusters, FSTEK certificate #3905, 188-FZ Registry #1194.
 - [x] Hardware & PAC (YADRO Vegman / Aquarius / All-Flash NVMe TATLIN) preset with Minpromtorg Registry (PP RF #878/#719).
-- [x] Endpoint Security (Kaspersky) preset with FSTEK certificate #4238.
+- [x] Endpoint Security (Kaspersky) preset with FSTEK certificate #4068 and KUMA SIEM (#9128).
 - [x] Unstructured Data Audit (Cyberpeak) preset with Registry #12590.
-- [x] GOST-VPN (ViPNet) preset with FSB (KS1/KS2/KS3) and FSTEK #4118 certificates.
-- [x] OS & DBMS (Astra Linux SE, Postgres Pro Enterprise) with FSTEK certificates.
+- [x] GOST-VPN (ViPNet) preset with FSB (KS1/KS2/KS3) and FSTEK certificates.
+- [x] OS & DBMS (Astra Linux SE #2557, Postgres Pro Enterprise #4063) with FSTEK certificates.
+- [x] Import substitution presets (zVirt, ALD Pro, RED OS, Oracle/MS SQL → Postgres Pro).
 
 ### 3. Traceability Engine & Multi-Channel Matrices
 
 - [x] 5-level requirement-to-stage and requirement-to-PMI matching engine.
-- [x] Dedicated 13-column Traceability Matrix sheet in Excel export (`.xlsx`).
+- [x] Dedicated 13-column Traceability Matrix sheet in Excel export (`.xlsx`) with CWE-1236 formula injection protection.
 - [x] Interactive Traceability Matrix UI panel with category grouping and status metrics.
 
 ### 4. Commercial Proposals, Roles & Scenarios
 
-- [x] Comprehensive role grid (Architect/GAP, Lead/Senior Engineers, Lead Analysts, Consultants, Security Experts, Developers, PM).
-- [x] Commercial estimate calculation (direct labor cost, overhead, margin, discount, VAT).
+- [x] 4 distinct platform roles (`presale`, `architect`, `reviewer`, `admin`) with dedicated home dashboards and badge queues.
+- [x] Production role matrix (Architect/GAP, Lead/Senior Engineers, Lead Analysts, Consultants, Security Experts, Developers, PM).
+- [x] Commercial estimate calculation (direct labor cost, overhead, margin, discount, VAT, zero-division safeguards).
 - [x] Scenario modeling (Target, Best Case, Worst Case).
 - [x] Interactive GANTT timeline with customer approval task automation.
 
@@ -39,10 +42,13 @@
 
 ### 6. Security, RBAC & CI/CD
 
-- [x] Strict RBAC (Architect & Admin protected routes).
-- [x] Local LLM Normalizer with safe endpoint guard.
-- [x] Jenkins CI/CD pipeline with JUnit XML reporting (`test:ci`).
-- [x] Automated test suite: 44 files, 378 tests (100% pass).
+- [x] Strict RBAC across 4 roles (`presale`, `architect`, `reviewer`, `admin`) and HMAC-SHA256 signed share-tokens with granular scopes.
+- [x] Server-side session revocation map with TTL cleanup for logout and password change invalidation.
+- [x] SSRF-protected LLM endpoint guard (loopback allowed for Ollama/LM Studio; RFC 1918 private IPs blocked by default; link-local and cloud metadata unconditionally blocked).
+- [x] Audit trail (`AuditEvent`) with sensitive LLM prompt/completion redaction (`redactLlmMeta`).
+- [x] Docker multi-stage Alpine deployment with automated schema sync/seed and non-root runner (uid 1001).
+- [x] Jenkins CI/CD pipeline and GitHub Actions workflow with JUnit XML reporting (`test:ci`).
+- [x] Automated test suite: **57 test files, 487 tests (100% pass)**.
 
 ---
 
@@ -52,39 +58,49 @@
 
 Цель: один проект = одна правда. Расчёт, смета, требования и комплект ГОСТ — версии одного объекта; утверждённый ZIP воспроизводится по checksum.
 
-- [x] **RR-1** Проект как первый экран (`/projects`, карточка, навбар).
-- [x] **RR-2** Снимок мастера в `GostPackage` (требования v2, trace-links, применимость, signatures, sectionOverrides).
-- [x] **RR-3** Неизменяемый ZIP + обязательный SHA-256; хранилище артефактов на диске, экспорт падает, если пакет не записался.
+- [x] **RR-1** Проект как первый экран (`/projects`, карточка, навбар, привязка расчётов).
+- [x] **RR-2** Снимок мастера в `GostPackage.snapshot` (требования v2, trace-links, применимость, signatures, sectionOverrides, tzAuthor).
+- [x] **RR-3** Неизменяемый ZIP + обязательный SHA-256; хранилище артефактов на диске (`lib/gost34/artifactStorage.ts`), экспорт падает, если пакет не записался.
 - [x] **RR-4** Согласование комплекта по share-ссылке (`review`), портал Заказчика без staff-логина, аудит и иммутабельность утверждённых версий.
-- [x] **RR-5** Структурный diff двух версий пакета (дельта требований, профиля, покрытия, стандартов, оверрайдов).
-- [ ] **RR-6** Playwright e2e «Северный банк» (login → пресет → выпуск → approve → тот же checksum).
-
-Не в этом горизонте: Postgres, multi-tenant, очередь генерации, ПСИ/акт, новые пресеты. LLM-автор ТЗ спроектирован отдельно и идёт после RR-2 (снимок пакета).
+- [x] **RR-5** Структурный diff двух версий пакета (`/api/projects/:id/packages/diff`: дельта требований, профиля, покрытия, стандартов, оверрайдов).
+- [x] **RR-6** Playwright e2e «Северный банк» (`e2e/severny-bank-release.spec.ts`: login → пресет → выпуск → approve → воспроизводимость checksum).
 
 ---
 
-## 📝 Designed — LLM как автор ТЗ (после RR-2)
+## 🤖 Модуль «LLM как автор ТЗ» (ГОСТ 34.602-2020)
 
-Принятый дизайн: [LLM_TZ_AUTHOR_DESIGN.md](LLM_TZ_AUTHOR_DESIGN.md).
+Принятый и реализованный дизайн: [LLM_TZ_AUTHOR_DESIGN.md](LLM_TZ_AUTHOR_DESIGN.md).
 
-LLM пишет **черновики разделов** по `SchemaNode.id`. Человек Accept / Edit / Reject. В ZIP только `ACCEPTED` / `ACCEPTED_EDITED`. Схема `TZ_SCHEMA_2020` остаётся baseline; LLM не renderer и не юридический автор.
+Контролируемый слой генерации текста разделов ТЗ по схеме `TZ_SCHEMA_2020`: человек Accept / Edit / Reject. В итоговый комплект DOCX/ZIP попадают только принятые формулировки (`ACCEPTED`). Детерминированная схема остаётся baseline ground truth.
 
-- [ ] **PR-01** Shared LLM client + флаг `EVACAL_LLM_TZ_AUTHOR` (prod off).
-- [ ] **PR-02** Overlay по `nodeId`, нумерация пунктов на сервере.
-- [ ] **PR-03** Grounding pack + промпт `tz-author-v1`.
-- [ ] **PR-04** `detectDraftFlags` + eval-фикстуры (без сети).
-- [ ] **PR-05** `POST /api/gost34/draft-tz` (один раздел, staff).
-- [ ] **PR-06a** Persist в мастере, preview, export 409 на hard-флагах.
-- [ ] **PR-06b** Снимок в `GostPackage` — **после RR-2**.
-- [ ] **PR-07** Side-by-side ревью в предпросмотре.
-- [ ] **PR-08** Клиентский batch «весь ТЗ».
-- [ ] **PR-09** Eval-гейт в CI.
-- [ ] **PR-10** Redact audit + injection tests.
+- [x] **PR-01** Shared LLM client + флаг `EVACAL_LLM_TZ_AUTHOR` (`lib/gost34/llm/tzAuthor/flag.ts`).
+- [x] **PR-02** Overlay по `nodeId`, детерминированная нумерация пунктов на сервере.
+- [x] **PR-03** Grounding pack (`lib/gost34/llm/tzAuthor/grounding.ts`) + промпт `tz-author-v1` с защитой от галлюцинаций.
+- [x] **PR-04** `detectDraftFlags` + оффлайн eval-фикстуры (проверка выдуманных норм, чисел, модальности).
+- [x] **PR-05** `POST /api/gost34/draft-tz` (генерация черновика одного узла схемы, staff-only).
+- [x] **PR-06a** Персистентность в состоянии мастера, предпросмотр, экспортный гейт с HTTP 409 на hard-флагах.
+- [x] **PR-06b** Снимок предложений в `GostPackage.snapshot` (интеграция со снимком пакета).
+- [x] **PR-07** Side-by-side ревью черновика в шаге предпросмотра (`TzDraftReviewPanel.tsx`).
+- [x] **PR-08** Последовательный клиентский batch «Сформировать черновик всего ТЗ» (`useTzAuthorBatch.ts`).
+- [x] **PR-09** Тестовый харнесс качества (Eval Suite, 15 тестов) в CI.
+- [x] **PR-10** Санитизация метаданных аудита (`redactLlmMeta`) + тесты на prompt injection и SSRF.
 
 ---
 
 ## 🔮 Later Horizon Roadmap
 
-- [ ] Acceptance Testing Protocol (ПСИ / Акт приемки) document generator — после реестра выпуска.
-- [ ] Semantic document diff (LLM-assisted) — после структурного diff RR-5.
-- [ ] Multi-tenant workspace isolation — Horizon C.
+### Horizon C — Платформа данных и Multi-Tenant (P1)
+
+- [ ] Dual-mode SQLite → PostgreSQL адаптер с миграциями Prisma для высоконагруженных развёртываний.
+- [ ] Multi-tenant изоляция (`tenantId` / организация на сущностях проекта, пользователей и расчётов).
+- [ ] Очередь фоновых задач генерации тяжелых комплектов (BullMQ / Redis / pg-boss) для предотвращения таймаутов.
+- [ ] Внешнее объектное хранилище артефактов (S3 / MinIO) для неизменяемых ZIP-пакетов.
+- [ ] Prometheus / OpenTelemetry метрики генерации и доступности LLM-провайдеров.
+
+### Horizon D — Интеллектуальный дифференциал и интеграции (P2)
+
+- [ ] Семантический анализ изменений документов с помощью LLM (LLM-assisted semantic diff поверх структурного diff RR-5).
+- [ ] Интеграция с трекерами задач (Jira, YouTrack) и корпоративными базами знаний (Confluence).
+- [ ] Импорт/экспорт смет и расценок из 1С / корпоративного Excel.
+- [ ] Автономный Air-Gap дистрибутив для полностью изолированных защищённых контуров КИИ.
+

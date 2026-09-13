@@ -1,60 +1,183 @@
-# Security perimeter (Horizon A)
+# Периметр безопасности и матрица доступа (EvaCal v0.3.0)
 
-Implemented 2026-08-13.
+Документ описывает эшелонированную архитектуру безопасности (Defense-in-Depth) платформы EvaCal, реализованную в рамках этапов Horizon A и Horizon B (ревизия v0.3.0, 2026-09).
 
-## Rules
+---
 
-| Surface                           | Access                                                        |
-| --------------------------------- | ------------------------------------------------------------- |
-| `GET /` (archive UI)              | staff only; guests see landing without data                   |
-| `GET /presale`                    | form if staff / anonymous / create-share; draft list staff    |
-| `GET /presale/:id`                | staff **or** `?share=` **or** anonymous flag                  |
-| `GET /api/calculations` (list)    | staff only (`architect` \| `admin`)                           |
-| `POST /api/calculations` (create) | staff **or** share(`create`) **or** `ALLOW_ANONYMOUS_PRESALE` |
-| `GET/PUT` calculation by id       | staff **or** share bound to id (`read` / `write`)             |
-| export PDF/XLSX/JSON/GOST34       | staff **or** share (`export`; implies `read`)                 |
-| `submit`                          | staff **or** share (`write`)                                  |
-| GOST migration apply              | staff only                                                    |
-| GOST LLM / parse / generate       | staff (unchanged)                                             |
-| `POST /api/gost34/draft-tz`        | staff only (`GOST34_LLM_ROLES`; share/anonymous forbidden)   |
-| `POST /api/gost34/draft-tz/decision` | staff only (`GOST34_LLM_ROLES`; share/anonymous forbidden) |
-| users / templates admin           | `admin` (unchanged)                                           |
+## 1. Архитектурная модель безопасности
 
-## Share tokens
+Периметр безопасности охватывает пять защитных эшелонов:
+1. **Идентификация и сессии:** HMAC-подписанные cookie-сессии с серверным механизмом отзыва токенов (Revocation).
+2. **Ролевая модель и гранулярные скоупы:** 4 системные роли (`lib/appRoles.ts`) и криптографические share-токены для внешних клиентов (`lib/access.ts`).
+3. **Защита от SSRF при обращении к LLM:** валидация сетевых адресов через `endpointGuard.ts` с абсолютным запретом Cloud Metadata и Link-Local сетей.
+4. **Обезличивание аудита (Data Redaction):** аудит действий без сохранения текстов промптов и сгенерированного контента (`redactLlmMeta`).
+5. **Безопасность выгрузок и рантайма:** экранирование Formula Injection (CWE-1236) в XLSX и исполнение в контейнере под непривилегированным пользователем (UID 1001).
 
-- HMAC-signed (`SHARE_TOKEN_SECRET` or `SESSION_SECRET`), default TTL 7 days.
-- Issue: `POST /api/calculations/:id/share` (staff) with `{ scopes, ttlSeconds? }`.
-- Send as `X-Share-Token`, `Authorization: Share <token>`, or `?share=`.
-- On anonymous/share create, API returns `{ id, shareToken }` for the new calculation; UI stores it in `sessionStorage` and navigates to `/presale/:id?share=…` so RSC can authorize.
-- If the page loads without session/`?share=`, `ShareTokenRecovery` retries from `sessionStorage`.
-- **TZ Author routes (`/draft-tz`, `/draft-tz/decision`) strictly forbid share tokens**: returns `403 Forbidden` if accessed via share token or anonymous session.
+---
 
-## Anonymous mode
+## 2. Матрица доступа к поверхностям системы
 
-```bash
-ALLOW_ANONYMOUS_PRESALE=true   # local demos ONLY
+В платформе разделены **штатные сотрудники** (`staff`: `architect`, `admin`), **пользователи платформы** (`presale`, `reviewer`) и **внешние читатели/клиенты** (по share-ссылке).
+
+### Правила доступа к эндпоинтам и UI
+
+| Поверхность / Маршрут              | Метод     | Минимальный доступ                                            | Ограничения и детали                                             |
+| ---------------------------------- | --------- | ------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `GET /` (лендинг и архив)          | UI        | Любой (гости видят лендинг без данных; staff видит реестр)   | Данные проектов не отдаются без авторизации                      |
+| `GET /presale`                     | UI        | `staff` \| `presale` \| `create`-share \| `ALLOW_ANONYMOUS`   | Список чужих черновиков виден только авторизованным              |
+| `GET /presale/:id`                 | UI        | `staff` \| `presale` \| `?share=` (токен с привязкой к ID)    | Доступ строго по ID расчёта                                      |
+| `GET /projects/:id/studio`         | UI        | `staff` (`architect` \| `admin`)                             | Студия ГОСТ 34 закрыта для пресейла, ревьювера и гостей          |
+| `GET /review`                      | UI        | `reviewer` (очередь TW) \| `architect` (очередь GAP) \| `admin` | Список разделяется на уровне сервера по стадии ревью             |
+| `GET /admin/*`                     | UI        | `admin`                                                       | Управление пользователями, шаблонами и системными ключами        |
+| `GET /api/calculations`            | REST      | `staff` (`architect` \| `admin`)                             | Пресейл видит только свои; гости не имеют общего листинга       |
+| `POST /api/calculations`           | REST      | `staff` \| `presale` \| share(`create`) \| `ALLOW_ANONYMOUS`  | Создание расчёта по шаблону                                      |
+| `GET/PUT /api/calculations/:id`    | REST      | `staff` \| `presale` (свои) \| share bound (`read` / `write`) | Попытка изменить чужой расчёт без прав возвращает 403            |
+| Экспорт (PDF, XLSX, DOCX, JSON)    | REST / UI | `staff` \| `presale` \| `reviewer` \| share (`export`)       | `export` подразумевает право `read`                              |
+| `POST /api/calculations/:id/submit`| REST      | `staff` \| `presale` \| share (`write`)                       | Перевод расчёта в `pending_approval`                             |
+| `POST /api/calculations/:id/share` | REST      | `staff` (`architect` \| `admin`)                             | Генерация гостевых share-токенов                                 |
+| Миграция схемы ГОСТ 34             | REST      | `staff` (`architect` \| `admin`)                             | Применение шаблонов и структур стандартов                        |
+| `POST /api/gost34/draft-tz`        | REST      | `staff` (`architect` \| `admin`)                             | **Строгий запрет:** share-токены и анонимы получают HTTP 403     |
+| `POST /api/gost34/draft-tz/decision`| REST     | `staff` (`architect` \| `admin`)                             | **Строгий запрет:** share-токены и анонимы получают HTTP 403     |
+| Управление пользователями          | REST      | `admin`                                                       | Создание, блокировка, сброс паролей                              |
+
+---
+
+## 3. Токены внешнего доступа (Share Tokens)
+
+Для безопасного предоставления доступа внешним заказчикам или субподрядчикам используются криптографические share-токены.
+
+- **Формат:** строка вида `<base64url-payload>.<hmac-sha256-signature>`.
+- **Секрет подписи:** `SHARE_TOKEN_SECRET` (fallback на `SESSION_SECRET`).
+- **Срок действия:** задаётся при создании (`ttlSeconds`), по умолчанию — 7 суток.
+- **Привязка к объекту:** токен строго привязан к `calculationId` (или `templateId` для токенов создания). Попытка применить токен к другому расчёту пресекается на сервере.
+- **Гранулярные скоупы (`ShareScope`):**
+  - `read` — просмотр параметров расчёта и сметы;
+  - `write` — внесение правок в параметры и структуру опросника;
+  - `export` — скачивание сгенерированных файлов (XLSX, PDF, JSON);
+  - `create` — разовое создание нового расчёта по шаблону;
+  - `review` — просмотр чек-листа и выставление статуса нормоконтроля.
+- **Передача клиентом:** заголовок `X-Share-Token`, `Authorization: Share <token>` или query-параметр `?share=<token>`.
+- **Обработка в UI:** при создании расчёта по токену клиент сохраняет его в `sessionStorage` и выполняет редирект на `/presale/:id?share=...`. При случайном переходе по ссылке без query-параметра компонент `ShareTokenRecovery` восстанавливает токен из `sessionStorage`.
+
+> [!CAUTION]
+> **Изоляция LLM-контура:** эндпоинты генерации и принятия черновиков ТЗ (`/api/gost34/draft-tz*`) категорически запрещены для share-токенов и анонимных сессий. При любой попытке вызова возвращается `403 Forbidden`.
+
+---
+
+## 4. Серверный отзыв сессий (Session Revocation)
+
+В модуле [`lib/auth.ts`](../lib/auth.ts) реализована защита от использования скомпрометированных или устаревших сессий:
+
+1. **Хранилище отозванных подписей:** сервер ведёт in-memory реестр отозванных сигнатур токенов `revokedTokens: Map<signature, expTimestamp>`.
+2. **Точки немедленного отзыва:**
+   - явный выход из системы (`/api/auth/logout`);
+   - смена пароля пользователем (`/api/auth/change-password`);
+   - принудительный сброс пароля администратором (`/api/admin/users/reset-password`).
+3. **Автоматическая очистка (TTL Sweep):** записи с истёкшим временем жизни удаляются из памяти при достижении лимита записей (`> 1000`) или по таймеру, предотвращая утечки памяти Node.js.
+4. **Проверка при каждом запросе:** функция `isSessionRevoked(token)` валидирует сигнатуру cookie-токена перед обработкой любого защищённого маршрута.
+
+---
+
+## 5. Защита от SSRF в контуре LLM (`endpointGuard.ts`)
+
+Интеграция с языковыми моделями (OpenAI, Anthropic, локальные LLM-серверы) защищена межсетевым экраном прикладного уровня:
+
+```typescript
+// lib/gost34/llm/endpointGuard.ts
+assertAllowedEndpoint(rawEndpoint, policy);
 ```
 
-Unset/false in production.
+### Политика фильтрации сетевых адресов
 
-## Audit & LLM Redaction
+1. **Запрет клиентского переопределения:** клиентские запросы не могут передавать произвольный URL эндпоинта — сервер использует исключительно адреса, зарегистрированные в доверенных провайдерах (`lib/gost34/llm/providers.ts`).
+2. **Loopback-адреса (`127.0.0.1`, `::1`, `localhost`):** **разрешены** по умолчанию (`allowLoopback: true`). Это необходимо для интеграции с локальными инференс-серверами Ollama, vLLM или LM Studio, развёрнутыми на том же хосте.
+3. **Приватные корпоративные сети (RFC 1918 / RFC 4193):** **заблокированы** по умолчанию (`allowPrivateNetwork: false`). Доступ к корпоративным сетям `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10` (CGNAT) и уникальным локальным IPv6 `fc00::/7` открывается только явной директивой конфигурации.
+4. **Cloud Metadata & Link-Local — абсолютный запрет:**
+   - IPv4 Link-Local `169.254.0.0/16` (включая эндпоинты метаданных AWS, GCP, Azure, OpenStack `169.254.169.254`);
+   - IPv6 Link-Local `fe80::/10`.
+   - **Блокируются безусловно**, независимо от значения `allowPrivateNetwork`. Обойти эту блокировку через конфигурацию невозможно.
 
-- `AuditEvent` table: login, create/update/delete/submit/export/share/migrate, and `gost34.tz_author.*`.
-- **No LLM text/prompts in Audit**: All LLM audit entries (`gost34.tz_author.draft`, `gost34.tz_author.accept`, `gost34.tz_author.reject`) pass through `redactLlmMeta`. Prompts, model completions, section paragraphs, and context payloads are strictly scrubbed; only diagnostic meta (`nodeId`, `providerId`, `model`, `promptVersion`, `flagCodes`, `latencyMs`, `status`, `usedLlm`) is retained.
-- Custom `endpoint` parameters in request bodies are ignored by the server to prevent SSRF.
-- Hard flags block acceptance and document export with HTTP 409 (`TzAuthorHardFlagsError`).
+---
 
-## Cookies
+## 6. Обезличивание аудита LLM (`redactLlmMeta`)
 
-`HttpOnly` + `SameSite=Lax` + `Secure` when `NODE_ENV=production` or `FORCE_SECURE_COOKIES=true`.
+Для предотвращения утечки конфиденциальной проектной информации, архитектурных секретов и персональных данных через журналы событий (`AuditEvent`):
 
-## Ops
+- Все события генерации (`gost34.tz_author.draft`), принятия (`gost34.tz_author.accept`) и отклонения (`gost34.tz_author.reject`) черновиков нормализуются через фильтр `redactLlmMeta`.
+- **Категорически запрещено сохранять в БД:**
+  - тексты пользовательских и системных промптов;
+  - сгенерированные текстовые абзацы и разделы ТЗ;
+  - диффы изменений;
+  - контекстные данные сметы и ответов опросника.
+- **Разрешено сохранять только технические метаданные:**
+  - идентификатор узла схемы (`nodeId`);
+  - провайдер и модель (`providerId`, `model`);
+  - версия шаблона промпта (`promptVersion`);
+  - коды сработавших валидационных флагов (`flagCodes`);
+  - задержка ответа (`latencyMs`);
+  - статус генерации (`status`) и факт использования LLM (`usedLlm: boolean`).
+
+---
+
+## 7. Защита от инъекций в формулы таблиц (CWE-1236)
+
+При выгрузке расчётов и смет в формат Microsoft Excel (`.xlsx` через SheetJS в `lib/exportCommercial.ts`):
+
+- **Вектор атаки:** внедрение вредоносных формул вида `=cmd|'/C calc'!A0`, `@SUM(...)`, `-2+5+cmd|...` через текстовые поля (название проекта, реквизиты заказчика, наименования этапов, ответы анкеты). При открытии файла в MS Excel или LibreOffice Calc возможен запуск произвольного кода на рабочей станции пользователя.
+- **Механизм защиты:** все строковые ячейки, начинающиеся с управляющих символов:
+  - `=` (равно)
+  - `+` (плюс)
+  - `-` (минус)
+  - `@` (собака)
+  - `\t` (табуляция)
+  - `\r` (возврат каретки)
+  
+  автоматически экранируются лидирующим апострофом `'`. Табличные редакторы трактуют такие ячейки строго как безопасный статический текст, исключая вычисление формул.
+
+---
+
+## 8. Безопасность контейнеризации и рантайма
+
+1. **Непривилегированный пользователь:**
+   Контейнер рабочего приложения (`runner` в `Dockerfile`) создаёт системного пользователя и группу:
+   ```dockerfile
+   RUN addgroup --system --gid 1001 nodejs \
+     && adduser --system --uid 1001 nextjs
+   USER nextjs
+   ```
+   Процесс Node.js работает с `UID 1001` и не имеет прав `root` на хост-системе.
+2. **Точки монтирования томов:**
+   База данных SQLite монтируется в изолированный volume `db-data`. Скрипт миграции выставляет корректные права владения `chown -R nextjs:nodejs /app/prisma` перед запуском приложения.
+3. **Безопасность Cookie:**
+   Сессионная cookie `evacal_session` выставляется с флагами:
+   - `HttpOnly: true` (недоступна из JavaScript браузера, защита от XSS);
+   - `SameSite: Lax` (защита от межсайтовой подделки запросов CSRF);
+   - `Secure: true` (активируется в `NODE_ENV=production` или при `FORCE_SECURE_COOKIES=true`).
+4. **Непрерывная интеграция (CI):**
+   В пайплайне сборки проверка уязвимостей зависимостей запускается в строгом режиме:
+   ```bash
+   npm audit --audit-level=high
+   ```
+   При наличии известных уязвимостей высокой или критической степени билд останавливается с ошибкой (без `|| true`).
+
+---
+
+## 9. Эксплуатационные регламенты
+
+### Резервное копирование базы данных SQLite
 
 ```bash
-# SQLite volume backup (compose volume db-data)
+# Создание мгновенной горячей копии из volume db-data
 docker compose run --rm migrate sh -c 'cp prisma/dev.db prisma/dev.db.bak-$(date +%Y%m%d%H%M%S)'
 ```
 
-## CI
+### Сброс скомпрометированных паролей на стенде
 
-Jenkins `npm audit --audit-level=high` fails the build (no `|| true`).
+```bash
+# Локальная разработка
+npm run seed:reset
+
+# Docker-окружение
+docker compose exec app npx tsx scripts/reset-all.ts
+```
+Сгенерированные временные пароли будут сохранены в `credentials.local.txt` с требованием обязательной смены (`mustChangePassword`) при следующем входе.
