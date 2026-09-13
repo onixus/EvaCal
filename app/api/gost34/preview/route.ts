@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadCalculationForExport } from '@/lib/export';
 import { analyzeAndNormalizeInput } from '@/lib/gost34/analyzer';
 import { buildGost34DocumentAST } from '@/lib/gost34/generator';
-import { applySectionOverrides } from '@/lib/gost34/index';
+import { applySectionOverrides, validateTzAuthorProposals, TzAuthorDiagnostic } from '@/lib/gost34/index';
 import { overlaysForDocument } from '@/lib/gost34/llm/tzAuthor/project';
 import { GostDocumentType } from '@/lib/gost34/types';
 import { requireCalcAccess } from '@/lib/access';
@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
       projectContext,
       sectionOverrides = {},
       tzAuthor,
+      includeProposed = false,
     } = body;
 
     if (!calculationId) {
@@ -52,11 +53,26 @@ export async function POST(req: NextRequest) {
     });
 
     const astWithDiagnostics = buildGost34DocumentAST(normalizedPayload);
-    
+
+    let validTzAuthor = tzAuthor;
+    let tzAuthorDiagnostics: TzAuthorDiagnostic[] = [];
+
+    if (docType === 'TZ' && tzAuthor) {
+      const validation = validateTzAuthorProposals({
+        payload: normalizedPayload,
+        context: normalizedPayload.projectContext,
+        tzAuthor,
+        checkProposed: Boolean(includeProposed),
+      });
+      validTzAuthor = validation.validTzAuthor;
+      tzAuthorDiagnostics = validation.diagnostics;
+    }
+
     const effectiveOverrides = overlaysForDocument({
       docType: docType as GostDocumentType,
       sectionOverrides,
-      tzAuthor,
+      tzAuthor: validTzAuthor,
+      includeProposed: Boolean(includeProposed),
     });
 
     const overriddenSections =
@@ -70,6 +86,7 @@ export async function POST(req: NextRequest) {
         sections: overriddenSections,
       },
       diagnostics: astWithDiagnostics.diagnostics,
+      tzAuthorDiagnostics,
     });
   } catch (err: unknown) {
     console.error('Error in GOST 34 document preview endpoint:', err);

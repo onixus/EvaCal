@@ -52,6 +52,7 @@ export default function DocumentPreviewStep({
             applicabilityOverrides: decisions.applicabilityOverrides,
             manualLinks: decisions.manualLinks,
             sectionOverrides,
+            tzAuthor: decisions.tzAuthor,
           }),
         });
 
@@ -90,6 +91,7 @@ export default function DocumentPreviewStep({
     decisions.applicabilityOverrides,
     decisions.manualLinks,
     sectionOverrides,
+    decisions.tzAuthor,
   ]);
 
   // Flatten all sections and subsections for tree and search

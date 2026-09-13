@@ -11,6 +11,7 @@ import { CURRENT_GOST34_PROFILE_ID } from '@/lib/gost34/standards';
 import { LAYOUT_PROFILES, DEFAULT_LAYOUT_PROFILE } from '@/lib/gost34/exporters/layout';
 import type { LayoutProfileId } from '@/lib/gost34/exporters/layout';
 import { withShareHeaders } from '@/lib/shareClient';
+import { TZ_AUTHOR_PROMPT_VERSION, type TzAuthorState } from '@/lib/gost34/llm/tzAuthor/types';
 import { STEP_STATUS_STYLES, fieldAnchorId } from '../wizardShared';
 import BlockerPanel from './BlockerPanel';
 import ProfileStep from '../steps/ProfileStep';
@@ -102,6 +103,11 @@ export default function Gost34Studio({
   const [contractNumber, setContractNumber] = useState('Договор № 01-ГС/2026');
   const [city, setCity] = useState('Москва');
   const [sectionOverrides, setSectionOverrides] = useState<SectionOverrides>({});
+  const [tzAuthor, setTzAuthor] = useState<TzAuthorState>({
+    promptVersion: TZ_AUTHOR_PROMPT_VERSION,
+    speculateDefault: false,
+    proposals: {},
+  });
 
   // Результат серверной проверки
   const [review, setReview] = useState<WizardReviewResult | null>(null);
@@ -203,6 +209,7 @@ export default function Gost34Studio({
   const overridesKey = JSON.stringify(applicabilityOverrides);
   const manualLinksKey = JSON.stringify(manualLinks);
   const signaturesKey = JSON.stringify(signatures);
+  const tzAuthorKey = JSON.stringify(tzAuthor);
 
   /**
    * Обзор пересчитывается на сервере: движки применимости, валидации и
@@ -228,6 +235,7 @@ export default function Gost34Studio({
             applicabilityOverrides: JSON.parse(overridesKey),
             manualLinks: JSON.parse(manualLinksKey),
             signatures: JSON.parse(signaturesKey),
+            tzAuthor: JSON.parse(tzAuthorKey),
           }),
         });
 
@@ -261,6 +269,7 @@ export default function Gost34Studio({
     overridesKey,
     manualLinksKey,
     signaturesKey,
+    tzAuthorKey,
     uploadedFiles,
   ]);
 
@@ -318,6 +327,7 @@ export default function Gost34Studio({
       /** Подтверждённые связи печатаются в матрице прослеживаемости документа. */
       manualLinks,
       sectionOverrides,
+      tzAuthor,
     }),
     [
       layoutProfileId,
@@ -330,6 +340,7 @@ export default function Gost34Studio({
       requirements,
       manualLinks,
       sectionOverrides,
+      tzAuthor,
     ],
   );
 
@@ -450,6 +461,12 @@ export default function Gost34Studio({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        if (res.status === 409 && data?.error === 'tz_author_hard_flags') {
+          const details = Array.isArray(data.nodes)
+            ? data.nodes.map((n: any) => `${n.nodeId} [${n.flagCodes?.join(', ') || ''}]`).join(', ')
+            : '';
+          throw new Error(`Экспорт заблокирован: критические замечания в принятых черновиках ТЗ (${details})`);
+        }
         throw new Error(data?.error || 'Ошибка при генерации документа ГОСТ 34');
       }
 
@@ -782,6 +799,7 @@ export default function Gost34Studio({
                 manualLinks,
                 signatures,
                 sectionOverrides,
+                tzAuthor,
               }}
               calculationId={calculationId}
               review={review}

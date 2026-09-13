@@ -57,3 +57,8 @@ export interface TzAuthorState {
   speculateDefault: false;
   proposals: Record<string, TzSectionProposal>; // key = nodeId
 }
+
+export interface TzAuthorDiagnostic {
+  nodeId: string;
+  flagCodes: LlmDraftFlagCode[];
+}

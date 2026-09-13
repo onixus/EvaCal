@@ -2,6 +2,7 @@ import type { Gost34RequirementItem } from '@/lib/gost34/types';
 import type { ApplicabilityOverride } from '@/lib/gost34/applicability/types';
 import type { TraceLink } from '@/lib/gost34/traceability/types';
 import type { WizardReviewResult, WizardStepStatus } from '@/lib/gost34/wizard/types';
+import type { TzAuthorState } from '@/lib/gost34/llm/tzAuthor/types';
 
 /** Решения пользователя, которые мастер передаёт и в обзор, и в экспорт. */
 export interface WizardDecisions {
@@ -13,6 +14,7 @@ export interface WizardDecisions {
   manualLinks: TraceLink[];
   signatures: Record<string, string>;
   sectionOverrides?: Record<string, { title?: string; paragraphs?: string[] }>;
+  tzAuthor?: TzAuthorState;
 }
 
 export interface WizardStepProps {

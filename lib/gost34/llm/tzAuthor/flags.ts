@@ -468,3 +468,22 @@ export function detectDraftFlags(
     return a.span.localeCompare(b.span);
   });
 }
+
+/**
+ * Hard-флаги, блокирующие Accept и экспорт в ZIP/DOCX:
+ * 1. LLM_INVENTED_NORM (всегда block)
+ * 2. LLM_REMOVED_CONSTRAINT (всегда block)
+ * 3. LLM_ADDED_NUMBER со severity === 'block' (измерение с единицей или SLA/норматив)
+ * 4. LLM_CHANGED_MODALITY со severity === 'block' (ослабление или снятие запрета)
+ */
+export function isHardFlag(flag: LlmDraftFlag): boolean {
+  if (flag.code === 'LLM_INVENTED_NORM') return true;
+  if (flag.code === 'LLM_REMOVED_CONSTRAINT') return true;
+  if (flag.code === 'LLM_ADDED_NUMBER' && flag.severity === 'block') return true;
+  if (flag.code === 'LLM_CHANGED_MODALITY' && flag.severity === 'block') return true;
+  return false;
+}
+
+export function hasHardFlags(flags: LlmDraftFlag[]): boolean {
+  return flags.some(isHardFlag);
+}

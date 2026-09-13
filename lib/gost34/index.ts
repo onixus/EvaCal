@@ -11,7 +11,8 @@ import {
 import { ProjectContext } from './context/types';
 import type { TraceLink } from './traceability/types';
 import { overlaysForDocument } from './llm/tzAuthor/project';
-import { TzAuthorState } from './llm/tzAuthor/types';
+import { TzAuthorState, TzAuthorDiagnostic } from './llm/tzAuthor/types';
+import { validateTzAuthorProposals, TzAuthorHardFlagsError } from './llm/tzAuthor/validate';
 
 export * from './types';
 export * from './standards';
@@ -23,6 +24,8 @@ export * from './wizard';
 export * from './migration';
 export { getEnrichedGostRequirements } from './enricher';
 export { analyzeAndNormalizeInput } from './analyzer';
+export { validateTzAuthorProposals, TzAuthorHardFlagsError };
+export type { TzAuthorDiagnostic };
 export { buildGost34DocumentAST } from './generator';
 export type { Gost34BuildDiagnostics } from './generator';
 export { exportGost34ToDocx } from './exporters/docxExporter';
@@ -82,6 +85,17 @@ export async function generateGost34Document(params: {
   const normalizedPayload = analyzeAndNormalizeInput(params);
   const ast = buildGost34DocumentAST(normalizedPayload);
   const docType = (normalizedPayload.metadata.docType || 'TZ') as GostDocumentType;
+
+  if (docType === 'TZ' && params.tzAuthor) {
+    const { diagnostics } = validateTzAuthorProposals({
+      payload: normalizedPayload,
+      context: normalizedPayload.projectContext,
+      tzAuthor: params.tzAuthor,
+    });
+    if (diagnostics.length > 0) {
+      throw new TzAuthorHardFlagsError(diagnostics);
+    }
+  }
 
   const effectiveOverrides = overlaysForDocument({
     docType,

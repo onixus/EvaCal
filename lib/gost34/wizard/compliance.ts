@@ -1,6 +1,7 @@
 import type { ContextGap } from '../context/types';
 import type { ValidationReport } from '../validation/types';
 import type { TraceabilityResult } from '../traceability/types';
+import type { TzAuthorState } from '../llm/tzAuthor/types';
 import type {
   ApplicabilitySummary,
   ComplianceReport,
@@ -83,6 +84,10 @@ export const COMPLIANCE_RULES = {
     id: 'context/major-gap',
     label: 'опросник расчёта',
   },
+  previewUnacceptedDrafts: {
+    id: 'preview/unaccepted-drafts',
+    label: 'черновики ИИ в предпросмотре',
+  },
 } as const;
 
 export interface ComplianceInput {
@@ -95,6 +100,7 @@ export interface ComplianceInput {
   traceability: TraceabilityResult;
   signatures?: Record<string, string | undefined>;
   contextGaps?: ContextGap[];
+  tzAuthor?: TzAuthorState;
 }
 
 function pluralRu(n: number, one: string, few: string, many: string): string {
@@ -377,8 +383,32 @@ function complianceStep(input: ComplianceInput): WizardStepReport {
   return stepFromIssues('compliance', issues);
 }
 
-function previewStep(): WizardStepReport {
-  return { id: 'preview', status: 'ready', issues: [] };
+function previewStep(input: ComplianceInput): WizardStepReport {
+  const proposals = input.tzAuthor ? Object.values(input.tzAuthor.proposals) : [];
+  const proposedCount = proposals.filter((p) => p.status === 'PROPOSED').length;
+
+  if (proposedCount === 0) {
+    return { id: 'preview', status: 'ready', issues: [] };
+  }
+
+  const issueText = `${proposedCount} ${pluralRu(
+    proposedCount,
+    'черновик ИИ не принят — в выпуск не войдёт',
+    'черновика ИИ не приняты — в выпуск не войдут',
+    'черновиков ИИ не приняты — в выпуск не войдут',
+  )}.`;
+
+  const issues: WizardIssue[] = [
+    issue(
+      'preview',
+      'warning',
+      COMPLIANCE_RULES.previewUnacceptedDrafts,
+      issueText,
+      { ref: 'preview.tzAuthor', label: 'черновики разделов ТЗ' },
+    ),
+  ];
+
+  return stepFromIssues('preview', issues);
 }
 
 const STEP_BUILDERS: Record<WizardStepId, (input: ComplianceInput) => WizardStepReport> = {

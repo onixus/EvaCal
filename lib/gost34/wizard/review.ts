@@ -74,6 +74,7 @@ export function buildWizardReview(
       traceability,
       signatures,
       contextGaps,
+      tzAuthor: input.tzAuthor,
     }),
   };
 }
