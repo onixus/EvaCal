@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { WizardStepProps } from '../wizardShared';
 import type { Gost34DocumentAST, Gost34Section, Gost34TableData } from '@/lib/gost34/types';
 import type { SectionComment } from '@/lib/gost34/review/types';
@@ -198,22 +198,25 @@ export default function DocumentPreviewStep({
     }
   }, [selectedSectionAnchor, flatSections]);
 
-  function isDraftableSection(sec: Gost34Section): boolean {
-    return Boolean(
-      canUseTzAuthor &&
-        sec.id &&
-        sec.id.startsWith('tz2020-') &&
-        sec.id !== 'tz2020-goals' &&
-        sec.id !== 'tz2020-requirements',
-    );
-  }
+  const isDraftableSection = useCallback(
+    (sec: Gost34Section): boolean => {
+      return Boolean(
+        canUseTzAuthor &&
+          sec.id &&
+          sec.id.startsWith('tz2020-') &&
+          sec.id !== 'tz2020-goals' &&
+          sec.id !== 'tz2020-requirements',
+      );
+    },
+    [canUseTzAuthor],
+  );
 
   const draftableNodes = useMemo(() => {
     return flatSections
       .map((s) => s.section)
       .filter((sec) => isDraftableSection(sec))
       .map((sec) => ({ id: sec.id, title: sec.title }));
-  }, [flatSections, canUseTzAuthor]);
+  }, [flatSections, isDraftableSection]);
 
   const batch = useTzAuthorBatch({
     calculationId,
