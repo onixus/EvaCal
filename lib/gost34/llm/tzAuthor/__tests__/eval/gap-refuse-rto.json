@@ -1,0 +1,8 @@
+{
+  "name": "gap-refuse-rto",
+  "speculate": false,
+  "nodeId": "tz2020-req-common-tech",
+  "expectedUsedLlm": false,
+  "expectedQuestionGapPath": "availability.rtoMinutes",
+  "expectedFlags": []
+}

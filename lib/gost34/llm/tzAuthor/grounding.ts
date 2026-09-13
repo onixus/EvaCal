@@ -1,5 +1,5 @@
 import { Gost34InputPayload, RequirementCategory } from '../../types';
-import { ProjectContext, ContextGap, ContextProvenance } from '../../context/types';
+import { ProjectContext, ContextGap, ContextProvenance, CONTEXT_GAP_PLACEHOLDER } from '../../context/types';
 import { RequirementStatus, RequirementType, Gost34RequirementV2 } from '../../requirements/v2';
 import { fromGost34RequirementItems } from '../../requirements/adapters';
 import { CitationKey } from '../../standards/types';
@@ -240,6 +240,11 @@ export function collectGroundingPack(params: {
     if (content.gaps && content.gaps.length > 0) {
       gaps = content.gaps;
       gapPaths = content.gaps.map((g) => g.path);
+      for (const g of content.gaps) {
+        baselineParagraphs.push(
+          `${g.label} — ${CONTEXT_GAP_PLACEHOLDER}${g.hint ? ` (источник данных: ${g.hint})` : ''}.`,
+        );
+      }
     }
     tableCaptions = (content.tables || []).map((t) => t.caption || '').filter(Boolean);
   }
