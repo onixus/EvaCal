@@ -58,7 +58,7 @@ describe('TZ Author batch drafting utilities (PR-08)', () => {
           usedLlm: true,
           speculate: false,
           generatedAt: new Date().toISOString(),
-        } as TzSectionProposal,
+        } as unknown as TzSectionProposal,
         'tz2020-goals-goals': {
           nodeId: 'tz2020-goals-goals',
           status: 'PROPOSED',
@@ -67,7 +67,7 @@ describe('TZ Author batch drafting utilities (PR-08)', () => {
           usedLlm: true,
           speculate: false,
           generatedAt: new Date().toISOString(),
-        } as TzSectionProposal,
+        } as unknown as TzSectionProposal,
         'tz2020-goals-purpose': {
           nodeId: 'tz2020-goals-purpose',
           status: 'REJECTED',
@@ -76,7 +76,7 @@ describe('TZ Author batch drafting utilities (PR-08)', () => {
           usedLlm: false,
           speculate: false,
           generatedAt: new Date().toISOString(),
-        } as TzSectionProposal,
+        } as unknown as TzSectionProposal,
       },
     };
 

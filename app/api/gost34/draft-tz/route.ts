@@ -7,7 +7,7 @@ import { draftTzSection } from '@/lib/gost34/llm/tzAuthor/draft';
 import { loadCalculationForExport } from '@/lib/export';
 import { analyzeAndNormalizeInput } from '@/lib/gost34/analyzer';
 import { requireCalcAccess } from '@/lib/access';
-import { clientIp, writeAudit } from '@/lib/audit';
+import { clientIp, writeAudit, redactLlmMeta } from '@/lib/audit';
 import { TZ_SCHEMA_2020 } from '@/lib/gost34/schema/tz34-2020';
 import { walkDraftableNodes } from '@/lib/gost34/llm/tzAuthor/schemaWalk';
 
@@ -61,6 +61,9 @@ export async function POST(req: NextRequest) {
 
   const access = await requireCalcAccess(req, calculationId, ['read']);
   if (access instanceof NextResponse) return access;
+  if (access.kind !== 'staff') {
+    return NextResponse.json({ error: 'forbidden: staff only' }, { status: 403 });
+  }
 
   const calculation = await loadCalculationForExport(calculationId);
   if (!calculation) {
@@ -126,7 +129,7 @@ export async function POST(req: NextRequest) {
         action: 'gost34.tz_author.draft',
         entityType: 'calculation',
         entityId: calculationId,
-        meta: {
+        meta: redactLlmMeta({
           nodeId: result.proposal.nodeId,
           providerId: result.proposal.provenance.providerId,
           model: result.proposal.provenance.model,
@@ -136,7 +139,7 @@ export async function POST(req: NextRequest) {
           speculate: result.proposal.speculate,
           status: result.proposal.status,
           usedLlm: result.proposal.usedLlm,
-        },
+        }),
         ip: clientIp(req),
       });
     } catch (auditErr) {

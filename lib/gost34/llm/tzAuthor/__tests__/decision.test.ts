@@ -22,6 +22,7 @@ vi.mock('@/lib/export', () => ({
 vi.mock('@/lib/audit', () => ({
   writeAudit: vi.fn(),
   clientIp: vi.fn(() => '127.0.0.1'),
+  redactLlmMeta: vi.fn((meta) => meta),
 }));
 
 const SAMPLE_CALCULATION = {

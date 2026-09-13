@@ -97,7 +97,7 @@ describe('PR-09: TZ Author Eval Suite (Deterministic CI Evaluation Gate)', () =>
           {
             path: 'availability.rtoMinutes',
             label: 'Допустимое время восстановления (RTO)',
-            reason: 'required_by_standard',
+            severity: 'blocking',
           },
         ],
         provenance: [],

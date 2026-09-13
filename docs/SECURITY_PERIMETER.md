@@ -16,6 +16,8 @@ Implemented 2026-08-13.
 | `submit`                          | staff **or** share (`write`)                                  |
 | GOST migration apply              | staff only                                                    |
 | GOST LLM / parse / generate       | staff (unchanged)                                             |
+| `POST /api/gost34/draft-tz`        | staff only (`GOST34_LLM_ROLES`; share/anonymous forbidden)   |
+| `POST /api/gost34/draft-tz/decision` | staff only (`GOST34_LLM_ROLES`; share/anonymous forbidden) |
 | users / templates admin           | `admin` (unchanged)                                           |
 
 ## Share tokens
@@ -25,6 +27,7 @@ Implemented 2026-08-13.
 - Send as `X-Share-Token`, `Authorization: Share <token>`, or `?share=`.
 - On anonymous/share create, API returns `{ id, shareToken }` for the new calculation; UI stores it in `sessionStorage` and navigates to `/presale/:id?share=…` so RSC can authorize.
 - If the page loads without session/`?share=`, `ShareTokenRecovery` retries from `sessionStorage`.
+- **TZ Author routes (`/draft-tz`, `/draft-tz/decision`) strictly forbid share tokens**: returns `403 Forbidden` if accessed via share token or anonymous session.
 
 ## Anonymous mode
 
@@ -34,9 +37,12 @@ ALLOW_ANONYMOUS_PRESALE=true   # local demos ONLY
 
 Unset/false in production.
 
-## Audit
+## Audit & LLM Redaction
 
-`AuditEvent` table: login, create/update/delete/submit/export/share/migrate.
+- `AuditEvent` table: login, create/update/delete/submit/export/share/migrate, and `gost34.tz_author.*`.
+- **No LLM text/prompts in Audit**: All LLM audit entries (`gost34.tz_author.draft`, `gost34.tz_author.accept`, `gost34.tz_author.reject`) pass through `redactLlmMeta`. Prompts, model completions, section paragraphs, and context payloads are strictly scrubbed; only diagnostic meta (`nodeId`, `providerId`, `model`, `promptVersion`, `flagCodes`, `latencyMs`, `status`, `usedLlm`) is retained.
+- Custom `endpoint` parameters in request bodies are ignored by the server to prevent SSRF.
+- Hard flags block acceptance and document export with HTTP 409 (`TzAuthorHardFlagsError`).
 
 ## Cookies
 

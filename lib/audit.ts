@@ -16,8 +16,50 @@ export interface AuditWriteInput {
   ip?: string | null;
 }
 
+/**
+ * Redacts metadata for LLM audit events to prevent sensitive prompts,
+ * prose texts, requirements, or credentials from being persisted to AuditEvent.
+ */
+export const SENSITIVE_LLM_KEYS = new Set([
+  'prompt',
+  'messages',
+  'response',
+  'paragraphs',
+  'text',
+  'content',
+  'apiKey',
+  'endpoint',
+  'headers',
+  'body',
+  'token',
+  'authorization',
+  'rawRequirements',
+  'projectContext',
+  'context',
+  'draftParagraphs',
+  'baselineParagraphs',
+]);
+
+export function redactLlmMeta(
+  meta: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  if (!meta || typeof meta !== 'object') return {};
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(meta)) {
+    if (SENSITIVE_LLM_KEYS.has(key)) continue;
+    // Disallow long strings (> 200 chars) as potential prose/prompt leaks
+    if (typeof val === 'string' && val.length > 200) continue;
+    cleaned[key] = val;
+  }
+  return cleaned;
+}
+
 export async function writeAudit(input: AuditWriteInput): Promise<void> {
   try {
+    let meta = input.meta;
+    if (meta && (input.action.startsWith('gost34.tz_author.') || input.action.includes('llm'))) {
+      meta = redactLlmMeta(meta);
+    }
     await prisma.auditEvent.create({
       data: {
         actorType: input.actorType,
@@ -25,7 +67,7 @@ export async function writeAudit(input: AuditWriteInput): Promise<void> {
         action: input.action,
         entityType: input.entityType ?? null,
         entityId: input.entityId ?? null,
-        meta: input.meta ? JSON.stringify(input.meta) : null,
+        meta: meta ? JSON.stringify(meta) : null,
         ip: input.ip ?? null,
       },
     });

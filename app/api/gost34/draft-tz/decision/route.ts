@@ -5,7 +5,7 @@ import { isTzAuthorEnabled } from '@/lib/gost34/llm/tzAuthor/flag';
 import { loadCalculationForExport } from '@/lib/export';
 import { analyzeAndNormalizeInput } from '@/lib/gost34/analyzer';
 import { requireCalcAccess } from '@/lib/access';
-import { clientIp, writeAudit } from '@/lib/audit';
+import { clientIp, writeAudit, redactLlmMeta } from '@/lib/audit';
 import { TZ_SCHEMA_2020 } from '@/lib/gost34/schema/tz34-2020';
 import { walkDraftableNodes } from '@/lib/gost34/llm/tzAuthor/schemaWalk';
 import { collectGroundingPack } from '@/lib/gost34/llm/tzAuthor/grounding';
@@ -69,8 +69,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const access = await requireCalcAccess(req, calculationId, ['read']);
+  const access = await requireCalcAccess(req, calculationId, ['write']);
   if (access instanceof NextResponse) return access;
+  if (access.kind !== 'staff') {
+    return NextResponse.json({ error: 'forbidden: staff only' }, { status: 403 });
+  }
 
   const calculation = await loadCalculationForExport(calculationId);
   if (!calculation) {
@@ -209,20 +212,20 @@ export async function POST(req: NextRequest) {
     await writeAudit({
       actorType: 'user',
       actorId: actorUsername,
-      action: 'gost34.tz_author.accept',
+      action: decision === 'reject' ? 'gost34.tz_author.reject' : 'gost34.tz_author.accept',
       entityType: 'calculation',
       entityId: calculationId,
-      meta: {
+      meta: redactLlmMeta({
         nodeId,
         decision,
         status: proposal.status,
         flagCodes: flags.map((f) => f.code),
         usedLlm: proposal.usedLlm,
-      },
+      }),
       ip: clientIp(req),
     });
   } catch (auditErr) {
-    console.warn('Failed to write audit event for tz_author.accept:', auditErr);
+    console.warn('Failed to write audit event for tz_author decision:', auditErr);
   }
 
   return NextResponse.json({ proposal });
