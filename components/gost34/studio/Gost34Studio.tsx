@@ -183,6 +183,9 @@ export default function Gost34Studio({
         if (snap.sectionOverrides && Object.keys(snap.sectionOverrides).length > 0) {
           setSectionOverrides(snap.sectionOverrides);
         }
+        if (snap.tzAuthor && snap.tzAuthor.proposals) {
+          setTzAuthor(snap.tzAuthor);
+        }
         if (snap.activeStep) setActiveStep(snap.activeStep);
         if (data.draft.updatedAt) {
           setLastDraftSavedAt(
@@ -423,6 +426,7 @@ export default function Gost34Studio({
         manualLinks,
         signatures,
         sectionOverrides,
+        tzAuthor,
         activeStep,
         updatedAt: new Date().toISOString(),
       };
@@ -806,6 +810,7 @@ export default function Gost34Studio({
               isReviewLoading={isReviewLoading}
               reviewError={reviewError}
               onUpdateSectionOverrides={handleSectionOverrides}
+              onUpdateTzAuthor={setTzAuthor}
               reviewComments={
                 latestPackage?.status === 'rejected' ? latestPackage.reviewComments : undefined
               }

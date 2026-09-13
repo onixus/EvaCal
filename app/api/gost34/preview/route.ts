@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
         ...astWithDiagnostics,
         sections: overriddenSections,
       },
+      baselineAst: astWithDiagnostics,
       diagnostics: astWithDiagnostics.diagnostics,
       tzAuthorDiagnostics,
     });
