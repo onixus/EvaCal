@@ -82,6 +82,9 @@ async function seedDefaultUsers() {
   console.log('Сброс: docker compose run --rm migrate npx tsx reset-all.ts --all\n');
 }
 
+/** Демо-шаблон пресейла: единственный шаблон с `isActive: true` в свежей базе. */
+const DEMO_TEMPLATE_NAME = 'Внедрение CRM-системы';
+
 async function main() {
   await seedDefaultUsers();
 
@@ -91,7 +94,14 @@ async function main() {
     console.log(`Импортировано отраслевых пресетов ИТ/ИБ: ${seededPresets.length} шт.`);
   }
 
-  const existing = await prisma.formTemplate.findFirst();
+  // Guard strictly by the demo template's own name. A bare `findFirst()` here
+  // matched the industry presets imported just above, so on a brand-new database
+  // the demo template and calculation were never created at all — and because the
+  // presets are imported with `isActive: false`, /presale fell back to a preset
+  // and every out-of-the-box calculation carried stage requirements.
+  const existing = await prisma.formTemplate.findFirst({
+    where: { name: DEMO_TEMPLATE_NAME },
+  });
   if (existing) {
     console.log('Демо-шаблон и расчёт уже существуют, пропускаю.');
     return;
@@ -99,7 +109,7 @@ async function main() {
 
   const template = await prisma.formTemplate.create({
     data: {
-      name: 'Внедрение CRM-системы',
+      name: DEMO_TEMPLATE_NAME,
       description: 'Базовый опросник пресейла для проектов внедрения',
       isActive: true,
       fields: {
@@ -198,8 +208,10 @@ async function main() {
   };
 
   const primary = primaryStagesFromTemplate(template.stageTemplates, answers);
+  // Обязывающая формулировка: текст попадает в раздел 4 ТЗ дословно и проходит
+  // валидацию ГОСТ 34 наравне с требованиями ТЗ (см. extractRequirementsFromStages).
   primary[0].requirements =
-    'Интеграция только с существующей учётной системой заказчика, без миграции исторических данных.';
+    'Система должна интегрироваться только с существующей учётной системой заказчика без миграции исторических данных.';
   // Demonstrates the architect's Gantt controls: infra setup runs alongside integration
   // development, and testing gets a longer 5-day customer sign-off instead of the default 3.
   primary[3].parallel = true;
