@@ -1,9 +1,15 @@
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { resolvePageAccess } from '@/lib/access';
-import { hasArchitectPowers, hasReviewerPowers } from '@/lib/appRoles';
+
 import { parsePackageSnapshot } from '@/lib/gost34/diff';
-import { parseChecklist, parseComments, type ReviewStage } from '@/lib/gost34/review/types';
+import {
+  canDecideReviewStage,
+  parseChecklist,
+  parseComments,
+  SHARE_ALLOWED_STAGES,
+  type ReviewStage,
+} from '@/lib/gost34/review/types';
 import PackageReviewClient, {
   type ReviewQueueItem,
   type SerializedReviewPackage,
@@ -58,18 +64,17 @@ export default async function PackageReviewPage(props: {
   ) as ReviewStage;
 
   /**
-   * Кто вправе вынести решение на текущем этапе: нормоконтроль ведёт ревьювер,
-   * финальное ревью — только ГАП (архитектор или админ). Гость по ссылке с
-   * правом review приравнивается к внешнему согласующему и решение выносить
-   * может — на этом держится портал согласования с Заказчиком.
+   * Кто вправе вынести решение на текущем этапе: нормоконтроль подписывает
+   * тех.писатель, выпуск — ГАП. Гость по ссылке с правом review приравнивается
+   * к внешнему нормоконтролю и решение выносить может только на первом этапе —
+   * на этом держится портал согласования с Заказчиком, но подпись о выпуске
+   * остаётся внутри системы.
    */
   const role = access.kind === 'staff' ? access.session?.role : null;
   const canReview =
     access.kind === 'share'
-      ? Boolean(access.share?.scopes.includes('review'))
-      : stage === 'gap'
-        ? hasArchitectPowers(role)
-        : hasReviewerPowers(role);
+      ? Boolean(access.share?.scopes.includes('review')) && SHARE_ALLOWED_STAGES.includes(stage)
+      : canDecideReviewStage(role, stage);
 
   // Очередь того же этапа: ревьювер видит, что ещё ждёт нормоконтроля, а ГАП —
   // что ждёт финального решения.

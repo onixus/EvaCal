@@ -26,6 +26,11 @@ export interface GostWizardSnapshot {
   contractNumber?: string;
   city?: string;
   requirements?: unknown[];
+  /**
+   * Проектный контекст, которым выпускался комплект. Без него снимок не
+   * воспроизводит выпуск: разделы ТЗ строятся именно из контекста.
+   */
+  projectContext?: Record<string, unknown>;
   uploadedFiles?: string[];
   applicabilityOverrides?: Record<string, unknown>;
   manualLinks?: unknown[];
@@ -532,6 +537,18 @@ export async function releaseGostPackage(input: {
 }
 
 /**
+ * Отказ по правилам ревью, а не сбой сервера: комплект уже утверждён или в нём
+ * остались открытые блокеры. Отдельный тип нужен, чтобы маршрут ответил 409, а
+ * не 500 — иначе штатный отказ попадает в мониторинг как авария.
+ */
+export class GostReviewConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GostReviewConflictError';
+  }
+}
+
+/**
  * Решение по комплекту ГОСТ 34 на текущем этапе ревью.
  *
  * Ревью двухэтапное: нормоконтроль тех.писателя (`tw`), затем финальное ревью
@@ -559,11 +576,11 @@ export async function reviewGostPackage(input: {
   }
 
   if (pkg.status === 'approved') {
-    throw new Error('Утверждённый комплект документов неизменяем.');
+    throw new GostReviewConflictError('Утверждённый комплект документов неизменяем.');
   }
 
   if (input.decision === 'approve' && (input.openBlockers ?? 0) > 0) {
-    throw new Error('Утверждение недоступно, пока открыт хотя бы один блокер.');
+    throw new GostReviewConflictError('Утверждение недоступно, пока открыт хотя бы один блокер.');
   }
 
   const stage = pkg.reviewStage === 'gap' ? 'gap' : 'tw';

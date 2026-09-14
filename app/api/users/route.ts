@@ -3,9 +3,8 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { requireApiRole } from '@/lib/auth';
 import { generatePassword } from '@/lib/password';
+import { APP_ROLES, isAppRole } from '@/lib/appRoles';
 import { pageArgs, paginationHeaders, parseLimit, parsePage } from '@/lib/pagination';
-
-const ALLOWED_ROLES = ['architect', 'admin'];
 
 // User provisioning is admin-only.
 export async function GET(req: NextRequest) {
@@ -42,8 +41,13 @@ export async function POST(req: NextRequest) {
   const role = body.role;
 
   if (!username) return NextResponse.json({ error: 'Укажите логин' }, { status: 400 });
-  if (!ALLOWED_ROLES.includes(role)) {
-    return NextResponse.json({ error: 'Роль должна быть architect или admin' }, { status: 400 });
+  // Список ролей берётся из модели: иначе новая роль заводится в коде, но
+  // пользователя с ней создать нельзя.
+  if (!isAppRole(role)) {
+    return NextResponse.json(
+      { error: `Роль должна быть одной из: ${APP_ROLES.map((r) => r.value).join(', ')}` },
+      { status: 400 },
+    );
   }
 
   const existing = await prisma.user.findUnique({ where: { username } });

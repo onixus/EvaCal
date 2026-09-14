@@ -83,6 +83,29 @@ export function revokeSession(token: string | undefined | null): void {
   }
 }
 
+/**
+ * Момент, начиная с которого сессии пользователя недействительны.
+ *
+ * Роль зашита в подписанный токен, поэтому смена роли обязана обесценить уже
+ * выданные сессии: иначе бывший ГАП доработал бы смену со старой подписью.
+ * Самих токенов на руках нет — храним время смены и отвергаем всё, что
+ * выпущено раньше.
+ */
+const userRevocationCutoff = new Map<string, number>();
+
+/** Отзывает все сессии пользователя: выданные до этого момента больше не годны. */
+export function revokeSessionsForUser(userId: string): void {
+  if (!userId) return;
+  userRevocationCutoff.set(userId, Date.now());
+}
+
+function isUserSessionRevoked(payload: SessionPayload): boolean {
+  const cutoff = userRevocationCutoff.get(payload.userId);
+  if (!cutoff) return false;
+  const issuedAt = payload.exp - SESSION_MAX_AGE_SECONDS * 1000;
+  return issuedAt < cutoff;
+}
+
 /** Checks whether a session token has been revoked. */
 export function isSessionRevoked(token: string | undefined | null): boolean {
   if (!token) return true;
@@ -101,6 +124,7 @@ export function isSessionRevoked(token: string | undefined | null): boolean {
 /** Clears revoked tokens store (intended for unit tests). */
 export function clearRevocationsForTesting(): void {
   revokedTokens.clear();
+  userRevocationCutoff.clear();
 }
 
 export function createSessionToken(user: {
@@ -128,6 +152,7 @@ export function verifySessionToken(token: string | undefined | null): SessionPay
   try {
     const payload = JSON.parse(Buffer.from(data, 'base64url').toString()) as SessionPayload;
     if (typeof payload.exp !== 'number' || payload.exp < Date.now()) return null;
+    if (isUserSessionRevoked(payload)) return null;
     return payload;
   } catch {
     return null;

@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
  * в самом ревью, на конкретном комплекте.
  */
 export default async function StandardsPage() {
-  await requireRole(['reviewer', 'architect', 'admin'], '/standards');
+  await requireRole(['techwriter', 'gap', 'reviewer', 'architect', 'admin'], '/standards');
 
   return (
     <div className="space-y-3">

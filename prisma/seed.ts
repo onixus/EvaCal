@@ -21,11 +21,14 @@ async function seedDefaultUsers() {
     return;
   }
 
-  // Ролевая навигация опирается на четыре роли: у пресейла и ревьювера свои
-  // экраны, поэтому учётки заводятся вместе с архитектором и админом.
+  // Учётка на каждую роль платформы: цикл выпуска документации проходится
+  // разными людьми, и обе подписи под комплектом принадлежат отдельным ролям —
+  // нормоконтроль подписывает тех.писатель, выпуск утверждает ГАП.
   const accounts = [
     { username: 'presale', role: 'presale' },
     { username: 'architect', role: 'architect' },
+    { username: 'techwriter', role: 'techwriter' },
+    { username: 'gap', role: 'gap' },
     { username: 'reviewer', role: 'reviewer' },
     { username: 'admin', role: 'admin' },
   ];

@@ -47,6 +47,13 @@ export function toGost34RequirementItem(
     originalText: requirement.originalText,
   };
 
+  // Критерий приёмки живёт в модели как список, а в legacy-строке — одной
+  // строкой через «; ». Без обратного отображения критерий, введённый вместе с
+  // требованием, терялся на первом же круге конвертации.
+  if (requirement.acceptanceCriteria?.length) {
+    item.criterion = requirement.acceptanceCriteria.join('; ');
+  }
+
   if (requirement.source?.filename !== undefined) item.sourceFile = requirement.source.filename;
   if (requirement.legacy?.normalizedBy !== undefined)
     item.normalizedBy = requirement.legacy.normalizedBy;
@@ -79,6 +86,12 @@ export function fromGost34RequirementItem(
   };
 
   if (item.description !== originalText) requirement.normalizedText = item.description;
+
+  // Критерий приёмки — единственное, что связывает требование с методикой
+  // испытаний: ПМИ печатает его в колонке «Критерии приемки», а правило
+  // testability по нему решает, проверяемо ли требование.
+  const criterion = item.criterion?.trim();
+  if (criterion) requirement.acceptanceCriteria = [criterion];
 
   const filename = item.sourceFile ?? opts.sourceFilename;
   if (filename !== undefined || opts.sourceSection !== undefined) {

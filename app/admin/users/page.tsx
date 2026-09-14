@@ -22,7 +22,8 @@ export default async function AdminUsersPage() {
         <div>
           <h1 className="text-xl font-semibold">Пользователи</h1>
           <p className="text-sm text-slate-500">
-            Создавайте учётные записи для интерфейсов архитектора и администратора.
+            Заводите учётные записи под роли платформы и переназначайте роль существующим
+            пользователям.
           </p>
         </div>
         <Link href="/admin" className="btn-secondary">

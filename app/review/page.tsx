@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { requireRole } from '@/lib/auth';
-import { hasArchitectPowers } from '@/lib/appRoles';
+import { defaultReviewStageFor, isGapRole } from '@/lib/appRoles';
 import { REVIEW_STAGE_LABELS, type ReviewStage } from '@/lib/gost34/review/types';
 
 export const dynamic = 'force-dynamic';
@@ -15,8 +15,11 @@ function ageInDays(from: Date): number {
  * прошли первый этап и ждут финального решения.
  */
 export default async function ReviewQueuePage() {
-  const session = await requireRole(['reviewer', 'architect', 'admin'], '/review');
-  const stage: ReviewStage = hasArchitectPowers(session.role) ? 'gap' : 'tw';
+  const session = await requireRole(
+    ['techwriter', 'gap', 'reviewer', 'architect', 'admin'],
+    '/review',
+  );
+  const stage: ReviewStage = defaultReviewStageFor(session.role);
 
   const [packages, rejectedPackages] = await Promise.all([
     prisma.gostPackage.findMany({
@@ -39,7 +42,7 @@ export default async function ReviewQueuePage() {
     }),
   ]);
 
-  const isArchitect = hasArchitectPowers(session.role);
+  const isArchitect = isGapRole(session.role);
 
   return (
     <div className="space-y-4">

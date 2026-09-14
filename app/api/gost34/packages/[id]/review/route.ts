@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireCalcAccess } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
-import { reviewGostPackage } from '@/lib/project';
+import { GostReviewConflictError, reviewGostPackage } from '@/lib/project';
 import { parsePackageSnapshot } from '@/lib/gost34/diff';
 import { handleApiError } from '@/lib/apiHelpers';
 import { recordInternalChangeSafe } from '@/lib/changelog';
@@ -11,6 +11,8 @@ import {
   parseChecklist,
   parseComments,
   REVIEW_STAGE_LABELS,
+  REVIEW_STAGE_ROLES,
+  SHARE_ALLOWED_STAGES,
   type ReviewStage,
 } from '@/lib/gost34/review/types';
 
@@ -56,6 +58,29 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     );
 
     const stageBefore = (pkg.reviewStage === 'gap' ? 'gap' : 'tw') as ReviewStage;
+
+    // Решение на этапе выносит только та роль, которой этот этап принадлежит:
+    // нормоконтроль — ревьювер, финальную подпись — ГАП. Проверка стоит здесь,
+    // а не в UI, иначе прямой запрос к API обходит разделение ответственности.
+    const allowedRoles = REVIEW_STAGE_ROLES[stageBefore as 'tw' | 'gap'];
+    if (access.kind === 'staff') {
+      const role = access.session?.role ?? '';
+      if (!allowedRoles.includes(role)) {
+        return NextResponse.json(
+          {
+            error: `Этап «${REVIEW_STAGE_LABELS[stageBefore]}» выносит другая роль: ${allowedRoles.join(', ')}. Текущая роль — ${role || 'не определена'}.`,
+          },
+          { status: 403 },
+        );
+      }
+    } else if (!SHARE_ALLOWED_STAGES.includes(stageBefore)) {
+      return NextResponse.json(
+        {
+          error: `Этап «${REVIEW_STAGE_LABELS[stageBefore]}» недоступен по share-ссылке: решение принимает ГАП в системе.`,
+        },
+        { status: 403 },
+      );
+    }
 
     const updated = await reviewGostPackage({
       packageId: pkg.id,
@@ -112,6 +137,11 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       },
     });
   } catch (err) {
+    // Отказ по правилам ревью — это конфликт состояния, а не сбой: 500 здесь
+    // поднимал бы ложную тревогу в мониторинге при штатном ходе нормоконтроля.
+    if (err instanceof GostReviewConflictError) {
+      return handleApiError(err, 'Review conflict', 409);
+    }
     return handleApiError(err, 'Failed to review package', 500);
   }
 }

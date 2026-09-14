@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { APP_ROLES } from '@/lib/appRoles';
 
 interface User {
   id: string;
@@ -11,10 +12,9 @@ interface User {
   createdAt: string;
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  architect: 'Архитектор',
-  admin: 'Администратор',
-};
+const ROLE_LABELS: Record<string, string> = Object.fromEntries(
+  APP_ROLES.map((r) => [r.value, r.label]),
+);
 
 export default function UsersManager({ users }: { users: User[] }) {
   const router = useRouter();
@@ -52,6 +52,27 @@ export default function UsersManager({ users }: { users: User[] }) {
       setError(err instanceof Error ? err.message : 'Ошибка');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function changeRole(user: User, role: string) {
+    if (role === user.role) return;
+    const label = APP_ROLES.find((r) => r.value === role)?.label ?? role;
+    if (!confirm(`Назначить пользователю «${user.username}» роль «${label}»?`)) return;
+    setBusyId(user.id);
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error ?? 'Не удалось сменить роль');
+      }
+      router.refresh();
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -105,9 +126,12 @@ export default function UsersManager({ users }: { users: User[] }) {
           </div>
           <div>
             <label className="label">Роль</label>
-            <select className="input w-48" value={role} onChange={(e) => setRole(e.target.value)}>
-              <option value="architect">Архитектор</option>
-              <option value="admin">Администратор</option>
+            <select className="input w-64" value={role} onChange={(e) => setRole(e.target.value)}>
+              {APP_ROLES.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
             </select>
           </div>
           <button type="submit" className="btn-primary" disabled={submitting}>
@@ -139,7 +163,22 @@ export default function UsersManager({ users }: { users: User[] }) {
                   className="border-b border-slate-100 last:border-0 dark:border-nord-3"
                 >
                   <td className="py-2 pr-4 font-medium">{u.username}</td>
-                  <td className="py-2 pr-4">{ROLE_LABELS[u.role] ?? u.role}</td>
+                  <td className="py-2 pr-4">
+                    <select
+                      className="input w-56 py-1 text-xs"
+                      value={u.role}
+                      disabled={busyId === u.id}
+                      onChange={(e) => changeRole(u, e.target.value)}
+                      aria-label={`Роль пользователя ${u.username}`}
+                    >
+                      {APP_ROLES.map((r) => (
+                        <option key={r.value} value={r.value}>
+                          {r.label}
+                        </option>
+                      ))}
+                      {!ROLE_LABELS[u.role] && <option value={u.role}>{u.role}</option>}
+                    </select>
+                  </td>
                   <td className="py-2 pr-4 text-slate-500 dark:text-nord-muted">
                     {u.mustChangePassword ? 'выдан, ещё не менялся' : 'изменён пользователем'}
                   </td>

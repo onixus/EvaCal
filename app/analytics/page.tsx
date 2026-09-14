@@ -19,7 +19,10 @@ type Tab = 'deals' | 'accuracy' | 'deviations';
 export default async function AnalyticsPage(props: {
   searchParams: Promise<{ period?: string; tab?: string }>;
 }) {
-  await requireRole(['presale', 'architect', 'reviewer', 'admin'], '/analytics');
+  await requireRole(
+    ['presale', 'architect', 'gap', 'techwriter', 'reviewer', 'admin'],
+    '/analytics',
+  );
   const sp = await props.searchParams;
   const period = parsePeriod(sp.period);
   const tab: Tab =

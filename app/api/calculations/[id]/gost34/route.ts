@@ -167,6 +167,10 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       manualLinks,
       sectionOverrides,
       tzAuthor,
+      // Проектный контекст принимают проверка мастера и предпросмотр, поэтому
+      // выпуск обязан принимать его тоже: иначе вердикт «пробелов нет»
+      // выносится по одним данным, а документ печатается по другим.
+      projectContext,
     } = body;
 
     const layout = resolveLayoutProfileId(layoutProfileId);
@@ -193,6 +197,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
           const { buffer } = await generateGost34Document({
             calculation: calc,
             rawRequirements,
+            projectContext,
             manualTraceLinks: manualLinks,
             sectionOverrides,
             tzAuthor,
@@ -226,6 +231,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         contractNumber,
         city,
         requirements: rawRequirements,
+        projectContext,
         applicabilityOverrides,
         manualLinks,
         signatures: commonSignatures,
@@ -276,6 +282,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const { buffer, filename } = await generateGost34Document({
       calculation: calc,
       rawRequirements,
+      projectContext,
       manualTraceLinks: manualLinks,
       sectionOverrides,
       tzAuthor,
@@ -299,6 +306,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       contractNumber,
       city,
       requirements: rawRequirements,
+      projectContext,
       applicabilityOverrides,
       manualLinks,
       signatures: commonSignatures,

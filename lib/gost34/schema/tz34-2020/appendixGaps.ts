@@ -5,6 +5,7 @@ export const appendixGaps: SchemaNode = {
   id: 'tz2020-appendix-gaps',
   title: 'СВЕДЕНИЯ, ТРЕБУЮЩИЕ УТОЧНЕНИЯ',
   appendix: true,
+  gapRegistry: true,
   includeWhen: ({ context }) => (context.gaps || []).length > 0,
   build: ({ context }): SectionContent => ({
     paragraphs: [

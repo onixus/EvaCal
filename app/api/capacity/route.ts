@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
  * `?from=&weeks=&drafts=1&roles=a,b`. Пресейл не видит: тут чужие проекты.
  */
 export async function GET(req: NextRequest) {
-  const auth = await requireApiRole(['architect', 'reviewer', 'admin']);
+  const auth = await requireApiRole(['architect', 'gap', 'techwriter', 'reviewer', 'admin']);
   if (auth instanceof NextResponse) return auth;
   try {
     return NextResponse.json(

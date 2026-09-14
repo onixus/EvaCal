@@ -62,6 +62,25 @@ function toNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+/**
+ * Служебные значения опросника сложности печатаются в документе словами:
+ * латинское «high» в русском тексте нарушает требование к языку документации
+ * из самого же ТЗ. Незнакомое значение возвращается как есть — придумывать за
+ * Заказчика перевод нельзя.
+ */
+const COMPLEXITY_LABELS: Record<string, string> = {
+  low: 'низкая',
+  medium: 'средняя',
+  high: 'высокая',
+  'very-high': 'очень высокая',
+  very_high: 'очень высокая',
+};
+
+function complexityLabel(value: string | undefined): string | undefined {
+  if (!value) return value;
+  return COMPLEXITY_LABELS[value.trim().toLowerCase()] ?? value;
+}
+
 function toText(value: unknown): string | undefined {
   if (typeof value === 'string') {
     const v = value.trim();
@@ -259,7 +278,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
 
   const complexityAnswer = findAnswer(answers, /complexity|сложност/i);
   if (complexityAnswer) {
-    const complexity = toText(complexityAnswer.value);
+    const complexity = complexityLabel(toText(complexityAnswer.value));
     if (complexity) {
       notes.push(`Оценка сложности решения по опроснику: ${complexity}.`);
       record(state, 'architecture.notes', 'questionnaire', complexityAnswer.key);

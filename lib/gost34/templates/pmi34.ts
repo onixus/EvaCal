@@ -55,15 +55,19 @@ export function buildPMI34Sections(payload: Gost34InputPayload): Gost34Section[]
           ],
           rows: reqsV2.map((r, idx) => {
             const method = r.verificationMethod || 'TEST';
-            const criteria =
-              r.acceptanceCriteria?.join('; ') || 'Успешное выполнение проверки без ошибок';
+            const criteria = r.acceptanceCriteria?.join('; ');
             const text = getRequirementEffectiveText(r);
             return [
               idx + 1,
               r.code,
               r.title,
               `Метод: ${method}`,
-              `${criteria} (Требование: ${text.substring(0, 50)}...)`,
+              // Заданный критерий приёмки печатается как есть: он и есть
+              // ожидаемый результат проверки. Универсальная формулировка
+              // остаётся только там, где критерий не задан, и тогда её
+              // дополняет выдержка из требования.
+              criteria ||
+                `Успешное выполнение проверки без ошибок (Требование: ${text.substring(0, 50)}...)`,
             ];
           }),
         },

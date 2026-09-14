@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
  * у каких расчётов он не пуст, и ведёт в конкретный лист.
  */
 export default async function ChangelogIndexPage() {
-  await requireRole(['reviewer', 'architect', 'admin'], '/changelog');
+  await requireRole(['techwriter', 'gap', 'reviewer', 'architect', 'admin'], '/changelog');
 
   const grouped = await prisma.internalChange.groupBy({
     by: ['calculationId'],
