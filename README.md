@@ -143,7 +143,7 @@
 - **Styling**: Tailwind CSS (3 темы: High-Contrast, Nord Dark, Dark Fantasy).
 - **ORM & Database**: Prisma 7. Основная СУБД — PostgreSQL 14+ (версионированные миграции в `prisma/postgresql/migrations`; тесты и сборка в CI идут против неё); для одного стенда без отдельной СУБД — встраиваемый SQLite (`DATABASE_PROVIDER=sqlite`).
 - **Генерация документов**: `docx`, `mammoth`, `jszip`, `pdfkit`, `xlsx` (SheetJS).
-- **Тестирование**: Vitest (**63 test suites, 534 tests**, Golden Tests ГОСТ 34, Eval Suite LLM, JUnit XML reporter).
+- **Тестирование**: Vitest (**63 test suites, 540 tests**, Golden Tests ГОСТ 34, Eval Suite LLM, JUnit XML reporter).
 - **CI/CD & Инфраструктура**: Docker multi-stage (Node 22 Alpine, non-root user 1001, automated schema sync & seed), Docker Compose, Nginx (TLS, HSTS, Gzip, Security Headers), Jenkins Pipeline (`Jenkinsfile`) & GitHub Actions.
 
 ---
@@ -257,6 +257,24 @@ npm run db:migrate:pg -- --name <что_изменилось>
 ```
 
 Перенос данных между SQLite и PostgreSQL штатной командой не делается: выгрузите таблицы любым инструментом (например, `sqlite3 .dump` → правка типов → `psql`) или начните с чистой базы и сида.
+
+### Хранилище артефактов: файлы или S3
+
+ZIP выпущенных комплектов и DOCX тех.писателя лежат вне базы (`lib/gost34/storage.ts`). Два бэкенда за одним интерфейсом, в базе хранится одинаковый относительный ключ `<проект>/<пакет>.zip`, поэтому переключение не требует миграции строк, только переноса файлов.
+
+- **Файлы (по умолчанию)** — `GOST_PACKAGE_STORAGE_PATH` (`storage/gost-packages`), в Docker том `storage-data`. Подходит одному экземпляру приложения.
+- **S3-совместимое хранилище** — AWS S3, MinIO, Yandex/VK Object Storage, Ceph RGW. Единственный вариант для нескольких реплик и централизованных бэкапов. Включается заданным `S3_BUCKET` (или явно `GOST_PACKAGE_STORAGE=s3`); параметры в `.env.example`. При своём `S3_ENDPOINT` по умолчанию path-style адресация. Бакет создаётся заранее.
+
+Встроенный MinIO для стенда:
+
+```bash
+# .env: S3_BUCKET=evacal-artifacts, S3_ENDPOINT=http://minio:9000,
+#       S3_ACCESS_KEY_ID=evacal, S3_SECRET_ACCESS_KEY=<пароль>
+docker compose --profile minio up -d
+# затем создать бакет в консоли http://127.0.0.1:9001 (логин — S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY)
+```
+
+Целостность: SHA-256 считается при записи, отправляется в S3 как контрольная сумма объекта и пересчитывается при чтении; ответ API отдаёт его в `X-Checksum-SHA256`.
 
 ### Шаг 3. Как получить пароли после запуска в Docker
 
