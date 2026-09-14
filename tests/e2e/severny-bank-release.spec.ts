@@ -1,36 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-
-// Пароль стендовых учёток берётся из окружения: общего дефолтного пароля в проекте нет.
-// Пайплайн сидит все роли одним паролем (SEED_DEFAULT_PASSWORD), поэтому им же
-// логинятся тех.писатель и ГАП.
-const E2E_PASSWORD = process.env.E2E_ARCHITECT_PASSWORD;
-
-/** Пароль, на который меняется выданный сидом при первом входе. */
-const FORCED_NEW_PASSWORD = 'newsecurepassword123';
-
-/**
- * Вход под ролью с прохождением обязательной смены пароля.
- * Возвращает пароль, действующий после входа: сид помечает учётки
- * `mustChangePassword`, и первый вход всегда заканчивается сменой.
- */
-async function loginAs(page: Page, username: string, password: string): Promise<string> {
-  await page.goto('/login');
-  const inputs = page.locator('.input');
-  await inputs.nth(0).fill(username);
-  await inputs.nth(1).fill(password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL(/\/(projects|review|presale|admin|account)/, { timeout: 20000 });
-
-  if (/account/.test(page.url())) {
-    const passInputs = page.locator('input[type="password"]');
-    await passInputs.nth(0).fill(password);
-    await passInputs.nth(1).fill(FORCED_NEW_PASSWORD);
-    await page.getByRole('button', { name: /Сменить пароль/i }).click();
-    await expect(page.getByText('Пароль изменён')).toBeVisible({ timeout: 15000 });
-    return FORCED_NEW_PASSWORD;
-  }
-  return password;
-}
+import { createCalculationViaWizard, createProject, E2E_PASSWORD, loginAs } from './helpers';
 
 /**
  * Подпись на текущем этапе ревью: роль входит, открывает первый комплект своей
@@ -63,112 +32,25 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
 
   test('login, create project, create calculation, release GOST 34 package, and approve', async ({
     page,
-    context,
   }) => {
     test.setTimeout(300000); // Flow is long, give it 5 minutes
     test.skip(!E2E_PASSWORD, 'E2E_ARCHITECT_PASSWORD не задан');
     const password = E2E_PASSWORD as string;
 
-    // 1. Login as architect
-    await page.goto('/login');
-    const inputs = page.locator('.input');
-    await inputs.nth(0).fill('architect');
-    await inputs.nth(1).fill(password);
-    await page.click('button[type="submit"]');
+    // 1. Вход архитектором: после входа — рабочий стол с конвейером проектов.
+    const architectPassword = await loginAs(page, 'architect', password);
+    await expect(page.getByRole('heading', { level: 1, name: 'Рабочий стол' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Конвейер проектов' })).toBeVisible();
 
-    // Wait for either navigation or an error message to appear
-    const errorLocator = page
-      .locator('text=Неверный логин или пароль')
-      .or(page.locator('text=Ошибка'));
-    try {
-      await Promise.race([
-        page.waitForURL(/.*\/projects|.*\/account/, { timeout: 10000 }),
-        errorLocator.waitFor({ state: 'visible', timeout: 10000 }).then(async () => {
-          const errText = await errorLocator.innerText();
-          throw new Error(`Login failed: ${errText}`);
-        }),
-      ]);
-    } catch (err) {
-      await page.screenshot({ path: 'login-hang.png' });
-      throw err;
-    }
+    // 2–3. Проект и его карточка.
+    await createProject(page, PROJECT_NAME, CUSTOMER_NAME);
+    // Карточка показывает конвейер проекта (на свежем стенде — первый шаг).
+    await expect(page.getByRole('list', { name: 'Этапы проекта' })).toBeVisible();
 
-    // Handle initial forced password change if redirected to /account
-    let architectPassword = password;
-    if (/account/.test(page.url())) {
-      const passInputs = page.locator('input[type="password"]');
-      await passInputs.nth(0).fill(password);
-      await passInputs.nth(1).fill(FORCED_NEW_PASSWORD);
-      await page.getByRole('button', { name: /Сменить пароль/i }).click();
-      await expect(page.getByText('Пароль изменён')).toBeVisible();
-      architectPassword = FORCED_NEW_PASSWORD;
-      await page.goto('/projects');
-    }
+    // 4–5. Расчёт через пресейл-мастер.
+    await createCalculationViaWizard(page);
 
-    await expect(page).toHaveURL(/.*\/projects/);
-
-    // 2. Create Project
-    await page.getByRole('button', { name: 'Новый проект' }).click();
-    await expect(page.getByText('Создать новый проект')).toBeVisible();
-
-    // Fill project form (wait for inputs to be available in modal)
-    // using label queries or generic input selectors since they are just basic inputs
-    await page
-      .locator('input[placeholder*="Название проекта"]')
-      .or(page.locator('input[placeholder*="АС «Единый"]'))
-      .fill(PROJECT_NAME);
-    await page
-      .locator('input[placeholder*="Заказчик"]')
-      .or(page.locator('input[placeholder*="Северный банк"]'))
-      .fill(CUSTOMER_NAME);
-
-    // Use submit button in modal
-    await page.locator('form').getByRole('button', { name: 'Создать' }).click();
-
-    // 3. Project Detail Page
-    await expect(page.getByRole('heading', { name: PROJECT_NAME })).toBeVisible();
-
-    // 4. Create Calculation
-    // Find link or button "Создать расчёт" or "+ Создать расчёт с нуля"
-    await page
-      .getByRole('link', { name: /Создать расчёт/ })
-      .first()
-      .click();
-
-    // 5. Presale Wizard
-    await expect(page.locator('label').filter({ hasText: 'Название проекта' })).toBeVisible();
-    // Step 1 -> 2
-    await page.getByRole('button', { name: /Далее/ }).click();
-    // Step 2 (Опросник) -> 3
-    await expect(page.getByText(/Опросник/).first()).toBeVisible();
-
-    // Fill all required inputs to pass HTML5 validation
-    const requiredInputs = page.locator('input[required], select[required], textarea[required]');
-    const count = await requiredInputs.count();
-    for (let i = 0; i < count; i++) {
-      const type = await requiredInputs.nth(i).getAttribute('type');
-      const tagName = await requiredInputs.nth(i).evaluate((el) => el.tagName.toLowerCase());
-
-      if (tagName === 'select') {
-        // Pick the last option which is usually valid
-        const options = requiredInputs.nth(i).locator('option');
-        if ((await options.count()) > 1) {
-          const val = await options.nth(1).getAttribute('value');
-          await requiredInputs.nth(i).selectOption(val!);
-        }
-      } else if (type === 'number') {
-        await requiredInputs.nth(i).fill('1');
-      } else {
-        await requiredInputs.nth(i).fill('test');
-      }
-    }
-
-    await page.getByRole('button', { name: /Далее/ }).click();
-    // Step 3 (Итог) -> Create
-    await expect(page.getByText('Итог: этапы и роли')).toBeVisible();
-    await page.getByRole('button', { name: 'Создать расчёт' }).click();
-
-    // 6. Calculation Detail Page
+    // 6. Из расчёта — в Студию ГОСТ 34.
     const studioLink = page.locator('a[title*="профиль, требования"]');
     await expect(studioLink).toBeVisible({ timeout: 15000 });
     await studioLink.click();
@@ -233,12 +115,13 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
 
     expect(download.suggestedFilename()).toMatch(/\.zip$/);
 
-    // 9. Back to Project to get Share Link
+    // 9. Карточка проекта: конвейер показывает нормоконтроль, комплект — в реестре.
     await page.goto('/projects');
     await page.getByRole('link', { name: PROJECT_NAME }).first().click();
-
-    // Wait for the project detail page to load
     await expect(page.getByRole('heading', { name: PROJECT_NAME })).toBeVisible();
+    await expect(
+      page.getByRole('list', { name: 'Этапы проекта' }).locator('[aria-current="step"]'),
+    ).toContainText('Нормоконтроль');
 
     // Switch to Packages tab!
     await page.locator('button').filter({ hasText: 'Реестр ГОСТ 34' }).first().click();
@@ -247,6 +130,13 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     // проекта показывает ему только этап, на котором комплект стоит.
     await expect(page.getByText(/на подписи:/i).first()).toBeVisible();
     await expect(page.getByRole('button', { name: '✓ Согласовать' })).toHaveCount(0);
+
+    // Доска заявок: комплект стоит в колонке нормоконтроля, архитектор его не двигает.
+    await page.goto('/board');
+    const twColumn = page.getByRole('region', { name: 'Нормоконтроль' });
+    await expect(
+      twColumn.locator('article').filter({ hasText: CUSTOMER_NAME }).first(),
+    ).toBeVisible();
 
     // Нормоконтроль подписывает тех.писатель — не архитектор и не ГАП.
     // Пароль у всех сидированных учёток один (SEED_DEFAULT_PASSWORD в пайплайне).
@@ -298,5 +188,12 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     await expect(customerPage.getByText('Комплект утверждён')).toBeVisible();
 
     await customerContext.close();
+
+    // 11. После утверждения конвейер проекта стоит на «Выпущен».
+    await page.goto('/projects');
+    await page.getByRole('link', { name: PROJECT_NAME }).first().click();
+    await expect(
+      page.getByRole('list', { name: 'Этапы проекта' }).locator('[aria-current="step"]'),
+    ).toContainText('Выпущен');
   });
 });

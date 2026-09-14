@@ -13,6 +13,10 @@ vi.mock('@/lib/access', () => ({
   requireCalcAccess: vi.fn(),
 }));
 
+vi.mock('@/lib/auth', () => ({
+  requireApiRole: vi.fn(),
+}));
+
 vi.mock('@/lib/audit', () => ({
   writeAudit: vi.fn(),
   clientIp: vi.fn(() => '127.0.0.1'),
@@ -41,6 +45,7 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 import { requireStaff, requireCalcAccess } from '@/lib/access';
+import { requireApiRole } from '@/lib/auth';
 import { getOrCreateProject, getProjectDetails, createCalculationVersion } from '@/lib/project';
 import { prisma } from '@/lib/prisma';
 
@@ -93,7 +98,7 @@ describe('Project API routes', () => {
 
   describe('POST /api/projects', () => {
     it('creates project if staff and valid body', async () => {
-      vi.mocked(requireStaff).mockResolvedValue({
+      vi.mocked(requireApiRole).mockResolvedValue({
         userId: 'u1',
         username: 'arch',
         role: 'architect',
@@ -118,7 +123,7 @@ describe('Project API routes', () => {
     });
 
     it('validates required fields', async () => {
-      vi.mocked(requireStaff).mockResolvedValue({
+      vi.mocked(requireApiRole).mockResolvedValue({
         userId: 'u1',
         username: 'arch',
         role: 'architect',
