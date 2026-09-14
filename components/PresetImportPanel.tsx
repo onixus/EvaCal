@@ -90,7 +90,7 @@ export default function PresetImportPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-nord-3 pb-3">
         <div>
           <h3 className="font-semibold text-slate-900 dark:text-slate-100">
             Отраслевые пресеты ИТ / ИБ / ПАК
@@ -134,7 +134,7 @@ export default function PresetImportPanel() {
           return (
             <div
               key={preset.id}
-              className="flex flex-col justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-nord-dark hover:border-brand-500/50 transition-all shadow-sm"
+              className="flex flex-col justify-between p-4 rounded-xl border border-slate-200 dark:border-nord-3 bg-white dark:bg-nord-2 hover:border-brand-500/50 transition-all shadow-sm"
             >
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
@@ -167,7 +167,7 @@ export default function PresetImportPanel() {
                 </div>
               </div>
 
-              <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800/60 mt-3">
+              <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-nord-3 mt-3">
                 <button
                   type="button"
                   disabled={isBusy}

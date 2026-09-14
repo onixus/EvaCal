@@ -74,9 +74,9 @@ export function hasReviewerPowers(role: string | null | undefined): boolean {
   return role === 'techwriter' || role === 'gap' || role === 'reviewer' || hasArchitectPowers(role);
 }
 
-/** Роли, работающие с очередью нормоконтроля (первый этап). */
+/** Роли, работающие с очередью нормоконтроля (первый этап). Админ ведёт оба этапа. */
 export function isTechWriterRole(role: string | null | undefined): boolean {
-  return role === 'techwriter' || role === 'reviewer';
+  return role === 'techwriter' || role === 'reviewer' || role === 'admin';
 }
 
 /** Роли, работающие с очередью финального ревью (второй этап). */
@@ -89,7 +89,13 @@ export function isGapRole(role: string | null | undefined): boolean {
  * Архитектор попадает на очередь ГАП как наблюдатель: там его выпуски.
  */
 export function defaultReviewStageFor(role: string | null | undefined): 'tw' | 'gap' {
-  return isTechWriterRole(role) ? 'tw' : 'gap';
+  return role === 'admin' ? 'gap' : isTechWriterRole(role) ? 'tw' : 'gap';
+}
+
+/** Этапы ревью, очереди которых роль видит на экране `/review`. */
+export function reviewStagesFor(role: string | null | undefined): ('tw' | 'gap')[] {
+  if (role === 'admin') return ['tw', 'gap'];
+  return [defaultReviewStageFor(role)];
 }
 
 /**
@@ -201,15 +207,16 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     ANALYTICS,
     LEADERBOARD,
   ],
+  // Администратор — надмножество всех ролей: видит все экраны и обе очереди ревью.
   admin: [
     DASHBOARD,
     PROJECTS,
+    PRESALE,
     CALCULATIONS,
     STUDIO,
-    // Админ ведёт оба этапа, но экран открывает очередь ГАП (`defaultReviewStageFor`),
-    // поэтому и счётчик у пункта — по ней: иначе число не совпадало бы со списком.
-    { href: '/review', label: 'Ревью документации', group: 'work', badgeKey: 'gapQueue' },
+    { href: '/review', label: 'Ревью документации', group: 'work', badgeKey: 'reviewQueue' },
     CHANGELOG,
+    STANDARDS,
     CATALOG,
     CAPACITY,
     ANALYTICS,

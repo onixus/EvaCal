@@ -8,6 +8,7 @@ import {
   isAppRole,
   isGapRole,
   isTechWriterRole,
+  reviewStagesFor,
   NAV_BY_ROLE,
   ROLE_HOME,
   type AppRole,
@@ -93,5 +94,11 @@ describe('Очередь по умолчанию на экране ревью', 
     expect(isGapRole('admin')).toBe(true);
     expect(defaultReviewStageFor('gap')).toBe('gap');
     expect(defaultReviewStageFor('architect')).toBe('gap');
+    // Админ — надмножество всех ролей: видит обе очереди, по умолчанию открывает ГАП.
+    expect(isTechWriterRole('admin')).toBe(true);
+    expect(defaultReviewStageFor('admin')).toBe('gap');
+    expect(reviewStagesFor('admin')).toEqual(['tw', 'gap']);
+    expect(reviewStagesFor('techwriter')).toEqual(['tw']);
+    expect(reviewStagesFor('architect')).toEqual(['gap']);
   });
 });

@@ -172,7 +172,7 @@ export default function TzDraftReviewPanel({
   const isAccepted = proposal.status === 'ACCEPTED' || proposal.status === 'ACCEPTED_EDITED';
 
   return (
-    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3 dark:border-nord-3 dark:bg-nord-dark/80">
+    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3 dark:border-nord-3 dark:bg-nord-1">
       {/* Header bar with badges */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-nord-3 pb-2.5">
         <div className="flex items-center gap-2">
