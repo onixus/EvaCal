@@ -8,7 +8,10 @@ export const dynamic = 'force-dynamic';
 export default async function CapacityPage(props: {
   searchParams: Promise<{ weeks?: string; drafts?: string }>;
 }) {
-  const session = await requireRole(['architect', 'reviewer', 'admin'], '/capacity');
+  const session = await requireRole(
+    ['architect', 'gap', 'techwriter', 'reviewer', 'admin'],
+    '/capacity',
+  );
   const sp = await props.searchParams;
   const weeks = sp.weeks === '26' ? 26 : DEFAULT_WEEKS;
   const includeDrafts = sp.drafts === '1';

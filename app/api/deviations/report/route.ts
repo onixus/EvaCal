@@ -7,7 +7,14 @@ export const dynamic = 'force-dynamic';
 
 /** Срез отклонений по конфигурации из тела (E3). Ничего не сохраняет. */
 export async function POST(req: NextRequest) {
-  const auth = await requireApiRole(['presale', 'architect', 'reviewer', 'admin']);
+  const auth = await requireApiRole([
+    'presale',
+    'architect',
+    'gap',
+    'techwriter',
+    'reviewer',
+    'admin',
+  ]);
   if (auth instanceof NextResponse) return auth;
   try {
     const body = await req.json().catch(() => ({}));

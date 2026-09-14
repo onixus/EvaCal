@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { APP_ROLES } from '@/lib/appRoles';
 
 interface User {
   id: string;
@@ -11,10 +12,9 @@ interface User {
   createdAt: string;
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  architect: 'Архитектор',
-  admin: 'Администратор',
-};
+const ROLE_LABELS: Record<string, string> = Object.fromEntries(
+  APP_ROLES.map((r) => [r.value, r.label]),
+);
 
 export default function UsersManager({ users }: { users: User[] }) {
   const router = useRouter();
@@ -105,9 +105,12 @@ export default function UsersManager({ users }: { users: User[] }) {
           </div>
           <div>
             <label className="label">Роль</label>
-            <select className="input w-48" value={role} onChange={(e) => setRole(e.target.value)}>
-              <option value="architect">Архитектор</option>
-              <option value="admin">Администратор</option>
+            <select className="input w-64" value={role} onChange={(e) => setRole(e.target.value)}>
+              {APP_ROLES.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
             </select>
           </div>
           <button type="submit" className="btn-primary" disabled={submitting}>

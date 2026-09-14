@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getInternalSession } from '@/lib/access';
-import { hasArchitectPowers, hasReviewerPowers } from '@/lib/appRoles';
+import { hasArchitectPowers, isGapRole, isTechWriterRole } from '@/lib/appRoles';
 import { handleApiError } from '@/lib/apiHelpers';
 
 /**
- * Счётчики у пунктов навигации. Считаются по ролям: ревьювер видит очередь
- * первого этапа, архитектор — очередь ГАП и незакрытые черновики студии.
+ * Счётчики у пунктов навигации. Считаются по ролям: тех.писатель и рецензент
+ * видят очередь нормоконтроля, ГАП и архитектор — очередь финального ревью, а
+ * архитектор дополнительно незакрытые черновики студии.
  *
  * Гостю по share-ссылке счётчики не выдаются: это агрегат по всему архиву, а
  * ссылка ограничена одним расчётом.
@@ -18,21 +19,25 @@ export async function GET() {
 
     const badges: Record<string, number> = {};
 
-    if (hasReviewerPowers(session.role)) {
+    if (isTechWriterRole(session.role) || session.role === 'admin') {
       badges.reviewQueue = await prisma.gostPackage.count({
         where: { status: 'under_review', reviewStage: 'tw' },
       });
     }
 
+    if (isGapRole(session.role)) {
+      badges.gapQueue = await prisma.gostPackage.count({
+        where: { status: 'under_review', reviewStage: 'gap' },
+      });
+    }
+
     if (hasArchitectPowers(session.role)) {
-      const [gapQueue, studioDrafts, studioRejected] = await Promise.all([
-        prisma.gostPackage.count({ where: { status: 'under_review', reviewStage: 'gap' } }),
+      const [studioDrafts, studioRejected] = await Promise.all([
         prisma.gostPackage.count({ where: { status: 'draft' } }),
         prisma.gostPackage.count({ where: { status: 'rejected' } }),
       ]);
-      badges.gapQueue = gapQueue;
       // В Студии архитектор работает с незавершёнными черновиками и комплектами,
-      // возвращёнными с замечаниями ревьювера.
+      // возвращёнными с замечаниями нормоконтроля.
       badges.studioDrafts = studioDrafts + studioRejected;
       badges.studioRejected = studioRejected;
     }

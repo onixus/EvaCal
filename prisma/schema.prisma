@@ -11,11 +11,11 @@ datasource db {
   provider = "sqlite"
 }
 
-// RBAC: only the architect and admin interfaces require a login; presale stays open.
+// RBAC: роли платформы перечислены в lib/appRoles.ts (AppRole).
 model User {
   id                 String         @id @default(cuid())
   username           String         @unique
-  role               String // architect | admin
+  role               String // presale | architect | techwriter | gap | reviewer | admin
   passwordHash       String
   mustChangePassword Boolean        @default(true)
   createdAt          DateTime       @default(now())

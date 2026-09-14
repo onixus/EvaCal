@@ -38,6 +38,10 @@ const ROLE_SCOPES: Record<string, ShareScope[]> = {
   admin: ['read', 'write', 'export', 'create', 'review'],
   architect: ['read', 'write', 'export', 'create', 'review'],
   presale: ['read', 'write', 'export', 'create'],
+  // Три роли ревью различаются не правами на расчёт, а этапом, на котором им
+  // разрешено вынести вердикт (см. `REVIEW_STAGE_ROLES`).
+  techwriter: ['read', 'export', 'review'],
+  gap: ['read', 'export', 'review'],
   reviewer: ['read', 'export', 'review'],
 };
 

@@ -7,7 +7,14 @@ export const dynamic = 'force-dynamic';
 
 /** Каталог задач и значения фильтров для конструктора (E3). */
 export async function GET() {
-  const auth = await requireApiRole(['presale', 'architect', 'reviewer', 'admin']);
+  const auth = await requireApiRole([
+    'presale',
+    'architect',
+    'gap',
+    'techwriter',
+    'reviewer',
+    'admin',
+  ]);
   if (auth instanceof NextResponse) return auth;
   try {
     return NextResponse.json(await loadDeviationCatalog());

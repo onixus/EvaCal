@@ -2,7 +2,7 @@ import { requireRole } from '@/lib/auth';
 import AuthBar from '@/components/AuthBar';
 
 export default async function ProjectsLayout({ children }: { children: React.ReactNode }) {
-  const session = await requireRole(['architect', 'admin'], '/projects');
+  const session = await requireRole(['architect', 'gap', 'admin'], '/projects');
   return (
     <div>
       <AuthBar

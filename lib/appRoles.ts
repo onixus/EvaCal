@@ -6,8 +6,14 @@
  * работал анонимно или под архитектором, а ревью документации отдельной роли
  * не имело вовсе. Ролевая навигация требует, чтобы обе роли были явными:
  * пресейл видит мастер расчёта, ревьювер — очередь нормоконтроля.
+ *
+ * Обе подписи под комплектом теперь тоже носят отдельные роли. Раньше ГАП был
+ * функцией архитектора, а нормоконтроль — функцией ревьювера, и одно лицо
+ * могло совместить выпуск с подписью. `techwriter` и `gap` — единственные
+ * носители своих этапов ревью; архитектор выпускает комплект, но не
+ * подписывает его, ревьювер готовит нормоконтроль, но не выносит вердикт.
  */
-export type AppRole = 'presale' | 'architect' | 'reviewer' | 'admin';
+export type AppRole = 'presale' | 'architect' | 'techwriter' | 'gap' | 'reviewer' | 'admin';
 
 export const APP_ROLES: { value: AppRole; label: string; description: string }[] = [
   {
@@ -18,12 +24,22 @@ export const APP_ROLES: { value: AppRole; label: string; description: string }[]
   {
     value: 'architect',
     label: 'Архитектор',
-    description: 'Студия ГОСТ 34, финальное ревью ГАП, архитектурный каталог',
+    description: 'Студия ГОСТ 34, выпуск комплектов, архитектурный каталог',
+  },
+  {
+    value: 'techwriter',
+    label: 'Технический писатель',
+    description: 'Нормоконтроль комплектов: чек-лист, замечания, вычитанная версия',
+  },
+  {
+    value: 'gap',
+    label: 'ГАП (главный архитектор проекта)',
+    description: 'Финальное ревью и подпись выпуска по итогам нормоконтроля',
   },
   {
     value: 'reviewer',
-    label: 'Ревьювер документации',
-    description: 'Нормоконтроль комплектов, чек-листы и версия тех.писателя',
+    label: 'Рецензент документации',
+    description: 'Читает комплекты и ведёт замечания; вердикт выносят тех.писатель и ГАП',
   },
   {
     value: 'admin',
@@ -49,9 +65,31 @@ export function hasArchitectPowers(role: string | null | undefined): boolean {
   return role === 'architect' || role === 'admin';
 }
 
-/** Нормоконтроль ведут ревьюверы; архитектор и админ видят те же экраны для второго этапа. */
+/**
+ * Кто вообще допущен к экранам ревью комплектов. Право открыть и вести
+ * черновик нормоконтроля шире права вынести вердикт: вердикт закреплён за
+ * ролью этапа (см. `REVIEW_STAGE_ROLES` в `lib/gost34/review/types`).
+ */
 export function hasReviewerPowers(role: string | null | undefined): boolean {
-  return role === 'reviewer' || hasArchitectPowers(role);
+  return role === 'techwriter' || role === 'gap' || role === 'reviewer' || hasArchitectPowers(role);
+}
+
+/** Роли, работающие с очередью нормоконтроля (первый этап). */
+export function isTechWriterRole(role: string | null | undefined): boolean {
+  return role === 'techwriter' || role === 'reviewer';
+}
+
+/** Роли, работающие с очередью финального ревью (второй этап). */
+export function isGapRole(role: string | null | undefined): boolean {
+  return role === 'gap' || hasArchitectPowers(role);
+}
+
+/**
+ * Этап, очередь которого роль видит по умолчанию на экране `/review`.
+ * Архитектор попадает на очередь ГАП как наблюдатель: там его выпуски.
+ */
+export function defaultReviewStageFor(role: string | null | undefined): 'tw' | 'gap' {
+  return isTechWriterRole(role) ? 'tw' : 'gap';
 }
 
 /**
@@ -67,6 +105,8 @@ export function canUseDarkFantasy(role: string | null | undefined): boolean {
 export const ROLE_HOME: Record<AppRole, string> = {
   presale: '/presale',
   architect: '/projects',
+  techwriter: '/review',
+  gap: '/review',
   reviewer: '/review',
   admin: '/admin',
 };
@@ -95,10 +135,30 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     { href: '/projects', label: 'Проекты' },
     { href: '/', label: 'Расчёты и сметы' },
     { href: '/studio', label: 'Студия ГОСТ 34', badgeKey: 'studioDrafts' },
-    { href: '/review', label: 'Финальное ревью (ГАП)', badgeKey: 'gapQueue' },
+    // Архитектор выпускает комплект, но подпись ставит ГАП: пункт ведёт на ту
+    // же очередь как наблюдательный — видно, где стоят его выпуски.
+    { href: '/review', label: 'Комплекты на подписи', badgeKey: 'gapQueue' },
     { href: '/changelog', label: 'Лист внутренних изменений' },
     { href: '/architect', label: 'Архитектурный каталог' },
     { href: '/agents', label: 'Харнесс-агенты' },
+    { href: '/capacity', label: 'Ресурсный план' },
+    { href: '/analytics', label: 'Сделки и точность' },
+    { href: '/leaderboard', label: 'Рейтинг команды' },
+  ],
+  techwriter: [
+    { href: '/review', label: 'Очередь нормоконтроля', badgeKey: 'reviewQueue' },
+    { href: '/changelog', label: 'Лист внутренних изменений' },
+    { href: '/standards', label: 'Чек-листы и стандарты' },
+    { href: '/capacity', label: 'Ресурсный план' },
+    { href: '/analytics', label: 'Сделки и точность' },
+    { href: '/leaderboard', label: 'Рейтинг команды' },
+  ],
+  gap: [
+    { href: '/review', label: 'Финальное ревью (ГАП)', badgeKey: 'gapQueue' },
+    { href: '/projects', label: 'Проекты' },
+    { href: '/', label: 'Расчёты и сметы' },
+    { href: '/changelog', label: 'Лист внутренних изменений' },
+    { href: '/standards', label: 'Чек-листы и стандарты' },
     { href: '/capacity', label: 'Ресурсный план' },
     { href: '/analytics', label: 'Сделки и точность' },
     { href: '/leaderboard', label: 'Рейтинг команды' },
@@ -115,7 +175,9 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     { href: '/projects', label: 'Проекты' },
     { href: '/', label: 'Расчёты и сметы' },
     { href: '/studio', label: 'Студия ГОСТ 34', badgeKey: 'studioDrafts' },
-    { href: '/review', label: 'Ревью документации', badgeKey: 'reviewQueue' },
+    // Админ ведёт оба этапа, но экран открывает очередь ГАП (`defaultReviewStageFor`),
+    // поэтому и счётчик у пункта — по ней: иначе число не совпадало бы со списком.
+    { href: '/review', label: 'Ревью документации', badgeKey: 'gapQueue' },
     { href: '/changelog', label: 'Лист внутренних изменений' },
     { href: '/architect', label: 'Архитектурный каталог' },
     { href: '/agents', label: 'Харнесс-агенты' },

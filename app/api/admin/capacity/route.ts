@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 /** Ёмкость ролей (E2). Читают архитектор и админ, пишет только админ. */
 export async function GET() {
-  const auth = await requireApiRole(['architect', 'reviewer', 'admin']);
+  const auth = await requireApiRole(['architect', 'gap', 'techwriter', 'reviewer', 'admin']);
   if (auth instanceof NextResponse) return auth;
   const rows = await prisma.roleCapacity.findMany({
     orderBy: [{ role: 'asc' }, { effectiveFrom: 'desc' }],

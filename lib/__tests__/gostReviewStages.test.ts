@@ -68,30 +68,36 @@ const decide = (body: unknown) =>
 describe('Разделение этапов ревью комплекта', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('архитектор не проходит нормоконтроль за тех.писателя', async () => {
-    vi.mocked(requireCalcAccess).mockResolvedValue(staff('architect') as never);
-    vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(pkg() as never);
+  it.each(['architect', 'gap', 'reviewer', 'presale'])(
+    'роль %s не проходит нормоконтроль за тех.писателя',
+    async (role) => {
+      vi.mocked(requireCalcAccess).mockResolvedValue(staff(role) as never);
+      vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(pkg() as never);
 
-    const res = await decide({ decision: 'approve' });
+      const res = await decide({ decision: 'approve' });
 
-    expect(res.status).toBe(403);
-    expect(prisma.gostPackage.update).not.toHaveBeenCalled();
-  });
+      expect(res.status).toBe(403);
+      expect(prisma.gostPackage.update).not.toHaveBeenCalled();
+    },
+  );
 
-  it('тех.писатель не ставит подпись ГАПа на этапе gap', async () => {
-    vi.mocked(requireCalcAccess).mockResolvedValue(staff('reviewer') as never);
-    vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(
-      pkg({ reviewStage: 'gap' }) as never,
-    );
+  it.each(['techwriter', 'architect', 'reviewer'])(
+    'роль %s не ставит подпись ГАПа на этапе gap',
+    async (role) => {
+      vi.mocked(requireCalcAccess).mockResolvedValue(staff(role) as never);
+      vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(
+        pkg({ reviewStage: 'gap' }) as never,
+      );
 
-    const res = await decide({ decision: 'approve' });
+      const res = await decide({ decision: 'approve' });
 
-    expect(res.status).toBe(403);
-    expect(prisma.gostPackage.update).not.toHaveBeenCalled();
-  });
+      expect(res.status).toBe(403);
+      expect(prisma.gostPackage.update).not.toHaveBeenCalled();
+    },
+  );
 
   it('тех.писатель проходит свой этап и передаёт комплект ГАПу', async () => {
-    vi.mocked(requireCalcAccess).mockResolvedValue(staff('reviewer') as never);
+    vi.mocked(requireCalcAccess).mockResolvedValue(staff('techwriter') as never);
     vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(pkg() as never);
     vi.mocked(prisma.gostPackage.update).mockResolvedValue(pkg({ reviewStage: 'gap' }) as never);
 
@@ -104,7 +110,7 @@ describe('Разделение этапов ревью комплекта', () =
   });
 
   it('ГАП утверждает выпуск на своём этапе', async () => {
-    vi.mocked(requireCalcAccess).mockResolvedValue(staff('architect') as never);
+    vi.mocked(requireCalcAccess).mockResolvedValue(staff('gap') as never);
     vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(
       pkg({ reviewStage: 'gap' }) as never,
     );
@@ -160,7 +166,7 @@ describe('Отказ по правилам ревью — конфликт, а �
   beforeEach(() => vi.clearAllMocks());
 
   it('открытый блокер даёт 409', async () => {
-    vi.mocked(requireCalcAccess).mockResolvedValue(staff('reviewer') as never);
+    vi.mocked(requireCalcAccess).mockResolvedValue(staff('techwriter') as never);
     vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(
       pkg({
         reviewComments: JSON.stringify([
@@ -186,7 +192,7 @@ describe('Отказ по правилам ревью — конфликт, а �
   });
 
   it('проваленный пункт чек-листа тоже блокирует утверждение', async () => {
-    vi.mocked(requireCalcAccess).mockResolvedValue(staff('reviewer') as never);
+    vi.mocked(requireCalcAccess).mockResolvedValue(staff('techwriter') as never);
     vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(
       pkg({
         reviewChecklist: JSON.stringify([{ id: 'terminology', state: 'block', note: '' }]),
@@ -203,7 +209,7 @@ describe('GET /api/gost34/packages/:id отдаёт состояние ревь�
   beforeEach(() => vi.clearAllMocks());
 
   it('возвращает этап, чек-лист, замечания и версию тех.писателя', async () => {
-    vi.mocked(requireCalcAccess).mockResolvedValue(staff('reviewer') as never);
+    vi.mocked(requireCalcAccess).mockResolvedValue(staff('techwriter') as never);
     vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(
       pkg({
         reviewStage: 'gap',
@@ -253,7 +259,7 @@ describe('GET /api/gost34/packages/:id отдаёт состояние ревь�
   });
 
   it('без загруженной версии тех.писателя поле пустое', async () => {
-    vi.mocked(requireCalcAccess).mockResolvedValue(staff('reviewer') as never);
+    vi.mocked(requireCalcAccess).mockResolvedValue(staff('techwriter') as never);
     vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(
       pkg({
         calculation: {

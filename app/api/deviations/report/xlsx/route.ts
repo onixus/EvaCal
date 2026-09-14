@@ -13,7 +13,14 @@ export const dynamic = 'force-dynamic';
  * (JSON-строка) — так браузер получает файл обычным сабмитом формы.
  */
 export async function POST(req: NextRequest) {
-  const auth = await requireApiRole(['presale', 'architect', 'reviewer', 'admin']);
+  const auth = await requireApiRole([
+    'presale',
+    'architect',
+    'gap',
+    'techwriter',
+    'reviewer',
+    'admin',
+  ]);
   if (auth instanceof NextResponse) return auth;
   try {
     const ct = req.headers.get('content-type') ?? '';
