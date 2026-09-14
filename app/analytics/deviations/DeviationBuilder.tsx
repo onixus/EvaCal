@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import DeviationChart from '@/components/DeviationChart';
+import StatCard from '@/components/StatCard';
 import { roleLabel } from '@/lib/roles';
 import {
   GROUP_LABELS,
@@ -111,7 +112,8 @@ export default function DeviationBuilder({
   function load(r: SavedReport) {
     setCfg({ ...EMPTY, ...r.config });
     setSaveName(r.name);
-    setLoadedId(r.id);
+    // Чужой срез можно только сохранить как новый: обновление — автору или админу.
+    setLoadedId(r.createdBy === viewer.id || viewer.role === 'admin' ? r.id : null);
     void run({ ...EMPTY, ...r.config });
   }
 
@@ -399,22 +401,22 @@ export default function DeviationBuilder({
           ) : (
             <>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                <Stat
+                <StatCard
                   title="Наблюдений"
                   value={String(result.overall.samples)}
                   hint={`из ${result.rowsTotal} строк`}
                 />
-                <Stat
+                <StatCard
                   title={METRIC_LABELS[result.config.metric]}
                   value={pct(result.overall.value)}
                 />
-                <Stat
+                <StatCard
                   title="Перерасход"
                   value={String(result.overall.over)}
                   hint={`> +${Math.round((result.config.tolerance ?? 0.1) * 100)}%`}
                 />
-                <Stat title="В допуске" value={String(result.overall.within)} />
-                <Stat title="Недорасход" value={String(result.overall.under)} />
+                <StatCard title="В допуске" value={String(result.overall.within)} />
+                <StatCard title="Недорасход" value={String(result.overall.under)} />
               </div>
 
               <div className="card p-4">
@@ -492,18 +494,6 @@ export default function DeviationBuilder({
           )}
         </section>
       </div>
-    </div>
-  );
-}
-
-function Stat({ title, value, hint }: { title: string; value: string; hint?: string }) {
-  return (
-    <div className="card p-3">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-nord-muted">
-        {title}
-      </div>
-      <div className="text-xl font-extrabold text-slate-900 dark:text-nord-6">{value}</div>
-      {hint && <div className="text-[10px] text-slate-500 dark:text-nord-muted">{hint}</div>}
     </div>
   );
 }

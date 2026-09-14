@@ -7,6 +7,7 @@
  * данных — в `lib/actualsData.ts`.
  */
 import { DEFAULT_ROLE_RATES, resolveRoleRates } from './commercial';
+import { median, round1, round2 } from './stats';
 
 // ---------------------------------------------------------------------------
 // Справочники
@@ -64,6 +65,11 @@ export interface DealInput {
 export interface DealProjectRow {
   dealStatus: string;
   actualsClosedAt: Date | null;
+  wonCalculationId?: string | null;
+  /** По текущей выигранной версии уже внесён факт (часы или даты). */
+  hasActuals?: boolean;
+  contractAmount?: number | null;
+  contractCurrency?: string | null;
   calculations: { id: string; status: string; currency: string }[];
 }
 
@@ -93,7 +99,9 @@ export function resolveDeal(
   if (!isDealStatus(input.dealStatus)) {
     return { ok: false, error: 'Недопустимый статус сделки', status: 400 };
   }
-  if (project.actualsClosedAt && input.dealStatus !== 'won') {
+  // Закрытый факт замораживает исход целиком, включая повторное «выиграно»:
+  // иначе можно было бы перенести выигранную версию и оставить факт за бортом.
+  if (project.actualsClosedAt) {
     return {
       ok: false,
       error: 'Факт по проекту закрыт: сначала переоткройте факт, потом меняйте исход',
@@ -133,10 +141,29 @@ export function resolveDeal(
           status: 400,
         };
       }
+      // Смена выигранной версии при внесённом факте оставила бы факт за
+      // бортом: он привязан к wonCalculationId.
+      if (
+        project.dealStatus === 'won' &&
+        project.wonCalculationId &&
+        project.wonCalculationId !== won.id &&
+        project.hasActuals
+      ) {
+        return {
+          ok: false,
+          error: 'По текущей выигранной версии уже внесён факт: сначала удалите или перенесите его',
+          status: 409,
+        };
+      }
+      // Не переданная сумма — не «обнулить», а «оставить как было».
       const amount =
-        input.contractAmount === null || input.contractAmount === undefined
-          ? null
-          : Number(input.contractAmount);
+        input.contractAmount === undefined
+          ? project.dealStatus === 'won'
+            ? (project.contractAmount ?? null)
+            : null
+          : input.contractAmount === null
+            ? null
+            : Number(input.contractAmount);
       if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
         return {
           ok: false,
@@ -150,7 +177,12 @@ export function resolveDeal(
           ...base,
           wonCalculationId: won.id,
           contractAmount: amount,
-          contractCurrency: amount === null ? null : input.contractCurrency?.trim() || won.currency,
+          contractCurrency:
+            amount === null
+              ? null
+              : input.contractCurrency?.trim() ||
+                (input.contractAmount === undefined ? project.contractCurrency : null) ||
+                won.currency,
           competitor: input.competitor?.trim() || null,
         },
       };
@@ -209,21 +241,6 @@ export interface CalculationAccuracy {
   deviation: number | null;
   /** Полнота: факт есть по всем этапам. */
   complete: boolean;
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-function round1(n: number): number {
-  return Math.round(n * 10) / 10;
-}
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 export function stageAccuracy(stage: ActualStageRow): StageAccuracy {
@@ -586,6 +603,8 @@ export interface ActualsImportResult {
   matched: { stageId: string; name: string; hours: number; start?: string; end?: string }[];
   unmatched: string[];
   invalid: string[];
+  /** Имя встречается у нескольких этапов: строку нельзя привязать однозначно. */
+  ambiguous: string[];
 }
 
 /**
@@ -627,17 +646,29 @@ export function matchActuals(
   stages: { id: string; name: string; isApprovalTask: boolean }[],
   invalid: string[] = [],
 ): ActualsImportResult {
-  const byName = new Map<string, { id: string; name: string }>();
-  for (const s of stages) if (!s.isApprovalTask) byName.set(normName(s.name), s);
+  // Имена этапов не уникальны: при совпадении строка помечается неоднозначной,
+  // а не пишется в последний попавшийся этап.
+  const byName = new Map<string, { id: string; name: string }[]>();
+  for (const s of stages) {
+    if (s.isApprovalTask) continue;
+    const k = normName(s.name);
+    byName.set(k, [...(byName.get(k) ?? []), s]);
+  }
   const matched: ActualsImportResult['matched'] = [];
   const unmatched: string[] = [];
+  const ambiguous: string[] = [];
   for (const r of rows) {
-    const s = byName.get(normName(r.stage));
-    if (!s) {
+    const list = byName.get(normName(r.stage)) ?? [];
+    if (list.length === 0) {
       unmatched.push(r.stage);
       continue;
     }
+    if (list.length > 1) {
+      ambiguous.push(r.stage);
+      continue;
+    }
+    const s = list[0];
     matched.push({ stageId: s.id, name: s.name, hours: r.hours, start: r.start, end: r.end });
   }
-  return { matched, unmatched, invalid };
+  return { matched, unmatched, invalid, ambiguous };
 }

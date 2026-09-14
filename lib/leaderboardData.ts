@@ -52,7 +52,8 @@ export async function loadLeaderboard(period: LeaderboardPeriod): Promise<Leader
       },
       select: { wonCalculationId: true },
     }),
-    // Исходы сделок (E1): решённые за период, автор — создатель последней утверждённой версии.
+    // Исходы сделок (E1): решённые за период. Выигрыш — автору версии, по
+    // которой подписан договор; проигрыш — автору последней версии.
     prisma.project.findMany({
       where: {
         dealStatus: { in: ['won', 'lost'] },
@@ -60,12 +61,10 @@ export async function loadLeaderboard(period: LeaderboardPeriod): Promise<Leader
       },
       select: {
         dealStatus: true,
-        createdBy: true,
+        wonCalculationId: true,
         calculations: {
-          where: { status: 'approved' },
           orderBy: { version: 'desc' },
-          take: 1,
-          select: { createdBy: true },
+          select: { id: true, createdBy: true },
         },
       },
     }),
@@ -89,19 +88,28 @@ export async function loadLeaderboard(period: LeaderboardPeriod): Promise<Leader
         },
       })
     : [];
-  // Кто согласовал расчёт — из того же журнала, что и счётчик согласований.
+  // Кто согласовал расчёт. Отдельный запрос без фильтра по дате: согласование
+  // и закрытие сделки разнесены во времени, и журнал за период его не содержит.
+  const approverEvents = wonIds.length
+    ? await prisma.auditEvent.findMany({
+        where: { action: 'calculation.approve', entityId: { in: wonIds } },
+        select: { entityId: true, actorId: true },
+      })
+    : [];
   const approverOf = new Map<string, string | null>();
-  for (const a of approvals) if (a.entityId) approverOf.set(a.entityId, a.actorId);
+  for (const a of approverEvents) if (a.entityId) approverOf.set(a.entityId, a.actorId);
   const accuracy: AccuracyRow[] = wonCalcs.flatMap((c) => {
     const acc = calculationAccuracy(c.stages);
     return acc.deviation === null
       ? []
       : [{ approvedBy: approverOf.get(c.id) ?? null, deviation: acc.deviation }];
   });
-  const deals = closedDeals.map((p) => ({
-    dealStatus: p.dealStatus,
-    createdBy: p.calculations[0]?.createdBy ?? p.createdBy,
-  }));
+  // Проект без расчётов не имеет автора-пресейла: такой исход в рейтинг не идёт.
+  const deals = closedDeals.flatMap((p) => {
+    const won = p.calculations.find((c) => c.id === p.wonCalculationId);
+    const author = (p.dealStatus === 'won' ? won : null) ?? p.calculations[0];
+    return author ? [{ dealStatus: p.dealStatus, createdBy: author.createdBy }] : [];
+  });
 
   return buildLeaderboard({ period, users, calculations, packages, approvals, deals, accuracy });
 }

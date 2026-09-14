@@ -3,6 +3,7 @@
  * Чистая логика без Prisma: сюда приходят этапы выигранной версии с
  * плановыми и фактическими датами, отсюда — сдвиги и прогноз окончания.
  */
+import { median } from './stats';
 
 export interface ScheduleStageRow {
   id: string;
@@ -67,13 +68,6 @@ export function daysBetween(a: Date, b: Date): number {
 
 function iso(d: Date): string {
   return new Date(utcDay(d)).toISOString().slice(0, 10);
-}
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const s = [...values].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
 /** Порог, после которого сдвиг считается опозданием, а не риском. */

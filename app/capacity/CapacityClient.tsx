@@ -83,24 +83,32 @@ export default function CapacityClient({
     setBusy(true);
     setError(null);
     try {
-      for (const [id, days] of Object.entries(shifts)) {
-        if (!days) continue;
-        const res = await fetch(`/api/calculations/${id}`);
-        if (!res.ok) throw new Error('Не удалось прочитать расчёт');
-        const calc = await res.json();
-        const start = new Date(calc.startDate);
-        start.setUTCDate(start.getUTCDate() + days);
-        const patch = await fetch(`/api/calculations/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ startDate: start.toISOString() }),
-        });
-        if (!patch.ok) {
-          const data = await patch.json().catch(() => ({}));
-          throw new Error(`${calc.name}: ${data.error ?? 'не удалось сдвинуть'}`);
-        }
+      const res = await fetch('/api/capacity/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shifts: Object.entries(shifts).map(([calculationId, shiftDays]) => ({
+            calculationId,
+            shiftDays,
+          })),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? 'Ошибка');
+      // Применённые сдвиги снимаются с панели; неудавшиеся остаются, чтобы
+      // повторное «Применить» не сдвинуло уже записанные расчёты второй раз.
+      const applied = new Set<string>(
+        (data.applied ?? []).map((a: { calculationId: string }) => a.calculationId),
+      );
+      const rest = Object.fromEntries(Object.entries(shifts).filter(([id]) => !applied.has(id)));
+      setShifts(rest);
+      if (data.failed?.length) {
+        setError(
+          data.failed
+            .map((f: { name: string; error: string }) => `${f.name}: ${f.error}`)
+            .join('; '),
+        );
       }
-      setShifts({});
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка');

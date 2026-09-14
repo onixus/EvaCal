@@ -25,6 +25,16 @@ export async function POST(req: NextRequest) {
     .slice(0, 120);
   if (!name) return NextResponse.json({ error: 'Укажите название среза' }, { status: 400 });
   const config = normalizeConfig(body.config);
+  if (body.id) {
+    const existing = await prisma.deviationReport.findUnique({ where: { id: String(body.id) } });
+    if (!existing) return NextResponse.json({ error: 'Срез не найден' }, { status: 404 });
+    if (existing.createdBy !== auth.userId && auth.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Изменить может автор или администратор; сохраните как новый срез' },
+        { status: 403 },
+      );
+    }
+  }
   const row = body.id
     ? await prisma.deviationReport.update({
         where: { id: String(body.id) },

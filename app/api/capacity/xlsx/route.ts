@@ -7,7 +7,7 @@ import { renderCapacityXlsx } from '@/lib/xlsx';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const auth = await requireApiRole(['architect', 'admin']);
+  const auth = await requireApiRole(['architect', 'reviewer', 'admin']);
   if (auth instanceof NextResponse) return auth;
   try {
     const matrix = await loadCapacityMatrix(parseCapacityQuery(req.nextUrl.searchParams));

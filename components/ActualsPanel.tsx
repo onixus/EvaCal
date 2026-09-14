@@ -346,6 +346,32 @@ export default function ActualsPanel({
                     >
                       {pct(dev)}
                     </td>
+                    <td className="py-2 pr-4 text-xs tabular-nums text-slate-500 dark:text-nord-muted">
+                      {fmtD(s.startDate)} – {fmtD(s.endDate)}
+                    </td>
+                    <td className="py-2 pr-4">
+                      <input
+                        type="date"
+                        className="input w-36 text-xs"
+                        disabled={locked || busy}
+                        defaultValue={dayInput(s.actualStartDate)}
+                        onBlur={(e) => void saveDate(s, 'actualStartDate', e.target.value)}
+                        aria-label={`Факт начала: ${s.name}`}
+                      />
+                    </td>
+                    <td className="py-2 pr-4">
+                      <input
+                        type="date"
+                        className="input w-36 text-xs"
+                        disabled={locked || busy}
+                        defaultValue={dayInput(s.actualEndDate)}
+                        onBlur={(e) => void saveDate(s, 'actualEndDate', e.target.value)}
+                        aria-label={`Факт окончания: ${s.name}`}
+                      />
+                    </td>
+                    <td className="py-2 pr-4 text-right text-xs tabular-nums">
+                      <StageSlip stage={summary.schedule?.stages.find((x) => x.id === s.id)} />
+                    </td>
                   </tr>
                 );
               })}
@@ -426,6 +452,30 @@ export default function ActualsPanel({
         </details>
       )}
     </div>
+  );
+}
+
+function StageSlip({ stage }: { stage?: ProjectSchedule['stages'][number] }) {
+  if (!stage) return <>—</>;
+  if (stage.status === 'overdue') {
+    return (
+      <span className="font-semibold text-rose-700 dark:text-rose-300">
+        просрочен {stage.overdueDays} дн.
+      </span>
+    );
+  }
+  if (stage.endSlipDays === null) return <>—</>;
+  const cls =
+    stage.endSlipDays > 0
+      ? 'text-rose-700 dark:text-rose-300'
+      : stage.endSlipDays < 0
+        ? 'text-sky-700 dark:text-nord-frost2'
+        : '';
+  return (
+    <span className={cls}>
+      {stage.endSlipDays > 0 ? '+' : ''}
+      {stage.endSlipDays} дн.
+    </span>
   );
 }
 

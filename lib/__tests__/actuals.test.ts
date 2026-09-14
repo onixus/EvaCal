@@ -57,12 +57,53 @@ describe('resolveDeal', () => {
     expect(r.ok && r.data.dealClosedAt).toBeNull();
   });
 
-  it('при закрытом факте исход не меняется', () => {
-    const r = resolveDeal(
-      { ...project, actualsClosedAt: new Date() },
-      { dealStatus: 'lost', lossReason: 'price' },
+  it('при закрытом факте исход не меняется, включая повторное «выиграно»', () => {
+    const closed = { ...project, actualsClosedAt: new Date() };
+    expect(!resolveDeal(closed, { dealStatus: 'lost', lossReason: 'price' })).toBe(false);
+    const again = resolveDeal(closed, { dealStatus: 'won', wonCalculationId: 'c1' });
+    expect(!again.ok && again.status).toBe(409);
+  });
+
+  it('смена выигранной версии при внесённом факте — 409, без факта — можно', () => {
+    const twoApproved = {
+      ...project,
+      dealStatus: 'won',
+      wonCalculationId: 'c1',
+      calculations: [
+        { id: 'c1', status: 'approved', currency: 'RUB' },
+        { id: 'c9', status: 'approved', currency: 'USD' },
+      ],
+    };
+    const blocked = resolveDeal(
+      { ...twoApproved, hasActuals: true },
+      { dealStatus: 'won', wonCalculationId: 'c9' },
     );
-    expect(!r.ok && r.status).toBe(409);
+    expect(!blocked.ok && blocked.status).toBe(409);
+    const ok = resolveDeal(
+      { ...twoApproved, hasActuals: false },
+      { dealStatus: 'won', wonCalculationId: 'c9' },
+    );
+    expect(ok.ok && ok.data.wonCalculationId).toBe('c9');
+  });
+
+  it('повторное «выиграно» без суммы сохраняет прежнюю сумму и валюту', () => {
+    const r = resolveDeal(
+      {
+        ...project,
+        dealStatus: 'won',
+        wonCalculationId: 'c1',
+        contractAmount: 500,
+        contractCurrency: 'EUR',
+      },
+      { dealStatus: 'won', wonCalculationId: 'c1' },
+    );
+    expect(r.ok && r.data.contractAmount).toBe(500);
+    expect(r.ok && r.data.contractCurrency).toBe('EUR');
+    const cleared = resolveDeal(
+      { ...project, dealStatus: 'won', wonCalculationId: 'c1', contractAmount: 500 },
+      { dealStatus: 'won', wonCalculationId: 'c1', contractAmount: null },
+    );
+    expect(cleared.ok && cleared.data.contractAmount).toBeNull();
   });
 
   it('отрицательная сумма — 400', () => {
@@ -247,5 +288,18 @@ describe('CSV-импорт факта', () => {
     ]);
     expect(res.unmatched).toEqual(['Проектирование']);
     expect(res.invalid).toHaveLength(2);
+    expect(res.ambiguous).toEqual([]);
+  });
+
+  it('одноимённые этапы не сливаются: строка помечается неоднозначной', () => {
+    const res = matchActuals(
+      [{ stage: 'Проектирование', hours: 10 }],
+      [
+        { id: 'a', name: 'Проектирование', isApprovalTask: false },
+        { id: 'b', name: 'проектирование', isApprovalTask: false },
+      ],
+    );
+    expect(res.matched).toEqual([]);
+    expect(res.ambiguous).toEqual(['Проектирование']);
   });
 });

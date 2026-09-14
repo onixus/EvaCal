@@ -8,6 +8,7 @@
  * промахивается. Конструктор собирает срезы по выбранным задачам, фильтрам и
  * группировке. Загрузка данных — в `lib/deviationsData.ts`.
  */
+import { median, percentile } from './stats';
 
 export interface DeviationRow {
   calculationId: string;
@@ -155,20 +156,6 @@ function round2(n: number | null): number | null {
   return n === null ? null : Math.round(n * 100) / 100;
 }
 
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const s = [...values].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-}
-
-function percentile(values: number[], p: number): number | null {
-  if (values.length === 0) return null;
-  const s = [...values].sort((a, b) => a - b);
-  const idx = Math.min(s.length - 1, Math.max(0, Math.ceil(p * s.length) - 1));
-  return s[idx];
-}
-
 function monthOf(d: Date | null): string | null {
   if (!d) return null;
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -198,7 +185,8 @@ function groupKeyOf(r: DeviationRow, by: GroupBy): { key: string; label: string 
 export function filterRows(rows: DeviationRow[], cfg: DeviationReportConfig): DeviationRow[] {
   const tasks = new Set(cfg.tasks.map(taskKey).filter(Boolean));
   const from = cfg.from ? new Date(cfg.from) : null;
-  const to = cfg.to ? new Date(cfg.to) : null;
+  // «по» включает весь день: граница — полночь следующего дня, строго.
+  const to = cfg.to ? new Date(new Date(cfg.to).getTime() + 24 * 60 * 60 * 1000) : null;
   return rows.filter((r) => {
     if (tasks.size > 0 && !tasks.has(taskKey(r.task))) return false;
     if (cfg.roles?.length && !cfg.roles.includes(r.role)) return false;
@@ -208,7 +196,7 @@ export function filterRows(rows: DeviationRow[], cfg: DeviationReportConfig): De
       return false;
     if (cfg.customers?.length && !cfg.customers.includes(r.customer)) return false;
     if (from && (!r.closedAt || r.closedAt < from)) return false;
-    if (to && (!r.closedAt || r.closedAt > to)) return false;
+    if (to && (!r.closedAt || r.closedAt >= to)) return false;
     return true;
   });
 }

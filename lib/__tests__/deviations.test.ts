@@ -114,6 +114,15 @@ describe('отклонения по задачам', () => {
       to: '2026-02-28',
     });
     expect(period.rowsUsed).toBe(1);
+    // «по» включает весь последний день: сделка, закрытая 15.02 в 10:00, входит в «по 15.02».
+    const lastDay = buildDeviationReport([row({ closedAt: new Date('2026-02-15T10:00:00Z') })], {
+      tasks: [],
+      groupBy: 'task',
+      metric: 'median',
+      from: '2026-02-01',
+      to: '2026-02-15',
+    });
+    expect(lastDay.rowsUsed).toBe(1);
   });
 
   it('normalizeConfig отбрасывает мусор и ставит значения по умолчанию', () => {
