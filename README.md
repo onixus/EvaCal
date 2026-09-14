@@ -168,7 +168,7 @@
 - **Генерация документов**: `docx`, `mammoth`, `jszip`, `pdfkit`, `xlsx` (SheetJS).
 - **Хранилище артефактов**: файловое (том `storage-data`) или S3-совместимое через `@aws-sdk/client-s3` (AWS S3, MinIO, Yandex/VK Object Storage).
 - **Аналитика**: чистые модули без ORM (`lib/actuals.ts`, `lib/capacity.ts`, `lib/schedule.ts`, `lib/deviations.ts`), графики на inline-SVG без внешних библиотек.
-- **Тестирование**: Vitest (**75 test suites, 639 tests**, Golden Tests ГОСТ 34, Eval Suite LLM, JUnit XML reporter).
+- **Тестирование**: Vitest (**76 test suites, 645 tests**, Golden Tests ГОСТ 34, Eval Suite LLM, JUnit XML reporter).
 - **CI/CD & Инфраструктура**: Docker multi-stage (Node 22 Alpine, non-root user 1001, automated schema sync & seed), Docker Compose, Nginx (TLS, HSTS, Gzip, Security Headers), Jenkins Pipeline (`Jenkinsfile`) & GitHub Actions.
 
 ---
@@ -367,7 +367,7 @@ npm run typecheck
 # Строгий линтинг (ESLint, 0 warnings)
 npm run lint
 
-# Запуск полного набора юнит, интеграционных и eval-тестов (75 сьютов, 639 тестов)
+# Запуск полного набора юнит, интеграционных и eval-тестов (76 сьютов, 645 тестов)
 npm test
 
 # Запуск тестов для CI с генерацией отчёта JUnit XML (test-results.xml)

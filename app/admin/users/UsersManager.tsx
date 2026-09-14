@@ -55,6 +55,27 @@ export default function UsersManager({ users }: { users: User[] }) {
     }
   }
 
+  async function changeRole(user: User, role: string) {
+    if (role === user.role) return;
+    const label = APP_ROLES.find((r) => r.value === role)?.label ?? role;
+    if (!confirm(`Назначить пользователю «${user.username}» роль «${label}»?`)) return;
+    setBusyId(user.id);
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error ?? 'Не удалось сменить роль');
+      }
+      router.refresh();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function removeUser(user: User) {
     if (!confirm(`Удалить пользователя «${user.username}»?`)) return;
     setBusyId(user.id);
@@ -142,7 +163,22 @@ export default function UsersManager({ users }: { users: User[] }) {
                   className="border-b border-slate-100 last:border-0 dark:border-nord-3"
                 >
                   <td className="py-2 pr-4 font-medium">{u.username}</td>
-                  <td className="py-2 pr-4">{ROLE_LABELS[u.role] ?? u.role}</td>
+                  <td className="py-2 pr-4">
+                    <select
+                      className="input w-56 py-1 text-xs"
+                      value={u.role}
+                      disabled={busyId === u.id}
+                      onChange={(e) => changeRole(u, e.target.value)}
+                      aria-label={`Роль пользователя ${u.username}`}
+                    >
+                      {APP_ROLES.map((r) => (
+                        <option key={r.value} value={r.value}>
+                          {r.label}
+                        </option>
+                      ))}
+                      {!ROLE_LABELS[u.role] && <option value={u.role}>{u.role}</option>}
+                    </select>
+                  </td>
                   <td className="py-2 pr-4 text-slate-500 dark:text-nord-muted">
                     {u.mustChangePassword ? 'выдан, ещё не менялся' : 'изменён пользователем'}
                   </td>
