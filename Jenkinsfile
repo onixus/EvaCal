@@ -54,10 +54,38 @@ pipeline {
                     args '-u root:root'
                 }
             }
+            // Автоматический checkout отключён по той же причине, что и в E2E:
+            // полный клон истории в воркспейс на VirtioFS теряет записи, и git
+            // не может распаковать собственные объекты. Билд #58 умер на этом в
+            // E2E, билд #68 — здесь: «inflate: data stream error (unknown
+            // compression method)» на 2218 дельтах, все попытки подряд.
+            options {
+                skipDefaultCheckout()
+            }
+
             stages {
                 stage('Checkout') {
                     steps {
-                        checkout scm
+                        // Мелкий клон вместо полного и повтор с очисткой: объём
+                        // записи падает на порядки, а гарантии здесь
+                        // статистические — осечка не значит, что обречена и
+                        // следующая попытка. deleteDir() обязателен, иначе
+                        // повтор упрётся в мусор от неудачного клона.
+                        retry(3) {
+                            deleteDir()
+                            checkout([
+                                $class: 'GitSCM',
+                                branches: scm.branches,
+                                userRemoteConfigs: scm.userRemoteConfigs,
+                                extensions: scm.extensions + [[
+                                    $class: 'CloneOption',
+                                    shallow: true,
+                                    depth: 1,
+                                    noTags: true,
+                                    timeout: 10,
+                                ]],
+                            ])
+                        }
                     }
                 }
 
