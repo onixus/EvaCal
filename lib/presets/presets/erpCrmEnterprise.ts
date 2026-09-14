@@ -69,7 +69,7 @@ export const ERP_CRM_ENTERPRISE_PRESET: IndustryPreset = {
       hoursPerUnit: 4,
       driverFieldKey: 'modules_count',
       requirements:
-        'Интервьюирование владельцев процессов, моделирование процессов AS-IS/TO-BE, согласование функциональных разрывов (GAP-анализ).',
+        'Исполнитель обязан провести интервьюирование владельцев процессов, смоделировать процессы AS-IS/TO-BE и согласовать функциональные разрывы (GAP-анализ).',
       order: 0,
     },
     {
@@ -79,7 +79,7 @@ export const ERP_CRM_ENTERPRISE_PRESET: IndustryPreset = {
       hoursPerUnit: 5,
       driverFieldKey: 'integrations_count',
       requirements:
-        'Проектирование схемы масштабирования СУБД Postgres/1С, структуры очередей сообщений и форматов обмена.',
+        'Исполнитель обязан спроектировать схему масштабирования СУБД Postgres/1С, структуру очередей сообщений и форматы обмена.',
       order: 1,
     },
     {
@@ -89,7 +89,7 @@ export const ERP_CRM_ENTERPRISE_PRESET: IndustryPreset = {
       hoursPerUnit: 8,
       driverFieldKey: 'modules_count',
       requirements:
-        'Кастомизация печатных форм, алгоритмов распределения затрат, маршрутов согласования и специфических документов.',
+        'Исполнитель обязан выполнить кастомизацию печатных форм, алгоритмов распределения затрат, маршрутов согласования и специфических документов.',
       order: 2,
     },
     {
@@ -99,7 +99,7 @@ export const ERP_CRM_ENTERPRISE_PRESET: IndustryPreset = {
       hoursPerUnit: 12,
       driverFieldKey: 'legacy_databases_count',
       requirements:
-        'Очистка, дедупликация и загрузка нормативно-справочной информации, перенос входящих остатков по счетам.',
+        'Исполнитель обязан выполнить очистку, дедупликацию и загрузку нормативно-справочной информации и перенести входящие остатки по счетам.',
       order: 3,
     },
     {
@@ -109,7 +109,7 @@ export const ERP_CRM_ENTERPRISE_PRESET: IndustryPreset = {
       hoursPerUnit: 0.2,
       driverFieldKey: 'workplaces_count',
       requirements:
-        'Проверка времени проведения групповых документов, проведение регламентных операций закрытия месяца.',
+        'Исполнитель обязан проверить длительность проведения групповых документов и выполнить регламентные операции закрытия месяца.',
       order: 4,
     },
     {
@@ -119,7 +119,7 @@ export const ERP_CRM_ENTERPRISE_PRESET: IndustryPreset = {
       hoursPerUnit: 0.3,
       driverFieldKey: 'workplaces_count',
       requirements:
-        'Обучение пользователей по ролевым профилям, подготовка инструкций, дежурство группы сопровождения запуска.',
+        'Исполнитель обязан провести обучение пользователей по ролевым профилям, подготовить инструкции и обеспечить дежурство группы сопровождения запуска.',
       order: 5,
     },
   ],

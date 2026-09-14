@@ -76,7 +76,7 @@ export const CUSTOM_DEVELOPMENT_API_PRESET: IndustryPreset = {
       hoursPerUnit: 2.5,
       driverFieldKey: 'screens_count',
       requirements:
-        'Детализация требований пользователей, проектирование экранов, макетов, валидаций и подготовка ТЗ на систему.',
+        'Исполнитель обязан детализировать требования пользователей, спроектировать экраны, макеты и валидации и подготовить ТЗ на систему.',
       order: 0,
     },
     {
@@ -86,7 +86,7 @@ export const CUSTOM_DEVELOPMENT_API_PRESET: IndustryPreset = {
       hoursPerUnit: 4,
       driverFieldKey: 'entities_count',
       requirements:
-        'Главный архитектор проекта: декомпозиция на микросервисы, модели данных Postgres, протоколы взаимодействия и схемы очередей Kafka.',
+        'Главный архитектор проекта обязан выполнить декомпозицию на микросервисы и разработать модели данных Postgres, протоколы взаимодействия и схемы очередей Kafka.',
       order: 1,
     },
     {
@@ -96,7 +96,7 @@ export const CUSTOM_DEVELOPMENT_API_PRESET: IndustryPreset = {
       hoursPerUnit: 14,
       driverFieldKey: 'integrations_count',
       requirements:
-        'Реализация REST/SOAP клиентов, обработчиков очередей, маппинга структур данных, механизмов повтора (retry/backoff) и транзакционных логов.',
+        'Исполнитель обязан реализовать REST/SOAP клиентов, обработчики очередей, маппинг структур данных, механизмы повтора (retry/backoff) и транзакционные логи.',
       order: 2,
     },
     {
@@ -106,7 +106,7 @@ export const CUSTOM_DEVELOPMENT_API_PRESET: IndustryPreset = {
       hoursPerUnit: 6,
       driverFieldKey: 'screens_count',
       requirements:
-        'Реализация backend API, валидаций, бизнес-правил, ролевой модели (RBAC) и responsive frontend интерфейсов.',
+        'Исполнитель обязан реализовать backend API, валидации, бизнес-правила, ролевую модель (RBAC) и responsive frontend интерфейсы.',
       order: 3,
     },
     {
@@ -116,7 +116,7 @@ export const CUSTOM_DEVELOPMENT_API_PRESET: IndustryPreset = {
       hoursPerUnit: 3,
       driverFieldKey: 'screens_count',
       requirements:
-        'Автоматизированные e2e тесты, нагрузочное тестирование пиковых TPS, валидация устойчивости при сбоях интеграционных шин.',
+        'Исполнитель обязан разработать автоматизированные e2e тесты, провести нагрузочное тестирование пиковых TPS и подтвердить сохранение работоспособности при сбоях интеграционных шин.',
       order: 4,
     },
     {
@@ -126,7 +126,7 @@ export const CUSTOM_DEVELOPMENT_API_PRESET: IndustryPreset = {
       hoursPerUnit: 2,
       driverFieldKey: 'integrations_count',
       requirements:
-        'Разработка Руководства пользователя, Руководства администратора, проведение обучающих вебинаров и авторский надзор.',
+        'Исполнитель обязан разработать Руководство пользователя и Руководство администратора, провести обучающие вебинары и осуществлять авторский надзор.',
       order: 5,
     },
   ],
