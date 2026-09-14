@@ -69,7 +69,7 @@ export const DATA_LAKE_BI_PLATFORM_PRESET: IndustryPreset = {
       hoursPerUnit: 4,
       driverFieldKey: 'sources_count',
       requirements:
-        'Анализ структуры таблиц источников, составление карты потоков данных, проектирование концептуальной и логической модели КХД.',
+        'Исполнитель обязан проанализировать структуру таблиц источников, составить карту потоков данных и спроектировать концептуальную и логическую модель КХД.',
       order: 0,
     },
     {
@@ -79,7 +79,7 @@ export const DATA_LAKE_BI_PLATFORM_PRESET: IndustryPreset = {
       hoursPerUnit: 5,
       driverFieldKey: 'data_marts_count',
       requirements:
-        'Выбор и сайзинг СУБД (ClickHouse/Greenplum/Postgres), схемы шардирования, стратегии партиционирования и регламентов репликации.',
+        'Исполнитель обязан выбрать СУБД (ClickHouse/Greenplum/Postgres), выполнить её сайзинг и определить схемы шардирования, стратегии партиционирования и регламенты репликации.',
       order: 1,
     },
     {
@@ -89,7 +89,7 @@ export const DATA_LAKE_BI_PLATFORM_PRESET: IndustryPreset = {
       hoursPerUnit: 8,
       driverFieldKey: 'sources_count',
       requirements:
-        'Разработка DAG-пайплайнов Airflow, коннекторов CDC (Debezium), процедур очистки, дедупликации и историчности (SCD 2).',
+        'Исполнитель обязан разработать DAG-пайплайны Airflow, коннекторы CDC (Debezium), процедуры очистки, дедупликации и поддержки историчности (SCD 2).',
       order: 2,
     },
     {
@@ -99,7 +99,7 @@ export const DATA_LAKE_BI_PLATFORM_PRESET: IndustryPreset = {
       hoursPerUnit: 6,
       driverFieldKey: 'data_marts_count',
       requirements:
-        'Оптимизация проекций и агрегатов ClickHouse, документирование бизнес-терминов и потоков трансформации в Data Lineage.',
+        'Исполнитель обязан оптимизировать проекции и агрегаты ClickHouse и задокументировать бизнес-термины и потоки трансформации в Data Lineage.',
       order: 3,
     },
     {
@@ -109,7 +109,7 @@ export const DATA_LAKE_BI_PLATFORM_PRESET: IndustryPreset = {
       hoursPerUnit: 3,
       driverFieldKey: 'bi_dashboards_count',
       requirements:
-        'Настройка графиков, фильтров и срезов в аналитической BI-системе, разграничение строк данных (RLS) по подразделениям.',
+        'Исполнитель обязан настроить графики, фильтры и срезы в аналитической BI-системе и обеспечить разграничение строк данных (RLS) по подразделениям.',
       order: 4,
     },
     {
@@ -119,7 +119,7 @@ export const DATA_LAKE_BI_PLATFORM_PRESET: IndustryPreset = {
       hoursPerUnit: 0.5,
       driverFieldKey: 'data_volume_tb',
       requirements:
-        'Проверка времени ночного окна пересчёта витрин, тестирование отклика дашбордов при конкурентных запросах аналитиков, ПМИ.',
+        'Исполнитель обязан проверить длительность ночного окна пересчёта витрин, протестировать отклик дашбордов при конкурентных запросах аналитиков и провести испытания по ПМИ.',
       order: 5,
     },
   ],

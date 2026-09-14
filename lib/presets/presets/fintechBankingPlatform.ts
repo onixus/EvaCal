@@ -69,7 +69,7 @@ export const FINTECH_BANKING_PLATFORM_PRESET: IndustryPreset = {
       hoursPerUnit: 4,
       driverFieldKey: 'payment_methods_count',
       requirements:
-        'Анализ регуляторных требований Банка России, спецификаций протоколов СБП и схем валидации платежей.',
+        'Исполнитель обязан проанализировать регуляторные требования Банка России, спецификации протоколов СБП и схемы валидации платежей.',
       order: 0,
     },
     {
@@ -79,7 +79,7 @@ export const FINTECH_BANKING_PLATFORM_PRESET: IndustryPreset = {
       hoursPerUnit: 6,
       driverFieldKey: 'crypto_gateways_count',
       requirements:
-        'Проектирование распределённой балансовой модели, двухфазного подтверждения транзакций и интерфейсов PKCS#11.',
+        'Исполнитель обязан спроектировать распределённую балансовую модель, механизм двухфазного подтверждения транзакций и интерфейсы PKCS#11.',
       order: 1,
     },
     {
@@ -89,7 +89,7 @@ export const FINTECH_BANKING_PLATFORM_PRESET: IndustryPreset = {
       hoursPerUnit: 10,
       driverFieldKey: 'payment_methods_count',
       requirements:
-        'Реализация коннекторов к НСПК, обработки клиринговых рейсов, обработки сценариев C2B/C2C платежей.',
+        'Исполнитель обязан реализовать коннекторы к НСПК, обработку клиринговых рейсов и обработку сценариев C2B/C2C платежей.',
       order: 2,
     },
     {
@@ -99,7 +99,7 @@ export const FINTECH_BANKING_PLATFORM_PRESET: IndustryPreset = {
       hoursPerUnit: 8,
       driverFieldKey: 'interfaces_count',
       requirements:
-        'Реализация правил проверки подозрительных операций, генерации выписок и витрин счетов для клиентов.',
+        'Исполнитель обязан реализовать правила проверки подозрительных операций, генерацию выписок и витрины счетов для клиентов.',
       order: 3,
     },
     {
@@ -109,7 +109,7 @@ export const FINTECH_BANKING_PLATFORM_PRESET: IndustryPreset = {
       hoursPerUnit: 0.1,
       driverFieldKey: 'accounts_scale_thousands',
       requirements:
-        'Нагрузочные замеры на 5000+ TPS, эмуляция аварийного переключения на резервный ЦОД с сохранением консистентности.',
+        'Исполнитель обязан выполнить нагрузочные замеры на 5000+ TPS и эмуляцию аварийного переключения на резервный ЦОД с сохранением консистентности.',
       order: 4,
     },
     {
@@ -119,7 +119,7 @@ export const FINTECH_BANKING_PLATFORM_PRESET: IndustryPreset = {
       hoursPerUnit: 2,
       driverFieldKey: 'crypto_gateways_count',
       requirements:
-        'Проверка выполнения мер защиты информации, подготовка комплекта эксплуатационной документации и акт приемки.',
+        'Исполнитель обязан проверить выполнение мер защиты информации, подготовить комплект эксплуатационной документации и оформить акт приемки.',
       order: 5,
     },
   ],

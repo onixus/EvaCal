@@ -83,7 +83,7 @@ export const NGFW_SZI_PRESET: IndustryPreset = {
       hoursPerUnit: 2,
       driverFieldKey: 'ngfw_clusters_count',
       requirements:
-        'Аудит сетевого периметра, классификация обрабатываемых данных (152-ФЗ, КИИ), формирование матрицы сетевых доступов.',
+        'Исполнитель обязан провести аудит сетевого периметра, выполнить классификацию обрабатываемых данных (152-ФЗ, КИИ) и сформировать матрицу сетевых доступов.',
       order: 0,
     },
     {
@@ -93,7 +93,7 @@ export const NGFW_SZI_PRESET: IndustryPreset = {
       hoursPerUnit: 0.1,
       driverFieldKey: 'endpoints_count',
       requirements:
-        'Контроль наличия лицензий из Единого реестра ПО (188-ФЗ), формуляров со знаками соответствия ФСТЭК/ФСБ, дистрибутивов и ключей активации.',
+        'Исполнитель обязан проконтролировать наличие лицензий из Единого реестра ПО (188-ФЗ), формуляров со знаками соответствия ФСТЭК/ФСБ, дистрибутивов и ключей активации.',
       order: 1,
     },
     {
@@ -103,7 +103,7 @@ export const NGFW_SZI_PRESET: IndustryPreset = {
       hoursPerUnit: 16,
       driverFieldKey: 'ngfw_clusters_count',
       requirements:
-        'Настройка HA-кластера Active-Passive, правил фильтрации L4-L7, инспекции SSL/TLS, систем предотвращения вторжений (IPS) и профилей контентной фильтрации.',
+        'Исполнитель обязан настроить HA-кластер Active-Passive, правила фильтрации L4-L7, инспекцию SSL/TLS, системы предотвращения вторжений (IPS) и профили контентной фильтрации.',
       order: 2,
     },
     {
@@ -113,7 +113,7 @@ export const NGFW_SZI_PRESET: IndustryPreset = {
       hoursPerUnit: 0.2,
       driverFieldKey: 'endpoints_count',
       requirements:
-        'Развертывание Kaspersky Security Center, политик EDR, настройка сборщиков событий Cyberpeak для файловых серверов и СХД.',
+        'Исполнитель обязан развернуть Kaspersky Security Center и политики EDR и настроить сборщики событий Cyberpeak для файловых серверов и СХД.',
       order: 3,
     },
     {
@@ -123,7 +123,7 @@ export const NGFW_SZI_PRESET: IndustryPreset = {
       hoursPerUnit: 6,
       driverFieldKey: 'vpn_tunnels_count',
       requirements:
-        'Инициализация ключевых носителей, настройка ViPNet Coordinator HW и клиентских узлов ViPNet Client с криптографической защитой ГОСТ.',
+        'Исполнитель обязан инициализировать ключевые носители и настроить ViPNet Coordinator HW и клиентские узлы ViPNet Client с криптографической защитой ГОСТ.',
       order: 4,
     },
     {
@@ -133,7 +133,7 @@ export const NGFW_SZI_PRESET: IndustryPreset = {
       hoursPerUnit: 4,
       driverFieldKey: 'storage_audits_count',
       requirements:
-        'Разработка регламентов реагирования на инциденты, инструкций администраторов и проведение приёмочных испытаний по методике ПМИ.',
+        'Исполнитель обязан разработать регламенты реагирования на инциденты и инструкции администраторов и провести приёмочные испытания по методике ПМИ.',
       order: 5,
     },
   ],
