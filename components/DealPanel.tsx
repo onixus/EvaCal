@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DEAL_STATUS_LABELS, LOSS_REASONS, lossReasonLabel, type DealStatus } from '@/lib/actuals';
 import { SUPPORTED_CURRENCIES, formatCurrency } from '@/lib/commercial';
+import { PROJECT_SCHEDULE_LABELS, type ProjectSchedule } from '@/lib/schedule';
 
 export interface DealProjectView {
   id: string;
@@ -18,6 +19,11 @@ export interface DealProjectView {
   contractCurrency: string | null;
   wonCalculationId: string | null;
   actualsClosedAt: string | null;
+  /** Контроль сроков по выигранной версии (E3); null — сделка не выиграна. */
+  schedule: Pick<
+    ProjectSchedule,
+    'status' | 'plannedEnd' | 'forecastEnd' | 'currentSlipDays' | 'done' | 'total' | 'overdue'
+  > | null;
   calculations: {
     id: string;
     version: number;
@@ -136,6 +142,31 @@ export default function DealPanel({
             {project.dealStatus === 'cancelled' &&
               (project.lossComment || 'Закупка не состоялась.')}
           </div>
+          {project.dealStatus === 'won' && project.schedule && (
+            <div className="text-xs text-slate-600 dark:text-nord-4" data-testid="deal-schedule">
+              Сроки:{' '}
+              <strong
+                className={
+                  project.schedule.status === 'late'
+                    ? 'text-rose-700 dark:text-rose-300'
+                    : project.schedule.status === 'at_risk'
+                      ? 'text-amber-700 dark:text-nord-yellow'
+                      : 'text-slate-800 dark:text-nord-4'
+                }
+              >
+                {PROJECT_SCHEDULE_LABELS[project.schedule.status]}
+              </strong>
+              {' · '}план до {new Date(project.schedule.plannedEnd).toLocaleDateString('ru-RU')}
+              {project.schedule.currentSlipDays > 0 && (
+                <>
+                  , прогноз {new Date(project.schedule.forecastEnd).toLocaleDateString('ru-RU')} (+
+                  {project.schedule.currentSlipDays} дн.)
+                </>
+              )}
+              {' · '}этапов {project.schedule.done}/{project.schedule.total}
+              {project.schedule.overdue > 0 && `, просрочено ${project.schedule.overdue}`}
+            </div>
+          )}
           {project.dealStatus === 'won' && won && (
             <div className="text-xs text-slate-600 dark:text-nord-4">
               Факт внесён по {won.stagesWithActual} из {won.stagesTotal} этапов

@@ -395,3 +395,16 @@ model RoleCapacity {
 
   @@index([role, effectiveFrom])
 }
+
+// Сохранённый срез конструктора отчётов по отклонениям (Horizon E3):
+// набор задач, фильтры, группировка и метрика в JSON.
+model DeviationReport {
+  id        String   @id @default(cuid())
+  name      String
+  config    String // JSON DeviationReportConfig
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdBy, updatedAt])
+}
