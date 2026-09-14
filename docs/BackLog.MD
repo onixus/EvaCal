@@ -34,6 +34,7 @@
 - [x] Commercial estimate calculation (direct labor cost, overhead, margin, discount, VAT, zero-division safeguards).
 - [x] Scenario modeling (Target, Best Case, Worst Case).
 - [x] Interactive GANTT timeline with customer approval task automation.
+- [x] Calibration by similar approved projects (reference-class forecasting): Gower similarity over questionnaire answers, median formula→approved ratio, per-stage adjustments, anonymised for share-link guests (`lib/calibration.ts`, `GET /api/calculations/:id/calibration`).
 
 ### 5. Equipment & Software Specification (SPEC)
 

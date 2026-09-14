@@ -9,6 +9,7 @@ import StatusBadge from '@/components/StatusBadge';
 import TotalsSummary, { RiskRow } from '@/components/TotalsSummary';
 import RiskList from '@/components/RiskList';
 import ExportLinks from '@/components/ExportLinks';
+import CalibrationPanel from '@/components/CalibrationPanel';
 import { storeShareToken, withShareHeaders } from '@/lib/shareClient';
 
 interface Calculation {
@@ -168,6 +169,8 @@ export default function PresaleCalculationEditor({
           risks={calculation.risks}
         />
       </div>
+
+      <CalibrationPanel calculationId={calculation.id} compact />
 
       <div className="card p-5">
         <h2 className="mb-3 font-medium">Этапы</h2>

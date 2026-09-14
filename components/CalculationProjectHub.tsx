@@ -11,6 +11,7 @@ import CommercialProposalPanel from './CommercialProposalPanel';
 import TraceabilityMatrixView from './gost34/TraceabilityMatrixView';
 import ScenarioAnalysisPanel from './ScenarioAnalysisPanel';
 import SpecificationPanel from './SpecificationPanel';
+import CalibrationPanel from './CalibrationPanel';
 
 interface FieldForView {
   id: string;
@@ -301,6 +302,8 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
               risks={calculation.risks}
             />
           </div>
+
+          <CalibrationPanel calculationId={calculation.id} />
 
           <div className="grid gap-6 md:grid-cols-2">
             {/* Questionnaire Answers */}
