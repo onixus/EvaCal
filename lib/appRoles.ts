@@ -88,6 +88,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     { href: '/projects', label: 'Проекты' },
     { href: '/presale', label: 'Пресейл-мастер' },
     { href: '/', label: 'Расчёты и сметы' },
+    { href: '/leaderboard', label: 'Рейтинг команды' },
   ],
   architect: [
     { href: '/projects', label: 'Проекты' },
@@ -97,11 +98,13 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     { href: '/changelog', label: 'Лист внутренних изменений' },
     { href: '/architect', label: 'Архитектурный каталог' },
     { href: '/agents', label: 'Харнесс-агенты' },
+    { href: '/leaderboard', label: 'Рейтинг команды' },
   ],
   reviewer: [
     { href: '/review', label: 'Очередь ревью', badgeKey: 'reviewQueue' },
     { href: '/changelog', label: 'Лист внутренних изменений' },
     { href: '/standards', label: 'Чек-листы и стандарты' },
+    { href: '/leaderboard', label: 'Рейтинг команды' },
   ],
   admin: [
     { href: '/projects', label: 'Проекты' },
@@ -112,6 +115,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     { href: '/architect', label: 'Архитектурный каталог' },
     { href: '/agents', label: 'Харнесс-агенты' },
     { href: '/admin', label: 'Шаблоны и пользователи' },
+    { href: '/leaderboard', label: 'Рейтинг команды' },
   ],
 };
 

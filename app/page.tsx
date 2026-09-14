@@ -41,6 +41,12 @@ export default async function HomePage(props: { searchParams: Promise<{ page?: s
               >
                 🔐 Вход для сотрудников
               </Link>
+              <Link
+                href="/leaderboard"
+                className="btn bg-brand-700/80 text-white border border-white/20 hover:bg-brand-800 active:scale-[0.98]"
+              >
+                🏆 Рейтинг команды
+              </Link>
             </div>
           </div>
 
