@@ -18,6 +18,11 @@ test-results.xml
 *.apk
 *.mp4
 screenshot*.png
+# Снимки, которые e2e пишет в корень при падении шага
+login-hang.png
+architect-modal.png
+customer-portal.png
+share-button-error.png
 android-app/
 evacal-android/
 

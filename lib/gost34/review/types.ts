@@ -43,8 +43,16 @@ export function canDecideReviewStage(role: string | null | undefined, stage: Rev
   return REVIEW_STAGE_ROLES[stage].includes(role ?? '');
 }
 
-/** Внешний рецензент по share-ссылке допускается только к нормоконтролю. */
-export const SHARE_ALLOWED_STAGES: ReviewStage[] = ['tw'];
+/**
+ * Этапы, доступные гостю по share-ссылке со scope `review`.
+ *
+ * Оба: разделение подписей — правило для сотрудников, а гость по ссылке это
+ * внешний согласующий со стороны Заказчика. По ГОСТ 34.602 техническое задание
+ * утверждает именно Заказчик — на титульном листе стоит его «УТВЕРЖДАЮ», — и
+ * портал согласования держится на этой ссылке. Запрет гостю на финальный этап
+ * убрал бы утверждение Заказчиком вовсе.
+ */
+export const SHARE_ALLOWED_STAGES: ReviewStage[] = ['tw', 'gap'];
 
 /** Состояние пункта чек-листа нормоконтроля. */
 export type ChecklistState = 'ok' | 'block' | 'warn' | 'empty';

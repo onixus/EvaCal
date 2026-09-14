@@ -1,7 +1,60 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
-// Пароль стендового архитектора берётся из окружения: общего дефолтного пароля в проекте нет.
+// Пароль стендовых учёток берётся из окружения: общего дефолтного пароля в проекте нет.
+// Пайплайн сидит все роли одним паролем (SEED_DEFAULT_PASSWORD), поэтому им же
+// логинятся тех.писатель и ГАП.
 const E2E_PASSWORD = process.env.E2E_ARCHITECT_PASSWORD;
+
+/** Пароль, на который меняется выданный сидом при первом входе. */
+const FORCED_NEW_PASSWORD = 'newsecurepassword123';
+
+/**
+ * Вход под ролью с прохождением обязательной смены пароля.
+ * Возвращает пароль, действующий после входа: сид помечает учётки
+ * `mustChangePassword`, и первый вход всегда заканчивается сменой.
+ */
+async function loginAs(page: Page, username: string, password: string): Promise<string> {
+  await page.goto('/login');
+  const inputs = page.locator('.input');
+  await inputs.nth(0).fill(username);
+  await inputs.nth(1).fill(password);
+  await page.click('button[type="submit"]');
+  await page.waitForURL(/\/(projects|review|presale|admin|account)/, { timeout: 20000 });
+
+  if (/account/.test(page.url())) {
+    const passInputs = page.locator('input[type="password"]');
+    await passInputs.nth(0).fill(password);
+    await passInputs.nth(1).fill(FORCED_NEW_PASSWORD);
+    await page.getByRole('button', { name: /Сменить пароль/i }).click();
+    await expect(page.getByText('Пароль изменён')).toBeVisible({ timeout: 15000 });
+    return FORCED_NEW_PASSWORD;
+  }
+  return password;
+}
+
+/**
+ * Подпись на текущем этапе ревью: роль входит, открывает первый комплект своей
+ * очереди и утверждает его. Этапов два и роли у них разные — тех.писатель
+ * подписывает нормоконтроль, ГАП утверждает выпуск.
+ */
+async function signReview(
+  page: Page,
+  username: string,
+  password: string,
+  reviewerName: string,
+): Promise<void> {
+  await loginAs(page, username, password);
+  await page.goto('/review');
+  await page.locator('a[href^="/review/"]').first().click();
+  await page.waitForURL(/\/review\/[a-z0-9]+/i, { timeout: 20000 });
+
+  await page.getByPlaceholder('ФИО и должность').fill(reviewerName);
+  await page.getByRole('button', { name: 'Утвердить комплект' }).click();
+  await page.getByRole('button', { name: 'Отправить решение' }).click();
+  await expect(page.getByRole('button', { name: 'Отправить решение' })).toHaveCount(0, {
+    timeout: 20000,
+  });
+}
 
 test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
   test.setTimeout(240000);
@@ -41,12 +94,14 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     }
 
     // Handle initial forced password change if redirected to /account
+    let architectPassword = password;
     if (/account/.test(page.url())) {
       const passInputs = page.locator('input[type="password"]');
       await passInputs.nth(0).fill(password);
-      await passInputs.nth(1).fill('newsecurepassword123');
+      await passInputs.nth(1).fill(FORCED_NEW_PASSWORD);
       await page.getByRole('button', { name: /Сменить пароль/i }).click();
       await expect(page.getByText('Пароль изменён')).toBeVisible();
+      architectPassword = FORCED_NEW_PASSWORD;
       await page.goto('/projects');
     }
 
@@ -188,14 +243,23 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     // Switch to Packages tab!
     await page.locator('button').filter({ hasText: 'Реестр ГОСТ 34' }).first().click();
 
-    // Architect MUST approve the package first to move it to customer review stage!
-    await page.getByRole('button', { name: '✓ Согласовать' }).first().click();
-    await expect(page.getByRole('heading', { name: '✅ Утверждение комплекта' })).toBeVisible();
-    await page.screenshot({ path: 'architect-modal.png' });
-    await page.getByRole('button', { name: 'Подтвердить решение' }).click();
-    await expect(page.getByRole('heading', { name: '✅ Утверждение комплекта' })).not.toBeVisible({
-      timeout: 15000,
-    });
+    // Архитектор выпустил комплект и потому подписи под ним не ставит: карточка
+    // проекта показывает ему только этап, на котором комплект стоит.
+    await expect(page.getByText(/на подписи:/i).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: '✓ Согласовать' })).toHaveCount(0);
+
+    // Нормоконтроль подписывает тех.писатель — не архитектор и не ГАП.
+    // Пароль у всех сидированных учёток один (SEED_DEFAULT_PASSWORD в пайплайне).
+    // После его решения комплект уходит на финальный этап, где его утверждает
+    // Заказчик по share-ссылке (ниже) либо ГАП в системе.
+    await signReview(page, 'techwriter', password, 'Васильева Е.И. (нормоконтроль)');
+
+    // Возврат в роль архитектора: share-ссылку выпускает он.
+    await loginAs(page, 'architect', architectPassword);
+    await page.goto('/projects');
+    await page.getByRole('link', { name: PROJECT_NAME }).first().click();
+    await expect(page.getByRole('heading', { name: PROJECT_NAME })).toBeVisible();
+    await page.locator('button').filter({ hasText: 'Реестр ГОСТ 34' }).first().click();
 
     try {
       await expect(page.getByRole('button', { name: /Поделиться/i }).first()).toBeVisible({
