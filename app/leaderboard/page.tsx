@@ -240,6 +240,12 @@ function PresaleTable(props: {
             >
               Цикл
             </th>
+            <th
+              className="px-2 py-1.5 text-right font-semibold"
+              title="Выиграно / (выиграно + проиграно) по исходам сделок"
+            >
+              Win rate
+            </th>
             <th className="px-4 py-1.5 text-right font-semibold">Оценка</th>
           </tr>
         </thead>
@@ -267,6 +273,14 @@ function PresaleTable(props: {
                 </td>
                 <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
                   {days(row.medianCycleDays)}
+                </td>
+                <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
+                  {row.winRate === null ? '—' : pct(row.winRate)}
+                  {row.won + row.lost > 0 && (
+                    <span className="ml-1 text-[10px] text-slate-400 dark:text-nord-muted">
+                      ({row.won}/{row.won + row.lost})
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2">
                   <div className="flex justify-end">
@@ -352,6 +366,12 @@ function ArchitectTable(props: {
             >
               Ревью
             </th>
+            <th
+              className="px-2 py-1.5 text-right font-semibold"
+              title="Медиана |факт − план| / план по согласованным расчётам с фактом"
+            >
+              Точность
+            </th>
             <th className="px-4 py-1.5 text-right font-semibold">Оценка</th>
           </tr>
         </thead>
@@ -385,6 +405,14 @@ function ArchitectTable(props: {
                 </td>
                 <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
                   {days(row.medianTurnaroundDays)}
+                </td>
+                <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
+                  {row.medianAbsDeviation === null ? '—' : `±${pct(row.medianAbsDeviation)}`}
+                  {row.accuracySamples > 0 && (
+                    <span className="ml-1 text-[10px] text-slate-400 dark:text-nord-muted">
+                      ({row.accuracySamples})
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2">
                   <div className="flex justify-end">

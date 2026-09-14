@@ -7,6 +7,7 @@ import StatusBadge from '@/components/StatusBadge';
 import { calculateCommercialSummary, formatCurrency } from '@/lib/commercial';
 import { safeJsonParse } from '@/lib/json';
 import type { PackageDiffResult } from '@/lib/gost34/diff';
+import DealPanel, { type DealProjectView } from '@/components/DealPanel';
 
 export interface SerializedStage {
   id: string;
@@ -88,9 +89,16 @@ export interface SerializedProject {
   updatedAt: string;
   calculations: SerializedCalculation[];
   packages: SerializedGostPackage[];
+  deal: DealProjectView;
 }
 
-export default function ProjectDetailClient({ project }: { project: SerializedProject }) {
+export default function ProjectDetailClient({
+  project,
+  canEditDeal = false,
+}: {
+  project: SerializedProject;
+  canEditDeal?: boolean;
+}) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
     'calculations' | 'packages' | 'commercial' | 'settings'
@@ -483,6 +491,8 @@ export default function ProjectDetailClient({ project }: { project: SerializedPr
           </button>
         </div>
       </div>
+
+      <DealPanel project={project.deal} canEdit={canEditDeal} />
 
       {/* Tab 1: Calculations & Versions */}
       {activeTab === 'calculations' && (

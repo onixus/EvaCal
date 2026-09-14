@@ -24,9 +24,17 @@ const calcSelect = {
   pmHours: true,
   updatedAt: true,
   stages: {
-    select: { name: true, hours: true, isApprovalTask: true, startDate: true, endDate: true },
+    select: {
+      name: true,
+      hours: true,
+      isApprovalTask: true,
+      startDate: true,
+      endDate: true,
+      actualHours: true,
+    },
   },
   risks: { select: { hours: true } },
+  project: { select: { dealStatus: true, wonCalculationId: true } },
 } as const;
 
 type RawCalc = {
@@ -45,12 +53,19 @@ type RawCalc = {
     isApprovalTask: boolean;
     startDate: Date;
     endDate: Date;
+    actualHours: number | null;
   }[];
   risks: { hours: number }[];
+  project: { dealStatus: string; wonCalculationId: string | null } | null;
 };
 
 function toRow(c: RawCalc): CalibrationCalcRow {
-  return { ...c, answers: safeJsonParse<Record<string, unknown>>(c.answers, {}) };
+  const { project, ...rest } = c;
+  return {
+    ...rest,
+    answers: safeJsonParse<Record<string, unknown>>(c.answers, {}),
+    wonVersion: project?.dealStatus === 'won' && project.wonCalculationId === c.id,
+  };
 }
 
 /**

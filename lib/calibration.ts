@@ -39,6 +39,8 @@ export interface CalibrationStageRow {
   isApprovalTask: boolean;
   startDate: Date;
   endDate: Date;
+  /** Факт по этапу выигранной версии (Horizon E1); отсутствует у остальных. */
+  actualHours?: number | null;
 }
 
 export interface CalibrationCalcRow {
@@ -53,6 +55,8 @@ export interface CalibrationCalcRow {
   stages: CalibrationStageRow[];
   risks: { hours: number }[];
   updatedAt: Date;
+  /** Версия, по которой выиграна сделка: её факт — третий слой калибровки. */
+  wonVersion?: boolean;
 }
 
 export interface CalibrationInput {
@@ -101,6 +105,12 @@ export interface Neighbour {
   actualHours: number;
   /** actual / formula; null, если формула дала 0. */
   ratio: number | null;
+  /**
+   * Факт часов по выигранной версии (только этапы с внесённым фактом) и
+   * коэффициент факт / утверждено по тем же этапам; null — факта нет.
+   */
+  realHours: number | null;
+  realRatio: number | null;
   /** Календарная длительность утверждённого плана, дней. */
   durationDays: number;
   riskHours: number;
@@ -137,6 +147,12 @@ export interface CalibrationReport {
   medianRatio: number | null;
   /** Разброс коэффициентов по соседям. */
   ratioRange: { min: number; max: number } | null;
+  /**
+   * Третий слой: медиана (факт / утверждено) у соседей с фактом, и сколько их.
+   * null — ни у одного соседа факта нет.
+   */
+  medianRealRatio: number | null;
+  realSamples: number;
   /** Формула target × медиана. */
   calibratedHours: number | null;
   /** Диапазон часов: формула × min..max. */
@@ -233,6 +249,27 @@ export function durationDays(stages: CalibrationStageRow[]): number {
     max = Math.max(max, s.endDate.getTime());
   }
   return Math.max(0, Math.round((max - min) / (24 * 60 * 60 * 1000)));
+}
+
+/**
+ * Факт / утверждено по этапам соседа, у которых внесён факт. Считается только
+ * для выигранной версии: у остальных факт не ведётся. Этапы без факта не
+ * входят в знаменатель — иначе частичный факт выглядел бы как экономия.
+ */
+export function realRatioOf(row: CalibrationCalcRow): {
+  hours: number | null;
+  ratio: number | null;
+} {
+  if (!row.wonVersion) return { hours: null, ratio: null };
+  let planned = 0;
+  let actual = 0;
+  for (const s of row.stages) {
+    if (s.isApprovalTask || s.actualHours === null || s.actualHours === undefined) continue;
+    planned += s.hours;
+    actual += s.actualHours;
+  }
+  if (planned <= 0) return { hours: null, ratio: null };
+  return { hours: round1(actual), ratio: round2(actual / planned) };
 }
 
 // ---------------------------------------------------------------------------
@@ -396,6 +433,7 @@ export function buildCalibration(input: CalibrationInput): CalibrationReport {
     const f = formulaBreakdown(stageTemplates, fields, x.row.answers);
     const actual = grandTotal(x.row);
     const riskHours = x.row.risks.reduce((s, r) => s + r.hours, 0);
+    const real = realRatioOf(x.row);
     return {
       id: x.row.id,
       label: revealIdentity ? x.row.name : `Похожий проект №${i + 1}`,
@@ -405,6 +443,8 @@ export function buildCalibration(input: CalibrationInput): CalibrationReport {
       formulaHours: f.total,
       actualHours: actual,
       ratio: f.total > 0 ? round2(actual / f.total) : null,
+      realHours: real.hours,
+      realRatio: real.ratio,
       durationDays: durationDays(x.row.stages),
       riskHours: round1(riskHours),
       approvedAt: x.row.updatedAt.toISOString(),
@@ -428,6 +468,9 @@ export function buildCalibration(input: CalibrationInput): CalibrationReport {
           max: round1(targetFormula.total * ratioRange.max),
         }
       : null;
+
+  const realRatios = neighbours.map((n) => n.realRatio).filter((r): r is number => r !== null);
+  const medianRealRatio = median(realRatios);
 
   const medianDurationDays = median(neighbours.map((n) => n.durationDays));
   const medianRiskShare = median(
@@ -487,6 +530,8 @@ export function buildCalibration(input: CalibrationInput): CalibrationReport {
     neighbours,
     medianRatio: medianRatio === null ? null : round2(medianRatio),
     ratioRange,
+    medianRealRatio: medianRealRatio === null ? null : round2(medianRealRatio),
+    realSamples: realRatios.length,
     calibratedHours,
     calibratedRange,
     medianDurationDays,

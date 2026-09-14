@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import ArchitectEditor from './ArchitectEditor';
+import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,12 @@ export default async function ArchitectCalculationPage(props: { params: Promise<
     },
   });
   if (!calculation) notFound();
+  const session = await getSession();
 
-  return <ArchitectEditor calculation={JSON.parse(JSON.stringify(calculation))} />;
+  return (
+    <ArchitectEditor
+      calculation={JSON.parse(JSON.stringify(calculation))}
+      viewerRole={session?.role ?? 'architect'}
+    />
+  );
 }

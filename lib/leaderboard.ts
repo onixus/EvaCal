@@ -59,6 +59,21 @@ export interface PackageRow {
 /** Событие аудита `calculation.approve`: кто согласовал расчёт пресейла. */
 export interface ApprovalEventRow {
   actorId: string | null;
+  /** id расчёта — чтобы связать согласовавшего с точностью (E1). */
+  entityId?: string | null;
+}
+
+/** Исход сделки проекта (Horizon E1): чей расчёт и чем кончилось. */
+export interface DealOutcomeRow {
+  createdBy: string;
+  dealStatus: string;
+}
+
+/** Отклонение факта от плана по выигранному расчёту (E1) и кто его согласовал. */
+export interface AccuracyRow {
+  approvedBy: string | null;
+  /** (факт − план) / план по этапам с фактом. */
+  deviation: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,6 +93,10 @@ export interface PresaleEntry {
   reworkRate: number;
   /** Медиана дней от создания до утверждения; null — утверждённых нет. */
   medianCycleDays: number | null;
+  /** Сделки (E1): выиграно / проиграно и win rate; null — решённых нет. */
+  won: number;
+  lost: number;
+  winRate: number | null;
   /** Интегральная оценка 0..100. */
   score: number;
   /** Меньше MIN_SAMPLE расчётов — оценка ненадёжна. */
@@ -100,6 +119,9 @@ export interface ArchitectEntry {
   firstPassRate: number | null;
   /** Медиана дней от выпуска до утверждения своих комплектов. */
   medianTurnaroundDays: number | null;
+  /** Точность (E1): медиана |отклонения| факта от плана по согласованным расчётам. */
+  accuracySamples: number;
+  medianAbsDeviation: number | null;
   score: number;
   lowSample: boolean;
 }
@@ -191,7 +213,17 @@ function rank<T extends { score: number; name: string }>(entries: T[]): RankedBo
 export function buildPresaleBoard(
   calculations: CalculationRow[],
   users: UserRow[],
+  deals: DealOutcomeRow[] = [],
 ): RankedBoard<PresaleEntry> {
+  const dealsBy = new Map<string, { won: number; lost: number }>();
+  for (const d of deals) {
+    const actor = resolveActor(d.createdBy, users);
+    if (!actor || (d.dealStatus !== 'won' && d.dealStatus !== 'lost')) continue;
+    const acc = dealsBy.get(actor.name) ?? { won: 0, lost: 0 };
+    if (d.dealStatus === 'won') acc.won += 1;
+    else acc.lost += 1;
+    dealsBy.set(actor.name, acc);
+  }
   const groups = new Map<string, { role: string; rows: CalculationRow[] }>();
   for (const row of calculations) {
     const actor = resolveActor(row.createdBy, users);
@@ -217,6 +249,8 @@ export function buildPresaleBoard(
     const volume = total / maxTotal;
 
     const score = Math.round(100 * (0.7 * conversion + 0.2 * (1 - reworkRate) + 0.1 * volume));
+    const deal = dealsBy.get(name) ?? { won: 0, lost: 0 };
+    const decided = deal.won + deal.lost;
 
     return {
       name,
@@ -228,6 +262,9 @@ export function buildPresaleBoard(
       conversion: round1(conversion * 100) / 100,
       reworkRate: round1(reworkRate * 100) / 100,
       medianCycleDays: cycle === null ? null : round1(cycle),
+      won: deal.won,
+      lost: deal.lost,
+      winRate: decided ? round1((deal.won / decided) * 100) / 100 : null,
       score,
       lowSample: total < MIN_SAMPLE,
     };
@@ -250,7 +287,14 @@ export function buildArchitectBoard(
   packages: PackageRow[],
   approvals: ApprovalEventRow[],
   users: UserRow[],
+  accuracy: AccuracyRow[] = [],
 ): RankedBoard<ArchitectEntry> {
+  const deviationsBy = new Map<string, number[]>();
+  for (const a of accuracy) {
+    const actor = resolveActor(a.approvedBy, users);
+    if (!actor) continue;
+    deviationsBy.set(actor.name, [...(deviationsBy.get(actor.name) ?? []), Math.abs(a.deviation)]);
+  }
   interface Acc {
     role: string;
     calcApproved: number;
@@ -325,6 +369,8 @@ export function buildArchitectBoard(
     const speed = turnaround === null ? 0.5 : 1 - turnaround / maxTurnaround;
 
     const score = Math.round(100 * (0.5 * acceptance + 0.3 * volume + 0.2 * speed));
+    const devs = deviationsBy.get(name) ?? [];
+    const medianAbs = median(devs);
 
     return {
       name,
@@ -336,6 +382,8 @@ export function buildArchitectBoard(
       authoredRejected: acc.authoredRejected,
       firstPassRate: firstPassRate === null ? null : round1(firstPassRate * 100) / 100,
       medianTurnaroundDays: turnaround === null ? null : round1(turnaround),
+      accuracySamples: devs.length,
+      medianAbsDeviation: medianAbs === null ? null : round1(medianAbs * 100) / 100,
       score,
       lowSample: throughput(acc) < MIN_SAMPLE,
     };
@@ -350,12 +398,19 @@ export function buildLeaderboard(input: {
   calculations: CalculationRow[];
   packages: PackageRow[];
   approvals: ApprovalEventRow[];
+  deals?: DealOutcomeRow[];
+  accuracy?: AccuracyRow[];
   now?: Date;
 }): Leaderboard {
   return {
     period: input.period,
     generatedAt: (input.now ?? new Date()).toISOString(),
-    presale: buildPresaleBoard(input.calculations, input.users),
-    architects: buildArchitectBoard(input.packages, input.approvals, input.users),
+    presale: buildPresaleBoard(input.calculations, input.users, input.deals ?? []),
+    architects: buildArchitectBoard(
+      input.packages,
+      input.approvals,
+      input.users,
+      input.accuracy ?? [],
+    ),
   };
 }
