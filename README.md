@@ -163,7 +163,9 @@
 - **Styling**: Tailwind CSS (3 темы: High-Contrast, Nord Dark, Dark Fantasy).
 - **ORM & Database**: Prisma 7. Основная СУБД — PostgreSQL 14+ (версионированные миграции в `prisma/postgresql/migrations`; тесты и сборка в CI идут против неё); для одного стенда без отдельной СУБД — встраиваемый SQLite (`DATABASE_PROVIDER=sqlite`).
 - **Генерация документов**: `docx`, `mammoth`, `jszip`, `pdfkit`, `xlsx` (SheetJS).
-- **Тестирование**: Vitest (**63 test suites, 540 tests**, Golden Tests ГОСТ 34, Eval Suite LLM, JUnit XML reporter).
+- **Хранилище артефактов**: файловое (том `storage-data`) или S3-совместимое через `@aws-sdk/client-s3` (AWS S3, MinIO, Yandex/VK Object Storage).
+- **Аналитика**: чистые модули без ORM (`lib/actuals.ts`, `lib/capacity.ts`, `lib/schedule.ts`, `lib/deviations.ts`), графики на inline-SVG без внешних библиотек.
+- **Тестирование**: Vitest (**71 test suites, 594 tests**, Golden Tests ГОСТ 34, Eval Suite LLM, JUnit XML reporter).
 - **CI/CD & Инфраструктура**: Docker multi-stage (Node 22 Alpine, non-root user 1001, automated schema sync & seed), Docker Compose, Nginx (TLS, HSTS, Gzip, Security Headers), Jenkins Pipeline (`Jenkinsfile`) & GitHub Actions.
 
 ---
@@ -362,7 +364,7 @@ npm run typecheck
 # Строгий линтинг (ESLint, 0 warnings)
 npm run lint
 
-# Запуск полного набора юнит, интеграционных и eval-тестов (57 сьютов, 487 тестов)
+# Запуск полного набора юнит, интеграционных и eval-тестов (71 сьют, 594 теста)
 npm test
 
 # Запуск тестов для CI с генерацией отчёта JUnit XML (test-results.xml)
@@ -394,12 +396,13 @@ npm run build
 
 ## 📚 Документация
 
-| Документ                                                                           | Описание                                                                                                        |
-| :--------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------- |
-| [docs/ROLES_ONBOARDING.md](docs/ROLES_ONBOARDING.md)                               | **Маршрутный лист новичка:** детальный сценарий работы для всех 4 ролей (presale, architect, reviewer, admin)   |
-| [docs/LLM_TZ_AUTHOR_DESIGN.md](docs/LLM_TZ_AUTHOR_DESIGN.md)                       | **Архитектура «LLM как автор ТЗ»:** baseline-схема, генерация черновиков, diff preview, SSRF security perimeter |
-| [docs/RELEASE_REGISTRY_PLAN.md](docs/RELEASE_REGISTRY_PLAN.md)                     | Проект, реестр снимков мастера, неизменяемые ZIP-архивы и сквозное согласование                                 |
-| [docs/CRITICAL_ASSESSMENT_AND_ROADMAP.md](docs/CRITICAL_ASSESSMENT_AND_ROADMAP.md) | Критическая оценка продукта, архитектурные горизонты A–D и дорожная карта развития                              |
-| [docs/GOST34_MODERNIZATION_PLAN.md](docs/GOST34_MODERNIZATION_PLAN.md)             | План модернизации модуля ГОСТ 34 (структура разделов, нормативная база, профили)                                |
-| [docs/SECURITY_PERIMETER.md](docs/SECURITY_PERIMETER.md)                           | Периметр безопасности: модель доступа ACL, серверная аннуляция сессий, share-токены, аудит                      |
-| [docs/BackLog.MD](docs/BackLog.MD)                                                 | Статус вех разработки, закрытые задачи и бэклог функциональности                                                |
+| Документ                                                                           | Описание                                                                                                            |
+| :--------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------ |
+| [docs/ROLES_ONBOARDING.md](docs/ROLES_ONBOARDING.md)                               | **Маршрутный лист новичка:** детальный сценарий работы для всех 4 ролей (presale, architect, reviewer, admin)       |
+| [docs/LLM_TZ_AUTHOR_DESIGN.md](docs/LLM_TZ_AUTHOR_DESIGN.md)                       | **Архитектура «LLM как автор ТЗ»:** baseline-схема, генерация черновиков, diff preview, SSRF security perimeter     |
+| [docs/RELEASE_REGISTRY_PLAN.md](docs/RELEASE_REGISTRY_PLAN.md)                     | Проект, реестр снимков мастера, неизменяемые ZIP-архивы и сквозное согласование                                     |
+| [docs/CRITICAL_ASSESSMENT_AND_ROADMAP.md](docs/CRITICAL_ASSESSMENT_AND_ROADMAP.md) | Критическая оценка продукта, архитектурные горизонты A–E и дорожная карта развития                                  |
+| [docs/BUSINESS_FEATURES_DESIGN.md](docs/BUSINESS_FEATURES_DESIGN.md)               | **Horizon E:** факт и исход сделки, ресурсный план по портфелю, контроль сроков и конструктор срезов по отклонениям |
+| [docs/GOST34_MODERNIZATION_PLAN.md](docs/GOST34_MODERNIZATION_PLAN.md)             | План модернизации модуля ГОСТ 34 (структура разделов, нормативная база, профили)                                    |
+| [docs/SECURITY_PERIMETER.md](docs/SECURITY_PERIMETER.md)                           | Периметр безопасности: модель доступа ACL, серверная аннуляция сессий, share-токены, аудит                          |
+| [docs/BackLog.MD](docs/BackLog.MD)                                                 | Статус вех разработки, закрытые задачи и бэклог функциональности                                                    |

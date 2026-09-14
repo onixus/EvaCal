@@ -49,7 +49,7 @@
 - [x] Audit trail (`AuditEvent`) with sensitive LLM prompt/completion redaction (`redactLlmMeta`).
 - [x] Docker multi-stage Alpine deployment with automated schema sync/seed and non-root runner (uid 1001).
 - [x] Jenkins CI/CD pipeline and GitHub Actions workflow with JUnit XML reporting (`test:ci`).
-- [x] Automated test suite: **63 test files, 540 tests (100% pass)**.
+- [x] Automated test suite: **71 test files, 594 tests (100% pass)**.
 
 ---
 
@@ -98,9 +98,9 @@
 - [x] Внешнее объектное хранилище артефактов (S3 / MinIO) для неизменяемых ZIP-пакетов (`lib/gost34/storage.ts`: бэкенды `fs` и `s3` за одним интерфейсом, выбор по `S3_BUCKET`/`GOST_PACKAGE_STORAGE`, профиль `minio` и том `storage-data` в docker-compose).
 - [ ] Prometheus / OpenTelemetry метрики генерации и доступности LLM-провайдеров.
 
-### Horizon E — Бизнес-фичи: замкнуть цикл обучения и планирования (P1)
+### Horizon E — Бизнес-фичи: замкнуть цикл обучения и планирования (P1) — **ВЫПОЛНЕН**
 
-Проект: [BUSINESS_FEATURES_DESIGN.md](BUSINESS_FEATURES_DESIGN.md).
+Проект: [BUSINESS_FEATURES_DESIGN.md](BUSINESS_FEATURES_DESIGN.md). Реализовано в PR #78 (E1), #79 (E2), #80 (E3).
 
 - [x] **E1-1** Факт и исход сделки: `Project.dealStatus`/причина/сумма/версия, `Stage.actualHours`, блок «Сделка» в карточке проекта, колонка «Факт» у выигранной версии.
 - [x] **E1-2** Аналитика `/analytics`: win rate, причины проигрышей, скидка/исход, точность оценок по шаблонам и ролям; третий слой «факт» в калибровке и точность в рейтинге.
