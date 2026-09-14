@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { roleLabel } from '@/lib/roles';
 import { accuracyTone, type CalculationAccuracy, type ActualMargin } from '@/lib/actuals';
 import { formatCurrency } from '@/lib/commercial';
+import { PROJECT_SCHEDULE_LABELS, type ProjectSchedule } from '@/lib/schedule';
 
 interface StageView {
   id: string;
@@ -13,6 +14,8 @@ interface StageView {
   hours: number;
   isApprovalTask: boolean;
   actualHours: number | null;
+  startDate: string;
+  endDate: string;
   actualStartDate: string | null;
   actualEndDate: string | null;
   actualNote: string | null;
@@ -28,6 +31,25 @@ interface Summary {
   stages: StageView[];
   accuracy: CalculationAccuracy;
   margin: ActualMargin;
+  schedule: ProjectSchedule | null;
+}
+
+const SCHEDULE_TONE: Record<ProjectSchedule['status'], string> = {
+  not_started: 'text-slate-500 dark:text-nord-muted',
+  on_track: 'text-emerald-700 dark:text-emerald-400',
+  at_risk: 'text-amber-700 dark:text-nord-yellow',
+  late: 'text-rose-700 dark:text-rose-300',
+  completed: 'text-slate-900 dark:text-nord-6',
+};
+
+function fmtD(iso: string | null): string {
+  return iso
+    ? new Date(iso).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
+    : '—';
+}
+
+function dayInput(iso: string | null): string {
+  return iso ? iso.slice(0, 10) : '';
 }
 
 const TONE: Record<ReturnType<typeof accuracyTone>, string> = {
@@ -110,6 +132,19 @@ export default function ActualsPanel({
     const ok = await call(`/api/calculations/${calculationId}/stages/${stage.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ actualHours: raw === '' ? null : Number(raw) }),
+    });
+    if (ok) await load();
+  }
+
+  async function saveDate(
+    stage: StageView,
+    key: 'actualStartDate' | 'actualEndDate',
+    value: string,
+  ) {
+    if (dayInput(stage[key]) === value) return;
+    const ok = await call(`/api/calculations/${calculationId}/stages/${stage.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ [key]: value || null }),
     });
     if (ok) await load();
   }
@@ -201,6 +236,45 @@ export default function ActualsPanel({
         </div>
       )}
 
+      {summary.schedule && (
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="schedule-stats">
+          <Stat
+            title="Сроки"
+            value={PROJECT_SCHEDULE_LABELS[summary.schedule.status]}
+            tone={SCHEDULE_TONE[summary.schedule.status]}
+            hint={`этапов завершено ${summary.schedule.done} из ${summary.schedule.total}${summary.schedule.overdue ? `, просрочено ${summary.schedule.overdue}` : ''}`}
+          />
+          <Stat
+            title="Окончание по плану"
+            value={fmtD(summary.schedule.plannedEnd)}
+            hint={`старт ${fmtD(summary.schedule.plannedStart)}`}
+          />
+          <Stat
+            title="Прогноз окончания"
+            value={fmtD(summary.schedule.forecastEnd)}
+            tone={
+              summary.schedule.currentSlipDays > 0
+                ? SCHEDULE_TONE[summary.schedule.status]
+                : undefined
+            }
+            hint={
+              summary.schedule.currentSlipDays > 0
+                ? `сдвиг +${summary.schedule.currentSlipDays} дн.`
+                : 'без сдвига'
+            }
+          />
+          <Stat
+            title="Медиана сдвига этапов"
+            value={
+              summary.schedule.medianEndSlipDays === null
+                ? '—'
+                : `${summary.schedule.medianEndSlipDays > 0 ? '+' : ''}${summary.schedule.medianEndSlipDays} дн.`
+            }
+            hint="по завершённым этапам"
+          />
+        </div>
+      )}
+
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat title="План (по этапам с фактом)" value={`${acc.plannedCovered} ч`} />
         <Stat title="Факт" value={`${acc.actualCovered} ч`} />
@@ -227,6 +301,10 @@ export default function ActualsPanel({
               <th className="py-2 pr-4 text-right">План</th>
               <th className="py-2 pr-4 text-right">Факт, ч</th>
               <th className="py-2 pr-4 text-right">Откл.</th>
+              <th className="py-2 pr-4">Срок по плану</th>
+              <th className="py-2 pr-4">Факт: начало</th>
+              <th className="py-2 pr-4">Факт: окончание</th>
+              <th className="py-2 pr-4 text-right">Сдвиг</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-nord-3">
@@ -292,7 +370,7 @@ export default function ActualsPanel({
                   aria-label="Факт часов РП"
                 />
               </td>
-              <td />
+              <td colSpan={5} />
             </tr>
           </tbody>
         </table>

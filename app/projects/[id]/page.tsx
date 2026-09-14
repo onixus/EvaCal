@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getProjectDetails } from '@/lib/project';
 import { getSession } from '@/lib/auth';
+import { projectSchedule } from '@/lib/schedule';
 import ProjectDetailClient, { SerializedProject } from './ProjectDetailClient';
 
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,22 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
       contractCurrency: project.contractCurrency,
       wonCalculationId: project.wonCalculationId,
       actualsClosedAt: project.actualsClosedAt?.toISOString() ?? null,
+      schedule: (() => {
+        const won = project.calculations.find((c) => c.id === project.wonCalculationId);
+        if (project.dealStatus !== 'won' || !won) return null;
+        const s = projectSchedule(won.stages);
+        return s
+          ? {
+              status: s.status,
+              plannedEnd: s.plannedEnd,
+              forecastEnd: s.forecastEnd,
+              currentSlipDays: s.currentSlipDays,
+              done: s.done,
+              total: s.total,
+              overdue: s.overdue,
+            }
+          : null;
+      })(),
       calculations: project.calculations.map((c) => ({
         id: c.id,
         version: c.version,

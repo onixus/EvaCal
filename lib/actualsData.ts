@@ -4,6 +4,7 @@
  */
 import { prisma } from '@/lib/prisma';
 import { periodSince, type LeaderboardPeriod } from '@/lib/leaderboard';
+import { projectSchedule } from '@/lib/schedule';
 import {
   accuracyBy,
   accuracyPoints,
@@ -94,6 +95,8 @@ export async function loadActualsSummary(calculationId: string) {
           hours: true,
           isApprovalTask: true,
           actualHours: true,
+          startDate: true,
+          endDate: true,
           actualStartDate: true,
           actualEndDate: true,
           actualNote: true,
@@ -131,11 +134,14 @@ export async function loadActualsSummary(calculationId: string) {
     actualPmHours: calc.actualPmHours,
     stages: calc.stages.map((s) => ({
       ...s,
+      startDate: s.startDate.toISOString(),
+      endDate: s.endDate.toISOString(),
       actualStartDate: s.actualStartDate?.toISOString() ?? null,
       actualEndDate: s.actualEndDate?.toISOString() ?? null,
     })),
     accuracy,
     margin,
+    schedule: isWonVersion ? projectSchedule(calc.stages) : null,
   };
 }
 

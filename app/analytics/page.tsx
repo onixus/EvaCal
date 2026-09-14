@@ -2,12 +2,14 @@ import Link from 'next/link';
 import { requireRole } from '@/lib/auth';
 import { LEADERBOARD_PERIODS, parsePeriod } from '@/lib/leaderboard';
 import { loadAccuracyAnalytics, loadDealAnalytics } from '@/lib/actualsData';
+import { loadDeviationCatalog } from '@/lib/deviationsData';
+import DeviationChart from '@/components/DeviationChart';
 import { accuracyTone, type WinRate } from '@/lib/actuals';
 import { roleLabel } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
-type Tab = 'deals' | 'accuracy';
+type Tab = 'deals' | 'accuracy' | 'deviations';
 
 /**
  * Сделки и точность оценок (Horizon E1). Для сотрудников: тут есть названия
@@ -19,12 +21,14 @@ export default async function AnalyticsPage(props: {
   await requireRole(['presale', 'architect', 'reviewer', 'admin'], '/analytics');
   const sp = await props.searchParams;
   const period = parsePeriod(sp.period);
-  const tab: Tab = sp.tab === 'accuracy' ? 'accuracy' : 'deals';
+  const tab: Tab =
+    sp.tab === 'accuracy' ? 'accuracy' : sp.tab === 'deviations' ? 'deviations' : 'deals';
   const href = (t: Tab, p = period) => `/analytics?tab=${t}${p === 'all' ? '' : `&period=${p}`}`;
 
-  const [deals, accuracy] = await Promise.all([
+  const [deals, accuracy, catalog] = await Promise.all([
     loadDealAnalytics(period),
     loadAccuracyAnalytics(period),
+    loadDeviationCatalog(),
   ]);
 
   return (
@@ -66,9 +70,68 @@ export default async function AnalyticsPage(props: {
         >
           Точность оценок
         </Link>
+        <Link
+          href={href('deviations')}
+          className={`tab-btn ${tab === 'deviations' ? 'tab-btn-active' : ''}`}
+        >
+          Отклонения по задачам
+        </Link>
       </div>
 
-      {tab === 'deals' ? (
+      {tab === 'deviations' ? (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Stat
+              title="Задач с фактом"
+              value={String(catalog.tasks.filter((t) => t.samples > 0).length)}
+            />
+            <Stat
+              title="Наблюдений"
+              value={String(catalog.rows)}
+              hint="этапов выигранных версий с фактом"
+            />
+            <div className="card flex items-center p-4 text-xs">
+              <Link href="/analytics/deviations" className="btn-primary">
+                Конструктор срезов →
+              </Link>
+            </div>
+          </div>
+          <Section
+            title="Медиана отклонения по одинаковым задачам"
+            subtitle="Факт / план − 1 по этапу; одна задача во всех выигранных проектах. Перерасход вправо, недорасход влево, серое — в допуске ±10%."
+          >
+            <div className="p-4">
+              <DeviationChart
+                bars={catalog.tasks
+                  .filter((t) => t.samples > 0)
+                  .map((t) => ({
+                    key: t.key,
+                    label: t.label,
+                    value: t.medianDeviation,
+                    samples: t.samples,
+                    lowSample: t.samples < 3,
+                    detail: `${t.label}: роли ${t.roles.map(roleLabel).join(', ')}`,
+                  }))}
+                maxBars={25}
+              />
+            </div>
+          </Section>
+          <Section title="Таблица задач" subtitle="Те же данные списком">
+            <Table
+              head={['Задача', 'Наблюдений', 'Роли', 'Медиана откл.']}
+              rows={catalog.tasks.map((t) => [
+                t.label,
+                String(t.samples),
+                t.roles.map(roleLabel).join(', '),
+                signed(t.medianDeviation) + (t.samples < 3 ? ' *' : ''),
+              ])}
+              tones={catalog.tasks.map((t) => accuracyTone(t.medianDeviation))}
+              empty="Факт по этапам ещё не вносился."
+              note="* меньше 3 наблюдений"
+            />
+          </Section>
+        </div>
+      ) : tab === 'deals' ? (
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <Stat title="Сделок" value={String(deals.total)} />

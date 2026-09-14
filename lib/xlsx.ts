@@ -420,3 +420,83 @@ export function renderCapacityXlsx(matrix: import('./capacity').CapacityMatrix):
 
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 }
+
+/** Срез отклонений по задачам (E3): лист «Группы» и лист «Параметры». */
+export function renderDeviationReportXlsx(
+  result: import('./deviations').DeviationReportResult,
+  groupLabel: string,
+): Buffer {
+  const wb = XLSX.utils.book_new();
+  const pct = (v: number | null) => (v === null ? '' : Math.round(v * 100));
+  const head = [
+    groupLabel,
+    'Наблюдений',
+    'Метрика, %',
+    'Медиана, %',
+    'Среднее, %',
+    'P90, %',
+    'Мин, %',
+    'Макс, %',
+    'Перерасход',
+    'В допуске',
+    'Недорасход',
+    'План',
+    'Факт',
+    'Мало данных',
+  ];
+  const rows = result.groups.map((g) => [
+    g.label,
+    g.samples,
+    pct(g.value),
+    pct(g.median),
+    pct(g.mean),
+    pct(g.p90),
+    pct(g.min),
+    pct(g.max),
+    g.over,
+    g.within,
+    g.under,
+    g.plannedTotal,
+    g.actualTotal,
+    g.lowSample ? 'да' : '',
+  ]);
+  const o = result.overall;
+  rows.push([
+    'Итого',
+    o.samples,
+    pct(o.value),
+    pct(o.median),
+    pct(o.mean),
+    pct(o.p90),
+    pct(o.min),
+    pct(o.max),
+    o.over,
+    o.within,
+    o.under,
+    o.plannedTotal,
+    o.actualTotal,
+    '',
+  ]);
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet(sanitizeRows([head, ...rows])),
+    'Группы',
+  );
+  const c = result.config;
+  const params: (string | number)[][] = [
+    ['Задачи', c.tasks.join('; ') || 'все'],
+    ['Роли', (c.roles ?? []).join('; ') || 'все'],
+    ['Шаблоны', (c.templates ?? []).join('; ') || 'все'],
+    ['Архитекторы', (c.architects ?? []).join('; ') || 'все'],
+    ['Заказчики', (c.customers ?? []).join('; ') || 'все'],
+    ['Период', `${c.from ?? '…'} — ${c.to ?? '…'}`],
+    ['Группировка', groupLabel],
+    ['Метрика', c.metric],
+    ['Сравнение', c.kind === 'days' ? 'дни' : 'часы'],
+    ['Допуск, %', Math.round((c.tolerance ?? 0.1) * 100)],
+    ['Мин. наблюдений', c.minSamples ?? 3],
+    ['Строк использовано', result.rowsUsed],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sanitizeRows(params)), 'Параметры');
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+}
