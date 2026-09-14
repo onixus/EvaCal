@@ -17,9 +17,10 @@ COPY . .
 # на этапе сборки. К базе здесь никто не обращается — реальное значение приходит из
 # docker-compose в runtime; это заглушка, совпадающая с путём тома /app/prisma.
 ENV DATABASE_URL="file:./prisma/dev.db"
-# Клиент компилирует SQL под диалект из схемы, поэтому СУБД выбирается на сборке:
-# docker compose build --build-arg DATABASE_PROVIDER=postgresql (см. docker-compose.yml).
-ARG DATABASE_PROVIDER=sqlite
+# Клиент компилирует SQL под диалект из схемы, поэтому СУБД выбирается на сборке.
+# По умолчанию PostgreSQL; встраиваемый SQLite — --build-arg DATABASE_PROVIDER=sqlite
+# (см. docker-compose.yml).
+ARG DATABASE_PROVIDER=postgresql
 ENV DATABASE_PROVIDER=$DATABASE_PROVIDER
 RUN npm run build
 
@@ -39,7 +40,7 @@ COPY prisma ./prisma
 COPY lib ./lib
 COPY scripts ./scripts
 COPY reset-all.ts ./
-ARG DATABASE_PROVIDER=sqlite
+ARG DATABASE_PROVIDER=postgresql
 ENV DATABASE_PROVIDER=$DATABASE_PROVIDER
 COPY docker-migrate-entrypoint.sh /usr/local/bin/docker-migrate-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-migrate-entrypoint.sh

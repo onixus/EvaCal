@@ -15,8 +15,10 @@ pipeline {
         CI = 'true'
         NEXT_TELEMETRY_DISABLED = '1'
         NPM_CONFIG_UPDATE_NOTIFIER = 'false'
-        // prisma.config.ts резолвит DATABASE_URL при любом запуске CLI, включая generate
-        DATABASE_URL = 'file:./prisma/dev.db'
+        // Основная СУБД — PostgreSQL: клиент генерируется под неё, тесты и сборка
+        // идут против неё. Сервер поднимается внутри агента (scripts/ci-postgres.sh),
+        // DATABASE_URL выставляется после его старта в стадии Install Dependencies.
+        DATABASE_PROVIDER = 'postgresql'
 
         // Сборка идёт НЕ в воркспейсе, а в файловой системе контейнера.
         //
@@ -70,8 +72,17 @@ pipeline {
                             mkdir -p "$BUILD_DIR"
                             tar -cf - --exclude=node_modules --exclude=.next . | (cd "$BUILD_DIR" && tar -xf -)
                         '''
+                        script {
+                            env.DATABASE_URL = sh(
+                                returnStdout: true,
+                                script: 'cd "$BUILD_DIR" && sh scripts/ci-postgres.sh',
+                            ).trim()
+                        }
                         sh 'cd "$BUILD_DIR" && npm ci'
                         sh 'cd "$BUILD_DIR" && npx prisma generate'
+                        // Миграции PostgreSQL применяются к живой базе: сломанная
+                        // миграция падает здесь, а не у пользователя при деплое.
+                        sh 'cd "$BUILD_DIR" && npm run db:sync'
                     }
                 }
 
@@ -213,16 +224,19 @@ pipeline {
 
                     export CI=true
                     export NEXT_TELEMETRY_DISABLED=1
-                    export DATABASE_URL='file:./prisma/dev.db'
                     export PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
                     rm -rf /e2e && mkdir -p /e2e
                     tar -cf - --exclude=node_modules --exclude=.next . | (cd /e2e && tar -xf -)
                     cd /e2e
 
+                    # Сквозной сценарий идёт против той же СУБД, что и прод.
+                    export DATABASE_PROVIDER=postgresql
+                    export DATABASE_URL=$(sh scripts/ci-postgres.sh)
+
                     npm ci
                     npx prisma generate
-                    npx prisma db push
+                    npm run db:sync
                     npm run db:seed
                     npm run build
 

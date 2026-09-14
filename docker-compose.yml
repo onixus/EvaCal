@@ -1,19 +1,17 @@
-# Две СУБД на выбор (см. README, «PostgreSQL вместо SQLite»):
-#   SQLite (по умолчанию) — встраиваемая база в томе db-data, ничего настраивать не надо.
-#   PostgreSQL — в .env задать DATABASE_PROVIDER=postgresql и DATABASE_URL на сервер;
-#     встроенный сервер поднимается профилем: docker compose --profile postgres up -d --build
-#     с DATABASE_URL=postgresql://evacal:${POSTGRES_PASSWORD}@postgres:5432/evacal
+# СУБД по умолчанию — PostgreSQL из сервиса `postgres` (см. README, «База данных»).
+#   Внешний сервер: задать DATABASE_URL на него; встроенный тогда простаивает.
+#   SQLite (один стенд, без отдельной СУБД): DATABASE_PROVIDER=sqlite и
+#     DATABASE_URL=file:./prisma/dev.db в .env, база живёт в томе db-data.
 # Клиент Prisma компилирует SQL под диалект СУБД, поэтому провайдер фиксируется
-# на сборке образа (build-arg), а не только в runtime.
+# на сборке образа (build-arg): после смены провайдера нужен `up --build`.
 services:
   postgres:
     image: postgres:16-alpine
-    profiles: ['postgres']
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-evacal}
       POSTGRES_USER: ${POSTGRES_USER:-evacal}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required for the postgres profile}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - pg-data:/var/lib/postgresql/data
     healthcheck:
@@ -34,11 +32,14 @@ services:
       context: .
       target: migrate
       args:
-        DATABASE_PROVIDER: ${DATABASE_PROVIDER:-sqlite}
+        DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}
     restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      DATABASE_PROVIDER: ${DATABASE_PROVIDER:-sqlite}
-      DATABASE_URL: ${DATABASE_URL:-file:./prisma/dev.db}
+      DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-evacal}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-evacal}?schema=public}
       SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD:-}
     volumes:
       - db-data:/app/prisma
@@ -47,14 +48,16 @@ services:
     build:
       context: .
       args:
-        DATABASE_PROVIDER: ${DATABASE_PROVIDER:-sqlite}
+        DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}
     restart: unless-stopped
     depends_on:
       migrate:
         condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
     environment:
-      DATABASE_PROVIDER: ${DATABASE_PROVIDER:-sqlite}
-      DATABASE_URL: ${DATABASE_URL:-file:./prisma/dev.db}
+      DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-evacal}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-evacal}?schema=public}
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
     volumes:
       - db-data:/app/prisma

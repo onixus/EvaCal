@@ -168,7 +168,7 @@ assertAllowedEndpoint(rawEndpoint, policy);
 
 ### Резервное копирование базы данных
 
-При развёртывании на PostgreSQL (`DATABASE_PROVIDER=postgresql`) используйте штатный `pg_dump` сервера; том `db-data` в этом режиме базу не содержит. Ниже — вариант для SQLite.
+Основной режим — PostgreSQL: бэкап штатным `pg_dump` (в compose: `docker compose exec postgres pg_dump -U evacal evacal > backup.sql`), данные сервера в томе `pg-data`. Ниже — вариант для режима SQLite (`DATABASE_PROVIDER=sqlite`).
 
 #### SQLite
 
