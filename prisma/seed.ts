@@ -82,6 +82,8 @@ async function seedDefaultUsers() {
   console.log('Сброс: docker compose run --rm migrate npx tsx reset-all.ts --all\n');
 }
 
+const DEMO_TEMPLATE_NAME = 'Внедрение CRM-системы';
+
 async function main() {
   await seedDefaultUsers();
 
@@ -91,7 +93,21 @@ async function main() {
     console.log(`Импортировано отраслевых пресетов ИТ/ИБ: ${seededPresets.length} шт.`);
   }
 
-  const existing = await prisma.formTemplate.findFirst();
+  // Проверка адресная, по имени демо-шаблона. Раньше здесь стоял findFirst()
+  // без условия — и он находил отраслевые пресеты, импортированные строкой выше.
+  // На пустой базе выход срабатывал всегда, поэтому демо-шаблон и демонстрационный
+  // расчёт не создавались никогда, а сид врал в лог «уже существуют, пропускаю».
+  //
+  // Последствие было не косметическим. Активных шаблонов не оставалось вовсе
+  // (пресеты импортируются с isActive: false, см. lib/presets/importer.ts),
+  // запрос `where: { isActive: true }` в app/presale/page.tsx возвращал пусто,
+  // срабатывал fallback «десять последних без фильтра по активности», и новый
+  // пользователь получал произвольный отраслевой пресет. Этапы пресетов несут
+  // описательные требования без обязывающей формулировки, правило completeness
+  // помечает их ERROR, и выпуск комплекта ГОСТ 34 блокировался из коробки.
+  const existing = await prisma.formTemplate.findFirst({
+    where: { name: DEMO_TEMPLATE_NAME },
+  });
   if (existing) {
     console.log('Демо-шаблон и расчёт уже существуют, пропускаю.');
     return;
@@ -99,7 +115,7 @@ async function main() {
 
   const template = await prisma.formTemplate.create({
     data: {
-      name: 'Внедрение CRM-системы',
+      name: DEMO_TEMPLATE_NAME,
       description: 'Базовый опросник пресейла для проектов внедрения',
       isActive: true,
       fields: {
