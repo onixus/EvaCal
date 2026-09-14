@@ -123,6 +123,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
       releasedBy: p.releasedBy,
       approvedAt: p.approvedAt ? p.approvedAt.toISOString() : null,
       approvedBy: p.approvedBy,
+      reviewStage: p.reviewStage,
       reviewComment: p.reviewComment,
       createdBy: p.createdBy,
       createdAt: p.createdAt.toISOString(),
@@ -130,5 +131,11 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     })),
   };
 
-  return <ProjectDetailClient project={serializedProject} canEditDeal={canEditDeal} />;
+  return (
+    <ProjectDetailClient
+      project={serializedProject}
+      canEditDeal={canEditDeal}
+      sessionRole={session?.role ?? null}
+    />
+  );
 }

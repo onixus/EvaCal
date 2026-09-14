@@ -8,6 +8,11 @@ import { calculateCommercialSummary, formatCurrency } from '@/lib/commercial';
 import { safeJsonParse } from '@/lib/json';
 import type { PackageDiffResult } from '@/lib/gost34/diff';
 import DealPanel, { type DealProjectView } from '@/components/DealPanel';
+import {
+  canDecideReviewStage,
+  REVIEW_STAGE_LABELS,
+  type ReviewStage,
+} from '@/lib/gost34/review/types';
 
 export interface SerializedStage {
   id: string;
@@ -71,6 +76,7 @@ export interface SerializedGostPackage {
   releasedBy?: string | null;
   approvedAt: string | null;
   approvedBy: string | null;
+  reviewStage?: string | null;
   reviewComment?: string | null;
   createdBy: string;
   createdAt: string;
@@ -95,11 +101,25 @@ export interface SerializedProject {
 export default function ProjectDetailClient({
   project,
   canEditDeal = false,
+  sessionRole = null,
 }: {
   project: SerializedProject;
   canEditDeal?: boolean;
+  sessionRole?: string | null;
 }) {
   const router = useRouter();
+
+  /** Этап, на котором стоит комплект: неизвестное значение читаем как нормоконтроль. */
+  const stageOf = (pkg: SerializedGostPackage): ReviewStage =>
+    pkg.reviewStage === 'gap' ? 'gap' : pkg.reviewStage === 'done' ? 'done' : 'tw';
+
+  /**
+   * Вердикт с карточки проекта выносит та же роль, что и на экране ревью.
+   * Без этой проверки кнопка предлагалась всем, а сервер отвечал 403 — клик
+   * в никуда вместо честно скрытого действия.
+   */
+  const canDecide = (pkg: SerializedGostPackage): boolean =>
+    canDecideReviewStage(sessionRole, stageOf(pkg));
   const [activeTab, setActiveTab] = useState<
     'calculations' | 'packages' | 'commercial' | 'settings'
   >('calculations');
@@ -807,8 +827,9 @@ export default function ProjectDetailClient({
                               ✏️ Исправить в Студии
                             </Link>
                           )}
-                          {pkg.status !== 'approved' && (
-                            <>
+                          {pkg.status !== 'approved' &&
+                            (canDecide(pkg) ? (
+                              <>
                               <button
                                 type="button"
                                 onClick={() => handleOpenReviewModal(pkg, 'approve')}
@@ -825,8 +846,16 @@ export default function ProjectDetailClient({
                               >
                                 ✕ Отклонить
                               </button>
-                            </>
-                          )}
+                              </>
+                            ) : (
+                              <span
+                                className="text-xs text-slate-500 dark:text-nord-muted"
+                                title="Решение на текущем этапе выносит другая роль"
+                              >
+                                на подписи:{' '}
+                                {REVIEW_STAGE_LABELS[stageOf(pkg)] ?? 'ревью'}
+                              </span>
+                            ))}
                           <Link
                             href={`/calculations/${pkg.calculationId}`}
                             className="btn-primary !py-1 !px-2.5 text-xs"

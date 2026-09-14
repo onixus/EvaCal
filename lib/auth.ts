@@ -103,7 +103,10 @@ function isUserSessionRevoked(payload: SessionPayload): boolean {
   const cutoff = userRevocationCutoff.get(payload.userId);
   if (!cutoff) return false;
   const issuedAt = payload.exp - SESSION_MAX_AGE_SECONDS * 1000;
-  return issuedAt < cutoff;
+  // Нестрогое сравнение намеренно: время выдачи и момент отзыва попадают в одну
+  // миллисекунду, если роль меняют сразу после входа. Со строгим `<` такая
+  // сессия переживала отзыв — ошибаться нужно в сторону отзыва, а не доверия.
+  return issuedAt <= cutoff;
 }
 
 /** Checks whether a session token has been revoked. */

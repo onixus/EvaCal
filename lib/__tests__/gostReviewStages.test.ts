@@ -126,17 +126,24 @@ describe('Разделение этапов ревью комплекта', () =
     });
   });
 
-  it('внешний рецензент по share-ссылке допущен к нормоконтролю, но не к подписи ГАПа', async () => {
-    vi.mocked(requireCalcAccess).mockResolvedValue(shareAccess as never);
-    vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(
-      pkg({ reviewStage: 'gap' }) as never,
-    );
+  it.each(['tw', 'gap'])(
+    'внешний согласующий Заказчика по share-ссылке решает на этапе %s',
+    async (stage) => {
+      // Разделение подписей — правило для сотрудников. По ГОСТ 34.602 ТЗ
+      // утверждает Заказчик, и портал согласования держится на этой ссылке.
+      vi.mocked(requireCalcAccess).mockResolvedValue(shareAccess as never);
+      vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(
+        pkg({ reviewStage: stage }) as never,
+      );
+      vi.mocked(prisma.gostPackage.update).mockResolvedValue(
+        pkg({ reviewStage: 'done', status: 'approved' }) as never,
+      );
 
-    const res = await decide({ decision: 'approve' });
+      const res = await decide({ decision: 'approve' });
 
-    expect(res.status).toBe(403);
-    expect(prisma.gostPackage.update).not.toHaveBeenCalled();
-  });
+      expect(res.status).toBe(200);
+    },
+  );
 
   it('возврат с замечаниями тоже закреплён за ролью этапа', async () => {
     vi.mocked(requireCalcAccess).mockResolvedValue(staff('architect') as never);
