@@ -166,7 +166,11 @@ assertAllowedEndpoint(rawEndpoint, policy);
 
 ## 9. Эксплуатационные регламенты
 
-### Резервное копирование базы данных SQLite
+### Резервное копирование базы данных
+
+При развёртывании на PostgreSQL (`DATABASE_PROVIDER=postgresql`) используйте штатный `pg_dump` сервера; том `db-data` в этом режиме базу не содержит. Ниже — вариант для SQLite.
+
+#### SQLite
 
 ```bash
 # Создание мгновенной горячей копии из volume db-data

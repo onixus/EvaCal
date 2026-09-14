@@ -17,3 +17,45 @@ export function resolveDatabaseUrl(raw: string | undefined = process.env.DATABAS
   if (!raw) throw new Error('DATABASE_URL не задан');
   return LEGACY_URLS.has(raw.trim()) ? CURRENT_URL : raw;
 }
+
+/**
+ * Поддерживаемые СУБД. Схема Prisma 7 фиксирует провайдера, поэтому под каждую
+ * СУБД лежит своя копия схемы (prisma/schema.prisma и prisma/postgresql/schema.prisma),
+ * а клиент генерируется под ту, что выбрана на сборке.
+ */
+export type DatabaseProvider = 'sqlite' | 'postgresql';
+
+export const DATABASE_PROVIDERS: readonly DatabaseProvider[] = ['sqlite', 'postgresql'];
+
+/** Определяет СУБД по схеме URL: `file:` — SQLite, `postgres[ql]:` — PostgreSQL. */
+export function databaseProviderFromUrl(url: string): DatabaseProvider {
+  const scheme = url.trim().split(':', 1)[0]?.toLowerCase();
+  if (scheme === 'file') return 'sqlite';
+  if (scheme === 'postgresql' || scheme === 'postgres') return 'postgresql';
+  throw new Error(
+    `DATABASE_URL с неподдерживаемой схемой «${scheme ?? ''}»: ожидается file:… (SQLite) или postgresql://… (PostgreSQL)`,
+  );
+}
+
+/**
+ * Провайдер для текущего окружения.
+ *
+ * Явный DATABASE_PROVIDER нужен там, где URL ещё неизвестен, но клиент уже
+ * генерируется — на сборке Docker-образа под PostgreSQL. В остальных случаях
+ * провайдер выводится из DATABASE_URL, чтобы не держать две переменные в
+ * согласованном состоянии вручную.
+ */
+export function resolveDatabaseProvider(
+  env: Record<string, string | undefined> = process.env,
+): DatabaseProvider {
+  const explicit = env.DATABASE_PROVIDER?.trim().toLowerCase();
+  if (explicit) {
+    if (!DATABASE_PROVIDERS.includes(explicit as DatabaseProvider)) {
+      throw new Error(
+        `DATABASE_PROVIDER=${explicit} не поддерживается: допустимы ${DATABASE_PROVIDERS.join(', ')}`,
+      );
+    }
+    return explicit as DatabaseProvider;
+  }
+  return databaseProviderFromUrl(resolveDatabaseUrl(env.DATABASE_URL));
+}

@@ -141,9 +141,9 @@
 
 - **Frontend & Backend**: Next.js 15 (App Router, Server Components & Route Handlers), React 18, TypeScript.
 - **Styling**: Tailwind CSS (3 темы: High-Contrast, Nord Dark, Dark Fantasy).
-- **ORM & Database**: Prisma 7, SQLite (`prisma/dev.db`).
+- **ORM & Database**: Prisma 7 в двух режимах — SQLite (`prisma/dev.db`, по умолчанию) или PostgreSQL 14+ (`DATABASE_URL=postgresql://…`, версионированные миграции в `prisma/postgresql/migrations`).
 - **Генерация документов**: `docx`, `mammoth`, `jszip`, `pdfkit`, `xlsx` (SheetJS).
-- **Тестирование**: Vitest (**57 test suites, 487 tests**, Golden Tests ГОСТ 34, Eval Suite LLM, JUnit XML reporter).
+- **Тестирование**: Vitest (**63 test suites, 534 tests**, Golden Tests ГОСТ 34, Eval Suite LLM, JUnit XML reporter).
 - **CI/CD & Инфраструктура**: Docker multi-stage (Node 22 Alpine, non-root user 1001, automated schema sync & seed), Docker Compose, Nginx (TLS, HSTS, Gzip, Security Headers), Jenkins Pipeline (`Jenkinsfile`) & GitHub Actions.
 
 ---
@@ -222,11 +222,48 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-- Контейнер `migrate` запустится первым, выполнит `prisma db push`, сгенерирует Prisma Client, наполнит базу данных отраслевыми пресетами и создаст учётные записи пользователей.
+- Контейнер `migrate` запустится первым, синхронизирует схему (`scripts/db-sync.ts`: `prisma db push` для SQLite, `prisma migrate deploy` для PostgreSQL), сгенерирует Prisma Client, наполнит базу данных отраслевыми пресетами и создаст учётные записи пользователей.
 - После успешного завершения миграции автоматически запустится основной контейнер `app`.
 - Веб-интерфейс будет доступен по адресу:
   - **`http://localhost:3000`** (напрямую к приложению)
   - **`http://localhost`** / **`https://localhost`** (через Nginx reverse proxy)
+
+### PostgreSQL вместо SQLite
+
+SQLite подходит для одного стенда: база лежит в томе `db-data`, и её достаточно копировать. Для нескольких реплик приложения, конкурентных транзакций и централизованных бэкапов переключитесь на PostgreSQL. Модель данных одна (`prisma/schema.prisma`); копия схемы под PostgreSQL в `prisma/postgresql/schema.prisma` порождается из неё командой `npm run db:schema:sync` и проверяется тестом.
+
+Провайдер выводится из схемы `DATABASE_URL` (`file:` — SQLite, `postgresql://` — PostgreSQL). Prisma Client компилирует SQL под диалект конкретной СУБД, поэтому там, где клиент генерируется раньше, чем известен URL (сборка Docker-образа, CI), провайдер задаётся явно: `DATABASE_PROVIDER=postgresql`.
+
+1. В `.env`:
+   ```env
+   DATABASE_PROVIDER=postgresql
+   DATABASE_URL="postgresql://evacal:secret@postgres:5432/evacal?schema=public"
+   POSTGRES_PASSWORD="secret"
+   ```
+   Внешний сервер: укажите его адрес в `DATABASE_URL`, `POSTGRES_PASSWORD` тогда не нужен.
+2. Запуск со встроенным сервером (профиль `postgres`) или без него, если сервер внешний:
+   ```bash
+   docker compose --profile postgres up -d --build
+   ```
+   `--build` обязателен при смене провайдера: образ должен быть собран под нужную СУБД.
+3. Схема применяется миграциями `prisma/postgresql/migrations` (`prisma migrate deploy`), сид работает без изменений.
+
+Локальная разработка на PostgreSQL:
+
+```bash
+DATABASE_PROVIDER=postgresql DATABASE_URL="postgresql://evacal:secret@localhost:5432/evacal" npx prisma generate
+npm run db:sync      # migrate deploy
+npm run db:seed
+```
+
+Новая миграция после правки `prisma/schema.prisma` (нужен доступ к PostgreSQL):
+
+```bash
+npm run db:schema:sync
+npm run db:migrate:pg -- --name <что_изменилось>
+```
+
+Перенос данных из SQLite в PostgreSQL штатной командой не делается: выгрузите таблицы любым инструментом (например, `sqlite3 .dump` → правка типов → `psql`) или начните с чистой базы и сида.
 
 ### Шаг 3. Как получить пароли после запуска в Docker
 

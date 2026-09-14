@@ -22,7 +22,14 @@ describe('prisma client', () => {
   beforeAll(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'evacal-prisma-'));
     vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('DATABASE_URL', `file:${path.join(dir, 'test.db')}`);
+    // Клиент сгенерирован под одну СУБД и отвергает адаптер другой, поэтому URL
+    // подбирается под сборку. Соединение здесь не открывается: адаптер pg
+    // ленивый, и до первого запроса сервер не нужен.
+    const url =
+      process.env.DATABASE_PROVIDER === 'postgresql'
+        ? (process.env.DATABASE_URL ?? 'postgresql://evacal:evacal@localhost:5432/evacal')
+        : `file:${path.join(dir, 'test.db')}`;
+    vi.stubEnv('DATABASE_URL', url);
     delete (globalThis as { prisma?: unknown }).prisma;
   });
 

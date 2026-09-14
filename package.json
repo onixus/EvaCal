@@ -18,10 +18,14 @@
     "db:backfill-projects": "tsx scripts/backfill-projects.ts",
     "format": "prettier --write .",
     "prepare": "if [ -z \"$CI\" ]; then npm run format && npm run typecheck; fi",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "db:sync": "tsx scripts/db-sync.ts",
+    "db:schema:sync": "tsx scripts/sync-prisma-schemas.ts",
+    "db:migrate:pg": "DATABASE_PROVIDER=postgresql prisma migrate dev"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.9.1",
+    "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.9.1",
     "@types/jszip": "^3.4.0",
     "bcryptjs": "^2.4.3",
@@ -31,6 +35,7 @@
     "mammoth": "^1.12.0",
     "next": "15.5.24",
     "pdfkit": "^0.19.1",
+    "pg": "^8.23.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
@@ -40,6 +45,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.20.2",
     "@types/pdfkit": "^0.17.6",
+    "@types/pg": "^8.23.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.19",
