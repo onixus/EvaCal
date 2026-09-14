@@ -56,7 +56,7 @@
         {
           "numStr": "4.3",
           "title": "Требования к видам обеспечения АС",
-          "paragraphs": 6
+          "paragraphs": 5
         },
         {
           "numStr": "4.4",
@@ -78,7 +78,7 @@
     {
       "numStr": "6",
       "title": "ПОРЯДОК РАЗРАБОТКИ АС",
-      "paragraphs": 6
+      "paragraphs": 5
     },
     {
       "numStr": "7",
@@ -91,7 +91,7 @@
     {
       "numStr": "8",
       "title": "ТРЕБОВАНИЯ К ПОДГОТОВКЕ ОБЪЕКТА АВТОМАТИЗАЦИИ К ВВОДУ АС В ДЕЙСТВИЕ",
-      "paragraphs": 3
+      "paragraphs": 2
     },
     {
       "numStr": "9",

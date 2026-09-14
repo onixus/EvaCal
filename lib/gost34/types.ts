@@ -82,6 +82,35 @@ export type RequirementCategory =
   | 'testing_acceptance'
   | 'training_support';
 
+/**
+ * Русские наименования категорий требований для таблиц документов.
+ *
+ * Идентификаторы категорий — служебные ключи модели, и в русскоязычном
+ * документе им не место: п. 4.3.1 самого ТЗ требует русского языка в
+ * документации. Печатать в таблицах нужно наименование, а не ключ.
+ */
+export const REQUIREMENT_CATEGORY_LABELS: Record<RequirementCategory, string> = {
+  functional: 'Функциональные',
+  performance: 'Производительность',
+  security: 'Защита информации',
+  reliability: 'Надёжность',
+  ergonomics: 'Эргономика',
+  technical: 'Технические',
+  software: 'Программное обеспечение',
+  organizational: 'Организационные',
+  hardware_pac: 'ПАК и оборудование',
+  software_supply: 'Поставка ПО',
+  infra_setup: 'Настройка инфраструктуры',
+  integration: 'Интеграции',
+  testing_acceptance: 'Испытания и приёмка',
+  training_support: 'Обучение и сопровождение',
+};
+
+/** Наименование категории; неизвестный ключ возвращается как есть. */
+export function requirementCategoryLabel(category: string): string {
+  return REQUIREMENT_CATEGORY_LABELS[category as RequirementCategory] ?? category;
+}
+
 export interface Gost34RequirementItem {
   id: string;
   code: string; // e.g. "ТР-Ф-01", "ТР-ТТ-02"

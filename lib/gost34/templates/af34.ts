@@ -1,4 +1,4 @@
-import { Gost34InputPayload, Gost34Section } from '../types';
+import { Gost34InputPayload, Gost34Section, requirementCategoryLabel } from '../types';
 import { Gost34RequirementV2, getRequirementEffectiveText } from '../requirements/v2';
 
 export function buildAF34Sections(payload: Gost34InputPayload): Gost34Section[] {
@@ -40,7 +40,12 @@ export function buildAF34Sections(payload: Gost34InputPayload): Gost34Section[] 
             'Категория / Подсистема',
             'Описание алгоритма',
           ],
-          rows: reqsV2.map((r) => [r.code, r.title, r.category, getRequirementEffectiveText(r)]),
+          rows: reqsV2.map((r) => [
+            r.code,
+            r.title,
+            requirementCategoryLabel(r.category),
+            getRequirementEffectiveText(r),
+          ]),
         },
       ],
     },

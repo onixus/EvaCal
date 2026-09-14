@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireCalcAccess } from '@/lib/access';
 import { parsePackageSnapshot } from '@/lib/gost34/diff';
+import { parseChecklist, parseComments } from '@/lib/gost34/review/types';
 import { handleApiError } from '@/lib/apiHelpers';
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -54,6 +55,19 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
         documentTypes: pkg.documentTypes,
         checksum: pkg.checksum,
         hasArtifact: Boolean(pkg.artifactPath),
+        // Состояние ревью отдаётся на чтении, а не только в ответе на решение:
+        // без него потребитель API не знает, на чьей подписи стоит комплект.
+        reviewStage: pkg.reviewStage,
+        reviewChecklist: parseChecklist(pkg.reviewChecklist),
+        reviewComments: parseComments(pkg.reviewComments),
+        twVersion: pkg.twVersionPath
+          ? {
+              name: pkg.twVersionName,
+              uploadedAt: pkg.twVersionUploadedAt ? pkg.twVersionUploadedAt.toISOString() : null,
+              uploadedBy: pkg.twVersionUploadedBy,
+              isPriority: pkg.twVersionIsPriority,
+            }
+          : null,
         snapshot: parsePackageSnapshot(pkg),
         releasedAt: pkg.releasedAt ? pkg.releasedAt.toISOString() : null,
         releasedBy: pkg.releasedBy,

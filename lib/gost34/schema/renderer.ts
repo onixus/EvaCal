@@ -36,7 +36,11 @@ const APPENDIX_LETTERS = [
 
 export interface RenderResult {
   sections: Gost34Section[];
-  /** Все пробелы контекста, попавшие в документ, в порядке разделов. */
+  /**
+   * Пробелы контекста, попавшие в документ, в порядке первого упоминания.
+   * Без повторов: одно поле контекста — одна запись, даже если его касаются
+   * несколько разделов.
+   */
   gaps: ContextGap[];
   issues: SchemaValidationIssue[];
 }
@@ -50,6 +54,25 @@ export function renderDocumentSchema(
 
   const bodyNodes = schema.nodes.filter((n) => !n.appendix);
   const appendixNodes = schema.nodes.filter((n) => n.appendix);
+
+  // Буквы приложений нужны ещё до отрисовки тела: разделы ссылаются на сводный
+  // перечень пробелов, а он идёт последним.
+  const appendixLetters = new Map<string, string>();
+  let plannedAppendix = 0;
+  for (const node of appendixNodes) {
+    if (node.includeWhen && !node.includeWhen(ctx)) continue;
+    appendixLetters.set(node.id, APPENDIX_LETTERS[plannedAppendix] ?? String(plannedAppendix + 1));
+    plannedAppendix += 1;
+  }
+  const registryNode = appendixNodes.find((n) => n.gapRegistry && appendixLetters.has(n.id));
+  const gapRegistryRef = registryNode
+    ? `приложении ${appendixLetters.get(registryNode.id)}`
+    : undefined;
+
+  // Один пробел — одна отметка. Повторное упоминание того же поля в другом
+  // разделе даёт ссылку на сводный перечень: раньше «Ролевая модель системы —
+  // требует уточнения» печаталось и в 4.1, и в 4.3 одним и тем же абзацем.
+  const printedGaps = new Set<string>();
 
   const sections: Gost34Section[] = [];
   let sectionNumber = 0;
@@ -68,14 +91,24 @@ export function renderDocumentSchema(
       continue;
     }
     sectionNumber += 1;
-    sections.push(renderNode(node, String(sectionNumber), ctx, gaps, issues));
+    sections.push(
+      renderNode(node, String(sectionNumber), ctx, gaps, issues, printedGaps, gapRegistryRef),
+    );
   }
 
   for (const node of appendixNodes) {
     if (node.includeWhen && !node.includeWhen(ctx)) continue;
     const letter = APPENDIX_LETTERS[appendixIndex] ?? String(appendixIndex + 1);
     appendixIndex += 1;
-    const section = renderNode(node, `Приложение ${letter}`, ctx, gaps, issues);
+    const section = renderNode(
+      node,
+      `Приложение ${letter}`,
+      ctx,
+      gaps,
+      issues,
+      printedGaps,
+      gapRegistryRef,
+    );
     sections.push(section);
   }
 
@@ -88,6 +121,8 @@ function renderNode(
   ctx: DocumentBuildContext,
   gaps: ContextGap[],
   issues: SchemaValidationIssue[],
+  printedGaps: Set<string>,
+  gapRegistryRef?: string,
 ): Gost34Section {
   const content: SectionContent = node.build ? node.build(ctx) : {};
   const paragraphs: string[] = [...(content.paragraphs || [])];
@@ -97,10 +132,23 @@ function renderNode(
   });
 
   if (content.gaps && content.gaps.length > 0) {
-    gaps.push(...content.gaps);
+    const repeated: string[] = [];
     for (const g of content.gaps) {
+      if (printedGaps.has(g.path)) {
+        repeated.push(g.label);
+        continue;
+      }
+      printedGaps.add(g.path);
+      gaps.push(g);
       paragraphs.push(
         `${g.label} — ${CONTEXT_GAP_PLACEHOLDER}${g.hint ? ` (источник данных: ${g.hint})` : ''}.`,
+      );
+    }
+    if (repeated.length > 0) {
+      paragraphs.push(
+        gapRegistryRef
+          ? `Сведения, требующие уточнения и относящиеся к настоящему разделу: ${repeated.join(', ')} — приведены в ${gapRegistryRef}.`
+          : `Сведения, требующие уточнения и относящиеся к настоящему разделу: ${repeated.join(', ')}.`,
       );
     }
   }
@@ -120,7 +168,9 @@ function renderNode(
       continue;
     }
     childNumber += 1;
-    subsections.push(renderNode(child, `${numStr}.${childNumber}`, ctx, gaps, issues));
+    subsections.push(
+      renderNode(child, `${numStr}.${childNumber}`, ctx, gaps, issues, printedGaps, gapRegistryRef),
+    );
   }
 
   const hasContent =

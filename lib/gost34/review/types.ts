@@ -18,6 +18,22 @@ export const REVIEW_STAGE_LABELS: Record<ReviewStage, string> = {
   done: 'Ревью завершено',
 };
 
+/**
+ * Кто выносит решение на каждом этапе.
+ *
+ * Разделение ответственности держалось только на фильтрах экрана `/review`:
+ * маршрут проверял лишь право `review`, которое есть и у ревьювера, и у
+ * архитектора, поэтому тех.писатель мог сам же поставить подпись ГАПа, а
+ * архитектор — пройти за него нормоконтроль. Этап решает, чья это подпись.
+ */
+export const REVIEW_STAGE_ROLES: Record<Exclude<ReviewStage, 'done'>, string[]> = {
+  tw: ['reviewer', 'admin'],
+  gap: ['architect', 'admin'],
+};
+
+/** Внешний рецензент по share-ссылке допускается только к нормоконтролю. */
+export const SHARE_ALLOWED_STAGES: ReviewStage[] = ['tw'];
+
 /** Состояние пункта чек-листа нормоконтроля. */
 export type ChecklistState = 'ok' | 'block' | 'warn' | 'empty';
 

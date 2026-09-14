@@ -1,4 +1,5 @@
 import { SchemaNode, SectionContent } from '../types';
+import { requirementCategoryLabel } from '../../types';
 import { TZ_2020_SECTIONS } from '../tz34-2020-sections';
 import { gapsFor, listOrGap, DEPLOYMENT_LABELS, DIRECTION_LABELS } from './utils';
 
@@ -79,7 +80,7 @@ export const sectionRequirements: SchemaNode = {
               ],
               rows: reqs.map((r) => [
                 r.code,
-                r.category,
+                requirementCategoryLabel(r.category),
                 r.title,
                 r.description,
                 r.sourceFile || 'Проектное требование',
