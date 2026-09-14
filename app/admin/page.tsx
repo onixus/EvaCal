@@ -5,6 +5,7 @@ import TemplateList from './TemplateList';
 import PresetImportPanel from '@/components/PresetImportPanel';
 import Pagination from '@/components/Pagination';
 import { PAGE_SIZE, pageArgs, parsePage } from '@/lib/pagination';
+import PageHeader from '@/components/PageHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,38 +26,43 @@ export default async function AdminPage(props: { searchParams: Promise<{ page?: 
   ]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Интерфейс администратора</h1>
-          <p className="text-sm text-slate-500">
-            Визуальный конструктор форм: создавайте шаблоны опросников и настраивайте формулы
-            этапов.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/admin/capacity" className="btn-secondary">
-            Ёмкость ролей
-          </Link>
-          <Link href="/admin/users" className="btn-secondary">
-            Пользователи
-          </Link>
-        </div>
-      </div>
+    <div className="page">
+      <PageHeader
+        title="Интерфейс администратора"
+        description="Визуальный конструктор форм: создавайте шаблоны опросников и настраивайте формулы этапов."
+        actions={
+          <>
+            <Link href="/admin/capacity" className="btn-secondary">
+              Ёмкость ролей
+            </Link>
+            <Link href="/admin/users" className="btn-secondary">
+              Пользователи
+            </Link>
+          </>
+        }
+      />
 
-      <div className="card p-6">
+      <div className="card p-4">
         <PresetImportPanel />
       </div>
 
-      <div className="card p-6">
-        <h2 className="mb-3 font-medium">Новый шаблон</h2>
-        <NewTemplateForm />
+      <div className="card">
+        <div className="card-head">
+          <span className="card-title">Новый шаблон</span>
+        </div>
+        <div className="p-4">
+          <NewTemplateForm />
+        </div>
       </div>
 
-      <div className="card p-5">
-        <h2 className="mb-3 font-medium">Шаблоны опросников</h2>
+      <div className="card overflow-hidden">
+        <div className="card-head">
+          <span className="card-title">Шаблоны опросников</span>
+        </div>
         <TemplateList templates={JSON.parse(JSON.stringify(templates))} />
-        <Pagination page={page} pageSize={PAGE_SIZE} total={total} basePath="/admin" />
+        <div className="px-4 pb-4">
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} basePath="/admin" />
+        </div>
       </div>
     </div>
   );

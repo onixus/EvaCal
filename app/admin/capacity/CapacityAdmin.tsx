@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ROLES, roleLabel } from '@/lib/roles';
+import PageHeader from '@/components/PageHeader';
 
 interface Row {
   id: string;
@@ -62,28 +63,30 @@ export default function CapacityAdmin({ rows }: { rows: Row[] }) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Ёмкость ролей</h1>
-          <p className="text-sm text-slate-500">
+    <div className="page">
+      <PageHeader
+        title="Ёмкость ролей"
+        description={
+          <>
             Сколько ставок каждой роли и с какой даты. Ресурсный план делит спрос из Гантов на эту
             ёмкость.{' '}
             <Link href="/capacity" className="underline">
               Открыть план
             </Link>
-          </p>
-        </div>
-        <Link href="/admin" className="btn-secondary">
-          ← Админка
-        </Link>
-      </div>
+          </>
+        }
+        actions={
+          <Link href="/admin" className="btn-secondary">
+            ← Админка
+          </Link>
+        }
+      />
 
-      <form onSubmit={submit} className="card grid gap-3 p-5 sm:grid-cols-6">
+      <form onSubmit={submit} className="card grid gap-3 p-4 sm:grid-cols-6">
         <div>
-          <label className="label text-xs">Роль</label>
+          <label className="label">Роль</label>
           <select
-            className="input text-sm"
+            className="input"
             value={form.role}
             onChange={(e) => setForm({ ...form, role: e.target.value })}
           >
@@ -95,86 +98,84 @@ export default function CapacityAdmin({ rows }: { rows: Row[] }) {
           </select>
         </div>
         <div>
-          <label className="label text-xs">Ставок</label>
+          <label className="label">Ставок</label>
           <input
             type="number"
             min={0}
             step="0.5"
-            className="input text-sm"
+            className="input"
             value={form.headcount}
             onChange={(e) => setForm({ ...form, headcount: e.target.value })}
           />
         </div>
         <div>
-          <label className="label text-xs">Часов/нед. на ставку</label>
+          <label className="label">Часов/нед. на ставку</label>
           <input
             type="number"
             min={1}
             max={80}
-            className="input text-sm"
+            className="input"
             value={form.hoursPerWeek}
             onChange={(e) => setForm({ ...form, hoursPerWeek: e.target.value })}
           />
         </div>
         <div>
-          <label className="label text-xs">Действует с</label>
+          <label className="label">Действует с</label>
           <input
             type="date"
-            className="input text-sm"
+            className="input"
             value={form.effectiveFrom}
             onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })}
           />
         </div>
         <div>
-          <label className="label text-xs">Заметка</label>
+          <label className="label">Заметка</label>
           <input
-            className="input text-sm"
+            className="input"
             value={form.note}
             onChange={(e) => setForm({ ...form, note: e.target.value })}
           />
         </div>
         <div className="flex items-end">
-          <button type="submit" className="btn-primary w-full text-sm" disabled={busy}>
+          <button type="submit" className="btn-primary w-full" disabled={busy}>
             Добавить
           </button>
         </div>
         {error && <div className="sm:col-span-6 text-xs text-rose-700">{error}</div>}
       </form>
 
-      <div className="card p-5">
+      <div className="card overflow-hidden">
         {rows.length === 0 ? (
-          <p className="text-sm text-slate-500">
+          <p className="p-4 text-xs text-slate-500 dark:text-nord-muted">
             Ёмкость ещё не задана: на плане будут только часы спроса.
           </p>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="text-xs uppercase tracking-wider text-slate-500">
+          <table className="table-list">
+            <thead>
               <tr>
-                <th className="py-2 pr-4">Роль</th>
-                <th className="py-2 pr-4 text-right">Ставок</th>
-                <th className="py-2 pr-4 text-right">Ч/нед.</th>
-                <th className="py-2 pr-4 text-right">Ёмкость</th>
-                <th className="py-2 pr-4">С</th>
-                <th className="py-2 pr-4">Заметка</th>
+                <th>Роль</th>
+                <th className="text-right">Ставок</th>
+                <th className="text-right">Ч/нед.</th>
+                <th className="text-right">Ёмкость</th>
+                <th>С</th>
+                <th>Заметка</th>
                 <th />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-nord-3">
+            <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td className="py-2 pr-4 font-medium">{roleLabel(r.role)}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{r.headcount}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{r.hoursPerWeek}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">
+                  <td className="font-medium">{roleLabel(r.role)}</td>
+                  <td className="nums text-right">{r.headcount}</td>
+                  <td className="nums text-right">{r.hoursPerWeek}</td>
+                  <td className="nums text-right">
                     {Math.round(r.headcount * r.hoursPerWeek * 10) / 10} ч
                   </td>
-                  <td className="py-2 pr-4 tabular-nums">
-                    {new Date(r.effectiveFrom).toLocaleDateString('ru-RU')}
-                  </td>
-                  <td className="py-2 pr-4 text-xs text-slate-500">{r.note ?? ''}</td>
-                  <td className="py-2 text-right">
+                  <td className="nums">{new Date(r.effectiveFrom).toLocaleDateString('ru-RU')}</td>
+                  <td className="text-xs text-slate-500 dark:text-nord-muted">{r.note ?? ''}</td>
+                  <td className="text-right">
                     <button
-                      className="btn-ghost text-xs"
+                      className="btn-ghost btn-sm"
                       disabled={busy}
                       onClick={() => remove(r.id)}
                     >

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getStaffSession } from '@/lib/access';
 import AgentsManager from './AgentsManager';
+import PageHeader from '@/components/PageHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,14 +11,11 @@ export default async function AgentsPage() {
   if (!session) redirect('/login');
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Харнесс-агенты</h1>
-        <p className="text-sm text-slate-500">
-          Подключайте собственные агенты ревью и обогащения комплектов ГОСТ 34: платформа вызывает
-          их по HTTP и показывает находки, ничего не меняя без вашего подтверждения.
-        </p>
-      </div>
+    <div className="page">
+      <PageHeader
+        title="Харнесс-агенты"
+        description="Подключайте собственные агенты ревью и обогащения комплектов ГОСТ 34: платформа вызывает их по HTTP и показывает находки, ничего не меняя без вашего подтверждения."
+      />
       <AgentsManager isAdmin={session.role === 'admin'} />
     </div>
   );

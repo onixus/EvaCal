@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/auth';
 import { DEFAULT_CHECKLIST } from '@/lib/gost34/review/types';
 import { GOST34_PROFILES } from '@/lib/gost34/standards/profiles';
+import PageHeader from '@/components/PageHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,20 +14,15 @@ export default async function StandardsPage() {
   await requireRole(['techwriter', 'gap', 'reviewer', 'architect', 'admin'], '/standards');
 
   return (
-    <div className="space-y-3">
-      <div>
-        <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
-          Чек-листы и стандарты
-        </h1>
-        <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
-          Базовый чек-лист нормоконтроля и реестр нормативных профилей. Отметки ставятся на экране
-          ревью конкретного комплекта.
-        </p>
-      </div>
+    <div className="page">
+      <PageHeader
+        title="Чек-листы и стандарты"
+        description="Базовый чек-лист нормоконтроля и реестр нормативных профилей. Отметки ставятся на экране ревью конкретного комплекта."
+      />
 
-      <div className="card-flat">
-        <div className="border-b border-slate-100 px-4 py-2.5 text-xs font-bold text-slate-900 dark:border-nord-3 dark:text-nord-6">
-          Чек-лист нормоконтроля
+      <div className="card">
+        <div className="card-head">
+          <span className="card-title">Чек-лист нормоконтроля</span>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-nord-3">
           {DEFAULT_CHECKLIST.map((item) => (
@@ -47,9 +43,9 @@ export default async function StandardsPage() {
         </div>
       </div>
 
-      <div className="card-flat">
-        <div className="border-b border-slate-100 px-4 py-2.5 text-xs font-bold text-slate-900 dark:border-nord-3 dark:text-nord-6">
-          Нормативные профили
+      <div className="card">
+        <div className="card-head">
+          <span className="card-title">Нормативные профили</span>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-nord-3">
           {GOST34_PROFILES.map((profile) => (

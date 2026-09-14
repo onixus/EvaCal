@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import PageHeader from '@/components/PageHeader';
 import DynamicForm, { FormFieldDef } from '@/components/DynamicForm';
 import { storeShareToken, withShareHeaders } from '@/lib/shareClient';
 
@@ -190,14 +191,10 @@ export default function NewCalculationForm({
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
       <form onSubmit={handleSubmit} className="min-w-0 space-y-4">
-        <div>
-          <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
-            Новый расчёт пресейла
-          </h1>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
-            Три шага: параметры → опросник → итог. Трудозатраты считаются по мере ответов.
-          </p>
-        </div>
+        <PageHeader
+          title="Новый расчёт пресейла"
+          description="Три шага: параметры → опросник → итог. Трудозатраты считаются по мере ответов."
+        />
 
         <div className="flex flex-wrap gap-2">
           {STEPS.map((s) => {

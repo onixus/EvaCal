@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import UsersManager from './UsersManager';
+import PageHeader from '@/components/PageHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,19 +18,16 @@ export default async function AdminUsersPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Пользователи</h1>
-          <p className="text-sm text-slate-500">
-            Заводите учётные записи под роли платформы и переназначайте роль существующим
-            пользователям.
-          </p>
-        </div>
-        <Link href="/admin" className="btn-secondary">
-          ← К шаблонам
-        </Link>
-      </div>
+    <div className="page">
+      <PageHeader
+        title="Пользователи"
+        description="Заводите учётные записи под роли платформы и переназначайте роль существующим пользователям."
+        actions={
+          <Link href="/admin" className="btn-secondary">
+            ← К шаблонам
+          </Link>
+        }
+      />
 
       <UsersManager users={JSON.parse(JSON.stringify(users))} />
     </div>

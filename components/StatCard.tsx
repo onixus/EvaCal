@@ -19,10 +19,8 @@ export default function StatCard({
         ? 'text-lg font-bold'
         : 'text-xl font-extrabold';
   return (
-    <div className="card p-4">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-nord-muted">
-        {title}
-      </div>
+    <div className="card p-3.5">
+      <div className="label mb-0.5">{title}</div>
       <div className={`${valueCls} ${tone ?? 'text-slate-900 dark:text-nord-6'}`}>{value}</div>
       {hint && <div className="text-[11px] text-slate-500 dark:text-nord-muted">{hint}</div>}
     </div>

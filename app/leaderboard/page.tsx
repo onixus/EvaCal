@@ -1,4 +1,5 @@
-import Link from 'next/link';
+import PageHeader from '@/components/PageHeader';
+import FilterChips from '@/components/filters/FilterChips';
 import { appRoleLabel } from '@/lib/appRoles';
 import {
   LEADERBOARD_PERIODS,
@@ -25,37 +26,19 @@ export default async function LeaderboardPage(props: {
   const board = await loadLeaderboard(period);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
-            Рейтинг команды
-          </h1>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
-            Самые эффективные и отстающие пресейлы и архитекторы. Открытый экран: только логины и
-            счётчики, без данных заказчиков.
-          </p>
-        </div>
-        <nav aria-label="Период" className="flex gap-1">
-          {LEADERBOARD_PERIODS.map((p) => {
-            const active = p.value === period;
-            return (
-              <Link
-                key={p.value}
-                href={p.value === 'all' ? '/leaderboard' : `/leaderboard?period=${p.value}`}
-                aria-current={active ? 'page' : undefined}
-                className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors ${
-                  active
-                    ? 'border-brand-100 bg-brand-50 text-brand-700 dark:border-nord-3 dark:bg-nord-3 dark:text-nord-frost2'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-nord-3 dark:text-nord-4 dark:hover:bg-nord-3'
-                }`}
-              >
-                {p.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
+    <div className="page">
+      <PageHeader
+        title="Рейтинг команды"
+        description="Самые эффективные и отстающие пресейлы и архитекторы. Открытый экран: только логины и счётчики, без данных заказчиков."
+      >
+        <FilterChips
+          param="period"
+          options={LEADERBOARD_PERIODS.map((p) => ({ value: p.value, label: p.label }))}
+          value={period}
+          defaultValue="all"
+          ariaLabel="Период"
+        />
+      </PageHeader>
 
       <div className="grid gap-5 2xl:grid-cols-2">
         <PresaleSection board={board.presale} />

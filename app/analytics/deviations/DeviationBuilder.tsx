@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import DeviationChart from '@/components/DeviationChart';
 import StatCard from '@/components/StatCard';
+import PageHeader from '@/components/PageHeader';
 import { roleLabel } from '@/lib/roles';
 import {
   GROUP_LABELS,
@@ -136,34 +137,30 @@ export default function DeviationBuilder({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full border px-2 py-0.5 text-[11px] ${active ? 'border-brand-200 bg-brand-50 text-brand-800 dark:border-nord-3 dark:bg-nord-3 dark:text-nord-frost2' : 'border-slate-200 text-slate-500 dark:border-nord-3 dark:text-nord-muted'}`}
+      aria-pressed={active}
+      className={`filter-chip ${active ? 'filter-chip-active' : ''}`}
     >
       {children}
     </button>
   );
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
-            Конструктор срезов по отклонениям
-          </h1>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
-            Выберите задачи, фильтры и группировку. Отклонение — факт / план − 1 по этапу выигранной
-            версии; наблюдений всего: {catalog.rows}.{' '}
-            <Link href="/analytics?tab=deviations" className="underline">
-              ← к аналитике
-            </Link>
-          </p>
-        </div>
-      </div>
+    <div className="page">
+      <PageHeader
+        title="Конструктор срезов по отклонениям"
+        description={`Выберите задачи, фильтры и группировку. Отклонение — факт / план − 1 по этапу выигранной версии; наблюдений всего: ${catalog.rows}.`}
+        actions={
+          <Link href="/analytics?tab=deviations" className="btn-ghost">
+            К аналитике
+          </Link>
+        }
+      />
 
       <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
         <aside className="space-y-4">
           <div className="card p-4 text-xs">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-bold">Задачи</h2>
+              <h2 className="card-title">Задачи</h2>
               <span className="text-slate-400">
                 {cfg.tasks.length ? `выбрано ${cfg.tasks.length}` : 'все'}
               </span>
@@ -204,7 +201,7 @@ export default function DeviationBuilder({
           </div>
 
           <div className="card space-y-3 p-4 text-xs">
-            <h2 className="text-sm font-bold">Фильтры</h2>
+            <h2 className="card-title">Фильтры</h2>
             {(
               [
                 ['roles', 'Роли', catalog.roles, (v: string) => roleLabel(v)],
@@ -253,7 +250,7 @@ export default function DeviationBuilder({
           </div>
 
           <div className="card space-y-3 p-4 text-xs">
-            <h2 className="text-sm font-bold">Срез</h2>
+            <h2 className="card-title">Срез</h2>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <div className="label text-[10px]">Группировать по</div>
@@ -326,11 +323,16 @@ export default function DeviationBuilder({
               </div>
             </div>
             <div className="flex gap-2">
-              <button className="btn-primary flex-1 text-xs" disabled={busy} onClick={() => run()}>
+              <button
+                type="button"
+                className="btn-primary flex-1"
+                disabled={busy}
+                onClick={() => run()}
+              >
                 {busy ? 'Считаю…' : 'Построить срез'}
               </button>
               <button
-                className="btn-ghost text-xs"
+                className="btn-ghost"
                 onClick={() => {
                   setCfg(EMPTY);
                   setResult(null);
@@ -344,7 +346,7 @@ export default function DeviationBuilder({
           </div>
 
           <div className="card space-y-2 p-4 text-xs">
-            <h2 className="text-sm font-bold">Сохранённые срезы</h2>
+            <h2 className="card-title">Сохранённые срезы</h2>
             <div className="flex gap-2">
               <input
                 className="input text-xs"
@@ -353,7 +355,8 @@ export default function DeviationBuilder({
                 onChange={(e) => setSaveName(e.target.value)}
               />
               <button
-                className="btn-secondary text-xs"
+                type="button"
+                className="btn-secondary"
                 disabled={busy || !saveName.trim()}
                 onClick={save}
               >
@@ -421,13 +424,13 @@ export default function DeviationBuilder({
 
               <div className="card p-4">
                 <div className="mb-2 flex items-center justify-between">
-                  <h2 className="text-sm font-bold">
+                  <h2 className="card-title">
                     {METRIC_LABELS[result.config.metric]} отклонения по:{' '}
                     {GROUP_LABELS[result.config.groupBy].toLowerCase()}
                   </h2>
                   <form method="post" action="/api/deviations/report/xlsx">
                     <input type="hidden" name="config" value={JSON.stringify(result.config)} />
-                    <button type="submit" className="btn-secondary text-xs">
+                    <button type="submit" className="btn-secondary">
                       Выгрузить xlsx
                     </button>
                   </form>

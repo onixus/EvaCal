@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { appRoleLabel, canUseDarkFantasy, navItemsFor, type NavItem } from '@/lib/appRoles';
+import { appRoleLabel, navGroupsFor, type NavItem } from '@/lib/appRoles';
 import { applyTheme, resolveTheme, THEME_STORAGE_KEY, type Theme } from '@/lib/theme';
 
 interface Session {
@@ -13,17 +13,17 @@ interface Session {
 
 type BadgeCounts = Partial<Record<NonNullable<NavItem['badgeKey']>, number>>;
 
-const THEME_ROWS: { id: Theme; label: string }[] = [
-  { id: 'light', label: 'Светлая' },
-  { id: 'dark', label: 'Тёмная (Nord)' },
-  { id: 'dark-fantasy', label: 'Dark Fantasy' },
-];
+const BADGE_TITLES: Record<NonNullable<NavItem['badgeKey']>, string> = {
+  studioDrafts: 'Требуют внимания: черновики и отклонённые комплекты',
+  gapQueue: 'В очереди финального ревью ГАП',
+  reviewQueue: 'В очереди нормоконтроля',
+};
 
 /**
- * Активность пункта. `/` — точное совпадение: иначе «Расчёты и сметы»
- * подсвечивались бы на каждом экране приложения.
+ * Активность пункта. `/` — точное совпадение: иначе «Рабочий стол»
+ * подсвечивался бы на каждом экране приложения.
  */
-function isActive(pathname: string | null, href: string): boolean {
+export function isNavActive(pathname: string | null, href: string): boolean {
   if (!pathname) return false;
   return href === '/' ? pathname === '/' : pathname.startsWith(href);
 }
@@ -65,21 +65,8 @@ export default function AppSidebar() {
     return () => window.removeEventListener('evacal-theme-change', handler);
   }, []);
 
-  const dfAllowed = canUseDarkFantasy(session?.role);
-
-  /**
-   * Роль могли понизить, пока Dark Fantasy стояла в localStorage. Сбрасываем на
-   * светлую, иначе пользователь остался бы в теме, которую не может переключить
-   * обратно: её строка в списке заблокирована.
-   */
-  useEffect(() => {
-    if (!session || dfAllowed || theme !== 'dark-fantasy') return;
-    localStorage.setItem(THEME_STORAGE_KEY, 'light');
-    applyTheme('light');
-  }, [session, dfAllowed, theme]);
-
-  function selectTheme(next: Theme) {
-    if (next === 'dark-fantasy' && !dfAllowed) return;
+  function toggleTheme() {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
     localStorage.setItem(THEME_STORAGE_KEY, next);
     applyTheme(next);
   }
@@ -91,11 +78,11 @@ export default function AppSidebar() {
     router.refresh();
   }
 
-  const navItems = navItemsFor(session?.role);
+  const groups = navGroupsFor(session?.role);
 
   return (
     <aside className="hidden shrink-0 flex-col border-r border-slate-200 bg-white lg:flex dark:border-nord-3 dark:bg-nord-2">
-      <div className="flex h-[var(--app-header-h)] items-center gap-2.5 border-b border-slate-200 px-4 dark:border-nord-3">
+      <div className="flex h-[var(--app-header-h)] items-center border-b border-slate-200 px-4 dark:border-nord-3">
         <Link href="/" className="group flex items-center gap-2.5">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 text-[11px] font-bold text-white transition-colors group-hover:bg-brand-700 dark:bg-nord-frost4">
             EC
@@ -103,105 +90,81 @@ export default function AppSidebar() {
           <span className="flex flex-col leading-none">
             <span className="text-sm font-bold text-slate-900 dark:text-nord-6">EvaCal</span>
             <span className="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-nord-muted">
-              Studio
+              Сметы и ГОСТ 34
             </span>
           </span>
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
-        {navItems.length === 0 ? (
+      <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-3" aria-label="Разделы">
+        {groups.length === 0 ? (
           <p className="px-2 py-3 text-[11px] leading-relaxed text-slate-400 dark:text-nord-muted">
             Войдите, чтобы увидеть разделы своей роли.
           </p>
         ) : (
-          navItems.map((item) => {
-            const active = isActive(pathname, item.href);
-            const count = item.badgeKey ? badges[item.badgeKey] : undefined;
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? 'page' : undefined}
-                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold transition-colors ${
-                  active
-                    ? 'bg-brand-50 text-brand-700 dark:bg-nord-3 dark:text-nord-frost2'
-                    : 'text-slate-700 hover:bg-slate-50 dark:text-nord-4 dark:hover:bg-nord-3'
-                }`}
-              >
-                <span
-                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                    active ? 'bg-brand-600 dark:bg-nord-frost2' : 'bg-slate-300 dark:bg-nord-3'
-                  }`}
-                />
-                <span className="truncate">{item.label}</span>
-                {count ? (
-                  <span
-                    title={
-                      item.badgeKey === 'studioDrafts'
-                        ? `Требуют внимания: ${count} (черновики и отклонённые комплекты)`
-                        : item.badgeKey === 'gapQueue'
-                          ? `В очереди финального ревью ГАП: ${count}`
-                          : item.badgeKey === 'reviewQueue'
-                            ? `В очереди нормоконтроля: ${count}`
-                            : undefined
-                    }
-                    aria-label={`${item.label}: ${count}`}
-                    className={`nums ml-auto rounded-full px-1.5 py-px text-[10px] font-extrabold ${
-                      active
-                        ? 'bg-brand-600 text-white dark:bg-nord-frost4'
-                        : 'bg-slate-100 text-slate-500 dark:bg-nord-1 dark:text-nord-muted'
-                    }`}
-                  >
-                    {count}
-                  </span>
-                ) : null}
-              </Link>
-            );
-          })
+          groups.map((group) => (
+            <div key={group.group}>
+              <div className="mb-1 px-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-nord-muted">
+                {group.label}
+              </div>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const active = isNavActive(pathname, item.href);
+                  const count = item.badgeKey ? badges[item.badgeKey] : undefined;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-current={active ? 'page' : undefined}
+                      className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                        active
+                          ? 'bg-brand-50 text-brand-700 dark:bg-nord-3 dark:text-nord-frost2'
+                          : 'text-slate-700 hover:bg-slate-50 dark:text-nord-4 dark:hover:bg-nord-3'
+                      }`}
+                    >
+                      <span className="truncate">{item.label}</span>
+                      {count ? (
+                        <span
+                          title={
+                            item.badgeKey ? `${BADGE_TITLES[item.badgeKey]}: ${count}` : undefined
+                          }
+                          aria-label={`${item.label}: ${count}`}
+                          className={`nums ml-auto rounded-full px-1.5 py-px text-[10px] font-extrabold ${
+                            active
+                              ? 'bg-brand-600 text-white dark:bg-nord-frost4'
+                              : 'bg-slate-100 text-slate-500 dark:bg-nord-1 dark:text-nord-muted'
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      ) : null}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))
         )}
       </nav>
 
-      <div className="space-y-3 border-t border-slate-200 p-3 dark:border-nord-3">
-        <div>
-          <div className="label mb-1.5">Тема</div>
-          <div className="space-y-0.5">
-            {THEME_ROWS.filter((row) => row.id !== 'dark-fantasy' || dfAllowed).map((row) => {
-              const active = theme === row.id;
-
-              return (
-                <button
-                  key={row.id}
-                  type="button"
-                  onClick={() => selectTheme(row.id)}
-                  className={`flex w-full items-center justify-between rounded-lg border px-2 py-1.5 text-xs font-semibold transition-colors ${
-                    active
-                      ? 'border-brand-100 bg-brand-50 text-slate-900 dark:border-nord-3 dark:bg-nord-3 dark:text-nord-6'
-                      : 'border-transparent text-slate-600 hover:bg-slate-50 dark:text-nord-4 dark:hover:bg-nord-3'
-                  }`}
-                >
-                  <span>{row.label}</span>
-                  <span className="text-[10px] font-bold">{active ? '✓' : ''}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
+      <div className="space-y-2 border-t border-slate-200 p-3 dark:border-nord-3">
         {session ? (
           <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-2 py-1.5 dark:bg-nord-1">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-600 text-[10px] font-bold uppercase text-white dark:bg-nord-frost4">
               {session.username.slice(0, 1)}
             </span>
-            <span className="flex min-w-0 flex-col leading-tight">
-              <span className="truncate text-xs font-semibold text-slate-800 dark:text-nord-5">
+            <Link
+              href="/account"
+              title="Учётная запись и смена пароля"
+              className="flex min-w-0 flex-col leading-tight"
+            >
+              <span className="truncate text-xs font-semibold text-slate-800 hover:underline dark:text-nord-5">
                 {session.username}
               </span>
               <span className="truncate text-[10px] text-slate-400 dark:text-nord-muted">
                 {appRoleLabel(session.role)}
               </span>
-            </span>
+            </Link>
             <button
               type="button"
               onClick={logout}
@@ -218,6 +181,16 @@ export default function AppSidebar() {
             Войти для сотрудников →
           </Link>
         )}
+
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}
+          className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 dark:text-nord-muted dark:hover:bg-nord-3 dark:hover:text-nord-4"
+        >
+          <span>Тема: {theme === 'dark' ? 'тёмная' : 'светлая'}</span>
+          <span aria-hidden>{theme === 'dark' ? '☾' : '☀'}</span>
+        </button>
       </div>
     </aside>
   );

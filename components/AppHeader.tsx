@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { navItemsFor } from '@/lib/appRoles';
+import { canCreateCalculation, navItemsFor } from '@/lib/appRoles';
+import { isNavActive } from './AppSidebar';
 
 interface Session {
   username: string;
@@ -17,19 +18,32 @@ interface Session {
  */
 const TITLES: [prefix: string, root: string, title: string][] = [
   ['/calculations/', 'Расчёты', 'Рабочее пространство расчёта'],
+  ['/calculations', 'Работа', 'Расчёты и сметы'],
+  ['/presale/', 'Пресейл', 'Расчёт пресейла'],
   ['/presale', 'Пресейл', 'Пресейл-мастер'],
-  ['/review', 'Ревью', 'Ревью документации'],
+  ['/review/', 'Ревью', 'Ревью комплекта'],
+  ['/review', 'Ревью', 'Очередь ревью'],
   ['/changelog', 'Документация', 'Лист внутренних изменений'],
   ['/studio', 'Документация', 'Студия ГОСТ 34'],
   ['/standards', 'Документация', 'Чек-листы и стандарты'],
-  ['/projects', 'Проекты', 'Проекты'],
+  ['/projects/', 'Проекты', 'Карточка проекта'],
+  ['/projects', 'Работа', 'Проекты'],
+  ['/architect/', 'Архитектура', 'Редактор архитектора'],
   ['/architect', 'Архитектура', 'Архитектурный каталог'],
+  ['/agents', 'Администрирование', 'Харнесс-агенты'],
+  ['/admin/capacity', 'Администрирование', 'Ёмкость ролей'],
+  ['/admin/users', 'Администрирование', 'Пользователи'],
   ['/admin', 'Администрирование', 'Шаблоны и пользователи'],
+  ['/capacity', 'Аналитика', 'Ресурсный план'],
+  ['/analytics/deviations', 'Аналитика', 'Конструктор срезов отклонений'],
+  ['/analytics', 'Аналитика', 'Сделки и точность'],
+  ['/leaderboard', 'Аналитика', 'Рейтинг команды'],
   ['/account', 'Профиль', 'Учётная запись'],
+  ['/login', 'EvaCal', 'Вход'],
 ];
 
-function resolveTitle(pathname: string | null): { root: string; title: string } {
-  if (!pathname || pathname === '/') return { root: 'Раздел', title: 'Расчёты и сметы' };
+export function resolveTitle(pathname: string | null): { root: string; title: string } {
+  if (!pathname || pathname === '/') return { root: 'EvaCal', title: 'Рабочий стол' };
 
   // Студия и лист изменений живут внутри расчёта — у них свои заголовки,
   // иначе они схлопнулись бы в общий «Рабочее пространство расчёта».
@@ -39,7 +53,7 @@ function resolveTitle(pathname: string | null): { root: string; title: string } 
   }
 
   const match = TITLES.find(([prefix]) => pathname.startsWith(prefix));
-  return match ? { root: match[1], title: match[2] } : { root: 'Раздел', title: 'EvaCal' };
+  return match ? { root: match[1], title: match[2] } : { root: 'EvaCal', title: 'Раздел' };
 }
 
 export default function AppHeader() {
@@ -58,19 +72,21 @@ export default function AppHeader() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md dark:border-nord-3 dark:bg-nord-2/95">
-      <div className="flex h-[var(--app-header-h)] items-center justify-between gap-4 px-4">
+      <div className="flex h-[var(--app-header-h)] items-center justify-between gap-4 px-5 sm:px-6">
         <div className="flex min-w-0 items-baseline gap-2">
           <span className="hidden text-[11px] font-semibold text-slate-400 sm:inline dark:text-nord-muted">
             {root}
           </span>
           <span className="hidden text-[11px] text-slate-300 sm:inline dark:text-nord-3">/</span>
-          <h1 className="truncate text-sm font-bold text-slate-900 dark:text-nord-6">{title}</h1>
+          <h2 className="truncate text-sm font-bold text-slate-900 dark:text-nord-6">{title}</h2>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <Link href="/presale" className="btn-primary !px-3 !py-1.5 !text-xs">
-            + Новый расчёт
-          </Link>
+          {canCreateCalculation(session?.role) && (
+            <Link href="/presale" className="btn-primary">
+              + Новый расчёт
+            </Link>
+          )}
         </div>
       </div>
 
@@ -79,14 +95,17 @@ export default function AppHeader() {
         горизонтальной лентой — иначе навигация просто пропала бы.
       */}
       {navItems.length > 0 && (
-        <nav className="flex gap-1 overflow-x-auto border-t border-slate-100 px-3 py-1.5 lg:hidden dark:border-nord-3">
+        <nav
+          aria-label="Разделы"
+          className="flex gap-1 overflow-x-auto border-t border-slate-100 px-3 py-1.5 lg:hidden dark:border-nord-3"
+        >
           {navItems.map((item) => {
-            const active =
-              item.href === '/' ? pathname === '/' : Boolean(pathname?.startsWith(item.href));
+            const active = isNavActive(pathname, item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={active ? 'page' : undefined}
                 className={`whitespace-nowrap rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                   active
                     ? 'bg-brand-50 text-brand-700 dark:bg-nord-3 dark:text-nord-frost2'

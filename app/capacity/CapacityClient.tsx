@@ -122,77 +122,55 @@ export default function CapacityClient({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
-            Ресурсный план
-          </h1>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
-            Загрузка ролей по неделям из Гантов всех проектов. Твёрдый спрос — выигранные и
-            утверждённые; с воронкой — плюс согласование и черновики с весом.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <div className="flex rounded-lg border border-slate-200 dark:border-nord-3">
-            {(['weighted', 'firm'] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setScope(s)}
-                className={`px-2.5 py-1 font-semibold ${scope === s ? 'bg-brand-50 text-brand-700 dark:bg-nord-3 dark:text-nord-frost2' : 'text-slate-600 dark:text-nord-4'}`}
-              >
-                {s === 'weighted' ? 'С воронкой' : 'Твёрдый'}
-              </button>
-            ))}
-          </div>
-          <Link
-            href={`/capacity?weeks=${weeks === 13 ? 26 : 13}${includeDrafts ? '&drafts=1' : ''}`}
-            className="btn-ghost"
-          >
-            {weeks === 13 ? '26 недель' : '13 недель'}
-          </Link>
-          <Link
-            href={`/capacity?weeks=${weeks}${includeDrafts ? '' : '&drafts=1'}`}
-            className="btn-ghost"
-          >
-            {includeDrafts ? 'Без черновиков' : 'С черновиками'}
-          </Link>
-          <a
-            href={`/api/capacity/xlsx?weeks=${weeks}${includeDrafts ? '&drafts=1' : ''}`}
-            className="btn-secondary"
-          >
-            Выгрузить xlsx
-          </a>
-        </div>
-      </div>
-
-      {matrix.roles.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 text-xs">
-          {matrix.roles.map((r) => {
-            const active = roleFilter.length === 0 || roleFilter.includes(r.role);
-            return (
-              <button
-                key={r.role}
-                onClick={() =>
-                  setRoleFilter((prev) =>
-                    prev.includes(r.role) ? prev.filter((x) => x !== r.role) : [...prev, r.role],
-                  )
-                }
-                className={`rounded-full border px-2.5 py-0.5 ${active ? 'border-brand-200 bg-brand-50 text-brand-800 dark:border-nord-3 dark:bg-nord-3 dark:text-nord-frost2' : 'border-slate-200 text-slate-400 dark:border-nord-3'}`}
-              >
-                {roleLabel(r.role)}
-                {r.overWeeks > 0 && (
-                  <span className="ml-1 font-bold text-rose-600">!{r.overWeeks}</span>
-                )}
-              </button>
-            );
-          })}
-          {roleFilter.length > 0 && (
-            <button className="text-slate-500 underline" onClick={() => setRoleFilter([])}>
-              все роли
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div role="group" aria-label="Спрос" className="flex flex-wrap items-center gap-1.5">
+          {(['weighted', 'firm'] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              aria-pressed={scope === s}
+              onClick={() => setScope(s)}
+              className={`filter-chip ${scope === s ? 'filter-chip-active' : ''}`}
+            >
+              {s === 'weighted' ? 'С воронкой' : 'Твёрдый'}
             </button>
-          )}
+          ))}
         </div>
-      )}
+        {matrix.roles.length > 0 && (
+          <div role="group" aria-label="Роли" className="flex flex-wrap items-center gap-1.5">
+            {matrix.roles.map((r) => {
+              const active = roleFilter.includes(r.role);
+              return (
+                <button
+                  key={r.role}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() =>
+                    setRoleFilter((prev) =>
+                      prev.includes(r.role) ? prev.filter((x) => x !== r.role) : [...prev, r.role],
+                    )
+                  }
+                  className={`filter-chip ${active ? 'filter-chip-active' : ''}`}
+                >
+                  {roleLabel(r.role)}
+                  {r.overWeeks > 0 && (
+                    <span
+                      className={`filter-chip-count ${active ? 'bg-white/20' : 'bg-rose-100 text-rose-700 dark:bg-nord-red/20 dark:text-nord-redText'}`}
+                    >
+                      !{r.overWeeks}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {roleFilter.length > 0 && (
+              <button type="button" className="btn-ghost btn-sm" onClick={() => setRoleFilter([])}>
+                Все роли
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {error && (
         <div className="rounded-lg bg-rose-50 p-2 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
@@ -282,10 +260,15 @@ export default function CapacityClient({
       {selected && (
         <div className="card p-4 text-xs">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-nord-6">
+            <h2 className="card-title">
               {roleLabel(selected.role)} · неделя с {fmtWeek(selected.cell.week)}
             </h2>
-            <button className="text-slate-400" onClick={() => setSelected(null)}>
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              aria-label="Закрыть"
+              onClick={() => setSelected(null)}
+            >
               ✕
             </button>
           </div>
@@ -316,7 +299,7 @@ export default function CapacityClient({
                     {canWhatIf && (
                       <td className="py-1.5 text-right whitespace-nowrap">
                         <button
-                          className="btn-ghost px-1.5"
+                          className="btn-ghost btn-sm"
                           disabled={busy}
                           onClick={() => shift(i.calculationId, -7)}
                           title="На неделю раньше"
@@ -329,7 +312,7 @@ export default function CapacityClient({
                             : ''}
                         </span>
                         <button
-                          className="btn-ghost px-1.5"
+                          className="btn-ghost btn-sm"
                           disabled={busy}
                           onClick={() => shift(i.calculationId, 7)}
                           title="На неделю позже"
@@ -354,6 +337,7 @@ export default function CapacityClient({
           </span>
           <div className="flex gap-2">
             <button
+              type="button"
               className="btn-ghost"
               disabled={busy}
               onClick={() => {
@@ -363,7 +347,7 @@ export default function CapacityClient({
             >
               Сбросить
             </button>
-            <button className="btn-primary" disabled={busy} onClick={applyShifts}>
+            <button type="button" className="btn-primary" disabled={busy} onClick={applyShifts}>
               Применить сдвиги к датам старта
             </button>
           </div>

@@ -2,8 +2,6 @@ import type { Metadata } from 'next';
 import './globals.css';
 import AppSidebar from '@/components/AppSidebar';
 import AppHeader from '@/components/AppHeader';
-import DarkFantasyCompanion from '@/components/DarkFantasyCompanion';
-import InactivityEasterEgg from '@/components/InactivityEasterEgg';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
 
 export const metadata: Metadata = {
@@ -23,15 +21,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="flex min-w-0 flex-col">
             <AppHeader />
             {/*
-              Ширина не ограничена общим max-w: студия и ревью — трёхколоночные
-              экраны, которым нужна вся полоса, а узкие страницы держат свою
-              ширину сами.
+              Ширина экрана задаётся самим экраном (`.page` / `.page-wide`):
+              студия и ревью — трёхколоночные и занимают всю полосу, списки
+              держат читаемую ширину.
             */}
-            <main className="min-w-0 flex-1 px-4 py-5">{children}</main>
+            <main className="min-w-0 flex-1 px-5 py-5 sm:px-6">{children}</main>
           </div>
         </div>
-        <DarkFantasyCompanion />
-        <InactivityEasterEgg />
       </body>
     </html>
   );

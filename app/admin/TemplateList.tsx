@@ -61,25 +61,25 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
   }
 
   if (templates.length === 0) {
-    return <p className="text-sm text-slate-500">Пока нет шаблонов.</p>;
+    return <p className="p-4 text-xs text-slate-500 dark:text-nord-muted">Пока нет шаблонов.</p>;
   }
 
   return (
-    <table className="w-full text-sm">
+    <table className="table-list">
       <thead>
-        <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-          <th className="py-2 pr-4">Шаблон</th>
-          <th className="py-2 pr-4">Вопросов</th>
-          <th className="py-2 pr-4">Этапов</th>
-          <th className="py-2 pr-4">Расчётов</th>
-          <th className="py-2 pr-4">Активен</th>
-          <th className="py-2 pr-4" />
+        <tr>
+          <th>Шаблон</th>
+          <th>Вопросов</th>
+          <th>Этапов</th>
+          <th>Расчётов</th>
+          <th>Активен</th>
+          <th />
         </tr>
       </thead>
       <tbody>
         {templates.map((t) => (
-          <tr key={t.id} className="border-b border-slate-100 last:border-0">
-            <td className="py-2 pr-4">
+          <tr key={t.id}>
+            <td>
               {renamingId === t.id ? (
                 <input
                   className="input w-56"
@@ -111,15 +111,15 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
               )}
               {t.description && <p className="text-xs text-slate-500">{t.description}</p>}
             </td>
-            <td className="py-2 pr-4">{t._count.fields}</td>
-            <td className="py-2 pr-4">{t._count.stageTemplates}</td>
-            <td className="py-2 pr-4">{t._count.calculations}</td>
-            <td className="py-2 pr-4">
+            <td>{t._count.fields}</td>
+            <td>{t._count.stageTemplates}</td>
+            <td>{t._count.calculations}</td>
+            <td>
               {t.isActive ? (
                 <span className="badge bg-emerald-100 text-emerald-700">Активен</span>
               ) : (
                 <button
-                  className="btn-secondary px-2 py-1 text-xs"
+                  className="btn-secondary btn-sm"
                   disabled={busy === t.id}
                   onClick={() => activate(t.id)}
                 >
@@ -127,13 +127,13 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
                 </button>
               )}
             </td>
-            <td className="py-2 pr-4">
+            <td>
               <div className="flex items-center gap-2">
-                <Link href={`/admin/${t.id}`} className="btn-secondary px-3 py-1 text-xs">
+                <Link href={`/admin/${t.id}`} className="btn-secondary btn-sm">
                   Редактировать
                 </Link>
                 <button
-                  className="btn-secondary px-3 py-1 text-xs"
+                  className="btn-secondary btn-sm"
                   disabled={busy === t.id}
                   onClick={() => duplicate(t.id)}
                 >

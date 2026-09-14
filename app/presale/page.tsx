@@ -54,7 +54,7 @@ export default async function PresalePage(props: {
   const canCreate = !!staff || anonymousOk || !!searchParams.share;
 
   return (
-    <div className="space-y-6">
+    <div className="page">
       {!canCreate && (
         <div className="card space-y-2 p-5 text-sm text-slate-600">
           <p>
@@ -91,9 +91,11 @@ export default async function PresalePage(props: {
       ) : null}
 
       {drafts.length > 0 && (
-        <div className="card p-5">
-          <h2 className="mb-3 font-medium">Недавние расчёты пресейла</h2>
-          <ul className="divide-y divide-slate-100 text-sm">
+        <div className="card">
+          <div className="card-head">
+            <span className="card-title">Недавние расчёты пресейла</span>
+          </div>
+          <ul className="divide-y divide-slate-100 px-4 text-sm dark:divide-nord-3">
             {drafts.map((d) => (
               <li key={d.id} className="flex items-center justify-between py-2">
                 <Link href={`/presale/${d.id}`} className="text-brand-700 hover:underline">
