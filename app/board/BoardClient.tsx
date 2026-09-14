@@ -24,7 +24,62 @@ export interface BoardCard {
   enteredAt: string;
 }
 
+export interface EstimateCard {
+  id: string;
+  name: string;
+  customer: string;
+  version: number;
+  status: string;
+  author: string;
+  template: string;
+  totalHours: number;
+  project: { id: string; code: string | null } | null;
+  enteredAt: string;
+}
+
 type ColumnId = 'draft' | 'tw' | 'gap' | 'rejected' | 'approved';
+
+type EstimateColumnId = 'est_draft' | 'est_pending' | 'est_approved';
+
+const ESTIMATE_COLUMNS: {
+  id: EstimateColumnId;
+  title: string;
+  owner: string;
+  hint: string;
+  warn: number;
+  stale: number;
+}[] = [
+  {
+    id: 'est_draft',
+    title: 'Черновик сметы',
+    owner: 'пресейл',
+    hint: 'Пресейл заполняет опросник и отправляет смету на согласование.',
+    warn: 7,
+    stale: 14,
+  },
+  {
+    id: 'est_pending',
+    title: 'На утверждении',
+    owner: 'архитектор',
+    hint: 'Архитектор проверяет этапы и трудозатраты и утверждает смету.',
+    warn: 3,
+    stale: 7,
+  },
+  {
+    id: 'est_approved',
+    title: 'Смета утверждена',
+    owner: 'архитектор',
+    hint: 'Утверждённые за 30 дней: дальше — комплект ГОСТ 34 в Студии.',
+    warn: Infinity,
+    stale: Infinity,
+  },
+];
+
+function estimateColumnOf(card: EstimateCard): EstimateColumnId {
+  if (card.status === 'approved') return 'est_approved';
+  if (card.status === 'pending_approval') return 'est_pending';
+  return 'est_draft';
+}
 
 interface Column {
   id: ColumnId;
@@ -103,19 +158,24 @@ function decisionFor(from: ColumnId, to: ColumnId): 'approve' | 'reject' | null 
   return null;
 }
 
-interface PendingMove {
-  card: BoardCard;
-  from: ColumnId;
-  to: ColumnId;
-  decision: 'approve' | 'reject';
-}
+type PendingMove =
+  | {
+      kind: 'package';
+      card: BoardCard;
+      from: ColumnId;
+      to: ColumnId;
+      decision: 'approve' | 'reject';
+    }
+  | { kind: 'estimate'; card: EstimateCard };
 
 export default function BoardClient({
   cards,
+  estimates,
   role,
   username,
 }: {
   cards: BoardCard[];
+  estimates: EstimateCard[];
   role: string;
   username: string;
 }) {
@@ -123,6 +183,8 @@ export default function BoardClient({
   const [search, setSearch] = useState('');
   const [onlyMine, setOnlyMine] = useState(false);
   const [dragging, setDragging] = useState<BoardCard | null>(null);
+  const [draggingEstimate, setDraggingEstimate] = useState<EstimateCard | null>(null);
+  const [overEstimate, setOverEstimate] = useState<EstimateColumnId | null>(null);
   const [overColumn, setOverColumn] = useState<ColumnId | null>(null);
   const [pending, setPending] = useState<PendingMove | null>(null);
   const [comment, setComment] = useState('');
@@ -197,11 +259,54 @@ export default function BoardClient({
     if (!decision) return;
     setComment('');
     setError(null);
-    setPending({ card: dragging, from, to: col, decision });
+    setPending({ kind: 'package', card: dragging, from, to: col, decision });
   }
+
+  // Сметы: перетаскивание «На утверждении» → «Смета утверждена» и есть
+  // утверждение архитектором; возврат пресейлу идёт через редактор.
+  const estimateDraggable = (card: EstimateCard) =>
+    canArchitect && estimateColumnOf(card) === 'est_pending';
+
+  function onEstimateDrop(e: DragEvent<HTMLElement>, col: EstimateColumnId) {
+    e.preventDefault();
+    setOverEstimate(null);
+    const card = draggingEstimate;
+    setDraggingEstimate(null);
+    if (!card || col !== 'est_approved' || !estimateDraggable(card)) return;
+    setError(null);
+    setPending({ kind: 'estimate', card });
+  }
+
+  const filteredEstimates = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return estimates.filter((c) => {
+      if (onlyMine && !canArchitect) return false;
+      if (!q) return true;
+      return [c.name, c.customer, c.project?.code ?? '', c.author, c.template]
+        .join(' ')
+        .toLowerCase()
+        .includes(q);
+    });
+  }, [estimates, search, onlyMine, canArchitect]);
 
   async function confirmMove() {
     if (!pending) return;
+    if (pending.kind === 'estimate') {
+      setBusy(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/calculations/${pending.card.id}/approve`, { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Не удалось утвердить смету');
+        setPending(null);
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Ошибка');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (pending.decision === 'reject' && !comment.trim()) {
       setError('Укажите, что нужно исправить: без замечания возврат бессмыслен.');
       return;
@@ -229,14 +334,15 @@ export default function BoardClient({
     }
   }
 
-  const total = filtered.length;
-  const targetTitle = pending ? COLUMNS.find((c) => c.id === pending.to)?.title : '';
+  const total = filtered.length + filteredEstimates.length;
+  const targetTitle =
+    pending?.kind === 'package' ? COLUMNS.find((c) => c.id === pending.to)?.title : '';
 
   return (
     <div className="page-wide">
       <PageHeader
-        title="Доска комплектов"
-        description="Комплекты ГОСТ 34 по этапам выпуска. Перетащите карточку в следующую колонку, чтобы вынести решение на своём этапе; черновики и возвраты выпускаются из Студии."
+        title="Доска заявок"
+        description="Сметы на утверждение и комплекты ГОСТ 34 по этапам выпуска. Перетащите карточку в следующую колонку, чтобы вынести решение на своём этапе; черновики и возвраты выпускаются из Студии."
         actions={
           <span className="text-xs text-slate-500 dark:text-nord-muted">{total} на доске</span>
         }
@@ -261,6 +367,165 @@ export default function BoardClient({
         </div>
       </PageHeader>
 
+      <section aria-labelledby="estimates-title" className="space-y-2">
+        <h2 id="estimates-title" className="card-title">
+          Сметы и оценки трудозатрат
+        </h2>
+        <div className="grid gap-3 md:grid-cols-3">
+          {ESTIMATE_COLUMNS.map((col) => {
+            const list = filteredEstimates
+              .filter((c) => estimateColumnOf(c) === col.id)
+              .sort((a, b) => new Date(a.enteredAt).getTime() - new Date(b.enteredAt).getTime());
+            const mine = canArchitect ? col.id !== 'est_draft' : role === 'presale';
+            const dropTarget =
+              draggingEstimate && col.id === 'est_approved' && estimateDraggable(draggingEstimate);
+            const over = overEstimate === col.id && dropTarget;
+            return (
+              <section
+                key={col.id}
+                aria-label={col.title}
+                onDragOver={(e) => {
+                  if (!dropTarget) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (overEstimate !== col.id) setOverEstimate(col.id);
+                }}
+                onDragLeave={() => overEstimate === col.id && setOverEstimate(null)}
+                onDrop={(e) => onEstimateDrop(e, col.id)}
+                className={`flex min-h-[180px] flex-col rounded-xl border transition-colors ${
+                  over
+                    ? 'border-brand-500 bg-brand-50/60 dark:border-nord-frost2 dark:bg-nord-frost4/20'
+                    : dropTarget
+                      ? 'border-dashed border-brand-300 bg-brand-50/20 dark:border-nord-frost4 dark:bg-nord-3/40'
+                      : mine
+                        ? 'border-slate-200 bg-slate-50 dark:border-nord-3 dark:bg-nord-1/50'
+                        : 'border-slate-200 bg-slate-100/60 dark:border-nord-3 dark:bg-nord-0'
+                }`}
+              >
+                <header className="flex items-start justify-between gap-2 px-3 pb-2 pt-3">
+                  <div className="min-w-0">
+                    <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-nord-4">
+                      {col.title}
+                      {mine && (
+                        <span className="chip-info" title="На этом этапе решение за вами">
+                          вы
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[10px] text-slate-400 dark:text-nord-muted">{col.owner}</p>
+                  </div>
+                  <span className="nums rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-slate-600 dark:bg-nord-2 dark:text-nord-4">
+                    {list.length}
+                  </span>
+                </header>
+                <div className="flex-1 space-y-2 px-2 pb-2">
+                  {list.length === 0 ? (
+                    <p className="px-1 py-6 text-center text-[11px] text-slate-400 dark:text-nord-muted">
+                      {col.hint}
+                    </p>
+                  ) : (
+                    list.map((card) => {
+                      const days = daysSince(card.enteredAt);
+                      const tone =
+                        days >= col.stale
+                          ? 'chip-block'
+                          : days >= col.warn
+                            ? 'chip-warn'
+                            : 'chip-muted';
+                      const canDrag = estimateDraggable(card);
+                      return (
+                        <article
+                          key={card.id}
+                          draggable={canDrag}
+                          onDragStart={(e) => {
+                            if (!canDrag) {
+                              e.preventDefault();
+                              return;
+                            }
+                            setDraggingEstimate(card);
+                            e.dataTransfer.effectAllowed = 'move';
+                            e.dataTransfer.setData('text/plain', card.id);
+                          }}
+                          onDragEnd={() => {
+                            setDraggingEstimate(null);
+                            setOverEstimate(null);
+                          }}
+                          className={`card space-y-1.5 p-3 ${
+                            canDrag ? 'cursor-grab active:cursor-grabbing' : ''
+                          } ${draggingEstimate?.id === card.id ? 'opacity-40' : ''}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <Link
+                              href={`/calculations/${card.id}`}
+                              className="min-w-0 truncate text-xs font-bold text-slate-900 hover:text-brand-700 dark:text-nord-6 dark:hover:text-nord-frost2"
+                              title={card.name}
+                            >
+                              {card.name}
+                            </Link>
+                            <span className="nums shrink-0 text-[10px] font-semibold text-slate-400 dark:text-nord-muted">
+                              v{card.version}
+                            </span>
+                          </div>
+                          <div className="truncate text-[11px] text-slate-500 dark:text-nord-muted">
+                            {card.project?.code && (
+                              <span className="mr-1 font-mono font-bold text-brand-600 dark:text-nord-frost3">
+                                {card.project.code}
+                              </span>
+                            )}
+                            {card.customer} · {card.template}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="nums text-xs font-bold text-slate-900 dark:text-nord-6">
+                              {card.totalHours} ч
+                            </span>
+                            {col.id !== 'est_approved' && (
+                              <span className={tone}>{formatDays(days)}</span>
+                            )}
+                            <span className="ml-auto text-[10px] text-slate-400 dark:text-nord-muted">
+                              {card.author}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 pt-1">
+                            {col.id === 'est_draft' ? (
+                              <Link href={`/presale/${card.id}`} className="btn-secondary btn-sm">
+                                Опросник
+                              </Link>
+                            ) : (
+                              <Link href={`/architect/${card.id}`} className="btn-secondary btn-sm">
+                                {col.id === 'est_pending' && canArchitect
+                                  ? 'Проверить'
+                                  : 'Архитектор'}
+                              </Link>
+                            )}
+                            {col.id === 'est_approved' && canArchitect && (
+                              <Link
+                                href={`/calculations/${card.id}/studio`}
+                                className="btn-ghost btn-sm"
+                              >
+                                В Студию
+                              </Link>
+                            )}
+                            {card.project && (
+                              <Link
+                                href={`/projects/${card.project.id}`}
+                                className="btn-ghost btn-sm"
+                              >
+                                Проект
+                              </Link>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })
+                  )}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </section>
+
+      <h2 className="card-title">Комплекты ГОСТ 34</h2>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         {COLUMNS.map((col) => {
           const list = byColumn[col.id];
@@ -421,9 +686,11 @@ export default function BoardClient({
                 id="board-move-title"
                 className="text-sm font-bold text-slate-900 dark:text-nord-6"
               >
-                {pending.decision === 'approve'
-                  ? `Передать в «${targetTitle}»`
-                  : 'Вернуть с замечаниями'}
+                {pending.kind === 'estimate'
+                  ? 'Утвердить смету'
+                  : pending.decision === 'approve'
+                    ? `Передать в «${targetTitle}»`
+                    : 'Вернуть с замечаниями'}
               </h3>
               <p className="text-xs text-slate-500 dark:text-nord-muted">
                 {pending.card.name} · v{pending.card.version} · {pending.card.customer}
@@ -435,37 +702,49 @@ export default function BoardClient({
                   {error}
                 </div>
               )}
-              {pending.decision === 'approve' && pending.card.openBlockers > 0 && (
-                <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-nord-yellow/15 dark:text-nord-yellow">
-                  У комплекта {pending.card.openBlockers} открытых блокеров: сервер не пропустит его
-                  дальше, пока они не закрыты на экране ревью.
-                </div>
+              {pending.kind === 'estimate' && (
+                <p className="text-xs text-slate-600 dark:text-nord-4">
+                  Смета на {pending.card.totalHours} ч будет утверждена от вашего имени; после этого
+                  её этапы и трудозатраты редактировать нельзя.
+                </p>
               )}
-              <div>
-                <label className="label">ФИО и должность</label>
-                <input
-                  className="input"
-                  value={reviewerName}
-                  onChange={(e) => setReviewerName(e.target.value)}
-                  placeholder="ФИО и должность"
-                />
-              </div>
-              <div>
-                <label className="label">
-                  {pending.decision === 'approve' ? 'Комментарий' : 'Замечания *'}
-                </label>
-                <textarea
-                  className="input"
-                  rows={3}
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder={
-                    pending.decision === 'approve'
-                      ? 'Необязательно'
-                      : 'Что нужно исправить перед повторным выпуском'
-                  }
-                />
-              </div>
+              {pending.kind === 'package' &&
+                pending.decision === 'approve' &&
+                pending.card.openBlockers > 0 && (
+                  <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-nord-yellow/15 dark:text-nord-yellow">
+                    У комплекта {pending.card.openBlockers} открытых блокеров: сервер не пропустит
+                    его дальше, пока они не закрыты на экране ревью.
+                  </div>
+                )}
+              {pending.kind === 'package' && (
+                <>
+                  <div>
+                    <label className="label">ФИО и должность</label>
+                    <input
+                      className="input"
+                      value={reviewerName}
+                      onChange={(e) => setReviewerName(e.target.value)}
+                      placeholder="ФИО и должность"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">
+                      {pending.decision === 'approve' ? 'Комментарий' : 'Замечания *'}
+                    </label>
+                    <textarea
+                      className="input"
+                      rows={3}
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder={
+                        pending.decision === 'approve'
+                          ? 'Необязательно'
+                          : 'Что нужно исправить перед повторным выпуском'
+                      }
+                    />
+                  </div>
+                </>
+              )}
               <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3 dark:border-nord-3">
                 <button
                   type="button"
@@ -479,9 +758,19 @@ export default function BoardClient({
                   type="button"
                   onClick={confirmMove}
                   disabled={busy}
-                  className={pending.decision === 'reject' ? 'btn-danger' : 'btn-primary'}
+                  className={
+                    pending.kind === 'package' && pending.decision === 'reject'
+                      ? 'btn-danger'
+                      : 'btn-primary'
+                  }
                 >
-                  {busy ? 'Сохраняем…' : pending.decision === 'approve' ? 'Подтвердить' : 'Вернуть'}
+                  {busy
+                    ? 'Сохраняем…'
+                    : pending.kind === 'estimate'
+                      ? 'Утвердить'
+                      : pending.decision === 'approve'
+                        ? 'Подтвердить'
+                        : 'Вернуть'}
                 </button>
               </div>
             </div>

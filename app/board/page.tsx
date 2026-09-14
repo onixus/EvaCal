@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { requireRole } from '@/lib/auth';
 import { openBlockerCount, parseChecklist, parseComments } from '@/lib/gost34/review/types';
-import BoardClient, { type BoardCard } from './BoardClient';
+import { grandTotalHours } from '@/lib/totals';
+import BoardClient, { type BoardCard, type EstimateCard } from './BoardClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,5 +92,54 @@ export default async function BoardPage() {
     ).toISOString(),
   }));
 
-  return <BoardClient cards={cards} role={session.role} username={session.username} />;
+  // Сметы: черновики пресейла, ожидающие утверждения архитектором и недавно
+  // утверждённые. Утверждённая смета — вход в конвейер комплекта, поэтому
+  // старые утверждённые не показываем: они уже живут в колонках комплектов.
+  const calcRows = await prisma.calculation.findMany({
+    where: {
+      OR: [
+        { status: { in: ['draft', 'pending_approval'] } },
+        { status: 'approved', updatedAt: { gte: approvedSince } },
+      ],
+    },
+    orderBy: [{ updatedAt: 'asc' }],
+    take: 300,
+    select: {
+      id: true,
+      name: true,
+      customer: true,
+      version: true,
+      status: true,
+      createdBy: true,
+      createdAt: true,
+      updatedAt: true,
+      pmHours: true,
+      template: { select: { name: true } },
+      project: { select: { id: true, code: true } },
+      stages: { select: { hours: true, isApprovalTask: true } },
+      risks: { select: { hours: true } },
+    },
+  });
+
+  const estimates: EstimateCard[] = calcRows.map((c) => ({
+    id: c.id,
+    name: c.name,
+    customer: c.customer,
+    version: c.version,
+    status: c.status,
+    author: nameOf(c.createdBy) ?? c.createdBy,
+    template: c.template.name,
+    totalHours: Math.round(grandTotalHours(c.stages, c.pmHours, c.risks) * 10) / 10,
+    project: c.project ? { id: c.project.id, code: c.project.code } : null,
+    enteredAt: c.updatedAt.toISOString(),
+  }));
+
+  return (
+    <BoardClient
+      cards={cards}
+      estimates={estimates}
+      role={session.role}
+      username={session.username}
+    />
+  );
 }

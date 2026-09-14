@@ -141,7 +141,7 @@ const STUDIO: NavItem = {
   group: 'work',
   badgeKey: 'studioDrafts',
 };
-const BOARD: NavItem = { href: '/board', label: 'Доска комплектов', group: 'work' };
+const BOARD: NavItem = { href: '/board', label: 'Доска заявок', group: 'work' };
 const CHANGELOG: NavItem = {
   href: '/changelog',
   label: 'Лист внутренних изменений',
