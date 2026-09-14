@@ -387,3 +387,36 @@ export function renderCalculationXlsx(
 
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 }
+
+/**
+ * Ресурсный план (E2): лист «Загрузка» — роль × неделя (взвешенный спрос /
+ * ёмкость), лист «Спрос» — часы по расчётам в каждой ячейке.
+ */
+export function renderCapacityXlsx(matrix: import('./capacity').CapacityMatrix): Buffer {
+  const wb = XLSX.utils.book_new();
+  const head = ['Роль', ...matrix.weeks, 'Итого спрос', 'Итого ёмкость'];
+  const rows = matrix.roles.map((r) => [
+    roleLabel(r.role),
+    ...r.cells.map((c) =>
+      c.capacityHours === null
+        ? `${c.weightedHours} ч`
+        : `${c.weightedHours} / ${c.capacityHours} ч (${Math.round((c.weightedUtil ?? 0) * 100)}%)`,
+    ),
+    r.totalWeighted,
+    r.totalCapacity ?? '',
+  ]);
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet(sanitizeRows([head, ...rows])),
+    'Загрузка',
+  );
+
+  const demand: (string | number)[][] = [['Роль', 'Неделя', 'Расчёт', 'Проект', 'Часы', 'Вес']];
+  for (const r of matrix.roles)
+    for (const c of r.cells)
+      for (const i of c.items)
+        demand.push([roleLabel(r.role), c.week, i.name, i.projectName ?? '', i.hours, i.weight]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sanitizeRows(demand)), 'Спрос');
+
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+}

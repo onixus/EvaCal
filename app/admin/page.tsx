@@ -34,9 +34,14 @@ export default async function AdminPage(props: { searchParams: Promise<{ page?: 
             этапов.
           </p>
         </div>
-        <Link href="/admin/users" className="btn-secondary">
-          Пользователи
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/admin/capacity" className="btn-secondary">
+            Ёмкость ролей
+          </Link>
+          <Link href="/admin/users" className="btn-secondary">
+            Пользователи
+          </Link>
+        </div>
       </div>
 
       <div className="card p-6">

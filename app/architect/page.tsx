@@ -4,6 +4,9 @@ import StatusBadge from '@/components/StatusBadge';
 import { grandTotalHours } from '@/lib/totals';
 import Pagination from '@/components/Pagination';
 import { PAGE_SIZE, pageArgs, parsePage } from '@/lib/pagination';
+import { loadCapacityMatrix } from '@/lib/capacityData';
+import { worstRoles } from '@/lib/capacity';
+import { roleLabel } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +35,7 @@ export default async function ArchitectPage(props: { searchParams: Promise<{ pag
 
   // The approval queue is the architect's actual work list, so it is shown in full;
   // only the archive below it is paged.
-  const [pending, othersTotal, others] = await Promise.all([
+  const [pending, othersTotal, others, capacity] = await Promise.all([
     prisma.calculation.findMany({
       where: { status: PENDING },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -45,7 +48,11 @@ export default async function ArchitectPage(props: { searchParams: Promise<{ pag
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: listSelection,
     }),
+    // Виджет ресурсного плана: 4 ближайшие недели, худшие роли. Падение
+    // виджета не должно ронять рабочий экран.
+    loadCapacityMatrix({ weeks: 4 }).catch(() => null),
   ]);
+  const worst = capacity ? worstRoles(capacity) : [];
 
   return (
     <div className="space-y-6">
@@ -55,6 +62,34 @@ export default async function ArchitectPage(props: { searchParams: Promise<{ pag
           Правьте этапы, добавляйте новые и утверждайте расчёты, подготовленные пресейлом.
         </p>
       </div>
+
+      {worst.length > 0 && (
+        <div
+          className="card flex flex-wrap items-center gap-3 p-4 text-xs"
+          data-testid="capacity-widget"
+        >
+          <span className="font-semibold text-slate-700 dark:text-nord-4">
+            Загрузка на 4 недели:
+          </span>
+          {worst.map((w) => (
+            <span
+              key={w.role}
+              className={`rounded-full px-2.5 py-0.5 font-semibold ${
+                w.maxUtil > 1
+                  ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-200'
+                  : w.maxUtil > 0.85
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-100'
+                    : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-100'
+              }`}
+            >
+              {roleLabel(w.role)} {Math.round(w.maxUtil * 100)}%
+            </span>
+          ))}
+          <Link href="/capacity" className="underline">
+            ресурсный план →
+          </Link>
+        </div>
+      )}
 
       <Section
         title="Ожидают согласования"
