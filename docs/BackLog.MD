@@ -49,7 +49,7 @@
 - [x] Audit trail (`AuditEvent`) with sensitive LLM prompt/completion redaction (`redactLlmMeta`).
 - [x] Docker multi-stage Alpine deployment with automated schema sync/seed and non-root runner (uid 1001).
 - [x] Jenkins CI/CD pipeline and GitHub Actions workflow with JUnit XML reporting (`test:ci`).
-- [x] Automated test suite: **63 test files, 534 tests (100% pass)**.
+- [x] Automated test suite: **63 test files, 540 tests (100% pass)**.
 
 ---
 
@@ -95,7 +95,7 @@
 - [x] Dual-mode SQLite → PostgreSQL адаптер с миграциями Prisma для высоконагруженных развёртываний (провайдер по `DATABASE_URL`/`DATABASE_PROVIDER`, `lib/prisma.ts` выбирает адаптер, `prisma/postgresql/` — порождаемая схема и миграции, `npm run db:sync`, сервис `postgres` в docker-compose по умолчанию; CI (Jenkins) гоняет тесты, сборку и e2e против PostgreSQL, поднимаемого внутри агента `scripts/ci-postgres.sh`).
 - [ ] Multi-tenant изоляция (`tenantId` / организация на сущностях проекта, пользователей и расчётов).
 - [ ] Очередь фоновых задач генерации тяжелых комплектов (BullMQ / Redis / pg-boss) для предотвращения таймаутов.
-- [ ] Внешнее объектное хранилище артефактов (S3 / MinIO) для неизменяемых ZIP-пакетов.
+- [x] Внешнее объектное хранилище артефактов (S3 / MinIO) для неизменяемых ZIP-пакетов (`lib/gost34/storage.ts`: бэкенды `fs` и `s3` за одним интерфейсом, выбор по `S3_BUCKET`/`GOST_PACKAGE_STORAGE`, профиль `minio` и том `storage-data` в docker-compose).
 - [ ] Prometheus / OpenTelemetry метрики генерации и доступности LLM-провайдеров.
 
 ### Horizon D — Интеллектуальный дифференциал и интеграции (P2)
