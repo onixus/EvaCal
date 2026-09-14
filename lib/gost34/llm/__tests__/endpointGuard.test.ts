@@ -75,4 +75,24 @@ describe('isAllowedEndpoint', () => {
     expect(isAllowedEndpoint('https://api.example.com')).toBe(true);
     expect(isAllowedEndpoint('http://169.254.169.254')).toBe(false);
   });
+
+  it('unwraps IPv4-mapped IPv6 and blocks the private address behind it', () => {
+    expect(() => assertAllowedEndpoint('https://[::ffff:10.0.0.1]/v1')).toThrow(
+      EndpointNotAllowedError,
+    );
+    expect(() => assertAllowedEndpoint('https://[::ffff:169.254.169.254]/v1')).toThrow(
+      EndpointNotAllowedError,
+    );
+  });
+
+  it('treats 0.0.0.0 and a trailing-dot localhost as loopback', () => {
+    expect(assertAllowedEndpoint('http://0.0.0.0:11434/')).toBe('http://0.0.0.0:11434');
+    expect(assertAllowedEndpoint('http://localhost.:11434')).toBe('http://localhost.:11434');
+    expect(() =>
+      assertAllowedEndpoint('http://0.0.0.0:11434', {
+        allowLoopback: false,
+        allowPrivateNetwork: false,
+      }),
+    ).toThrow(EndpointNotAllowedError);
+  });
 });

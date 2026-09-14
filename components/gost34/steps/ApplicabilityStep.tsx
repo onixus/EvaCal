@@ -78,7 +78,7 @@ export default function ApplicabilityStep({
               <span className="px-2.5 py-1 rounded-lg border bg-emerald-500/15 text-emerald-300 border-emerald-500/40">
                 Применимо: {summary.applicable}
               </span>
-              <span className="px-2.5 py-1 rounded-lg border bg-amber-500/15 text-amber-300 border-amber-500/40">
+              <span className="px-2.5 py-1 rounded-lg border bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/40">
                 Требует подтверждения: {summary.unknown}
               </span>
               <span className="px-2.5 py-1 rounded-lg border bg-slate-100 dark:bg-nord-1 text-slate-600 dark:text-nord-4 border-slate-200 dark:border-nord-3">

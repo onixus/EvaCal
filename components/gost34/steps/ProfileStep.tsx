@@ -78,7 +78,7 @@ export default function ProfileStep({
                       isSelected
                         ? 'bg-white text-blue-700'
                         : isLegacy
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          ? 'bg-amber-50 text-amber-900 border border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40'
                           : 'bg-slate-100 dark:bg-nord-3 text-blue-300 border border-slate-300 dark:border-nord-3'
                     }`}
                   >

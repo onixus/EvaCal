@@ -11,6 +11,7 @@ export function useLlmProvider() {
   const [llmModels, setLlmModels] = useState<string[]>([]);
   const [llmError, setLlmError] = useState('');
   const [isLlmNormalizing, setIsLlmNormalizing] = useState(false);
+  const [tzAuthorEnabled, setTzAuthorEnabled] = useState(false);
 
   const checkLlmStatus = useCallback(
     async (providerId = llmProviderId) => {
@@ -19,18 +20,26 @@ export function useLlmProvider() {
         const query = new URLSearchParams({ providerId });
         const res = await fetch(`/api/gost34/llm-status?${query.toString()}`);
         const data = await res.json();
-        if (!res.ok) {
-          setLlmAvailable(false);
-          setLlmError(data?.error || 'Не удалось проверить доступность ИИ-сервера.');
-          return false;
+        
+        // Even if res.ok, we still set error if data.error exists (it might be a resolution error but 200 OK)
+        if (data?.error) {
+          setLlmError(data.error);
+        } else if (!res.ok) {
+          setLlmError('Не удалось проверить доступность ИИ-сервера.');
+        } else {
+          setLlmError('');
         }
-        setLlmError('');
-        setLlmAvailable(Boolean(data.available));
-        setLlmModels(data.models || []);
-        if (data.models?.length > 0 && !llmSelectedModel) {
+        
+        setLlmAvailable(Boolean(data?.available));
+        setLlmModels(data?.models || []);
+        if (data?.tzAuthorEnabled !== undefined) {
+          setTzAuthorEnabled(Boolean(data.tzAuthorEnabled));
+        }
+        
+        if (data?.models?.length > 0 && !llmSelectedModel) {
           setLlmSelectedModel(data.models[0]);
         }
-        return data.available;
+        return Boolean(data?.available);
       } catch {
         setLlmAvailable(false);
         return false;
@@ -120,6 +129,7 @@ export function useLlmProvider() {
     llmError,
     setLlmError,
     isLlmNormalizing,
+    tzAuthorEnabled,
     checkLlmStatus,
     normalizeWithLlm,
   };

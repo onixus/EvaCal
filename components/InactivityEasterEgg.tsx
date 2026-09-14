@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { resolveTheme, Theme } from '@/lib/theme';
+import { canUseDarkFantasy } from '@/lib/appRoles';
 
 const INACTIVITY_TIMEOUT_MS = 45000; // 45 seconds
 const VIDEO_SRC = '/videos/easter_egg.mp4';
@@ -12,6 +13,7 @@ const VIDEO_SRC = '/videos/easter_egg.mp4';
  */
 export default function InactivityEasterEgg() {
   const [theme, setTheme] = useState<Theme>('light');
+  const [dfAllowed, setDfAllowed] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState(45);
   const [isMuted, setIsMuted] = useState(true);
@@ -26,6 +28,13 @@ export default function InactivityEasterEgg() {
   const isMutedRef = useRef(isMuted);
   isMutedRef.current = isMuted;
 
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setDfAllowed(canUseDarkFantasy(data?.session?.role)))
+      .catch(() => setDfAllowed(false));
+  }, []);
+
   // Listen to theme changes & manual triggers
   useEffect(() => {
     setTheme(resolveTheme());
@@ -34,14 +43,16 @@ export default function InactivityEasterEgg() {
       if (ce.detail?.theme) setTheme(ce.detail.theme);
       else setTheme(resolveTheme());
     };
-    const manualHandler = () => setIsOpen(true);
+    const manualHandler = () => {
+      if (dfAllowed) setIsOpen(true);
+    };
     window.addEventListener('evacal-theme-change', handler);
     window.addEventListener('evacal-easter-egg-trigger', manualHandler);
     return () => {
       window.removeEventListener('evacal-theme-change', handler);
       window.removeEventListener('evacal-easter-egg-trigger', manualHandler);
     };
-  }, []);
+  }, [dfAllowed]);
 
   // Auto-play video when opened (handling browser autoplay policies)
   useEffect(() => {
@@ -170,7 +181,7 @@ export default function InactivityEasterEgg() {
     }
   };
 
-  if (theme !== 'dark-fantasy') return null;
+  if (theme !== 'dark-fantasy' || !dfAllowed) return null;
 
   return (
     <>

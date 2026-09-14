@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
-import { getSession } from '@/lib/auth';
+import {
+  createSessionToken,
+  getSession,
+  revokeSession,
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SECONDS,
+} from '@/lib/auth';
+import { sessionCookieOptions } from '@/lib/access';
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -22,10 +29,19 @@ export async function POST(req: NextRequest) {
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
-  await prisma.user.update({
+  const updated = await prisma.user.update({
     where: { id: user.id },
     data: { passwordHash, mustChangePassword: false },
   });
 
-  return NextResponse.json({ ok: true });
+  // Старый токен несёт mustChangePassword — отзываем его и выдаём новый без флага,
+  // иначе гейты продолжали бы отвечать 403 до перелогина.
+  revokeSession(req.cookies.get(SESSION_COOKIE_NAME)?.value);
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set(
+    SESSION_COOKIE_NAME,
+    createSessionToken(updated),
+    sessionCookieOptions(SESSION_MAX_AGE_SECONDS),
+  );
+  return res;
 }

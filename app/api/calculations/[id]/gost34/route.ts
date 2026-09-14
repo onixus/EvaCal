@@ -16,6 +16,7 @@ import {
   getZipEntries,
   resolveGost34Profile,
   resolveLayoutProfileId,
+  TzAuthorHardFlagsError,
 } from '@/lib/gost34';
 import { requireCalcAccess } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
@@ -165,6 +166,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       rawRequirements,
       manualLinks,
       sectionOverrides,
+      tzAuthor,
     } = body;
 
     const layout = resolveLayoutProfileId(layoutProfileId);
@@ -193,6 +195,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
             rawRequirements,
             manualTraceLinks: manualLinks,
             sectionOverrides,
+            tzAuthor,
             metadataOverride: {
               docType: entry.docType,
               contractNumber,
@@ -275,6 +278,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       rawRequirements,
       manualTraceLinks: manualLinks,
       sectionOverrides,
+      tzAuthor,
       metadataOverride: {
         docType,
         contractNumber,
@@ -335,6 +339,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       },
     });
   } catch (err: unknown) {
+    if (err instanceof TzAuthorHardFlagsError) {
+      return NextResponse.json(
+        { error: 'tz_author_hard_flags', nodes: err.nodes },
+        { status: 409 },
+      );
+    }
     console.error('Error in GOST 34 POST export:', err);
     return handleApiError(err, 'Export error', 500);
   }

@@ -68,6 +68,30 @@ const LEGACY_DOCUMENT_TYPES: DocumentProfile[] = [
     zipOrder: 5,
     sections: [],
   },
+  {
+    id: 'legacy-89-psi',
+    docType: 'PSI',
+    title: 'ПРОТОКОЛ ИСПЫТАНИЙ',
+    standardCitation: 'ГОСТ 34.603-92',
+    shortLabel: 'ПСИ',
+    uiTitle: 'ПСИ — Протокол испытаний',
+    uiDescription: 'Фактические результаты проведения приемо-сдаточных испытаний.',
+    filenameBase: 'Протокол_испытаний_ГОСТ_34.603-92',
+    zipOrder: 6,
+    sections: [],
+  },
+  {
+    id: 'legacy-89-act',
+    docType: 'ACT',
+    title: 'АКТ ПРИЕМКИ',
+    standardCitation: 'ГОСТ 34.603-92',
+    shortLabel: 'АКТ',
+    uiTitle: 'АКТ — Акт о приемке',
+    uiDescription: 'Официальный акт о приемке системы в опытную или промышленную эксплуатацию.',
+    filenameBase: 'Акт_приемки_ГОСТ_34.603-92',
+    zipOrder: 7,
+    sections: [],
+  },
 ];
 
 /**
@@ -76,9 +100,17 @@ const LEGACY_DOCUMENT_TYPES: DocumentProfile[] = [
  * omitted rather than guessed: РД 50-34.698-90 has no one-to-one successor
  * clause mapping.
  */
+
+/** Базовый legacy-профиль документа по типу — не зависит от порядка элементов в массиве. */
+function legacyDocumentType(docType: DocumentProfile['docType']): DocumentProfile {
+  const found = LEGACY_DOCUMENT_TYPES.find((d) => d.docType === docType);
+  if (!found) throw new Error(`Нет legacy-профиля документа для типа ${docType}`);
+  return found;
+}
+
 const CURRENT_DOCUMENT_TYPES: DocumentProfile[] = [
   {
-    ...LEGACY_DOCUMENT_TYPES[0],
+    ...legacyDocumentType('TZ'),
     id: 'gost34-2020-tz',
     standardCitation: 'ГОСТ 34.602-2020',
     filenameBase: 'Техническое_задание_ГОСТ_34.602-2020',
@@ -86,30 +118,42 @@ const CURRENT_DOCUMENT_TYPES: DocumentProfile[] = [
     sections: TZ_2020_SECTION_TITLES,
   },
   {
-    ...LEGACY_DOCUMENT_TYPES[1],
+    ...legacyDocumentType('PZ'),
     id: 'gost34-2020-pz',
     // TODO(PR-03): verify clause-level mapping once the 2020 TZ schema lands.
     standardCitation: 'ГОСТ Р 59795-2021',
     filenameBase: 'Пояснительная_записка_ГОСТ_Р_59795-2021',
   },
   {
-    ...LEGACY_DOCUMENT_TYPES[2],
+    ...legacyDocumentType('AF'),
     id: 'gost34-2020-af',
     // TODO(PR-03): verify clause-level mapping once the 2020 TZ schema lands.
     standardCitation: 'ГОСТ Р 59795-2021',
     filenameBase: 'Описание_функций_ГОСТ_Р_59795-2021',
   },
   {
-    ...LEGACY_DOCUMENT_TYPES[3],
+    ...legacyDocumentType('PMI'),
     id: 'gost34-2020-pmi',
     standardCitation: 'ГОСТ Р 59792-2021',
     filenameBase: 'Программа_и_методика_испытаний_ГОСТ_Р_59792-2021',
   },
   {
-    ...LEGACY_DOCUMENT_TYPES[4],
+    ...legacyDocumentType('SPEC'),
     id: 'gost34-2020-spec',
     standardCitation: 'ГОСТ 34.201-2020',
     filenameBase: 'Спецификация_оборудования_и_ПО_ГОСТ_34.201-2020',
+  },
+  {
+    ...legacyDocumentType('PSI'),
+    id: 'gost34-2020-psi',
+    standardCitation: 'ГОСТ Р 59792-2021',
+    filenameBase: 'Протокол_испытаний_ГОСТ_Р_59792-2021',
+  },
+  {
+    ...legacyDocumentType('ACT'),
+    id: 'gost34-2020-act',
+    standardCitation: 'ГОСТ Р 59792-2021',
+    filenameBase: 'Акт_приемки_ГОСТ_Р_59792-2021',
   },
 ];
 

@@ -29,10 +29,11 @@ const vendorRequirement: Gost34RequirementItem = {
   sourceFile: 'vendor.docx',
 };
 
-function analyze(enrich: boolean) {
+function analyze(enrich: boolean, includeStages = true) {
   return analyzeAndNormalizeInput({
     calculation,
     rawRequirements: [vendorRequirement],
+    includeStageRequirements: includeStages,
     metadataOverride: {
       docType: 'TZ',
       enrichRequirements: enrich,
@@ -100,5 +101,30 @@ describe('analyzer requirement assembly', () => {
 
     expect(withEnrichment.slice(0, withoutEnrichment.length)).toEqual(withoutEnrichment);
     expect(withEnrichment.length).toBeGreaterThan(withoutEnrichment.length);
+  });
+
+  it('keeps stage requirements by default and drops them only when includeStageRequirements is false', () => {
+    // По умолчанию (флаг опущен) этапы попадают в требования — как во всех выпущенных комплектах
+    const implicitPayload = analyzeAndNormalizeInput({
+      calculation,
+      rawRequirements: [vendorRequirement],
+    });
+    expect(implicitPayload.customRequirements!.length).toBeGreaterThan(1);
+
+    const defaultPayload = analyzeAndNormalizeInput({
+      calculation,
+      rawRequirements: [vendorRequirement],
+      includeStageRequirements: false,
+    });
+
+    // Only vendor requirement is present in system requirements
+    expect(defaultPayload.customRequirements).toHaveLength(1);
+    expect(defaultPayload.customRequirements![0].code).toBe('ТР-БЕЗ-01');
+    expect(defaultPayload.requirementsV2).toHaveLength(1);
+    expect(defaultPayload.requirementsV2![0].code).toBe('ТР-БЕЗ-01');
+
+    // But stages are still fully retained in payload.stages for Section 6 and traceability
+    expect(defaultPayload.stages).toHaveLength(2);
+    expect(defaultPayload.stages[0].name).toBe('Обследование');
   });
 });

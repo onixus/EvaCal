@@ -396,6 +396,30 @@ export async function getGostPackageDraft(calculationId: string) {
 }
 
 /**
+ * Loads the studio working state: active draft (if any) and the latest released/reviewed package.
+ */
+export async function getGostPackageStudioState(calculationId: string) {
+  const [draft, latestPackage] = await Promise.all([
+    prisma.gostPackage.findFirst({
+      where: {
+        calculationId,
+        status: 'draft',
+      },
+      orderBy: { updatedAt: 'desc' },
+    }),
+    prisma.gostPackage.findFirst({
+      where: {
+        calculationId,
+        status: { not: 'draft' },
+      },
+      orderBy: [{ version: 'desc' }, { updatedAt: 'desc' }],
+    }),
+  ]);
+
+  return { draft, latestPackage };
+}
+
+/**
  * Releases a finalized GOST 34 package: stores immutable ZIP on disk, sets SHA-256 and marks under_review.
  */
 export async function releaseGostPackage(input: {
@@ -483,9 +507,26 @@ export async function releaseGostPackage(input: {
       },
     });
 
+    // Архивируем предыдущие черновики этого расчёта, чтобы они не оставались
+    // фантомными записями в очереди Студии после состоявшегося выпуска.
+    await prisma.gostPackage.updateMany({
+      where: {
+        calculationId: calculation.id,
+        status: 'draft',
+        id: { not: pkg.id },
+      },
+      data: {
+        status: 'archived',
+      },
+    });
+
     return updatedPkg;
   } catch (err) {
-    await prisma.gostPackage.delete({ where: { id: pkg.id } }).catch(() => {});
+    try {
+      await prisma.gostPackage.delete({ where: { id: pkg.id } });
+    } catch (cleanupErr) {
+      console.warn(`Не удалось удалить неуспешный пакет ${pkg.id}:`, cleanupErr);
+    }
     throw err;
   }
 }

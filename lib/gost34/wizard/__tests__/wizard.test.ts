@@ -202,6 +202,79 @@ describe('сводка соответствия', () => {
     expect(step?.status).toBe('empty');
     expect(report.canExport).toBe(true);
   });
+
+  it('шаг preview готов, если tzAuthor пуст или все черновики приняты', () => {
+    const report1 = buildComplianceReport(complianceInput({ tzAuthor: undefined }));
+    expect(report1.steps.find((s) => s.id === 'preview')?.status).toBe('ready');
+
+    const report2 = buildComplianceReport(
+      complianceInput({
+        tzAuthor: {
+          promptVersion: 'tz-author-v1',
+          speculateDefault: false,
+          proposals: {
+            'tz2020-general': {
+              nodeId: 'tz2020-general',
+              schemaTitle: 'Общие сведения',
+              status: 'ACCEPTED',
+              paragraphs: ['p1'],
+              questions: [],
+              flags: [],
+              refusedGapPaths: [],
+              speculate: false,
+              usedLlm: true,
+              provenance: {} as any,
+            },
+          },
+        },
+      }),
+    );
+    expect(report2.steps.find((s) => s.id === 'preview')?.status).toBe('ready');
+  });
+
+  it('шаг preview переходит в attention при наличии непринятых PROPOSED черновиков, не блокируя экспорт', () => {
+    const report = buildComplianceReport(
+      complianceInput({
+        tzAuthor: {
+          promptVersion: 'tz-author-v1',
+          speculateDefault: false,
+          proposals: {
+            'tz2020-general': {
+              nodeId: 'tz2020-general',
+              schemaTitle: 'Общие сведения',
+              status: 'PROPOSED',
+              paragraphs: ['p1'],
+              questions: [],
+              flags: [],
+              refusedGapPaths: [],
+              speculate: false,
+              usedLlm: true,
+              provenance: {} as any,
+            },
+            'tz2020-object': {
+              nodeId: 'tz2020-object',
+              schemaTitle: 'Объект автоматизации',
+              status: 'PROPOSED',
+              paragraphs: ['p2'],
+              questions: [],
+              flags: [],
+              refusedGapPaths: [],
+              speculate: false,
+              usedLlm: true,
+              provenance: {} as any,
+            },
+          },
+        },
+      }),
+    );
+
+    const step = report.steps.find((s) => s.id === 'preview');
+    expect(step?.status).toBe('attention');
+    expect(step?.issues).toHaveLength(1);
+    expect(step?.issues[0].text).toContain('2 черновика ИИ не приняты — в выпуск не войдут.');
+    expect(report.canExport).toBe(true);
+    expect(report.warnings.join(' ')).toContain('2 черновика ИИ не приняты');
+  });
 });
 
 describe('обзор мастера', () => {
@@ -225,8 +298,8 @@ describe('обзор мастера', () => {
     risks: [{ id: 'risk-1', description: 'Задержка поставки оборудования', hours: 20 }],
   };
 
-  it('собирает требования, этапы, применимость и трассировку из расчёта', () => {
-    const review = buildWizardReview({ calculation });
+  it('собирает требования, этапы, применимость и трассировку из расчёта при включённом извлечении', () => {
+    const review = buildWizardReview({ calculation, includeStageRequirements: true });
 
     expect(review.profile.id).toBe(CURRENT_GOST34_PROFILE_ID);
     expect(review.stages).toHaveLength(2);
@@ -234,6 +307,16 @@ describe('обзор мастера', () => {
     expect(review.applicability.results.length).toBeGreaterThan(0);
     expect(review.traceability.metrics.totalRequirements).toBe(review.requirements.length);
     expect(review.compliance.steps).toHaveLength(WIZARD_STEP_IDS.length);
+  });
+
+  it('по умолчанию берёт требования из этапов, а при includeStageRequirements: false — нет', () => {
+    // Дефолт сохраняет поведение выпущенных комплектов: раздел 4 не пустеет
+    expect(buildWizardReview({ calculation }).requirements.length).toBeGreaterThan(0);
+
+    const review = buildWizardReview({ calculation, includeStageRequirements: false });
+    expect(review.requirements).toHaveLength(0);
+    // Но сами этапы интегратора полностью присутствуют для Раздела 6 и трассировки
+    expect(review.stages).toHaveLength(2);
   });
 
   it('не подмешивает нормативное обогащение в экран проверки требований', () => {
@@ -335,11 +418,12 @@ describe('обзор мастера', () => {
   });
 
   it('засчитывает ручные связи трассировки', () => {
-    const base = buildWizardReview({ calculation });
+    const base = buildWizardReview({ calculation, includeStageRequirements: true });
     const unmapped = base.traceability.metrics.unmappedRequirements;
 
     const linked = buildWizardReview({
       calculation,
+      includeStageRequirements: true,
       manualLinks: base.requirements.map((req) => ({
         sourceId: req.id,
         targetId: 'stage-1',
@@ -356,5 +440,33 @@ describe('обзор мастера', () => {
     const review = buildWizardReview({ calculation }, { ...FULL_SIGNATURES, approver: '' });
     expect(review.compliance.canExport).toBe(false);
     expect(review.compliance.blockingIssues.join(' ')).toContain('Утвердил от Исполнителя');
+  });
+
+  it('учитывает tzAuthor в обзоре мастера и выставляет статус preview-шага', () => {
+    const review = buildWizardReview({
+      calculation,
+      tzAuthor: {
+        promptVersion: 'tz-author-v1',
+        speculateDefault: false,
+        proposals: {
+          'tz2020-general': {
+            nodeId: 'tz2020-general',
+            schemaTitle: 'Общие сведения',
+            status: 'PROPOSED',
+            paragraphs: ['черновик'],
+            questions: [],
+            flags: [],
+            refusedGapPaths: [],
+            speculate: false,
+            usedLlm: true,
+            provenance: {} as any,
+          },
+        },
+      },
+    });
+
+    const previewStep = review.compliance.steps.find((s) => s.id === 'preview');
+    expect(previewStep?.status).toBe('attention');
+    expect(previewStep?.issues[0].text).toContain('1 черновик ИИ не принят — в выпуск не войдёт.');
   });
 });

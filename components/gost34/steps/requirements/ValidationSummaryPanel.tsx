@@ -5,9 +5,9 @@ import type { ValidationFinding } from '@/lib/gost34/validation/types';
 import { PANEL_CLASS } from '../../wizardShared';
 
 export const SEVERITY_STYLES: Record<string, string> = {
-  ERROR: 'bg-red-500/15 text-red-300 border-red-500/40',
-  WARNING: 'bg-amber-500/15 text-amber-300 border-amber-500/40',
-  INFO: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-nord-1 dark:text-nord-4 dark:border-nord-3',
+  ERROR: 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/40',
+  WARNING: 'bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/40',
+  INFO: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-nord-1 dark:text-nord-4 dark:border-nord-3',
 };
 
 interface ValidationSummaryPanelProps {

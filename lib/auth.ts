@@ -11,6 +11,30 @@ export interface SessionPayload {
   username: string;
   role: string;
   exp: number;
+  /**
+   * Пароль выдан сидом/сбросом и ещё не менялся. Пока флаг стоит, все гейты
+   * (`requireRole`, `requireApiRole`, `requireStaff`, `requireCalcAccess`…)
+   * отвечают отказом — доступны только /account и auth-роуты. Снимается
+   * перевыпуском токена в /api/auth/change-password.
+   */
+  mustChangePassword?: boolean;
+}
+
+export const PASSWORD_CHANGE_REQUIRED_CODE = 'password_change_required';
+
+export function passwordChangeRequired(session: SessionPayload | null | undefined): boolean {
+  return session?.mustChangePassword === true;
+}
+
+/** 403 для API-роутов, когда сессия валидна, но пароль ещё не сменён. */
+export function passwordChangeRequiredResponse(): NextResponse {
+  return NextResponse.json(
+    {
+      error: 'Смените выданный пароль в /account, прежде чем продолжить',
+      code: PASSWORD_CHANGE_REQUIRED_CODE,
+    },
+    { status: 403 },
+  );
 }
 
 function getSecret(): string {
@@ -79,12 +103,18 @@ export function clearRevocationsForTesting(): void {
   revokedTokens.clear();
 }
 
-export function createSessionToken(user: { id: string; username: string; role: string }): string {
+export function createSessionToken(user: {
+  id: string;
+  username: string;
+  role: string;
+  mustChangePassword?: boolean;
+}): string {
   const payload: SessionPayload = {
     userId: user.id,
     username: user.username,
     role: user.role,
     exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
+    ...(user.mustChangePassword ? { mustChangePassword: true } : {}),
   };
   const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
   return `${data}.${sign(data)}`;
@@ -121,6 +151,7 @@ export async function getSession(): Promise<SessionPayload | null> {
 export async function requireRole(role: string | string[], next?: string): Promise<SessionPayload> {
   const allowed = Array.isArray(role) ? role : [role];
   const session = await getSession();
+  if (session && passwordChangeRequired(session)) redirect('/account');
   if (!session || !allowed.includes(session.role)) {
     const target =
       next ??
@@ -145,6 +176,7 @@ export async function requireApiRole(
   const allowed = Array.isArray(role) ? role : [role];
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Требуется вход в систему' }, { status: 401 });
+  if (passwordChangeRequired(session)) return passwordChangeRequiredResponse();
   if (!allowed.includes(session.role)) {
     return NextResponse.json({ error: 'Недостаточно прав' }, { status: 403 });
   }

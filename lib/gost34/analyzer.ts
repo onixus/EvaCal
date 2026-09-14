@@ -42,6 +42,15 @@ export function analyzeAndNormalizeInput(input: {
    * автоматическим сопоставлением: документ печатает именно их.
    */
   manualTraceLinks?: TraceLink[];
+  /**
+   * Извлекать ли требования из описаний этапов расчёта в раздел 4 ТЗ.
+   * По умолчанию true — так работали все выпущенные комплекты: у расчётов без
+   * вендорских требований иначе получается пустой раздел 4 и пустая ПМИ.
+   * Явное `false` отделяет интеграторские работы (раздел 6, календарный план,
+   * трассируемость) от требований к системе; ни один боевой роут пока флаг не
+   * передаёт, поэтому выключение должно прийти из UI мастера, а не по умолчанию.
+   */
+  includeStageRequirements?: boolean;
 }): Gost34InputPayload {
   const calc = input.calculation;
 
@@ -53,7 +62,10 @@ export function analyzeAndNormalizeInput(input: {
   const pmHours = calc?.pmHours || 0;
   const totalLaborHours = calculateTotals(stages, risks, pmHours);
 
-  const requirementsV2: Gost34RequirementV2[] = extractRequirementsFromStages(stages);
+  const shouldIncludeStages = input.includeStageRequirements ?? true;
+  const requirementsV2: Gost34RequirementV2[] = shouldIncludeStages
+    ? extractRequirementsFromStages(stages)
+    : [];
   requirementsV2.push(...fromGost34RequirementItems(input.rawRequirements || []));
 
   const baseCustomRequirements = toGost34RequirementItems(requirementsV2, {

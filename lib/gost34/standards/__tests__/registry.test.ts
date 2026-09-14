@@ -10,7 +10,7 @@ import {
 } from '../index';
 import { GostDocumentType } from '../../types';
 
-const ALL_DOC_TYPES: GostDocumentType[] = ['TZ', 'PZ', 'AF', 'PMI', 'SPEC'];
+const ALL_DOC_TYPES: GostDocumentType[] = ['TZ', 'PZ', 'AF', 'PMI', 'SPEC', 'PSI', 'ACT'];
 
 describe('resolveGost34Profile', () => {
   it('resolves a known id', () => {
@@ -41,7 +41,7 @@ describe('profile completeness', () => {
   });
 
   it.each(GOST34_PROFILES.map((p) => [p.id, p] as const))(
-    '%s covers all 5 document types once',
+    '%s covers all 7 document types once',
     (_id, profile) => {
       const docTypes = profile.documentTypes.map((d) => d.docType);
       expect(docTypes.slice().sort()).toEqual(ALL_DOC_TYPES.slice().sort());
@@ -53,8 +53,8 @@ describe('profile completeness', () => {
     '%s has usable document metadata',
     (_id, profile) => {
       const zipOrders = profile.documentTypes.map((d) => d.zipOrder);
-      expect(zipOrders.slice().sort()).toEqual([1, 2, 3, 4, 5]);
-      expect(new Set(profile.documentTypes.map((d) => d.id)).size).toBe(5);
+      expect(zipOrders.slice().sort()).toEqual([1, 2, 3, 4, 5, 6, 7]);
+      expect(new Set(profile.documentTypes.map((d) => d.id)).size).toBe(ALL_DOC_TYPES.length);
 
       for (const doc of profile.documentTypes) {
         expect(doc.title.trim()).not.toBe('');

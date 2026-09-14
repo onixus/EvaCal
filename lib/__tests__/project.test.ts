@@ -6,6 +6,7 @@ import {
   updateGostPackageStatus,
   getProjectDetails,
   backfillProjects,
+  getGostPackageStudioState,
 } from '@/lib/project';
 import { prisma } from '@/lib/prisma';
 
@@ -34,6 +35,8 @@ vi.mock('@/lib/prisma', () => ({
       findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
+      delete: vi.fn(),
     },
   },
 }));
@@ -322,6 +325,34 @@ describe('lib/project', () => {
       expect(result.migratedCalculations).toBe(1);
       expect(prisma.project.create).toHaveBeenCalled();
       expect(prisma.calculation.update).toHaveBeenCalled();
+    });
+  });
+
+  describe('getGostPackageStudioState', () => {
+    it('returns both draft and latestPackage for studio working context', async () => {
+      const mockDraft = { id: 'draft_1', version: 2, status: 'draft' };
+      const mockRejected = {
+        id: 'pkg_rej_1',
+        version: 3,
+        status: 'rejected',
+        reviewComment: 'Исправить раздел 4',
+      };
+
+      vi.mocked(prisma.gostPackage.findFirst)
+        .mockResolvedValueOnce(mockDraft as any)
+        .mockResolvedValueOnce(mockRejected as any);
+
+      const state = await getGostPackageStudioState('calc_1');
+      expect(state.draft).toEqual(mockDraft);
+      expect(state.latestPackage).toEqual(mockRejected);
+      expect(prisma.gostPackage.findFirst).toHaveBeenCalledWith({
+        where: { calculationId: 'calc_1', status: 'draft' },
+        orderBy: { updatedAt: 'desc' },
+      });
+      expect(prisma.gostPackage.findFirst).toHaveBeenCalledWith({
+        where: { calculationId: 'calc_1', status: { not: 'draft' } },
+        orderBy: [{ version: 'desc' }, { updatedAt: 'desc' }],
+      });
     });
   });
 });

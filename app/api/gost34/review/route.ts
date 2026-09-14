@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
       manualLinks = [],
       projectContext,
       signatures,
+      tzAuthor,
     } = body;
 
     if (!calculationId) {
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest) {
         applicabilityOverrides,
         manualLinks,
         projectContext,
+        tzAuthor,
       },
       signatures,
     );

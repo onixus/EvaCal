@@ -348,6 +348,32 @@ export default function PackageReviewClient({
             Состав: {docTypes.map((d) => d.toUpperCase()).join(', ')} · профиль{' '}
             {pkg.standardProfileId} ({pkg.standardProfileVersion})
           </p>
+
+          {pkg.status === 'rejected' && (
+            <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50/80 p-3 dark:border-nord-red/40 dark:bg-nord-red/10 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-600 text-xs font-bold text-white dark:bg-nord-red">
+                    !
+                  </span>
+                  <span className="text-xs font-bold text-rose-900 dark:text-nord-redText">
+                    Комплект возвращён с замечаниями
+                  </span>
+                </div>
+                <Link
+                  href={`/calculations/${pkg.calculationId}/studio`}
+                  className="btn-primary !bg-rose-600 hover:!bg-rose-700 dark:!bg-nord-red !px-3 !py-1 !text-xs !font-bold"
+                >
+                  ✏️ Открыть в Студии ГОСТ 34 для исправления →
+                </Link>
+              </div>
+              {pkg.reviewComment && (
+                <div className="rounded border-l-2 border-rose-600 bg-white dark:bg-nord-2 p-2.5 text-xs italic text-slate-800 dark:text-nord-5">
+                  «{pkg.reviewComment}»
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-1 border-b border-slate-200 dark:border-nord-3">
@@ -559,6 +585,23 @@ export default function PackageReviewClient({
                   «{pkg.reviewComment}»
                 </div>
               )}
+            </div>
+          ) : pkg.status === 'rejected' ? (
+            <div className="space-y-2.5 rounded-lg bg-rose-50 p-3 text-[11px] dark:bg-nord-red/15">
+              <div className="font-bold text-rose-900 dark:text-nord-redText">
+                ✕ Комплект отклонён с замечаниями
+              </div>
+              {pkg.reviewComment && (
+                <div className="rounded bg-white/70 dark:bg-nord-2/70 p-2 italic text-rose-800 dark:text-nord-redText">
+                  «{pkg.reviewComment}»
+                </div>
+              )}
+              <Link
+                href={`/calculations/${pkg.calculationId}/studio`}
+                className="btn-primary !bg-rose-600 hover:!bg-rose-700 dark:!bg-nord-red w-full block text-center !py-1.5 !text-xs !font-bold"
+              >
+                ✏️ Исправить в Студии ГОСТ 34 →
+              </Link>
             </div>
           ) : !canReview ? (
             <p className="rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] text-slate-500 dark:bg-nord-1 dark:text-nord-muted">

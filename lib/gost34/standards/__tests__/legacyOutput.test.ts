@@ -21,15 +21,19 @@ const LEGACY_HEADINGS: Array<[GostDocumentType, string, string]> = [
   ['AF', 'ОПИСАНИЕ АВТОМАТИЗИРУЕМЫХ ФУНКЦИЙ', '(РД 50-34.698-90 п.2.2)'],
   ['PMI', 'ПРОГРАММА И МЕТОДИКА ИСПЫТАНИЙ', '(РД 50-34.698-90 п.2.7)'],
   ['SPEC', 'СПЕЦИФИКАЦИЯ ОБОРУДОВАНИЯ И ПО', '(ГОСТ 34.201-89 / РД 50-34.698-90 п.2.8)'],
+  ['PSI', 'ПРОТОКОЛ ИСПЫТАНИЙ', '(ГОСТ 34.603-92)'],
+  ['ACT', 'АКТ ПРИЕМКИ', '(ГОСТ 34.603-92)'],
 ];
 
 /** Frozen copy of the ZIP filenames the export route produced before the registry. */
-const LEGACY_ZIP_FILENAMES = [
+const EXPECTED_FILENAMES = [
   '01_TZ_Техническое_задание_ГОСТ_34.602-89.docx',
   '02_PZ_Пояснительная_записка_РД_50-34.698-90.docx',
   '03_AF_Описание_функций_РД_50-34.698-90.docx',
   '04_PMI_Программа_и_методика_испытаний_РД_50-34.698-90.docx',
   '05_SPEC_Спецификация_оборудования_и_ПО_ГОСТ_34.201-89.docx',
+  '06_PSI_Протокол_испытаний_ГОСТ_34.603-92.docx',
+  '07_ACT_Акт_приемки_ГОСТ_34.603-92.docx',
 ];
 
 describe('legacy profile output is unchanged', () => {
@@ -38,11 +42,11 @@ describe('legacy profile output is unchanged', () => {
   });
 
   it('produces the same ZIP entry names', () => {
-    expect(getZipEntries(legacy).map((e) => e.filename)).toEqual(LEGACY_ZIP_FILENAMES);
+    expect(getZipEntries(legacy).map((e) => e.filename)).toEqual(EXPECTED_FILENAMES);
   });
 
   it('orders ZIP entries by zipOrder', () => {
-    expect(getZipEntries(legacy).map((e) => e.docType)).toEqual(['TZ', 'PZ', 'AF', 'PMI', 'SPEC']);
+    expect(getZipEntries(legacy).map((e) => e.docType)).toEqual(['TZ', 'PZ', 'AF', 'PMI', 'SPEC', 'PSI', 'ACT']);
   });
 });
 

@@ -13,6 +13,9 @@ import type { ProjectContext, ContextGap } from '../context/types';
 import type { ApplicabilityResult, ApplicabilityOverride } from '../applicability/types';
 import type { ValidationReport } from '../validation/types';
 import type { TraceLink, TraceabilityResult } from '../traceability/types';
+import type { TzAuthorState, TzAuthorDiagnostic } from '../llm/tzAuthor/types';
+
+export type { TzAuthorDiagnostic };
 
 export type WizardStepId =
   | 'profile'
@@ -119,6 +122,9 @@ export interface WizardReviewInput {
   /** Ручные связи «требование → этап» (шаг «Трассируемость»). */
   manualLinks?: TraceLink[];
   projectContext?: Partial<ProjectContext>;
+  /** Извлекать ли требования из этапов расчёта (по умолчанию false). */
+  includeStageRequirements?: boolean;
+  tzAuthor?: TzAuthorState;
 }
 
 /** Результат обзора: всё, что показывают экраны проверки перед выпуском. */

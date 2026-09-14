@@ -11,6 +11,9 @@ import { NGFW_SZI_PRESET } from './presets/ngfwSzi';
 import { HARDWARE_PAC_DB_PRESET } from './presets/hardwarePacDb';
 import { KII_GIS_COMPLIANCE_PRESET } from './presets/kiiGisCompliance';
 import { CUSTOM_DEVELOPMENT_API_PRESET } from './presets/customDevelopmentApi';
+import { ERP_CRM_ENTERPRISE_PRESET } from './presets/erpCrmEnterprise';
+import { FINTECH_BANKING_PLATFORM_PRESET } from './presets/fintechBankingPlatform';
+import { DATA_LAKE_BI_PLATFORM_PRESET } from './presets/dataLakeBiPlatform';
 import { IMPORT_SUBSTITUTION_MIGRATION_PRESET } from './presets/importSubstitutionMigration';
 import { SIEM_MONITORING_PRESET } from './presets/siemMonitoring';
 import { BACKUP_DR_PRESET } from './presets/backupDr';
@@ -22,6 +25,9 @@ export const INDUSTRY_PRESETS: IndustryPreset[] = [
   HARDWARE_PAC_DB_PRESET,
   KII_GIS_COMPLIANCE_PRESET,
   CUSTOM_DEVELOPMENT_API_PRESET,
+  ERP_CRM_ENTERPRISE_PRESET,
+  FINTECH_BANKING_PLATFORM_PRESET,
+  DATA_LAKE_BI_PLATFORM_PRESET,
   IMPORT_SUBSTITUTION_MIGRATION_PRESET,
   SIEM_MONITORING_PRESET,
   BACKUP_DR_PRESET,

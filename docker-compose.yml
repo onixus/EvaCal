@@ -1,19 +1,23 @@
 services:
-  # One-off schema sync: run before first `docker compose up` and after any schema
-  # change, e.g. `docker compose run --rm migrate`. Not part of the default `up`.
+  # Schema sync & seed: runs automatically before `app` starts, or manually via
+  # `docker compose run --rm migrate`.
   migrate:
     build:
       context: .
       target: migrate
-    profiles: ['tools']
+    restart: "no"
     environment:
       DATABASE_URL: ${DATABASE_URL:-file:./prisma/dev.db}
+      SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD:-}
     volumes:
       - db-data:/app/prisma
 
   app:
     build: .
     restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL: ${DATABASE_URL:-file:./prisma/dev.db}
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}

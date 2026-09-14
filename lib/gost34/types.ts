@@ -8,7 +8,7 @@ import type { ProjectContext } from './context/types';
 import type { ValidationReport } from './validation/types';
 import type { ApplicabilityResult } from './applicability/types';
 
-export type GostDocumentType = 'TZ' | 'PZ' | 'AF' | 'PMI' | 'SPEC' | 'RP' | 'RA';
+export type GostDocumentType = 'TZ' | 'PZ' | 'AF' | 'PMI' | 'SPEC' | 'RP' | 'RA' | 'PSI' | 'ACT';
 
 /** What an export request may ask for: one document, or the full batch as a ZIP. */
 export type GostExportType = GostDocumentType | 'ZIP';
@@ -88,6 +88,7 @@ export interface Gost34RequirementItem {
   category: RequirementCategory;
   title: string;
   description: string;
+  criterion?: string; // Критерий приемки / проверки (ПМИ)
   sourceFile?: string; // Имя файла вендорского ТЗ/ФТ/ТТ
   /**
    * Immutable source wording. Templates ignore it; it exists so provenance

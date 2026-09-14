@@ -33,6 +33,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json tsconfig.json prisma.config.ts ./
 COPY prisma ./prisma
 COPY lib ./lib
+COPY reset-all.ts ./
 COPY docker-migrate-entrypoint.sh /usr/local/bin/docker-migrate-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-migrate-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker-migrate-entrypoint.sh"]
