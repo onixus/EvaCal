@@ -141,6 +141,7 @@ const STUDIO: NavItem = {
   group: 'work',
   badgeKey: 'studioDrafts',
 };
+const BOARD: NavItem = { href: '/board', label: 'Доска комплектов', group: 'work' };
 const CHANGELOG: NavItem = {
   href: '/changelog',
   label: 'Лист внутренних изменений',
@@ -171,6 +172,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     // Архитектор выпускает комплект, но подпись ставит ГАП: пункт ведёт на ту
     // же очередь как наблюдательный — видно, где стоят его выпуски.
     { href: '/review', label: 'Комплекты на подписи', group: 'work', badgeKey: 'gapQueue' },
+    BOARD,
     CHANGELOG,
     CATALOG,
     CAPACITY,
@@ -181,6 +183,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   techwriter: [
     DASHBOARD,
     { href: '/review', label: 'Очередь нормоконтроля', group: 'work', badgeKey: 'reviewQueue' },
+    BOARD,
     CHANGELOG,
     STANDARDS,
     CAPACITY,
@@ -190,6 +193,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   gap: [
     DASHBOARD,
     { href: '/review', label: 'Финальное ревью (ГАП)', group: 'work', badgeKey: 'gapQueue' },
+    BOARD,
     PROJECTS,
     CALCULATIONS,
     CHANGELOG,
@@ -201,6 +205,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   reviewer: [
     DASHBOARD,
     { href: '/review', label: 'Очередь ревью', group: 'work', badgeKey: 'reviewQueue' },
+    BOARD,
     CHANGELOG,
     STANDARDS,
     CAPACITY,
@@ -215,6 +220,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     CALCULATIONS,
     STUDIO,
     { href: '/review', label: 'Ревью документации', group: 'work', badgeKey: 'reviewQueue' },
+    BOARD,
     CHANGELOG,
     STANDARDS,
     CATALOG,
