@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   res.cookies.set(
     SESSION_COOKIE_NAME,
     createSessionToken(updated),
-    sessionCookieOptions(SESSION_MAX_AGE_SECONDS),
+    sessionCookieOptions(SESSION_MAX_AGE_SECONDS, req),
   );
   return res;
 }

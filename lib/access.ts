@@ -235,12 +235,41 @@ export async function requireCalcAccess(
   return unauthorized();
 }
 
+/** Запрос, по которому решается флаг Secure: достаточно адреса и заголовков. */
+export interface CookieRequestLike {
+  url: string;
+  headers: { get(name: string): string | null };
+}
+
+/**
+ * Локальный стенд по plain-http: `localhost` / 127.0.0.1 без TLS и без
+ * заголовка прокси о https. Только такому запросу Secure-cookie в production
+ * не выставляется: Safari не считает http://localhost защищённым контекстом,
+ * отбрасывает Secure-cookie и не даёт заменить её обычной — вход зацикливается.
+ */
+export function isPlainLocalRequest(req: CookieRequestLike): boolean {
+  const forwardedProto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  if (forwardedProto === 'https') return false;
+  let url: URL;
+  try {
+    url = new URL(req.url);
+  } catch {
+    return false;
+  }
+  if (url.protocol === 'https:') return false;
+  const host = url.hostname;
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+}
+
 /** Cookie options for session tokens (login / logout / password change). */
-export function sessionCookieOptions(maxAge: number) {
+export function sessionCookieOptions(maxAge: number, req?: CookieRequestLike) {
+  const forced = process.env.FORCE_SECURE_COOKIES === 'true';
+  const production = process.env.NODE_ENV === 'production';
+  const secure = forced || (production && !(req ? isPlainLocalRequest(req) : false));
   return {
     httpOnly: true as const,
     sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production' || process.env.FORCE_SECURE_COOKIES === 'true',
+    secure,
     path: '/',
     maxAge,
   };

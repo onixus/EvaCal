@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     role: user.role,
     mustChangePassword: user.mustChangePassword,
   });
-  res.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions(SESSION_MAX_AGE_SECONDS));
+  res.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions(SESSION_MAX_AGE_SECONDS, req));
   await writeAudit({
     actorType: 'user',
     actorId: user.id,
