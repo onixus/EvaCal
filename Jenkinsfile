@@ -113,6 +113,80 @@ pipeline {
                 sh 'cd "$BUILD_DIR" && npm run build'
             }
         }
+
+        // Сквозной сценарий: логин, проект, расчёт, мастер ГОСТ 34, выпуск
+        // комплекта, утверждение. Стадия идёт последней — она самая долгая и
+        // самая дорогая в диагностике, а быстрые проверки должны падать раньше.
+        stage('E2E') {
+            agent {
+                // Собственный агент: Playwright не поддерживает Alpine — браузеры
+                // собраны под glibc и на musl не запускаются. Официальный образ
+                // несёт их предустановленными в /ms-playwright, тег обязан совпадать
+                // с версией @playwright/test из package-lock.json, иначе Playwright
+                // откажется работать с чужой сборкой браузера.
+                docker {
+                    image 'mcr.microsoft.com/playwright:v1.63.0-noble'
+                    args '-u root:root'
+                }
+            }
+            steps {
+                // Отдельный агент — отдельный воркспейс (Ева@2) со своим checkout,
+                // поэтому /build из основного контейнера сюда не доезжает и весь
+                // цикл повторяется здесь. Это цена изоляции: e2e не может испортить
+                // сборку основных стадий, а его падение не смешивается с ними.
+                sh '''
+                    set -eu
+
+                    # Пароль генерируется на каждый прогон и нигде не хранится:
+                    # сид заводит учётки с ним, тест им же логинится. Credential
+                    # в Jenkins заводить не требуется. Без E2E_ARCHITECT_PASSWORD
+                    # тест молча скипается — это не успех, а пропуск.
+                    PW=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 20)
+                    export SEED_DEFAULT_PASSWORD="$PW"
+                    export E2E_ARCHITECT_PASSWORD="$PW"
+
+                    # lib/auth.ts бросает исключение без SESSION_SECRET, и логин
+                    # отвечает 500. Снаружи это выглядит как зависший сабмит формы,
+                    # а не как отсутствующая переменная.
+                    export SESSION_SECRET=$(head -c 32 /dev/urandom | base64 | tr -d '/+=')
+                    export SHARE_TOKEN_SECRET=$(head -c 32 /dev/urandom | base64 | tr -d '/+=')
+
+                    export CI=true
+                    export NEXT_TELEMETRY_DISABLED=1
+                    export DATABASE_URL='file:./prisma/dev.db'
+                    export PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+                    rm -rf /e2e && mkdir -p /e2e
+                    tar -cf - --exclude=node_modules --exclude=.next . | (cd /e2e && tar -xf -)
+                    cd /e2e
+
+                    npm ci
+                    npx prisma generate
+                    npx prisma db push
+                    npm run db:seed
+                    npm run build
+
+                    # --retries=0 намеренно, хотя playwright.config.ts ставит 2 на CI.
+                    # Сценарий на первой попытке проходит обязательную смену пароля
+                    # архитектора, поэтому повторная попытка логинится уже неверным
+                    # паролем и падает на «Неверный логин или пароль». Ретраи здесь
+                    # не лечат флак, а втрое удлиняют прогон и подменяют настоящую
+                    # причину падения ложной.
+                    npx playwright test --retries=0 --reporter=list
+                '''
+            }
+            post {
+                always {
+                    // Отчёт и трассы забираются в воркспейс: внутри контейнера они
+                    // исчезнут вместе с ним, а разбирать падение сквозного сценария
+                    // без них почти невозможно.
+                    sh 'cp -r /e2e/playwright-report "$WORKSPACE/" 2>/dev/null || true'
+                    sh 'cp -r /e2e/test-results "$WORKSPACE/" 2>/dev/null || true'
+                    archiveArtifacts artifacts: 'playwright-report/**, test-results/**',
+                                     allowEmptyArchive: true, fingerprint: false
+                }
+            }
+        }
     }
 
     post {
