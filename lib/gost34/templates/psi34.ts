@@ -1,5 +1,5 @@
 import { Gost34InputPayload, Gost34Section } from '../types';
-import { Gost34RequirementV2, getRequirementEffectiveText } from '../requirements/v2';
+import { Gost34RequirementV2 } from '../requirements/v2';
 
 export function buildPSI34Sections(payload: Gost34InputPayload): Gost34Section[] {
   const meta = payload.metadata;
@@ -56,15 +56,9 @@ export function buildPSI34Sections(payload: Gost34InputPayload): Gost34Section[]
           ],
           rows: reqsV2.map((r, idx) => {
             const criteria = r.acceptanceCriteria?.join('; ') || 'Успешное выполнение проверки без ошибок';
-            const text = getRequirementEffectiveText(r);
-            return [
-              idx + 1,
-              r.code,
-              r.title,
-              criteria,
-              'Функция работает штатно, ошибок не выявлено.',
-              'Соответствует',
-            ];
+            // Фактический результат и отметку заполняет комиссия по итогам испытаний —
+            // генератор не вправе проставлять «Соответствует» заранее.
+            return [idx + 1, r.code, r.title, criteria, '', ''];
           }),
         },
       ],
@@ -74,8 +68,8 @@ export function buildPSI34Sections(payload: Gost34InputPayload): Gost34Section[]
       numStr: '4',
       title: 'ВЫВОДЫ КОМИССИИ',
       paragraphs: [
-        `4.1 Система «${meta.systemName}» выдержала приемо-сдаточные испытания.`,
-        '4.2 Решение комиссии: Система готова к переводу в опытно-промышленную эксплуатацию.',
+        `4.1 Результат приемо-сдаточных испытаний системы «${meta.systemName}»: ____________________ (заполняется комиссией).`,
+        '4.2 Решение комиссии: ____________________ (заполняется комиссией по итогам испытаний).',
       ],
     },
   ];

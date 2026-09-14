@@ -174,10 +174,11 @@ docker compose run --rm migrate sh -c 'cp prisma/dev.db prisma/dev.db.bak-$(date
 ### Сброс скомпрометированных паролей на стенде
 
 ```bash
-# Локальная разработка
-npm run seed:reset
+# Локальная разработка: один пользователь или все
+npx tsx reset-all.ts admin
+npx tsx reset-all.ts --all
 
-# Docker-окружение
-docker compose exec app npx tsx scripts/reset-all.ts
+# Docker-окружение (образ app не содержит tsx — сброс выполняется через migrate)
+docker compose run --rm migrate npx tsx reset-all.ts --all
 ```
-Сгенерированные временные пароли будут сохранены в `credentials.local.txt` с требованием обязательной смены (`mustChangePassword`) при следующем входе.
+Каждому пользователю выдаётся новый случайный пароль; он печатается один раз в stdout и не сохраняется ни в файл, ни в volume. Ставится `mustChangePassword`: до смены пароля сервер отвечает 403 `password_change_required` на всех защищённых роутах, а страницы редиректят в `/account`.

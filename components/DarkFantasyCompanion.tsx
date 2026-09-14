@@ -157,17 +157,22 @@ export default function DarkFantasyCompanion() {
     [activeHeroineId, isExpanded],
   );
 
-  // Contextual lore reaction on pathname change
+  // Contextual lore reaction on pathname change. Читаем остальное через ref:
+  // addNotification пересоздаётся на каждый expand/collapse, а смена героини
+  // уже уведомляет в selectHeroine — иначе одно событие давало два тоста.
+  const loreCtxRef = useRef({ addNotification, activeHeroineId, role: session?.role, theme });
+  loreCtxRef.current = { addNotification, activeHeroineId, role: session?.role, theme };
   useEffect(() => {
-    if (!canUseDarkFantasy(session?.role) || theme !== 'dark-fantasy') return;
-    const advice = getHeroineLoreAdvice(activeHeroineId, pathname);
-    addNotification({
+    const ctx = loreCtxRef.current;
+    if (!canUseDarkFantasy(ctx.role) || ctx.theme !== 'dark-fantasy') return;
+    const advice = getHeroineLoreAdvice(ctx.activeHeroineId, pathname);
+    ctx.addNotification({
       title: advice.title,
       text: advice.text,
       source: 'lore',
       severity: 'info',
     });
-  }, [pathname, activeHeroineId, session?.role, theme, addNotification]);
+  }, [pathname]);
 
   // Listen to custom system notification events
   useEffect(() => {
@@ -213,7 +218,12 @@ export default function DarkFantasyCompanion() {
   }, [isExpanded]);
 
   // If user does not have permission or theme is not dark-fantasy, render NOTHING!
-  if (!isSessionLoaded || !session || !canUseDarkFantasy(session.role) || theme !== 'dark-fantasy') {
+  if (
+    !isSessionLoaded ||
+    !session ||
+    !canUseDarkFantasy(session.role) ||
+    theme !== 'dark-fantasy'
+  ) {
     return null;
   }
 
@@ -358,8 +368,7 @@ export default function DarkFantasyCompanion() {
     }
   };
 
-  const dockClass =
-    dockSide === 'left' ? 'left-5 items-start' : 'right-5 items-end';
+  const dockClass = dockSide === 'left' ? 'left-5 items-start' : 'right-5 items-end';
 
   return (
     <aside
@@ -393,9 +402,7 @@ export default function DarkFantasyCompanion() {
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-base">{heroine.avatarIcon}</span>
               <div className="flex flex-col min-w-0">
-                <span className="text-xs font-bold text-purple-200 truncate">
-                  {heroine.name}
-                </span>
+                <span className="text-xs font-bold text-purple-200 truncate">{heroine.name}</span>
                 <span className="text-[9px] text-purple-400 truncate leading-none">
                   {heroine.role}
                 </span>
@@ -496,9 +503,7 @@ export default function DarkFantasyCompanion() {
 
                   <div className="flex-1 min-w-0">
                     <div
-                      onClick={() =>
-                        setQuoteIndex((i) => (i + 1) % heroine.quotes.length)
-                      }
+                      onClick={() => setQuoteIndex((i) => (i + 1) % heroine.quotes.length)}
                       className="cursor-pointer group/quote rounded-lg bg-slate-900/80 border border-purple-900/40 p-2 hover:border-purple-600/50 transition-colors"
                       title="Клик — следующая реплика"
                     >

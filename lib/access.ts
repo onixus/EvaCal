@@ -9,7 +9,12 @@
  */
 import crypto from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession, SessionPayload } from '@/lib/auth';
+import {
+  getSession,
+  passwordChangeRequired,
+  passwordChangeRequiredResponse,
+  SessionPayload,
+} from '@/lib/auth';
 
 /**
  * Роли с полными правами на расчёты и проекты. Намеренно не расширяется
@@ -149,6 +154,7 @@ export async function requireInternalRole(
 ): Promise<SessionPayload | NextResponse> {
   const session = await getSession();
   if (!session) return unauthorized('Требуется вход в систему');
+  if (passwordChangeRequired(session)) return passwordChangeRequiredResponse();
   if (!roleCovers(session.role, need)) return forbidden();
   return session;
 }
@@ -157,6 +163,7 @@ export async function requireInternalRole(
 export async function requireStaff(): Promise<SessionPayload | NextResponse> {
   const session = await getSession();
   if (!session) return unauthorized('Требуется вход в систему');
+  if (passwordChangeRequired(session)) return passwordChangeRequiredResponse();
   if (!isStaffRole(session.role)) return forbidden();
   return session;
 }
@@ -171,6 +178,7 @@ export async function requireCalcAccess(
   need: ShareScope[],
 ): Promise<AccessContext | NextResponse> {
   const session = await getSession();
+  if (session && passwordChangeRequired(session)) return passwordChangeRequiredResponse();
   if (session && scopesForRole(session.role).length > 0) {
     if (!roleCovers(session.role, need)) {
       return forbidden(`Роль «${session.role}» не даёт права: ${need.join(', ')}`);
@@ -245,6 +253,7 @@ export async function resolvePageAccess(
   shareToken?: string | null,
 ): Promise<AccessContext | null> {
   const session = await getSession();
+  if (session && passwordChangeRequired(session)) return null;
   if (session && scopesForRole(session.role).length > 0) {
     if (!roleCovers(session.role, need)) return null;
     return {
@@ -291,13 +300,15 @@ export async function resolvePageAccess(
  */
 export async function getInternalSession(): Promise<SessionPayload | null> {
   const session = await getSession();
-  if (!session || scopesForRole(session.role).length === 0) return null;
+  if (!session || passwordChangeRequired(session)) return null;
+  if (scopesForRole(session.role).length === 0) return null;
   return session;
 }
 
 /** Staff session for RSC pages, or null. Does not redirect. */
 export async function getStaffSession(): Promise<SessionPayload | null> {
   const session = await getSession();
-  if (!session || !isStaffRole(session.role)) return null;
+  if (!session || passwordChangeRequired(session)) return null;
+  if (!isStaffRole(session.role)) return null;
   return session;
 }

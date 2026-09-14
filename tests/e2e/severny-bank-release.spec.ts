@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+// Пароль стендового архитектора берётся из окружения: общего дефолтного пароля в проекте нет.
+const E2E_PASSWORD = process.env.E2E_ARCHITECT_PASSWORD;
+
 test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
   test.setTimeout(240000);
   const PROJECT_NAME = 'Северный банк (e2e)';
@@ -7,12 +10,14 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
 
   test('login, create project, create calculation, release GOST 34 package, and approve', async ({ page, context }) => {
     test.setTimeout(300000); // Flow is long, give it 5 minutes
+    test.skip(!E2E_PASSWORD, 'E2E_ARCHITECT_PASSWORD не задан');
+    const password = E2E_PASSWORD as string;
 
     // 1. Login as architect
     await page.goto('/login');
     const inputs = page.locator('.input');
     await inputs.nth(0).fill('architect');
-    await inputs.nth(1).fill('tFczY9wyWabx');
+    await inputs.nth(1).fill(password);
     await page.click('button[type="submit"]');
 
     // Wait for either navigation or an error message to appear
@@ -33,7 +38,7 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     // Handle initial forced password change if redirected to /account
     if (/account/.test(page.url())) {
       const passInputs = page.locator('input[type="password"]');
-      await passInputs.nth(0).fill('tFczY9wyWabx');
+      await passInputs.nth(0).fill(password);
       await passInputs.nth(1).fill('newsecurepassword123');
       await page.getByRole('button', { name: /Сменить пароль/i }).click();
       await expect(page.getByText('Пароль изменён')).toBeVisible();

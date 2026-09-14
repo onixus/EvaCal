@@ -15,14 +15,14 @@ export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  // 1. Feature flag check
+  // 1. Сначала аутентификация — иначе аноним по коду ответа узнаёт состояние фичефлага
+  const session = await requireApiRole(GOST34_LLM_ROLES);
+  if (session instanceof NextResponse) return session;
+
+  // 2. Feature flag check
   if (!isTzAuthorEnabled()) {
     return NextResponse.json({ error: 'feature_disabled' }, { status: 403 });
   }
-
-  // 2. Staff check
-  const session = await requireApiRole(GOST34_LLM_ROLES);
-  if (session instanceof NextResponse) return session;
 
   let body: any;
   try {
@@ -70,24 +70,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'calculation not found' }, { status: 404 });
   }
 
-  const normalizedPayload = analyzeAndNormalizeInput({
-    calculation: calculation as any,
-    rawRequirements,
-    projectContext,
-    metadataOverride: {
-      docType: 'TZ',
-      standardProfileId: standardProfileId || 'gost-34-2020',
-      applicabilityOverrides,
-    },
-    manualTraceLinks: manualLinks,
-  });
-
+  // Нормализация и обход схемы работают с сырым телом запроса — ошибка формы
+  // (кривые rawRequirements, projectContext) должна быть 400, а не 500.
+  let normalizedPayload: ReturnType<typeof analyzeAndNormalizeInput>;
+  let draftableNodes: ReturnType<typeof walkDraftableNodes>;
+  try {
+    normalizedPayload = analyzeAndNormalizeInput({
+      calculation: calculation as any,
+      rawRequirements,
+      projectContext,
+      metadataOverride: {
+        docType: 'TZ',
+        standardProfileId: standardProfileId || 'gost-34-2020',
+        applicabilityOverrides,
+      },
+      manualTraceLinks: manualLinks,
+    });
+    draftableNodes = walkDraftableNodes(TZ_SCHEMA_2020, {
+      payload: normalizedPayload,
+      context: normalizedPayload.projectContext!,
+      schema: TZ_SCHEMA_2020,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: 'invalid_input', message: err?.message || 'Не удалось разобрать входные данные' },
+      { status: 400 },
+    );
+  }
   const ctx = normalizedPayload.projectContext!;
-  const draftableNodes = walkDraftableNodes(TZ_SCHEMA_2020, {
-    payload: normalizedPayload,
-    context: ctx,
-    schema: TZ_SCHEMA_2020,
-  });
 
   if (!draftableNodes.some((n) => n.id === nodeId)) {
     return NextResponse.json(
@@ -101,9 +111,10 @@ export async function POST(req: NextRequest) {
     // Note: body.endpoint is completely ignored for SSRF perimeter security
     provider = resolveLlmProvider(providerId);
   } catch (err: any) {
+    // Неизвестный providerId — ошибка запроса, а не upstream (см. providers.ts)
     return NextResponse.json(
       { error: 'provider', message: err?.message || 'Failed to resolve provider' },
-      { status: 502 },
+      { status: 400 },
     );
   }
 

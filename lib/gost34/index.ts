@@ -41,7 +41,9 @@ export { TZ_SCHEMA_2020 } from './schema/tz34-2020';
 export { renderDocumentSchema, validateSchemaCoverage } from './schema/renderer';
 export type { DocumentSchema, SchemaNode, SchemaValidationIssue } from './schema/types';
 
-const CLAUSE_PREFIX = /^\d+(?:\.\d+)*[\.)]?\s+/;
+// Только многоуровневый номер пункта («4.1 », «3.2.1. »). Голое число в начале
+// абзаца («30 минут RTO…», «2 контура…») — часть текста, его не срезаем.
+const CLAUSE_PREFIX = /^\d+(?:\.\d+)+\.?\s+/;
 
 export function stripClausePrefix(text: string): string {
   return text.replace(CLAUSE_PREFIX, '').trim();

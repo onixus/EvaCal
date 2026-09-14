@@ -1,58 +1,81 @@
-import fs from 'node:fs';
-import path from 'node:path';
+/**
+ * Сброс паролей стендовых учётных записей.
+ *
+ * Запуск:
+ *   npx tsx reset-all.ts admin                 — сбросить одного пользователя
+ *   npx tsx reset-all.ts admin architect       — нескольких
+ *   npx tsx reset-all.ts --all                 — всех
+ *   docker compose run --rm migrate npx tsx reset-all.ts --all
+ *
+ * Каждому пользователю выдаётся свой случайный пароль (как при первом сиде) и
+ * ставится mustChangePassword — до смены пароля API и страницы закрыты.
+ * Пароли печатаются один раз в stdout и никуда не сохраняются: в Docker
+ * возьмите их из вывода команды, локально — из терминала.
+ */
 import bcrypt from 'bcryptjs';
+import { generatePassword } from './lib/password';
 import { prisma } from './lib/prisma';
 
-async function resetAll() {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('resetAll is strictly forbidden in production');
-  }
-  const newPassword = process.env.NEW_PASSWORD?.trim() || 'tFczY9wyWabx'; 
-  const passwordHash = await bcrypt.hash(newPassword, 10);
-  
-  await prisma.user.updateMany({
-    data: { 
-      passwordHash,
-      mustChangePassword: true
-    },
+function usage(): never {
+  console.error(
+    'Использование: npx tsx reset-all.ts <логин> [<логин> ...] | --all\n' +
+      'Без аргументов ничего не делает — сброс всех паролей требует явного --all.',
+  );
+  process.exit(2);
+}
+
+async function resetPasswords() {
+  const args = process.argv.slice(2).filter(Boolean);
+  if (args.length === 0) usage();
+
+  const all = args.includes('--all');
+  const usernames = args.filter((a) => a !== '--all');
+  if (!all && usernames.length === 0) usage();
+
+  const users = await prisma.user.findMany({
+    where: all ? undefined : { username: { in: usernames } },
+    select: { id: true, username: true, role: true },
+    orderBy: { username: 'asc' },
   });
 
-  const users = await prisma.user.findMany({ select: { username: true, role: true } });
+  const missing = usernames.filter((u) => !users.some((x) => x.username === u));
+  if (missing.length > 0) {
+    console.error(`Пользователи не найдены: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+  if (users.length === 0) {
+    console.error('В базе нет пользователей — выполните сид: npx tsx prisma/seed.ts');
+    process.exit(1);
+  }
+
+  const issued: { username: string; role: string; password: string }[] = [];
+  for (const user of users) {
+    const password = generatePassword();
+    const passwordHash = await bcrypt.hash(password, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, mustChangePassword: true },
+    });
+    issued.push({ username: user.username, role: user.role, password });
+  }
+
   const lines = [
-    'EvaCal — учётные записи локального стенда (пароли сброшены через reset-all.ts)',
-    'При первом входе система может запросить смену пароля (mustChangePassword: true).',
+    `EvaCal — пароли сброшены (${issued.length} шт.). Показываются один раз, сохраните их сейчас.`,
+    'При первом входе потребуется сменить пароль в /account.',
     '',
-    ...users.map(
-      (u) => `  роль: ${u.role.padEnd(10)} логин: ${u.username.padEnd(12)} пароль: ${newPassword}`,
+    ...issued.map(
+      (u) => `  роль: ${u.role.padEnd(10)} логин: ${u.username.padEnd(12)} пароль: ${u.password}`,
     ),
     '',
   ];
-
   console.log('\n' + '='.repeat(70));
   console.log(lines.join('\n'));
-  console.log('='.repeat(70));
-
-  const rootCredentials = path.resolve(__dirname, 'credentials.local.txt');
-  const volumeCredentials = path.resolve(__dirname, 'prisma', 'credentials.local.txt');
-
-  try {
-    fs.writeFileSync(rootCredentials, lines.join('\n'), 'utf-8');
-  } catch {}
-
-  try {
-    fs.writeFileSync(volumeCredentials, lines.join('\n'), 'utf-8');
-  } catch {}
-
-  console.log(`✅ Пароли для всех пользователей (${users.length} шт.) успешно сброшены на: ${newPassword}`);
-  console.log(`Файлы учётных данных обновлены:`);
-  console.log(`  - ${rootCredentials}`);
-  console.log(`  - ${volumeCredentials}\n`);
-
-  await prisma.$disconnect();
+  console.log('='.repeat(70) + '\n');
 }
 
-resetAll().catch((e) => {
-  console.error('Error', e);
-  process.exit(1);
-});
-
+resetPasswords()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());

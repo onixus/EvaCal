@@ -16,15 +16,26 @@ import { stripClausePrefix } from '@/lib/gost34';
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
+const MAX_PARAGRAPHS = 200;
+const MAX_PARAGRAPH_CHARS = 8000;
+
+function shortString(v: unknown): string | undefined {
+  return typeof v === 'string' && v.length > 0 && v.length <= 120 ? v : undefined;
+}
+
+function isIsoDate(v: unknown): v is string {
+  return typeof v === 'string' && v.length <= 40 && !Number.isNaN(Date.parse(v));
+}
+
 export async function POST(req: NextRequest) {
-  // 1. Feature flag check
+  // 1. Сначала аутентификация — иначе аноним по коду ответа узнаёт состояние фичефлага
+  const session = await requireApiRole(GOST34_LLM_ROLES);
+  if (session instanceof NextResponse) return session;
+
+  // 2. Feature flag check
   if (!isTzAuthorEnabled()) {
     return NextResponse.json({ error: 'feature_disabled' }, { status: 403 });
   }
-
-  // 2. Staff check
-  const session = await requireApiRole(GOST34_LLM_ROLES);
-  if (session instanceof NextResponse) return session;
 
   let body: any;
   try {
@@ -62,9 +73,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (decision !== 'reject' && (!Array.isArray(paragraphs) || paragraphs.length === 0)) {
+  if (
+    decision !== 'reject' &&
+    (!Array.isArray(paragraphs) ||
+      paragraphs.length === 0 ||
+      paragraphs.some((p: unknown) => typeof p !== 'string'))
+  ) {
     return NextResponse.json(
-      { error: 'paragraphs array is required for accept/accept_edited' },
+      { error: 'paragraphs must be a non-empty array of strings for accept/accept_edited' },
+      { status: 400 },
+    );
+  }
+  if (paragraphs.length > MAX_PARAGRAPHS || paragraphs.some((p: string) => p.length > MAX_PARAGRAPH_CHARS)) {
+    return NextResponse.json(
+      { error: `paragraphs: не более ${MAX_PARAGRAPHS} абзацев по ${MAX_PARAGRAPH_CHARS} символов` },
       { status: 400 },
     );
   }
@@ -80,24 +102,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'calculation not found' }, { status: 404 });
   }
 
-  const normalizedPayload = analyzeAndNormalizeInput({
-    calculation: calculation as any,
-    rawRequirements,
-    projectContext,
-    metadataOverride: {
-      docType: 'TZ',
-      standardProfileId: standardProfileId || 'gost-34-2020',
-      applicabilityOverrides,
-    },
-    manualTraceLinks: manualLinks,
-  });
-
+  // Нормализация и обход схемы работают с сырым телом запроса — ошибка формы
+  // (кривые rawRequirements, projectContext) должна быть 400, а не 500.
+  let normalizedPayload: ReturnType<typeof analyzeAndNormalizeInput>;
+  let draftableNodes: ReturnType<typeof walkDraftableNodes>;
+  try {
+    normalizedPayload = analyzeAndNormalizeInput({
+      calculation: calculation as any,
+      rawRequirements,
+      projectContext,
+      metadataOverride: {
+        docType: 'TZ',
+        standardProfileId: standardProfileId || 'gost-34-2020',
+        applicabilityOverrides,
+      },
+      manualTraceLinks: manualLinks,
+    });
+    draftableNodes = walkDraftableNodes(TZ_SCHEMA_2020, {
+      payload: normalizedPayload,
+      context: normalizedPayload.projectContext!,
+      schema: TZ_SCHEMA_2020,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: 'invalid_input', message: err?.message || 'Не удалось разобрать входные данные' },
+      { status: 400 },
+    );
+  }
   const ctx = normalizedPayload.projectContext!;
-  const draftableNodes = walkDraftableNodes(TZ_SCHEMA_2020, {
-    payload: normalizedPayload,
-    context: ctx,
-    schema: TZ_SCHEMA_2020,
-  });
 
   const node = draftableNodes.find((n) => n.id === nodeId);
   if (!node) {
@@ -109,6 +141,24 @@ export async function POST(req: NextRequest) {
 
   const actorUsername = session.username || session.userId || 'staff';
   const now = new Date().toISOString();
+
+  // Provenance от клиента — только идентификаторы модели/провайдера. Кто автор
+  // и была ли LLM, сервер решает сам: усечение provenance до «manual» не должно
+  // выдавать черновик модели за ручной текст.
+  const claimedProviderId = shortString(provenance?.providerId) || 'manual';
+  const claimedModel = shortString(provenance?.model) || 'manual';
+  const llmInvolved = claimedProviderId !== 'manual' || claimedModel !== 'manual';
+  const baseProvenance = {
+    providerId: claimedProviderId,
+    model: claimedModel,
+    promptVersion: shortString(provenance?.promptVersion) || TZ_AUTHOR_PROMPT_VERSION,
+    temperature: typeof provenance?.temperature === 'number' ? provenance.temperature : 0,
+    createdAt: isIsoDate(provenance?.createdAt) ? provenance.createdAt : now,
+    createdBy: actorUsername,
+    reviewedAt: now,
+    reviewedBy: actorUsername,
+    latencyMs: typeof provenance?.latencyMs === 'number' && provenance.latencyMs >= 0 ? provenance.latencyMs : 0,
+  };
 
   // Branch 1: REJECT
   if (decision === 'reject') {
@@ -122,17 +172,7 @@ export async function POST(req: NextRequest) {
       refusedGapPaths: [],
       speculate: Boolean(speculate),
       usedLlm: false,
-      provenance: {
-        providerId: provenance?.providerId || 'manual',
-        model: provenance?.model || 'manual',
-        promptVersion: provenance?.promptVersion || TZ_AUTHOR_PROMPT_VERSION,
-        temperature: typeof provenance?.temperature === 'number' ? provenance.temperature : 0,
-        createdAt: provenance?.createdAt || now,
-        createdBy: provenance?.createdBy || actorUsername,
-        reviewedAt: now,
-        reviewedBy: actorUsername,
-        latencyMs: provenance?.latencyMs || 0,
-      },
+      provenance: baseProvenance,
     };
 
     try {
@@ -194,18 +234,9 @@ export async function POST(req: NextRequest) {
     flags,
     refusedGapPaths: pack.baseline.gapPaths,
     speculate: Boolean(speculate),
-    usedLlm: Boolean(usedLlm),
-    provenance: {
-      providerId: provenance?.providerId || 'manual',
-      model: provenance?.model || 'manual',
-      promptVersion: provenance?.promptVersion || TZ_AUTHOR_PROMPT_VERSION,
-      temperature: typeof provenance?.temperature === 'number' ? provenance.temperature : 0,
-      createdAt: provenance?.createdAt || now,
-      createdBy: provenance?.createdBy || actorUsername,
-      reviewedAt: now,
-      reviewedBy: actorUsername,
-      latencyMs: provenance?.latencyMs || 0,
-    },
+    // Клиент не может объявить черновик модели ручным: если провайдер назван — LLM была
+    usedLlm: llmInvolved || Boolean(usedLlm),
+    provenance: baseProvenance,
   };
 
   try {

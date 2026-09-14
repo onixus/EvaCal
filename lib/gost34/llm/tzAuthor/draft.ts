@@ -92,7 +92,7 @@ export async function draftTzSection(input: DraftTzSectionInput): Promise<DraftT
       provider,
       model,
       messages,
-      temperature: 0.15,
+      temperature,
       responseFormat: 'json',
     });
   } catch (err: any) {
@@ -133,13 +133,17 @@ export async function draftTzSection(input: DraftTzSectionInput): Promise<DraftT
     (p: unknown): p is string => typeof p === 'string',
   );
   const paragraphs = rawParagraphs.map(stripClausePrefix);
+  // Из ответа модели берём только известные поля — лишнее в снимок мастера не попадает.
+  const knownGaps = new Set(pack.baseline.gapPaths);
   const questions = Array.isArray(parsed.questions)
-    ? parsed.questions.filter(
-        (q: any) => q && typeof q.gapPath === 'string' && typeof q.question === 'string',
-      )
+    ? parsed.questions
+        .filter((q: any) => q && typeof q.gapPath === 'string' && typeof q.question === 'string')
+        .map((q: any) => ({ gapPath: String(q.gapPath), question: String(q.question) }))
     : [];
   const refusedGapPaths = Array.isArray(parsed.refusedGapPaths)
-    ? parsed.refusedGapPaths.filter((p: unknown): p is string => typeof p === 'string')
+    ? parsed.refusedGapPaths.filter(
+        (p: unknown): p is string => typeof p === 'string' && knownGaps.has(p),
+      )
     : [];
 
   const flags = detectDraftFlags(pack, pack.baseline.paragraphs, paragraphs);

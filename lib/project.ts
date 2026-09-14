@@ -509,27 +509,23 @@ export async function releaseGostPackage(input: {
 
     // Архивируем предыдущие черновики этого расчёта, чтобы они не оставались
     // фантомными записями в очереди Студии после состоявшегося выпуска.
-    if (typeof prisma.gostPackage?.updateMany === 'function') {
-      try {
-        await prisma.gostPackage.updateMany({
-          where: {
-            calculationId: calculation.id,
-            status: 'draft',
-            id: { not: pkg.id },
-          },
-          data: {
-            status: 'archived',
-          },
-        });
-      } catch {}
-    }
+    await prisma.gostPackage.updateMany({
+      where: {
+        calculationId: calculation.id,
+        status: 'draft',
+        id: { not: pkg.id },
+      },
+      data: {
+        status: 'archived',
+      },
+    });
 
     return updatedPkg;
   } catch (err) {
-    if (typeof prisma.gostPackage?.delete === 'function') {
-      try {
-        await prisma.gostPackage.delete({ where: { id: pkg.id } });
-      } catch {}
+    try {
+      await prisma.gostPackage.delete({ where: { id: pkg.id } });
+    } catch (cleanupErr) {
+      console.warn(`Не удалось удалить неуспешный пакет ${pkg.id}:`, cleanupErr);
     }
     throw err;
   }

@@ -15,13 +15,9 @@ async function seedDefaultUsers() {
   const existingUsers = await prisma.user.count();
   if (existingUsers > 0) {
     console.log('Учётные записи уже созданы, пропускаю генерацию паролей.');
-    console.log('Для просмотра сохранённых паролей:');
-    console.log('  - Локально: credentials.local.txt');
-    console.log('  - В Docker: docker compose exec app cat /app/prisma/credentials.local.txt');
-    console.log('  - В логах контейнера миграции: docker compose logs migrate');
-    console.log('Для сброса паролей:');
-    console.log('  - Локально: npx tsx reset-all.ts');
-    console.log('  - В Docker: docker compose run --rm migrate npx tsx reset-all.ts');
+    console.log('Если пароли утеряны, сбросьте их (каждому выдаётся новый случайный пароль):');
+    console.log('  - Локально: npx tsx reset-all.ts <логин> | --all');
+    console.log('  - В Docker: docker compose run --rm migrate npx tsx reset-all.ts --all');
     return;
   }
 
@@ -65,27 +61,25 @@ async function seedDefaultUsers() {
   console.log(lines.join('\n'));
   console.log('='.repeat(70));
 
-  const rootCredentialsFile = path.resolve(__dirname, '..', 'credentials.local.txt');
-  const volumeCredentialsFile = path.resolve(__dirname, 'credentials.local.txt');
-
-  try {
-    fs.writeFileSync(rootCredentialsFile, lines.join('\n'), 'utf-8');
-  } catch {
-    // Игнорируем ошибку, если корень смонтирован только для чтения
+  if (defaultPasswordEnv) {
+    console.log(
+      'ВНИМАНИЕ: пароль задан через SEED_DEFAULT_PASSWORD и одинаков для всех ролей — только для локального стенда.\n',
+    );
   }
 
+  // Файл пишется только в корень проекта (в .gitignore). В Docker корень образа
+  // migrate эфемерный, поэтому пароли там живут ровно столько, сколько лог
+  // контейнера: `docker compose logs migrate`. В том db-data рядом с базой
+  // пароли не сохраняем — иначе они читались бы из контейнера app бессрочно.
+  const credentialsFile = path.resolve(__dirname, '..', 'credentials.local.txt');
   try {
-    fs.writeFileSync(volumeCredentialsFile, lines.join('\n'), 'utf-8');
+    fs.writeFileSync(credentialsFile, lines.join('\n'), { encoding: 'utf-8', mode: 0o600 });
+    console.log(`Пароли также сохранены в ${credentialsFile} (удалите файл после смены паролей).`);
   } catch {
-    // Игнорируем ошибку
+    // корень может быть недоступен для записи — достаточно вывода выше
   }
-
-  console.log(`Пароли также сохранены в:`);
-  console.log(`  - ${rootCredentialsFile}`);
-  console.log(`  - ${volumeCredentialsFile} (сохраняется в Docker-томе db-data)\n`);
-  console.log(`В Docker посмотреть пароли можно командами:`);
-  console.log(`  docker compose exec app cat /app/prisma/credentials.local.txt`);
-  console.log(`  docker compose logs migrate\n`);
+  console.log('В Docker: docker compose logs migrate');
+  console.log('Сброс: docker compose run --rm migrate npx tsx reset-all.ts --all\n');
 }
 
 async function main() {

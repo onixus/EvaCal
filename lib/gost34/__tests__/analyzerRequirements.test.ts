@@ -103,11 +103,18 @@ describe('analyzer requirement assembly', () => {
     expect(withEnrichment.length).toBeGreaterThan(withoutEnrichment.length);
   });
 
-  it('does NOT extract calculation stages into system requirements by default (integrator works separated from system requirements)', () => {
+  it('keeps stage requirements by default and drops them only when includeStageRequirements is false', () => {
+    // По умолчанию (флаг опущен) этапы попадают в требования — как во всех выпущенных комплектах
+    const implicitPayload = analyzeAndNormalizeInput({
+      calculation,
+      rawRequirements: [vendorRequirement],
+    });
+    expect(implicitPayload.customRequirements!.length).toBeGreaterThan(1);
+
     const defaultPayload = analyzeAndNormalizeInput({
       calculation,
       rawRequirements: [vendorRequirement],
-      // includeStageRequirements is omitted -> defaults to false
+      includeStageRequirements: false,
     });
 
     // Only vendor requirement is present in system requirements

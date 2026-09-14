@@ -11,7 +11,9 @@ export type LlmDraftFlagCode =
   | 'LLM_ADDED_NUMBER'
   | 'LLM_REMOVED_CONSTRAINT'
   | 'LLM_CHANGED_MODALITY'
-  | 'LLM_INVENTED_NORM';
+  | 'LLM_INVENTED_NORM'
+  /** Черновик нельзя проверить: узел неизвестен или grounding-пакет не собрался. */
+  | 'LLM_UNVERIFIABLE';
 
 export type LlmDraftFlagSeverity = 'block' | 'warn';
 

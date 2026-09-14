@@ -95,7 +95,7 @@ export function validateTzAuthorProposals(params: ValidateTzAuthorParams): Valid
       console.warn(`Failed to collect grounding pack for node ${nodeId}:`, err);
       diagnostics.push({
         nodeId: proposal.nodeId || nodeId,
-        flagCodes: ['LLM_INVENTED_NORM'],
+        flagCodes: ['LLM_UNVERIFIABLE'],
       });
       continue;
     }

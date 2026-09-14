@@ -32,7 +32,9 @@ export async function fetchWithTimeout(url: string, init: RequestInit, ms: numbe
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), ms);
   try {
-    const res = await fetch(url, { ...init, signal: controller.signal });
+    // redirect: 'error' — проверка endpointGuard делается по сконфигурированному URL,
+    // редирект на другой хост её обошёл бы.
+    const res = await fetch(url, { ...init, redirect: 'error', signal: controller.signal });
     clearTimeout(timeoutId);
     return res;
   } catch (err) {

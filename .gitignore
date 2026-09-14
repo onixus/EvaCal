@@ -27,8 +27,6 @@ lib/generated/
 # Хранилище сгенерированных пакетов и артефактов
 storage/
 
-# Локальные служебные скрипты
-reset-admin.ts
 
 # Playwright & test output
 playwright-report/

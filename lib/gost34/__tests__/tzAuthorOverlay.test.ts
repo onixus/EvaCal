@@ -14,6 +14,11 @@ describe('tzAuthorOverlay', () => {
     it('keeps text without prefix intact', () => {
       expect(stripClausePrefix('Hello world 4.4')).toBe('Hello world 4.4');
     });
+
+    it('keeps a bare leading number — it is content, not a clause number', () => {
+      expect(stripClausePrefix('30 минут RTO для контура')).toBe('30 минут RTO для контура');
+      expect(stripClausePrefix('2 контура резервирования')).toBe('2 контура резервирования');
+    });
   });
 
   describe('overlaysForDocument', () => {

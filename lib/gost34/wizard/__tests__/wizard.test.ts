@@ -309,10 +309,11 @@ describe('обзор мастера', () => {
     expect(review.compliance.steps).toHaveLength(WIZARD_STEP_IDS.length);
   });
 
-  it('не превращает этапы расчёта в системные требования по умолчанию', () => {
-    const review = buildWizardReview({ calculation });
+  it('по умолчанию берёт требования из этапов, а при includeStageRequirements: false — нет', () => {
+    // Дефолт сохраняет поведение выпущенных комплектов: раздел 4 не пустеет
+    expect(buildWizardReview({ calculation }).requirements.length).toBeGreaterThan(0);
 
-    // Системные требования по умолчанию не берутся из этапов расчёта
+    const review = buildWizardReview({ calculation, includeStageRequirements: false });
     expect(review.requirements).toHaveLength(0);
     // Но сами этапы интегратора полностью присутствуют для Раздела 6 и трассировки
     expect(review.stages).toHaveLength(2);
@@ -469,4 +470,3 @@ describe('обзор мастера', () => {
     expect(previewStep?.issues[0].text).toContain('1 черновик ИИ не принят — в выпуск не войдёт.');
   });
 });
-

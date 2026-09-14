@@ -25,9 +25,32 @@ export class EndpointNotAllowedError extends Error {
   }
 }
 
+/**
+ * Приводит hostname к виду для проверок: снимает квадратные скобки IPv6,
+ * завершающую точку FQDN и разворачивает IPv4-mapped IPv6 (::ffff:10.0.0.1 → 10.0.0.1).
+ */
+function normalizeHost(rawHost: string): string {
+  let host = rawHost
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '');
+  // WHATWG URL уже приводит ::ffff:10.0.0.1 к ::ffff:a00:1 — разбираем обе формы.
+  const dotted = host.match(/^(?:0*:)*:?ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) return dotted[1];
+  const hex = host.match(/^(?:0*:)*:?ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (hex) {
+    const hi = parseInt(hex[1], 16);
+    const lo = parseInt(hex[2], 16);
+    return `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+  }
+  return host;
+}
+
 function isLoopbackHost(host: string): boolean {
   if (host === 'localhost' || host.endsWith('.localhost')) return true;
   if (host === '::1' || host === '[::1]') return true;
+  // 0.0.0.0 / :: — «любой адрес», на практике резолвится в loopback
+  if (host === '0.0.0.0' || host === '::') return true;
   return /^127\./.test(host);
 }
 
@@ -73,7 +96,7 @@ export function assertAllowedEndpoint(
     throw new EndpointNotAllowedError('Учётные данные в URL LLM-провайдера не допускаются.');
   }
 
-  const host = url.hostname.toLowerCase();
+  const host = normalizeHost(url.hostname);
 
   if (isLinkLocalHost(host)) {
     throw new EndpointNotAllowedError(`Link-local адрес ${host} запрещён.`);
