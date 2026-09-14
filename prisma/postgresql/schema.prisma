@@ -307,6 +307,8 @@ model Stage {
 
   // Stages are only ever read as "all rows for one calculation, in Gantt order".
   @@index([calculationId, order])
+  // Ресурсный план (E2) выбирает этапы по диапазону дат поверх всех расчётов.
+  @@index([startDate])
 }
 
 // A risk the architect flags on a calculation, with the extra labor hours it adds
@@ -376,4 +378,20 @@ model InternalChange {
 
   @@unique([calculationId, seq])
   @@index([calculationId, occurredAt])
+}
+
+// Ёмкость ролей для ресурсного плана (Horizon E2). Одна строка — одна роль с
+// датой начала действия: история хранится, чтобы прошлые недели не
+// пересчитывались задним числом при изменении штата.
+model RoleCapacity {
+  id            String   @id @default(cuid())
+  role          String // canonical Role из lib/roles.ts
+  headcount     Float // ставок (1.5 = полтора человека)
+  hoursPerWeek  Float    @default(30) // продуктивных часов на ставку
+  effectiveFrom DateTime
+  note          String?
+  createdBy     String
+  createdAt     DateTime @default(now())
+
+  @@index([role, effectiveFrom])
 }

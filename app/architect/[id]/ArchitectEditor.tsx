@@ -9,6 +9,7 @@ import StatusBadge from '@/components/StatusBadge';
 import TotalsSummary, { RiskRow } from '@/components/TotalsSummary';
 import ExportLinks from '@/components/ExportLinks';
 import ActualsPanel from '@/components/ActualsPanel';
+import CapacityWarnings from '@/components/CapacityWarnings';
 
 interface Calculation {
   id: string;
@@ -478,6 +479,9 @@ export default function ArchitectEditor({
 
       <div className="card p-5">
         <h2 className="mb-3 font-medium">Диаграмма Ганта</h2>
+        <div className="mb-3">
+          <CapacityWarnings calculationId={calculation.id} refreshKey={calculation.startDate} />
+        </div>
         <GanttChart stages={calculation.stages} />
       </div>
     </div>
