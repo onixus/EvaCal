@@ -83,7 +83,8 @@ export default function RequirementsTable({
 
       {requirements.length === 0 ? (
         <div className="text-xs text-slate-500 dark:text-nord-muted italic p-6 text-center border border-dashed border-slate-300 dark:border-nord-3 rounded-xl bg-slate-50 dark:bg-nord-1">
-          Требования пока не извлечены. Загрузите файл ТЗ (.docx) выше, выберите готовый шаблон ГОСТ 34 («Шаблоны ТЗ») или добавьте пункты вручную.
+          Требования пока не извлечены. Загрузите файл ТЗ (.docx) выше, выберите готовый шаблон ГОСТ
+          34 («Шаблоны ТЗ») или добавьте пункты вручную.
         </div>
       ) : (
         <div className={`max-h-72 overflow-y-auto ${SUBPANEL_CLASS}`}>

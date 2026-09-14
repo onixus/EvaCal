@@ -467,9 +467,13 @@ export default function Gost34Studio({
         const data = await res.json().catch(() => ({}));
         if (res.status === 409 && data?.error === 'tz_author_hard_flags') {
           const details = Array.isArray(data.nodes)
-            ? data.nodes.map((n: any) => `${n.nodeId} [${n.flagCodes?.join(', ') || ''}]`).join(', ')
+            ? data.nodes
+                .map((n: any) => `${n.nodeId} [${n.flagCodes?.join(', ') || ''}]`)
+                .join(', ')
             : '';
-          throw new Error(`Экспорт заблокирован: критические замечания в принятых черновиках ТЗ (${details})`);
+          throw new Error(
+            `Экспорт заблокирован: критические замечания в принятых черновиках ТЗ (${details})`,
+          );
         }
         throw new Error(data?.error || 'Ошибка при генерации документа ГОСТ 34');
       }
@@ -561,7 +565,10 @@ export default function Gost34Studio({
                     {REVIEW_STAGE_LABELS[latestPackage.reviewStage] || latestPackage.reviewStage}
                   </span>
                   {latestPackage.releasedAt && (
-                    <> · Выпущен: {new Date(latestPackage.releasedAt).toLocaleDateString('ru-RU')}</>
+                    <>
+                      {' '}
+                      · Выпущен: {new Date(latestPackage.releasedAt).toLocaleDateString('ru-RU')}
+                    </>
                   )}
                 </p>
               </div>
@@ -656,7 +663,8 @@ export default function Gost34Studio({
           {latestPackage.twVersion && (
             <div className="flex items-center justify-between gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs dark:bg-nord-green/15">
               <span className="text-emerald-900 dark:text-nord-green font-medium">
-                📄 Тех.писатель приложил версию с правками: <span className="font-bold">{latestPackage.twVersion.name}</span>
+                📄 Тех.писатель приложил версию с правками:{' '}
+                <span className="font-bold">{latestPackage.twVersion.name}</span>
               </span>
               <a
                 href={`/api/gost34/packages/${latestPackage.id}/tw-version`}

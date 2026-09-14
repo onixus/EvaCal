@@ -26,7 +26,10 @@ describe('GOST 34 TOR Templates Library', () => {
 
   it('каждый шаблон содержит полноценный детализированный состав требований (от 10 до 20 пунктов)', () => {
     for (const template of GOST34_TOR_TEMPLATES) {
-      expect(template.requirements.length, `${template.id} должен содержать от 10 требований`).toBeGreaterThanOrEqual(10);
+      expect(
+        template.requirements.length,
+        `${template.id} должен содержать от 10 требований`,
+      ).toBeGreaterThanOrEqual(10);
       expect(template.name.length).toBeGreaterThan(10);
       expect(template.description.length).toBeGreaterThan(30);
 

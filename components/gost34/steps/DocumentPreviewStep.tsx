@@ -202,10 +202,10 @@ export default function DocumentPreviewStep({
     (sec: Gost34Section): boolean => {
       return Boolean(
         canUseTzAuthor &&
-          sec.id &&
-          sec.id.startsWith('tz2020-') &&
-          sec.id !== 'tz2020-goals' &&
-          sec.id !== 'tz2020-requirements',
+        sec.id &&
+        sec.id.startsWith('tz2020-') &&
+        sec.id !== 'tz2020-goals' &&
+        sec.id !== 'tz2020-requirements',
       );
     },
     [canUseTzAuthor],
@@ -232,9 +232,8 @@ export default function DocumentPreviewStep({
 
   const unproposedDraftCount = useMemo(() => {
     const proposals = decisions.tzAuthor?.proposals || {};
-    return draftableNodes.filter(
-      (n) => !proposals[n.id] || proposals[n.id].status === 'REJECTED',
-    ).length;
+    return draftableNodes.filter((n) => !proposals[n.id] || proposals[n.id].status === 'REJECTED')
+      .length;
   }, [draftableNodes, decisions.tzAuthor]);
 
   const acceptedCount = useMemo(() => {
@@ -341,11 +340,7 @@ export default function DocumentPreviewStep({
     }
   };
 
-  const handleAcceptDraft = async (
-    nodeId: string,
-    paragraphs: string[],
-    isEdited: boolean,
-  ) => {
+  const handleAcceptDraft = async (nodeId: string, paragraphs: string[], isEdited: boolean) => {
     const existing = decisions.tzAuthor?.proposals?.[nodeId];
     const res = await fetch('/api/gost34/draft-tz/decision', {
       method: 'POST',
@@ -546,7 +541,9 @@ export default function DocumentPreviewStep({
           <div className="mb-3 space-y-1.5 rounded-lg border border-rose-200 bg-rose-50/80 p-2.5 dark:border-nord-red/40 dark:bg-nord-red/10">
             <div className="flex items-center gap-1.5 text-xs font-extrabold text-rose-900 dark:text-nord-redText">
               <span>⚠️</span>
-              <span>Замечания ревьювера к разделу «{sec.title}» ({sectionReviewComments.length}):</span>
+              <span>
+                Замечания ревьювера к разделу «{sec.title}» ({sectionReviewComments.length}):
+              </span>
             </div>
             <div className="space-y-1">
               {sectionReviewComments.map((c) => (
@@ -590,11 +587,7 @@ export default function DocumentPreviewStep({
               {sec.title}
             </h4>
             {badge && <span className={badge.className}>{badge.label}</span>}
-            {hasComments && (
-              <span className="chip-block text-[10px]">
-                требует правок
-              </span>
-            )}
+            {hasComments && <span className="chip-block text-[10px]">требует правок</span>}
           </div>
 
           <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -670,18 +663,16 @@ export default function DocumentPreviewStep({
                 nodeId={sec.id}
                 schemaTitle={sec.title}
                 baselineParagraphs={
-                  findSectionById(baselineAst?.sections, sec.id)?.paragraphs ||
-                  sec.paragraphs ||
-                  []
+                  findSectionById(baselineAst?.sections, sec.id)?.paragraphs || sec.paragraphs || []
                 }
                 proposal={decisions.tzAuthor?.proposals?.[sec.id]}
                 isGenerating={generatingNodeId === sec.id}
                 onGenerateDraft={(speculate) => handleGenerateDraft(sec.id, speculate)}
-                onAccept={(paragraphs, isEdited) =>
-                  handleAcceptDraft(sec.id, paragraphs, isEdited)
-                }
+                onAccept={(paragraphs, isEdited) => handleAcceptDraft(sec.id, paragraphs, isEdited)}
                 onReset={() => handleResetDraft(sec.id)}
-                disabled={batch.isRunning || (generatingNodeId !== null && generatingNodeId !== sec.id)}
+                disabled={
+                  batch.isRunning || (generatingNodeId !== null && generatingNodeId !== sec.id)
+                }
               />
             )}
 
@@ -774,7 +765,9 @@ export default function DocumentPreviewStep({
                   <button
                     type="button"
                     onClick={() => batch.startBatch(draftableNodes, { onlyUnproposed: true })}
-                    disabled={!llmAvailable || draftableNodes.length === 0 || generatingNodeId !== null}
+                    disabled={
+                      !llmAvailable || draftableNodes.length === 0 || generatingNodeId !== null
+                    }
                     className="btn-primary !py-1 !px-3 text-xs flex items-center gap-1.5 font-semibold bg-brand-600 text-white hover:bg-brand-700 shadow-sm disabled:opacity-50"
                     title="Последовательно сформировать черновики ИИ для всех разделов ТЗ"
                   >
@@ -792,7 +785,9 @@ export default function DocumentPreviewStep({
                     className="btn-secondary !py-1 !px-3 text-xs flex items-center gap-1.5 font-semibold text-rose-700 border-rose-300 bg-white hover:bg-rose-50 dark:border-rose-800 dark:bg-nord-2 dark:text-rose-300"
                   >
                     <span>⏹️</span>
-                    <span>Отмена ({batch.currentIndex}/{batch.totalCount})</span>
+                    <span>
+                      Отмена ({batch.currentIndex}/{batch.totalCount})
+                    </span>
                   </button>
                 )}
 
@@ -850,7 +845,9 @@ export default function DocumentPreviewStep({
             {/* Batch Errors notification */}
             {batch.failedNodes.length > 0 && !batch.isRunning && (
               <div className="flex items-center justify-between text-[11px] text-rose-800 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-lg px-2.5 py-1.5">
-                <span>Ошибок при генерации: {batch.failedNodes.length} из {batch.totalCount}.</span>
+                <span>
+                  Ошибок при генерации: {batch.failedNodes.length} из {batch.totalCount}.
+                </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"

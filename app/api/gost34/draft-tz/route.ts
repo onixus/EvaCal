@@ -45,10 +45,7 @@ export async function POST(req: NextRequest) {
   } = body || {};
 
   if (!calculationId || !nodeId) {
-    return NextResponse.json(
-      { error: 'calculationId and nodeId are required' },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: 'calculationId and nodeId are required' }, { status: 400 });
   }
 
   // Legacy profile forbidden for TZ Author (2020 schema only)
@@ -161,9 +158,6 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     const status = err.statusCode || 500;
     const errCode = err.code || 'internal';
-    return NextResponse.json(
-      { error: errCode, message: err.message },
-      { status },
-    );
+    return NextResponse.json({ error: errCode, message: err.message }, { status });
   }
 }

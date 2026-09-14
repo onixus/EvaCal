@@ -98,7 +98,9 @@ export default function TzDraftReviewPanel({
             <span className="text-base">✨</span>
             <div>
               <div className="text-xs font-semibold text-slate-800 dark:text-nord-5">
-                {proposal?.status === 'REJECTED' ? 'Черновик сброшен к схеме' : 'Черновик ИИ не сформирован'}
+                {proposal?.status === 'REJECTED'
+                  ? 'Черновик сброшен к схеме'
+                  : 'Черновик ИИ не сформирован'}
               </div>
               <div className="text-[11px] text-slate-500 dark:text-nord-muted">
                 Сформируйте контекстно-обоснованный текст раздела на основе требований и опросника
@@ -134,7 +136,11 @@ export default function TzDraftReviewPanel({
               ) : (
                 <>
                   <span>✨</span>
-                  <span>{proposal?.status === 'REJECTED' ? 'Сформировать заново' : 'Сформировать черновик'}</span>
+                  <span>
+                    {proposal?.status === 'REJECTED'
+                      ? 'Сформировать заново'
+                      : 'Сформировать черновик'}
+                  </span>
                 </>
               )}
             </button>
@@ -170,7 +176,9 @@ export default function TzDraftReviewPanel({
       {/* Header bar with badges */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-nord-3 pb-2.5">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-800 dark:text-nord-5">Ревью черновика ИИ</span>
+          <span className="text-xs font-bold text-slate-800 dark:text-nord-5">
+            Ревью черновика ИИ
+          </span>
           {proposal.status === 'PROPOSED' && (
             <span className="chip-warn text-[10px] font-bold">черновик (ожидает ревью)</span>
           )}
@@ -254,7 +262,9 @@ export default function TzDraftReviewPanel({
 
           {hasHard && (
             <div className="text-[11px] font-semibold text-rose-700 dark:text-rose-400 pt-1">
-              ⚠️ Принятие заблокировано: обнаружены критические замечания. Исправьте текст раздела, чтобы исключить неподтверждённые нормативы, снятые ограничения или несанкционированные числа.
+              ⚠️ Принятие заблокировано: обнаружены критические замечания. Исправьте текст раздела,
+              чтобы исключить неподтверждённые нормативы, снятые ограничения или несанкционированные
+              числа.
             </div>
           )}
         </div>
@@ -275,7 +285,9 @@ export default function TzDraftReviewPanel({
                 </p>
               ))
             ) : (
-              <p className="italic text-slate-400 dark:text-nord-muted">В базовой схеме текст отсутствует</p>
+              <p className="italic text-slate-400 dark:text-nord-muted">
+                В базовой схеме текст отсутствует
+              </p>
             )}
           </div>
         </div>

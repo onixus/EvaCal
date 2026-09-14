@@ -73,9 +73,7 @@ export default function TorTemplatePicker({
 }: TorTemplatePickerProps) {
   const allTemplates = useMemo(() => listTorTemplates(), []);
   const [selectedCategoryId, setSelectedCategoryId] = useState<'all' | TorTemplateCategory>('all');
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
-    allTemplates[0]?.id || '',
-  );
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(allTemplates[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
   const [applyMode, setApplyMode] = useState<'replace' | 'append'>('replace');
 
@@ -93,8 +91,7 @@ export default function TorTemplatePicker({
   // Filter templates
   const filteredTemplates = useMemo(() => {
     return allTemplates.filter((tmpl) => {
-      const matchCategory =
-        selectedCategoryId === 'all' || tmpl.category === selectedCategoryId;
+      const matchCategory = selectedCategoryId === 'all' || tmpl.category === selectedCategoryId;
       if (!matchCategory) return false;
 
       if (!searchQuery.trim()) return true;
@@ -154,8 +151,8 @@ export default function TorTemplatePicker({
               </span>
             </div>
             <p className="text-xs text-slate-600 dark:text-nord-4 mt-0.5">
-              Каждый шаблон содержит готовые измеримые требования к системе (раздел 4 ТЗ), сформулированные строго по
-              канонам ГОСТ 34.602 и прошедшие автовалидацию.
+              Каждый шаблон содержит готовые измеримые требования к системе (раздел 4 ТЗ),
+              сформулированные строго по канонам ГОСТ 34.602 и прошедшие автовалидацию.
             </p>
           </div>
           <button
@@ -318,7 +315,9 @@ export default function TorTemplatePicker({
                 {/* Requirements List */}
                 <div className="flex-1 overflow-y-auto p-5 space-y-3">
                   <div className="text-xs font-bold text-slate-700 dark:text-nord-4 uppercase tracking-wider flex items-center justify-between">
-                    <span>Состав требований раздела 4 ({selectedTemplate.requirements.length})</span>
+                    <span>
+                      Состав требований раздела 4 ({selectedTemplate.requirements.length})
+                    </span>
                     <span className="text-[10px] normal-case text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-1">
                       <span>✓</span> Все требования проверены валидатором
                     </span>
@@ -392,9 +391,7 @@ export default function TorTemplatePicker({
                   onChange={() => setApplyMode('replace')}
                   className="text-brand-600 focus:ring-brand-500"
                 />
-                <span>
-                  Заменить текущие ({currentRequirements.length})
-                </span>
+                <span>Заменить текущие ({currentRequirements.length})</span>
               </label>
               <label className="flex items-center gap-1.5 cursor-pointer text-slate-800 dark:text-nord-5">
                 <input

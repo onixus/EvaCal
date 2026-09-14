@@ -7,6 +7,7 @@
 ## 1. Архитектурная модель безопасности
 
 Периметр безопасности охватывает пять защитных эшелонов:
+
 1. **Идентификация и сессии:** HMAC-подписанные cookie-сессии с серверным механизмом отзыва токенов (Revocation).
 2. **Ролевая модель и гранулярные скоупы:** 4 системные роли (`lib/appRoles.ts`) и криптографические share-токены для внешних клиентов (`lib/access.ts`).
 3. **Защита от SSRF при обращении к LLM:** валидация сетевых адресов через `endpointGuard.ts` с абсолютным запретом Cloud Metadata и Link-Local сетей.
@@ -21,24 +22,24 @@
 
 ### Правила доступа к эндпоинтам и UI
 
-| Поверхность / Маршрут              | Метод     | Минимальный доступ                                            | Ограничения и детали                                             |
-| ---------------------------------- | --------- | ------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `GET /` (лендинг и архив)          | UI        | Любой (гости видят лендинг без данных; staff видит реестр)   | Данные проектов не отдаются без авторизации                      |
-| `GET /presale`                     | UI        | `staff` \| `presale` \| `create`-share \| `ALLOW_ANONYMOUS`   | Список чужих черновиков виден только авторизованным              |
-| `GET /presale/:id`                 | UI        | `staff` \| `presale` \| `?share=` (токен с привязкой к ID)    | Доступ строго по ID расчёта                                      |
-| `GET /projects/:id/studio`         | UI        | `staff` (`architect` \| `admin`)                             | Студия ГОСТ 34 закрыта для пресейла, ревьювера и гостей          |
-| `GET /review`                      | UI        | `reviewer` (очередь TW) \| `architect` (очередь GAP) \| `admin` | Список разделяется на уровне сервера по стадии ревью             |
-| `GET /admin/*`                     | UI        | `admin`                                                       | Управление пользователями, шаблонами и системными ключами        |
-| `GET /api/calculations`            | REST      | `staff` (`architect` \| `admin`)                             | Пресейл видит только свои; гости не имеют общего листинга       |
-| `POST /api/calculations`           | REST      | `staff` \| `presale` \| share(`create`) \| `ALLOW_ANONYMOUS`  | Создание расчёта по шаблону                                      |
-| `GET/PUT /api/calculations/:id`    | REST      | `staff` \| `presale` (свои) \| share bound (`read` / `write`) | Попытка изменить чужой расчёт без прав возвращает 403            |
-| Экспорт (PDF, XLSX, DOCX, JSON)    | REST / UI | `staff` \| `presale` \| `reviewer` \| share (`export`)       | `export` подразумевает право `read`                              |
-| `POST /api/calculations/:id/submit`| REST      | `staff` \| `presale` \| share (`write`)                       | Перевод расчёта в `pending_approval`                             |
-| `POST /api/calculations/:id/share` | REST      | `staff` (`architect` \| `admin`)                             | Генерация гостевых share-токенов                                 |
-| Миграция схемы ГОСТ 34             | REST      | `staff` (`architect` \| `admin`)                             | Применение шаблонов и структур стандартов                        |
-| `POST /api/gost34/draft-tz`        | REST      | `staff` (`architect` \| `admin`)                             | **Строгий запрет:** share-токены и анонимы получают HTTP 403     |
-| `POST /api/gost34/draft-tz/decision`| REST     | `staff` (`architect` \| `admin`)                             | **Строгий запрет:** share-токены и анонимы получают HTTP 403     |
-| Управление пользователями          | REST      | `admin`                                                       | Создание, блокировка, сброс паролей                              |
+| Поверхность / Маршрут                | Метод     | Минимальный доступ                                              | Ограничения и детали                                         |
+| ------------------------------------ | --------- | --------------------------------------------------------------- | ------------------------------------------------------------ |
+| `GET /` (лендинг и архив)            | UI        | Любой (гости видят лендинг без данных; staff видит реестр)      | Данные проектов не отдаются без авторизации                  |
+| `GET /presale`                       | UI        | `staff` \| `presale` \| `create`-share \| `ALLOW_ANONYMOUS`     | Список чужих черновиков виден только авторизованным          |
+| `GET /presale/:id`                   | UI        | `staff` \| `presale` \| `?share=` (токен с привязкой к ID)      | Доступ строго по ID расчёта                                  |
+| `GET /projects/:id/studio`           | UI        | `staff` (`architect` \| `admin`)                                | Студия ГОСТ 34 закрыта для пресейла, ревьювера и гостей      |
+| `GET /review`                        | UI        | `reviewer` (очередь TW) \| `architect` (очередь GAP) \| `admin` | Список разделяется на уровне сервера по стадии ревью         |
+| `GET /admin/*`                       | UI        | `admin`                                                         | Управление пользователями, шаблонами и системными ключами    |
+| `GET /api/calculations`              | REST      | `staff` (`architect` \| `admin`)                                | Пресейл видит только свои; гости не имеют общего листинга    |
+| `POST /api/calculations`             | REST      | `staff` \| `presale` \| share(`create`) \| `ALLOW_ANONYMOUS`    | Создание расчёта по шаблону                                  |
+| `GET/PUT /api/calculations/:id`      | REST      | `staff` \| `presale` (свои) \| share bound (`read` / `write`)   | Попытка изменить чужой расчёт без прав возвращает 403        |
+| Экспорт (PDF, XLSX, DOCX, JSON)      | REST / UI | `staff` \| `presale` \| `reviewer` \| share (`export`)          | `export` подразумевает право `read`                          |
+| `POST /api/calculations/:id/submit`  | REST      | `staff` \| `presale` \| share (`write`)                         | Перевод расчёта в `pending_approval`                         |
+| `POST /api/calculations/:id/share`   | REST      | `staff` (`architect` \| `admin`)                                | Генерация гостевых share-токенов                             |
+| Миграция схемы ГОСТ 34               | REST      | `staff` (`architect` \| `admin`)                                | Применение шаблонов и структур стандартов                    |
+| `POST /api/gost34/draft-tz`          | REST      | `staff` (`architect` \| `admin`)                                | **Строгий запрет:** share-токены и анонимы получают HTTP 403 |
+| `POST /api/gost34/draft-tz/decision` | REST      | `staff` (`architect` \| `admin`)                                | **Строгий запрет:** share-токены и анонимы получают HTTP 403 |
+| Управление пользователями            | REST      | `admin`                                                         | Создание, блокировка, сброс паролей                          |
 
 ---
 
@@ -131,7 +132,7 @@ assertAllowedEndpoint(rawEndpoint, policy);
   - `@` (собака)
   - `\t` (табуляция)
   - `\r` (возврат каретки)
-  
+
   автоматически экранируются лидирующим апострофом `'`. Табличные редакторы трактуют такие ячейки строго как безопасный статический текст, исключая вычисление формул.
 
 ---
@@ -181,4 +182,5 @@ npx tsx reset-all.ts --all
 # Docker-окружение (образ app не содержит tsx — сброс выполняется через migrate)
 docker compose run --rm migrate npx tsx reset-all.ts --all
 ```
+
 Каждому пользователю выдаётся новый случайный пароль; он печатается один раз в stdout и не сохраняется ни в файл, ни в volume. Ставится `mustChangePassword`: до смены пароля сервер отвечает 403 `password_change_required` на всех защищённых роутах, а страницы редиректят в `/account`.

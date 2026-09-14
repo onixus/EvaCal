@@ -60,10 +60,7 @@ export async function POST(req: NextRequest) {
   } = body || {};
 
   if (!calculationId || !nodeId) {
-    return NextResponse.json(
-      { error: 'calculationId and nodeId are required' },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: 'calculationId and nodeId are required' }, { status: 400 });
   }
 
   if (decision !== 'accept' && decision !== 'accept_edited' && decision !== 'reject') {
@@ -84,9 +81,14 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  if (paragraphs.length > MAX_PARAGRAPHS || paragraphs.some((p: string) => p.length > MAX_PARAGRAPH_CHARS)) {
+  if (
+    paragraphs.length > MAX_PARAGRAPHS ||
+    paragraphs.some((p: string) => p.length > MAX_PARAGRAPH_CHARS)
+  ) {
     return NextResponse.json(
-      { error: `paragraphs: не более ${MAX_PARAGRAPHS} абзацев по ${MAX_PARAGRAPH_CHARS} символов` },
+      {
+        error: `paragraphs: не более ${MAX_PARAGRAPHS} абзацев по ${MAX_PARAGRAPH_CHARS} символов`,
+      },
       { status: 400 },
     );
   }
@@ -157,7 +159,10 @@ export async function POST(req: NextRequest) {
     createdBy: actorUsername,
     reviewedAt: now,
     reviewedBy: actorUsername,
-    latencyMs: typeof provenance?.latencyMs === 'number' && provenance.latencyMs >= 0 ? provenance.latencyMs : 0,
+    latencyMs:
+      typeof provenance?.latencyMs === 'number' && provenance.latencyMs >= 0
+        ? provenance.latencyMs
+        : 0,
   };
 
   // Branch 1: REJECT

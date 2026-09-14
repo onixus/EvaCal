@@ -1,11 +1,11 @@
 # LLM как автор ТЗ (ГОСТ 34.602-2020)
 
-| Поле | Значение |
-| :--- | :--- |
-| Продукт | EvaCal 0.3.0 |
-| Автор | EvaCal design & development team |
-| Дата | 2026-09-13 |
-| Статус | **Implemented (rev. 4, PR-01 .. PR-10 merged in EvaCal 0.3.0)** |
+| Поле                | Значение                                                                                                                                                                                                           |
+| :------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Продукт             | EvaCal 0.3.0                                                                                                                                                                                                       |
+| Автор               | EvaCal design & development team                                                                                                                                                                                   |
+| Дата                | 2026-09-13                                                                                                                                                                                                         |
+| Статус              | **Implemented (rev. 4, PR-01 .. PR-10 merged in EvaCal 0.3.0)**                                                                                                                                                    |
 | Связанные документы | `docs/GOST34_MODERNIZATION_PLAN.md` (Этап 7–8), `docs/CRITICAL_ASSESSMENT_AND_ROADMAP.md` (горизонт B & D2), `docs/RELEASE_REGISTRY_PLAN.md` (Horizon B: снимок + иммутабельный ZIP), `docs/SECURITY_PERIMETER.md` |
 
 ---
@@ -1465,17 +1465,16 @@ Eval CI: `vitest lib/gost34/llm/tzAuthor`. Live LLM нет.
 
 Все запланированные PR (PR-01 .. PR-10) полностью реализованы, протестированы и влиты в кодовую базу:
 
-| PR | Компонент | Статус | Проверка |
-| :--- | :--- | :--- | :--- |
-| **PR-01** | Shared LLM client & `EVACAL_LLM_TZ_AUTHOR` flag | `[x] Влито` | `lib/gost34/llm/__tests__/client.test.ts` |
-| **PR-02** | Overlay по `nodeId` и серверная нумерация | `[x] Влито` | `lib/gost34/__tests__/tzAuthorOverlay.test.ts` |
-| **PR-03** | Grounding pack и промпт `tz-author-v1` | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/grounding.test.ts` |
-| **PR-04** | Детекция флагов `detectDraftFlags` | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/flags.test.ts` |
-| **PR-05** | API маршрут `POST /api/gost34/draft-tz` | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/draft.test.ts` |
-| **PR-06a** | Персистентность в мастере и экспортный гейт (409) | `[x] Влито` | `lib/gost34/__tests__/tzAuthorExportGate.test.ts` |
-| **PR-06b** | Сохранение в снимке `GostPackage.snapshot` | `[x] Влито` | `lib/gost34/__tests__/snapshotPersistence.test.ts` |
-| **PR-07** | Side-by-side ревью в шаге предпросмотра | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/decision.test.ts` |
-| **PR-08** | Клиентский пакетный режим «Весь ТЗ» | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/batch.test.ts` |
-| **PR-09** | Тестовый харнесс (Eval Suite, 15 тестов) | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/evalSuite.test.ts` |
-| **PR-10** | Санитизация аудита (`redactLlmMeta`) и SSRF-защита | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/security.test.ts` |
-
+| PR         | Компонент                                          | Статус      | Проверка                                              |
+| :--------- | :------------------------------------------------- | :---------- | :---------------------------------------------------- |
+| **PR-01**  | Shared LLM client & `EVACAL_LLM_TZ_AUTHOR` flag    | `[x] Влито` | `lib/gost34/llm/__tests__/client.test.ts`             |
+| **PR-02**  | Overlay по `nodeId` и серверная нумерация          | `[x] Влито` | `lib/gost34/__tests__/tzAuthorOverlay.test.ts`        |
+| **PR-03**  | Grounding pack и промпт `tz-author-v1`             | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/grounding.test.ts` |
+| **PR-04**  | Детекция флагов `detectDraftFlags`                 | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/flags.test.ts`     |
+| **PR-05**  | API маршрут `POST /api/gost34/draft-tz`            | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/draft.test.ts`     |
+| **PR-06a** | Персистентность в мастере и экспортный гейт (409)  | `[x] Влито` | `lib/gost34/__tests__/tzAuthorExportGate.test.ts`     |
+| **PR-06b** | Сохранение в снимке `GostPackage.snapshot`         | `[x] Влито` | `lib/gost34/__tests__/snapshotPersistence.test.ts`    |
+| **PR-07**  | Side-by-side ревью в шаге предпросмотра            | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/decision.test.ts`  |
+| **PR-08**  | Клиентский пакетный режим «Весь ТЗ»                | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/batch.test.ts`     |
+| **PR-09**  | Тестовый харнесс (Eval Suite, 15 тестов)           | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/evalSuite.test.ts` |
+| **PR-10**  | Санитизация аудита (`redactLlmMeta`) и SSRF-защита | `[x] Влито` | `lib/gost34/llm/tzAuthor/__tests__/security.test.ts`  |

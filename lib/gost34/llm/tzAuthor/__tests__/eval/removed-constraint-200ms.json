@@ -26,24 +26,12 @@
       }
     ],
     "calculationFacts": null,
-    "allowedCitationIds": [
-      "gost-34.602-2020"
-    ],
-    "allowedCitationTexts": [
-      "ГОСТ 34.602-2020"
-    ],
+    "allowedCitationIds": ["gost-34.602-2020"],
+    "allowedCitationTexts": ["ГОСТ 34.602-2020"],
     "speculate": false
   },
-  "baselineParagraphs": [
-    "Время отклика системы должно быть не более 200 мс."
-  ],
-  "draftParagraphs": [
-    "Система должна обеспечивать быстрый отклик на запросы пользователей."
-  ],
-  "expectedFlagCodes": [
-    "LLM_REMOVED_CONSTRAINT"
-  ],
-  "expectedSeverities": [
-    "block"
-  ]
+  "baselineParagraphs": ["Время отклика системы должно быть не более 200 мс."],
+  "draftParagraphs": ["Система должна обеспечивать быстрый отклик на запросы пользователей."],
+  "expectedFlagCodes": ["LLM_REMOVED_CONSTRAINT"],
+  "expectedSeverities": ["block"]
 }

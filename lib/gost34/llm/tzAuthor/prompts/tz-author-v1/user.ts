@@ -4,7 +4,9 @@ export function buildUserPrompt(pack: GroundingPack): string {
   const parts: string[] = [];
 
   parts.push('<grounding>');
-  parts.push(`  <node id="${pack.node.id}" title="${pack.node.title}" numStr="${pack.node.numStr}" leadInOnly="${pack.node.leadInOnly}" speculate="${pack.speculate}" />`);
+  parts.push(
+    `  <node id="${pack.node.id}" title="${pack.node.title}" numStr="${pack.node.numStr}" leadInOnly="${pack.node.leadInOnly}" speculate="${pack.speculate}" />`,
+  );
 
   parts.push('  <allowed_citations>');
   for (const text of pack.allowedCitationTexts) {
@@ -14,7 +16,9 @@ export function buildUserPrompt(pack: GroundingPack): string {
 
   parts.push('  <applicability>');
   for (const app of pack.applicability) {
-    parts.push(`    <standard id="${app.standardId}" title="${app.title}" status="${app.finalStatus}" />`);
+    parts.push(
+      `    <standard id="${app.standardId}" title="${app.title}" status="${app.finalStatus}" />`,
+    );
   }
   parts.push('  </applicability>');
 
@@ -63,7 +67,9 @@ export function buildUserPrompt(pack: GroundingPack): string {
   }
 
   parts.push('</grounding>');
-  parts.push(`\nПодготовь текст раздела "${pack.node.title}" (nodeId: "${pack.node.id}") строго по схеме JSON.`);
+  parts.push(
+    `\nПодготовь текст раздела "${pack.node.title}" (nodeId: "${pack.node.id}") строго по схеме JSON.`,
+  );
 
   return parts.join('\n');
 }

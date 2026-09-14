@@ -54,10 +54,7 @@ export function validateTzAuthorProposals(params: ValidateTzAuthorParams): Valid
     };
   }
 
-  const effectiveContext: ProjectContext =
-    params.context ||
-    params.payload.projectContext ||
-    {};
+  const effectiveContext: ProjectContext = params.context || params.payload.projectContext || {};
 
   const validProposals: Record<string, TzSectionProposal> = {};
 

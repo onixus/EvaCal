@@ -20,7 +20,7 @@ export function useLlmProvider() {
         const query = new URLSearchParams({ providerId });
         const res = await fetch(`/api/gost34/llm-status?${query.toString()}`);
         const data = await res.json();
-        
+
         // Even if res.ok, we still set error if data.error exists (it might be a resolution error but 200 OK)
         if (data?.error) {
           setLlmError(data.error);
@@ -29,13 +29,13 @@ export function useLlmProvider() {
         } else {
           setLlmError('');
         }
-        
+
         setLlmAvailable(Boolean(data?.available));
         setLlmModels(data?.models || []);
         if (data?.tzAuthorEnabled !== undefined) {
           setTzAuthorEnabled(Boolean(data.tzAuthorEnabled));
         }
-        
+
         if (data?.models?.length > 0 && !llmSelectedModel) {
           setLlmSelectedModel(data.models[0]);
         }

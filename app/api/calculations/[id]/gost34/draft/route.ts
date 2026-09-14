@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCalcAccess } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
-import { getGostPackageDraft, getGostPackageStudioState, saveGostPackageDraft } from '@/lib/project';
+import {
+  getGostPackageDraft,
+  getGostPackageStudioState,
+  saveGostPackageDraft,
+} from '@/lib/project';
 import { parsePackageSnapshot } from '@/lib/gost34/diff';
 import { parseChecklist, parseComments } from '@/lib/gost34/review/types';
 import { handleApiError } from '@/lib/apiHelpers';

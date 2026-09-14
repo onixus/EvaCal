@@ -109,10 +109,7 @@ export function canonUnit(raw?: string): string | null {
 }
 
 export function normalizeText(text: string): string {
-  return text
-    .normalize('NFKC')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return text.normalize('NFKC').replace(/\s+/g, ' ').trim();
 }
 
 export function normalizeCitationText(text: string): string {
@@ -248,7 +245,11 @@ export function extractMeasuredNumbers(text: string): NumberAtom[] {
   return results;
 }
 
-export function extractBareIntegers(text: string, measured: NumberAtom[], citations: CitationAtom[]): NumberAtom[] {
+export function extractBareIntegers(
+  text: string,
+  measured: NumberAtom[],
+  citations: CitationAtom[],
+): NumberAtom[] {
   const clean = text.split('\n').map(stripClausePrefix).join(' ');
   const results: NumberAtom[] = [];
 
@@ -291,7 +292,10 @@ export function extractModality(text: string): ModalityBag {
   const mustNot = negMatches.length;
 
   // May
-  const mayMatches = clean.match(/(?<=^|[^0-9a-zа-яё])(?:может|допускается|рекомендуется|вправе)(?=$|[^0-9a-zа-яё])/giu) || [];
+  const mayMatches =
+    clean.match(
+      /(?<=^|[^0-9a-zа-яё])(?:может|допускается|рекомендуется|вправе)(?=$|[^0-9a-zа-яё])/giu,
+    ) || [];
   const may = mayMatches.length;
 
   // Must
@@ -333,8 +337,14 @@ export function detectDraftFlags(
 ): LlmDraftFlag[] {
   const flags: LlmDraftFlag[] = [];
 
-  const cleanBaseline = (baselineParagraphs || []).map((p: string) => stripClausePrefix(p)).map((p: string) => normalizeText(p)).filter(Boolean);
-  const cleanDraft = (draftParagraphs || []).map((p: string) => stripClausePrefix(p)).map((p: string) => normalizeText(p)).filter(Boolean);
+  const cleanBaseline = (baselineParagraphs || [])
+    .map((p: string) => stripClausePrefix(p))
+    .map((p: string) => normalizeText(p))
+    .filter(Boolean);
+  const cleanDraft = (draftParagraphs || [])
+    .map((p: string) => stripClausePrefix(p))
+    .map((p: string) => normalizeText(p))
+    .filter(Boolean);
 
   const B = cleanBaseline.join('\n');
   const D = cleanDraft.join('\n');

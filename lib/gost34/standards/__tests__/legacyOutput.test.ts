@@ -46,7 +46,15 @@ describe('legacy profile output is unchanged', () => {
   });
 
   it('orders ZIP entries by zipOrder', () => {
-    expect(getZipEntries(legacy).map((e) => e.docType)).toEqual(['TZ', 'PZ', 'AF', 'PMI', 'SPEC', 'PSI', 'ACT']);
+    expect(getZipEntries(legacy).map((e) => e.docType)).toEqual([
+      'TZ',
+      'PZ',
+      'AF',
+      'PMI',
+      'SPEC',
+      'PSI',
+      'ACT',
+    ]);
   });
 });
 

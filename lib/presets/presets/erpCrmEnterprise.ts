@@ -137,8 +137,7 @@ export const ERP_CRM_ENTERPRISE_PRESET: IndustryPreset = {
       order: 1,
     },
     {
-      description:
-        'Нестабильность работы сторонних интеграционных шлюзов (EDI-провайдеры, банки).',
+      description: 'Нестабильность работы сторонних интеграционных шлюзов (EDI-провайдеры, банки).',
       hours: 16,
       order: 2,
     },

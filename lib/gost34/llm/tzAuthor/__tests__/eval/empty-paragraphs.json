@@ -26,22 +26,12 @@
       }
     ],
     "calculationFacts": null,
-    "allowedCitationIds": [
-      "gost-34.602-2020"
-    ],
-    "allowedCitationTexts": [
-      "ГОСТ 34.602-2020"
-    ],
+    "allowedCitationIds": ["gost-34.602-2020"],
+    "allowedCitationTexts": ["ГОСТ 34.602-2020"],
     "speculate": false
   },
-  "baselineParagraphs": [
-    "Время отклика не более 200 мс."
-  ],
+  "baselineParagraphs": ["Время отклика не более 200 мс."],
   "draftParagraphs": [],
-  "expectedFlagCodes": [
-    "LLM_REMOVED_CONSTRAINT"
-  ],
-  "expectedSeverities": [
-    "block"
-  ]
+  "expectedFlagCodes": ["LLM_REMOVED_CONSTRAINT"],
+  "expectedSeverities": ["block"]
 }

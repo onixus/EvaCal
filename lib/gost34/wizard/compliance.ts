@@ -399,13 +399,10 @@ function previewStep(input: ComplianceInput): WizardStepReport {
   )}.`;
 
   const issues: WizardIssue[] = [
-    issue(
-      'preview',
-      'warning',
-      COMPLIANCE_RULES.previewUnacceptedDrafts,
-      issueText,
-      { ref: 'preview.tzAuthor', label: 'черновики разделов ТЗ' },
-    ),
+    issue('preview', 'warning', COMPLIANCE_RULES.previewUnacceptedDrafts, issueText, {
+      ref: 'preview.tzAuthor',
+      label: 'черновики разделов ТЗ',
+    }),
   ];
 
   return stepFromIssues('preview', issues);

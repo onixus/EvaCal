@@ -19,7 +19,22 @@ export const LEAD_IN_ONLY_NODE_IDS = new Set([
 ]);
 
 const APPENDIX_LETTERS = [
-  'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'И', 'К', 'Л', 'М', 'Н', 'П', 'Р', 'С', 'Т',
+  'А',
+  'Б',
+  'В',
+  'Г',
+  'Д',
+  'Е',
+  'Ж',
+  'И',
+  'К',
+  'Л',
+  'М',
+  'Н',
+  'П',
+  'Р',
+  'С',
+  'Т',
 ];
 
 export function walkDraftableNodes(

@@ -54,7 +54,11 @@ export default async function StudioPickerPage() {
       name: p.name,
       version: p.version,
       status: p.status,
-      reviewStage: (p.reviewStage === 'gap' ? 'gap' : p.reviewStage === 'done' ? 'done' : 'tw') as ReviewStage,
+      reviewStage: (p.reviewStage === 'gap'
+        ? 'gap'
+        : p.reviewStage === 'done'
+          ? 'done'
+          : 'tw') as ReviewStage,
       reviewComment: p.reviewComment,
       reviewComments: p.reviewComments,
       reviewChecklist: p.reviewChecklist,
@@ -65,4 +69,3 @@ export default async function StudioPickerPage() {
 
   return <StudioPickerClient calculations={calculations} />;
 }
-

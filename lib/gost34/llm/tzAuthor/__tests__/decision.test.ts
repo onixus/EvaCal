@@ -60,7 +60,11 @@ describe('POST /api/gost34/draft-tz/decision', () => {
 
     const req = new NextRequest('http://localhost/api/gost34/draft-tz/decision', {
       method: 'POST',
-      body: JSON.stringify({ calculationId: 'calc-123', nodeId: 'tz2020-general', decision: 'reject' }),
+      body: JSON.stringify({
+        calculationId: 'calc-123',
+        nodeId: 'tz2020-general',
+        decision: 'reject',
+      }),
     });
 
     const res = await POST(req);
@@ -81,7 +85,11 @@ describe('POST /api/gost34/draft-tz/decision', () => {
     // Invalid decision
     const req2 = new NextRequest('http://localhost/api/gost34/draft-tz/decision', {
       method: 'POST',
-      body: JSON.stringify({ calculationId: 'calc-123', nodeId: 'tz2020-general', decision: 'invalid' }),
+      body: JSON.stringify({
+        calculationId: 'calc-123',
+        nodeId: 'tz2020-general',
+        decision: 'invalid',
+      }),
     });
     const res2 = await POST(req2);
     expect(res2.status).toBe(400);
@@ -89,7 +97,11 @@ describe('POST /api/gost34/draft-tz/decision', () => {
     // Missing paragraphs on accept
     const req3 = new NextRequest('http://localhost/api/gost34/draft-tz/decision', {
       method: 'POST',
-      body: JSON.stringify({ calculationId: 'calc-123', nodeId: 'tz2020-general', decision: 'accept' }),
+      body: JSON.stringify({
+        calculationId: 'calc-123',
+        nodeId: 'tz2020-general',
+        decision: 'accept',
+      }),
     });
     const res3 = await POST(req3);
     expect(res3.status).toBe(400);

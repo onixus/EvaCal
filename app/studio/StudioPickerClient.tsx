@@ -2,7 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { REVIEW_STAGE_LABELS, type ReviewStage, parseComments, openBlockerCount, parseChecklist } from '@/lib/gost34/review/types';
+import {
+  REVIEW_STAGE_LABELS,
+  type ReviewStage,
+  parseComments,
+  openBlockerCount,
+  parseChecklist,
+} from '@/lib/gost34/review/types';
 
 export interface StudioCalculationItem {
   id: string;
@@ -70,7 +76,9 @@ export default function StudioPickerClient({
   const stats = useMemo(() => {
     const rejected = calculationsWithStatus.filter((c) => c.gostStatus === 'rejected').length;
     const drafts = calculationsWithStatus.filter((c) => c.gostStatus === 'draft').length;
-    const underReview = calculationsWithStatus.filter((c) => c.gostStatus === 'under_review').length;
+    const underReview = calculationsWithStatus.filter(
+      (c) => c.gostStatus === 'under_review',
+    ).length;
     const approved = calculationsWithStatus.filter((c) => c.gostStatus === 'approved').length;
     return { rejected, drafts, underReview, approved, totalAttention: rejected + drafts };
   }, [calculationsWithStatus]);
@@ -107,7 +115,8 @@ export default function StudioPickerClient({
               Студия ГОСТ 34
             </h1>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
-              Выберите расчёт для выпуска документации: требования, профиль, применимость, трассируемость и экспорт.
+              Выберите расчёт для выпуска документации: требования, профиль, применимость,
+              трассируемость и экспорт.
             </p>
           </div>
 
@@ -155,85 +164,86 @@ export default function StudioPickerClient({
       </div>
 
       {/* Блок приоритетного внимания: комплекты, возвращённые с замечаниями */}
-      {rejectedList.length > 0 && activeTab !== 'draft' && activeTab !== 'under_review' && activeTab !== 'approved' && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4 dark:border-nord-red/30 dark:bg-nord-red/10 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-600 text-xs font-bold text-white dark:bg-nord-red">
-                !
-              </span>
-              <span className="text-sm font-extrabold text-rose-900 dark:text-nord-redText">
-                Возвращены с замечаниями ревьювера ({rejectedList.length})
+      {rejectedList.length > 0 &&
+        activeTab !== 'draft' &&
+        activeTab !== 'under_review' &&
+        activeTab !== 'approved' && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4 dark:border-nord-red/30 dark:bg-nord-red/10 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-600 text-xs font-bold text-white dark:bg-nord-red">
+                  !
+                </span>
+                <span className="text-sm font-extrabold text-rose-900 dark:text-nord-redText">
+                  Возвращены с замечаниями ревьювера ({rejectedList.length})
+                </span>
+              </div>
+              <span className="text-[11px] text-rose-700/80 dark:text-nord-redText/80">
+                Требуется устранить замечания в Студии и выпустить новую версию
               </span>
             </div>
-            <span className="text-[11px] text-rose-700/80 dark:text-nord-redText/80">
-              Требуется устранить замечания в Студии и выпустить новую версию
-            </span>
-          </div>
 
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            {rejectedList.map((item) => {
-              const pkg = item.rejectedPackage!;
-              const comments = parseComments(pkg.reviewComments);
-              const checklist = parseChecklist(pkg.reviewChecklist);
-              const blockers = openBlockerCount(comments, checklist);
-              const stageLabel = REVIEW_STAGE_LABELS[pkg.reviewStage] ?? pkg.reviewStage;
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {rejectedList.map((item) => {
+                const pkg = item.rejectedPackage!;
+                const comments = parseComments(pkg.reviewComments);
+                const checklist = parseChecklist(pkg.reviewChecklist);
+                const blockers = openBlockerCount(comments, checklist);
+                const stageLabel = REVIEW_STAGE_LABELS[pkg.reviewStage] ?? pkg.reviewStage;
 
-              return (
-                <div
-                  key={item.id}
-                  className="rounded-lg border border-rose-200 bg-white p-3.5 shadow-sm dark:border-nord-3 dark:bg-nord-2 space-y-2.5"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-xs font-bold text-slate-900 dark:text-nord-6">
-                        {item.name}
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-lg border border-rose-200 bg-white p-3.5 shadow-sm dark:border-nord-3 dark:bg-nord-2 space-y-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-bold text-slate-900 dark:text-nord-6">
+                          {item.name}
+                        </div>
+                        <div className="text-[10px] text-slate-400 dark:text-nord-muted">
+                          {item.customer} · v{item.version} · Комплект v{pkg.version}
+                        </div>
                       </div>
-                      <div className="text-[10px] text-slate-400 dark:text-nord-muted">
-                        {item.customer} · v{item.version} · Комплект v{pkg.version}
+                      <span className="chip-block shrink-0">{stageLabel}</span>
+                    </div>
+
+                    {pkg.reviewComment && (
+                      <blockquote className="rounded border-l-2 border-rose-500 bg-rose-50/60 p-2 text-xs italic text-rose-900 dark:bg-nord-red/15 dark:text-nord-redText">
+                        «{pkg.reviewComment}»
+                      </blockquote>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-nord-3">
+                      <span className="text-[11px] font-semibold text-rose-700 dark:text-nord-redText">
+                        {blockers > 0
+                          ? `${blockers} ${blockers === 1 ? 'блокер' : blockers < 5 ? 'блокера' : 'блокеров'}`
+                          : comments.length > 0
+                            ? `${comments.length} замечаний`
+                            : 'Отклонено с замечаниями'}
+                      </span>
+
+                      <div className="flex items-center gap-1.5">
+                        <Link
+                          href={`/review/${pkg.id}`}
+                          className="btn-ghost !px-2 !py-1 !text-[11px]"
+                        >
+                          Лист ревью
+                        </Link>
+                        <Link
+                          href={`/calculations/${item.id}/studio`}
+                          className="btn-primary !bg-rose-600 hover:!bg-rose-700 dark:!bg-nord-red !px-2.5 !py-1 !text-[11px] !font-bold"
+                        >
+                          ✏️ Исправить в Студии →
+                        </Link>
                       </div>
                     </div>
-                    <span className="chip-block shrink-0">
-                      {stageLabel}
-                    </span>
                   </div>
-
-                  {pkg.reviewComment && (
-                    <blockquote className="rounded border-l-2 border-rose-500 bg-rose-50/60 p-2 text-xs italic text-rose-900 dark:bg-nord-red/15 dark:text-nord-redText">
-                      «{pkg.reviewComment}»
-                    </blockquote>
-                  )}
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-nord-3">
-                    <span className="text-[11px] font-semibold text-rose-700 dark:text-nord-redText">
-                      {blockers > 0
-                        ? `${blockers} ${blockers === 1 ? 'блокер' : blockers < 5 ? 'блокера' : 'блокеров'}`
-                        : comments.length > 0
-                          ? `${comments.length} замечаний`
-                          : 'Отклонено с замечаниями'}
-                    </span>
-
-                    <div className="flex items-center gap-1.5">
-                      <Link
-                        href={`/review/${pkg.id}`}
-                        className="btn-ghost !px-2 !py-1 !text-[11px]"
-                      >
-                        Лист ревью
-                      </Link>
-                      <Link
-                        href={`/calculations/${item.id}/studio`}
-                        className="btn-primary !bg-rose-600 hover:!bg-rose-700 dark:!bg-nord-red !px-2.5 !py-1 !text-[11px] !font-bold"
-                      >
-                        ✏️ Исправить в Студии →
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Поиск и фильтры по статусам */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -304,11 +314,17 @@ export default function StudioPickerClient({
                     {hasRejected ? (
                       <span className="chip-block shrink-0">требует доработки</span>
                     ) : hasDraft ? (
-                      <span className="chip-warn shrink-0">черновик v{calc.draftPackage!.version}</span>
+                      <span className="chip-warn shrink-0">
+                        черновик v{calc.draftPackage!.version}
+                      </span>
                     ) : hasUnderReview ? (
-                      <span className="chip-muted shrink-0">на ревью v{calc.underReviewPackage!.version}</span>
+                      <span className="chip-muted shrink-0">
+                        на ревью v{calc.underReviewPackage!.version}
+                      </span>
                     ) : hasApproved ? (
-                      <span className="chip-ok shrink-0">выпущен v{calc.approvedPackage!.version}</span>
+                      <span className="chip-ok shrink-0">
+                        выпущен v{calc.approvedPackage!.version}
+                      </span>
                     ) : (
                       <span className="chip-muted shrink-0 text-[9px]">не выпускался</span>
                     )}

@@ -64,7 +64,13 @@ describe('PR-09: TZ Author Eval Suite (Deterministic CI Evaluation Gate)', () =>
           documentCode: 'АБВГ.123456.001 ТЗ',
           customerName: 'Заказчик',
           developerName: 'Разработчик',
-          signatures: { developer: 'Разработчик', checker: 'Проверяющий', techControl: 'Т.Контр', normControl: 'Н.Контр', approver: 'Утверждающий' },
+          signatures: {
+            developer: 'Разработчик',
+            checker: 'Проверяющий',
+            techControl: 'Т.Контр',
+            normControl: 'Н.Контр',
+            approver: 'Утверждающий',
+          },
           city: 'Москва',
           year: 2026,
           version: '1.0',
@@ -124,7 +130,9 @@ describe('PR-09: TZ Author Eval Suite (Deterministic CI Evaluation Gate)', () =>
       expect(result.proposal.flags).toEqual(fixture.expectedFlags);
       expect(result.proposal.refusedGapPaths).toContain(fixture.expectedQuestionGapPath);
       expect(result.proposal.questions.length).toBeGreaterThan(0);
-      expect(result.proposal.questions.some((q) => q.gapPath === fixture.expectedQuestionGapPath)).toBe(true);
+      expect(
+        result.proposal.questions.some((q) => q.gapPath === fixture.expectedQuestionGapPath),
+      ).toBe(true);
     });
   });
 

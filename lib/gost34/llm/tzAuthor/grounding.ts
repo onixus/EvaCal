@@ -1,5 +1,10 @@
 import { Gost34InputPayload, RequirementCategory } from '../../types';
-import { ProjectContext, ContextGap, ContextProvenance, CONTEXT_GAP_PLACEHOLDER } from '../../context/types';
+import {
+  ProjectContext,
+  ContextGap,
+  ContextProvenance,
+  CONTEXT_GAP_PLACEHOLDER,
+} from '../../context/types';
 import { RequirementStatus, RequirementType, Gost34RequirementV2 } from '../../requirements/v2';
 import { fromGost34RequirementItems } from '../../requirements/adapters';
 import { CitationKey } from '../../standards/types';
@@ -134,7 +139,11 @@ export function shouldSkipLlm(pack: GroundingPack): boolean {
   return pack.speculate === false && !hasNonGapFacts(pack);
 }
 
-function getContextSlice(nodeId: string, payload: Gost34InputPayload, ctx: ProjectContext): Record<string, unknown> {
+function getContextSlice(
+  nodeId: string,
+  payload: Gost34InputPayload,
+  ctx: ProjectContext,
+): Record<string, unknown> {
   switch (nodeId) {
     case 'tz2020-general':
       return {
@@ -305,7 +314,9 @@ export function collectGroundingPack(params: {
     filteredReqs = allReqs.filter((r) => ['technical', 'integration'].includes(r.category));
   } else if (nodeId === 'tz2020-req-support') {
     filteredReqs = allReqs.filter((r) =>
-      ['technical', 'hardware_pac', 'software', 'software_supply', 'infra_setup'].includes(r.category),
+      ['technical', 'hardware_pac', 'software', 'software_supply', 'infra_setup'].includes(
+        r.category,
+      ),
     );
   } else if (nodeId === 'tz2020-req-common-tech') {
     filteredReqs = allReqs.filter((r) =>
@@ -323,7 +334,9 @@ export function collectGroundingPack(params: {
     filteredReqs = allReqs.filter((r) => linkedCodes.has(r.id) || linkedCodes.has(r.code));
   } else if (nodeId === 'tz2020-acceptance') {
     filteredReqs = allReqs.filter(
-      (r) => r.originalText.trim().length > 0 || (r.normalizedText && r.normalizedText.trim().length > 0),
+      (r) =>
+        r.originalText.trim().length > 0 ||
+        (r.normalizedText && r.normalizedText.trim().length > 0),
     );
   } else if (nodeId === 'tz2020-preparation') {
     filteredReqs = allReqs.filter((r) => r.category === 'organizational');

@@ -106,7 +106,8 @@ export default async function ReviewQueuePage() {
 
           <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
             {rejectedPackages.map((pkg) => {
-              const stageLabel = REVIEW_STAGE_LABELS[pkg.reviewStage as ReviewStage] ?? pkg.reviewStage;
+              const stageLabel =
+                REVIEW_STAGE_LABELS[pkg.reviewStage as ReviewStage] ?? pkg.reviewStage;
               return (
                 <div
                   key={pkg.id}
@@ -120,7 +121,8 @@ export default async function ReviewQueuePage() {
                   </div>
 
                   <div className="text-[10px] text-slate-400 dark:text-nord-muted">
-                    {pkg.project?.customer || pkg.calculation?.customer || 'Заказчик'} · v{pkg.version}
+                    {pkg.project?.customer || pkg.calculation?.customer || 'Заказчик'} · v
+                    {pkg.version}
                   </div>
 
                   {pkg.reviewComment && (
@@ -130,10 +132,7 @@ export default async function ReviewQueuePage() {
                   )}
 
                   <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 dark:border-nord-3">
-                    <Link
-                      href={`/review/${pkg.id}`}
-                      className="btn-ghost !px-2 !py-1 !text-[11px]"
-                    >
+                    <Link href={`/review/${pkg.id}`} className="btn-ghost !px-2 !py-1 !text-[11px]">
                       Смотреть замечания
                     </Link>
                     {isArchitect && (

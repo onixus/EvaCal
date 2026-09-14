@@ -42,7 +42,9 @@ export function buildPSI34Sections(payload: Gost34InputPayload): Gost34Section[]
       id: 'sec-3',
       numStr: '3',
       title: 'РЕЗУЛЬТАТЫ ИСПЫТАНИЙ ПО ФУНКЦИОНАЛЬНЫМ И ТЕХНИЧЕСКИМ ТРЕБОВАНИЯМ',
-      paragraphs: ['3.1 Фактические результаты выполнения тестовых сценариев приведены в Таблице 1.'],
+      paragraphs: [
+        '3.1 Фактические результаты выполнения тестовых сценариев приведены в Таблице 1.',
+      ],
       tables: [
         {
           caption: 'Таблица 1 — Фактические результаты проверок',
@@ -55,7 +57,8 @@ export function buildPSI34Sections(payload: Gost34InputPayload): Gost34Section[]
             'Отметка',
           ],
           rows: reqsV2.map((r, idx) => {
-            const criteria = r.acceptanceCriteria?.join('; ') || 'Успешное выполнение проверки без ошибок';
+            const criteria =
+              r.acceptanceCriteria?.join('; ') || 'Успешное выполнение проверки без ошибок';
             // Фактический результат и отметку заполняет комиссия по итогам испытаний —
             // генератор не вправе проставлять «Соответствует» заранее.
             return [idx + 1, r.code, r.title, criteria, '', ''];

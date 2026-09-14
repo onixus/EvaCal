@@ -24,7 +24,13 @@ function createMockPayload(overrides: Partial<Gost34InputPayload> = {}): Gost34I
       documentCode: 'АБВГ.123456.001 ТЗ',
       customerName: 'Заказчик',
       developerName: 'Разработчик',
-      signatures: { developer: 'Иванов', checker: 'Петров', techControl: 'Сидоров', normControl: 'Кузнецов', approver: 'Васильев' },
+      signatures: {
+        developer: 'Иванов',
+        checker: 'Петров',
+        techControl: 'Сидоров',
+        normControl: 'Кузнецов',
+        approver: 'Васильев',
+      },
       city: 'Москва',
       year: 2026,
       version: '1.0',
@@ -66,7 +72,11 @@ describe('PR-03: schemaWalk & grounding', () => {
     it('returns exactly 14 nodes when there are no gaps', () => {
       const payload = createMockPayload();
       const context = createMockContext({ gaps: [] });
-      const nodes = walkDraftableNodes(TZ_SCHEMA_2020, { payload, context, schema: TZ_SCHEMA_2020 });
+      const nodes = walkDraftableNodes(TZ_SCHEMA_2020, {
+        payload,
+        context,
+        schema: TZ_SCHEMA_2020,
+      });
       expect(nodes.length).toBe(14);
       expect(nodes.find((n) => n.id === 'tz2020-appendix-gaps')).toBeUndefined();
     });
@@ -76,7 +86,11 @@ describe('PR-03: schemaWalk & grounding', () => {
       const context = createMockContext({
         gaps: [{ path: 'availability.rto', label: 'RTO', severity: 'major' }],
       });
-      const nodes = walkDraftableNodes(TZ_SCHEMA_2020, { payload, context, schema: TZ_SCHEMA_2020 });
+      const nodes = walkDraftableNodes(TZ_SCHEMA_2020, {
+        payload,
+        context,
+        schema: TZ_SCHEMA_2020,
+      });
       expect(nodes.length).toBe(15);
       const gapsNode = nodes.find((n) => n.id === 'tz2020-appendix-gaps');
       expect(gapsNode).toBeDefined();
@@ -86,8 +100,14 @@ describe('PR-03: schemaWalk & grounding', () => {
 
     it('sets leadInOnly correctly according to spec', () => {
       const payload = createMockPayload();
-      const context = createMockContext({ gaps: [{ path: 'g1', label: 'gap', severity: 'minor' }] });
-      const nodes = walkDraftableNodes(TZ_SCHEMA_2020, { payload, context, schema: TZ_SCHEMA_2020 });
+      const context = createMockContext({
+        gaps: [{ path: 'g1', label: 'gap', severity: 'minor' }],
+      });
+      const nodes = walkDraftableNodes(TZ_SCHEMA_2020, {
+        payload,
+        context,
+        schema: TZ_SCHEMA_2020,
+      });
 
       for (const node of nodes) {
         if (LEAD_IN_ONLY_NODE_IDS.has(node.id)) {
@@ -103,7 +123,11 @@ describe('PR-03: schemaWalk & grounding', () => {
     it('tz2020-general + fstek_21=UNKNOWN includes primary GOST and excludes FSTEK', () => {
       const payload = createMockPayload();
       const applicability = [
-        { standardId: 'fstek_21', title: 'Приказ ФСТЭК России № 21', finalStatus: 'UNKNOWN' as const },
+        {
+          standardId: 'fstek_21',
+          title: 'Приказ ФСТЭК России № 21',
+          finalStatus: 'UNKNOWN' as const,
+        },
       ];
 
       const { allowedCitationIds, allowedCitationTexts } = collectAllowedCitations(

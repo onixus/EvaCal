@@ -129,9 +129,7 @@ describe('PR-06a: TZ Author Export Gate & Validation', () => {
           nodeId: 'tz2020-general',
           schemaTitle: 'Общие сведения',
           status: 'ACCEPTED',
-          paragraphs: [
-            'Система должна соответствовать Приказу ФСТЭК России № 21 в полном объёме.',
-          ],
+          paragraphs: ['Система должна соответствовать Приказу ФСТЭК России № 21 в полном объёме.'],
           questions: [],
           flags: [], // client claims no flags
           refusedGapPaths: [],
@@ -186,9 +184,7 @@ describe('PR-06a: TZ Author Export Gate & Validation', () => {
           nodeId: 'tz2020-general',
           schemaTitle: 'Общие сведения',
           status: 'ACCEPTED',
-          paragraphs: [
-            'Система должна соответствовать Приказу ФСТЭК России № 21 в полном объёме.',
-          ],
+          paragraphs: ['Система должна соответствовать Приказу ФСТЭК России № 21 в полном объёме.'],
           questions: [],
           flags: [],
           refusedGapPaths: [],
@@ -224,9 +220,7 @@ describe('PR-06a: TZ Author Export Gate & Validation', () => {
           nodeId: 'tz2020-general',
           schemaTitle: 'Общие сведения',
           status: 'ACCEPTED',
-          paragraphs: [
-            'Система должна соответствовать Приказу ФСТЭК России № 21.',
-          ],
+          paragraphs: ['Система должна соответствовать Приказу ФСТЭК России № 21.'],
           questions: [],
           flags: [],
           refusedGapPaths: [],
@@ -292,7 +286,11 @@ describe('PR-06a: TZ Author Export Gate & Validation', () => {
       },
     };
 
-    const withoutProposed = overlaysForDocument({ docType: 'TZ', tzAuthor, includeProposed: false });
+    const withoutProposed = overlaysForDocument({
+      docType: 'TZ',
+      tzAuthor,
+      includeProposed: false,
+    });
     expect(withoutProposed['tz2020-general']).toBeUndefined();
 
     const withProposed = overlaysForDocument({ docType: 'TZ', tzAuthor, includeProposed: true });

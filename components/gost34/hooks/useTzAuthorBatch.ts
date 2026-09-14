@@ -74,10 +74,7 @@ export function useTzAuthorBatch({
   }, [cancelBatch]);
 
   const runSequence = useCallback(
-    async (
-      targetNodes: BatchNodeTarget[],
-      options?: { speculate?: boolean },
-    ) => {
+    async (targetNodes: BatchNodeTarget[], options?: { speculate?: boolean }) => {
       if (targetNodes.length === 0) return;
 
       setIsRunning(true);
@@ -186,9 +183,7 @@ export function useTzAuthorBatch({
       if (options?.onlyUnproposed) {
         const currentProposals = latestTzAuthorRef.current?.proposals || {};
         targetNodes = allNodes.filter(
-          (n) =>
-            !currentProposals[n.id] ||
-            currentProposals[n.id].status === 'REJECTED',
+          (n) => !currentProposals[n.id] || currentProposals[n.id].status === 'REJECTED',
         );
       }
 

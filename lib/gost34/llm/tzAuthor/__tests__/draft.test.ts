@@ -17,7 +17,13 @@ function createMockPayload(overrides: Partial<Gost34InputPayload> = {}): Gost34I
       documentCode: 'АБВГ.123456.001 ТЗ',
       customerName: 'Заказчик',
       developerName: 'Разработчик',
-      signatures: { developer: 'Иванов', checker: 'Петров', techControl: 'Сидоров', normControl: 'Кузнецов', approver: 'Васильев' },
+      signatures: {
+        developer: 'Иванов',
+        checker: 'Петров',
+        techControl: 'Сидоров',
+        normControl: 'Кузнецов',
+        approver: 'Васильев',
+      },
       city: 'Москва',
       year: 2026,
       version: '1.0',
@@ -75,7 +81,14 @@ describe('PR-05: draftTzSection', () => {
 
     const context = createMockContext({
       availability: {},
-      gaps: [{ path: 'availability.rtoMinutes', label: 'RTO (время восстановления)', severity: 'major', hint: 'опросник' }],
+      gaps: [
+        {
+          path: 'availability.rtoMinutes',
+          label: 'RTO (время восстановления)',
+          severity: 'major',
+          hint: 'опросник',
+        },
+      ],
     });
 
     const chatSpy = vi.spyOn(clientModule, 'chatCompletion');
@@ -136,7 +149,9 @@ describe('PR-05: draftTzSection', () => {
     // Forced nodeId
     expect(result.proposal.nodeId).toBe('tz2020-goals-purpose');
     // Clause numbers stripped from paragraphs
-    expect(result.proposal.paragraphs[0]).toBe('Система обеспечивает обработку финансовых транзакций.');
+    expect(result.proposal.paragraphs[0]).toBe(
+      'Система обеспечивает обработку финансовых транзакций.',
+    );
     expect(result.proposal.paragraphs[1]).toBe('Время отклика составляет не более 200 мс.');
     expect(result.proposal.status).toBe('PROPOSED');
 

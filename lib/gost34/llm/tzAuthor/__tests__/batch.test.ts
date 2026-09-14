@@ -82,9 +82,7 @@ describe('TZ Author batch drafting utilities (PR-08)', () => {
 
     // Filter only unproposed / rejected
     const unproposed = nodes.filter(
-      (n) =>
-        !mockState.proposals[n.id] ||
-        mockState.proposals[n.id].status === 'REJECTED',
+      (n) => !mockState.proposals[n.id] || mockState.proposals[n.id].status === 'REJECTED',
     );
 
     const unproposedIds = unproposed.map((u) => u.id);

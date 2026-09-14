@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadCalculationForExport } from '@/lib/export';
 import { analyzeAndNormalizeInput } from '@/lib/gost34/analyzer';
 import { buildGost34DocumentAST } from '@/lib/gost34/generator';
-import { applySectionOverrides, validateTzAuthorProposals, TzAuthorDiagnostic } from '@/lib/gost34/index';
+import {
+  applySectionOverrides,
+  validateTzAuthorProposals,
+  TzAuthorDiagnostic,
+} from '@/lib/gost34/index';
 import { overlaysForDocument } from '@/lib/gost34/llm/tzAuthor/project';
 import { GostDocumentType } from '@/lib/gost34/types';
 import { requireCalcAccess } from '@/lib/access';

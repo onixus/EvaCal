@@ -28,7 +28,11 @@ interface OpenAiModelItem {
   name?: string;
 }
 
-export async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+export async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  ms: number,
+): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), ms);
   try {
@@ -51,7 +55,11 @@ export async function probeProvider(
   // 1. Try Ollama Native API (/api/tags)
   if (provider.kind === 'ollama') {
     try {
-      const res = await fetchWithTimeout(`${cleanEndpoint}/api/tags`, { method: 'GET' }, LLM_PROBE_TIMEOUT_MS);
+      const res = await fetchWithTimeout(
+        `${cleanEndpoint}/api/tags`,
+        { method: 'GET' },
+        LLM_PROBE_TIMEOUT_MS,
+      );
       if (res.ok) {
         const data = (await res.json()) as { models?: OllamaModelItem[] };
         const models = (data.models || [])
@@ -77,7 +85,11 @@ export async function probeProvider(
         headers['Authorization'] = `Bearer ${apiKey}`;
       }
 
-      const res = await fetchWithTimeout(modelsUrl, { method: 'GET', headers }, LLM_PROBE_TIMEOUT_MS);
+      const res = await fetchWithTimeout(
+        modelsUrl,
+        { method: 'GET', headers },
+        LLM_PROBE_TIMEOUT_MS,
+      );
       if (res.ok) {
         const data = (await res.json()) as { data?: OpenAiModelItem[] };
         const models = (data.data || [])
@@ -127,7 +139,7 @@ export async function chatCompletion(req: LlmChatRequest): Promise<LlmChatResult
         headers,
         body: JSON.stringify(body),
       },
-      LLM_CHAT_TIMEOUT_MS
+      LLM_CHAT_TIMEOUT_MS,
     );
 
     if (!res.ok) {
@@ -147,7 +159,10 @@ export async function chatCompletion(req: LlmChatRequest): Promise<LlmChatResult
   } else if (req.provider.kind === 'ollama') {
     // Translate standard messages to Ollama format
     const systemMsg = req.messages.find((m) => m.role === 'system')?.content || '';
-    const userMsgs = req.messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n\n');
+    const userMsgs = req.messages
+      .filter((m) => m.role === 'user')
+      .map((m) => m.content)
+      .join('\n\n');
     let prompt = userMsgs;
     if (systemMsg) {
       prompt = `${systemMsg}\n\n${userMsgs}`;
@@ -162,7 +177,7 @@ export async function chatCompletion(req: LlmChatRequest): Promise<LlmChatResult
       stream: false,
       options: {
         temperature: req.temperature,
-      }
+      },
     };
     if (req.responseFormat === 'json') {
       body.format = 'json';
@@ -182,7 +197,7 @@ export async function chatCompletion(req: LlmChatRequest): Promise<LlmChatResult
         headers,
         body: JSON.stringify(body),
       },
-      LLM_CHAT_TIMEOUT_MS
+      LLM_CHAT_TIMEOUT_MS,
     );
 
     if (!res.ok) {

@@ -32,7 +32,7 @@ export async function checkLocalLlmAvailability(
     id: 'local_compat',
     label: 'Local Compat',
     endpoint,
-    kind: providerKind
+    kind: providerKind,
   };
   const result = await probeProvider(dummyProvider);
   return { available: result.available, provider: providerKind, models: result.models };
@@ -78,45 +78,44 @@ function buildLlmProposals(
 
   const stamp = Date.now();
 
-  return parsedJson.map((item: LlmProposalRawItem, idx: number) => {
-    // Match the reply back to its input by code, else positionally.
-    const sourceRaw = (item.code && byCode.get(item.code)) || rawItems[idx];
-    
-    // In case the LLM returned more items than we sent
-    if (!sourceRaw) {
-      return null;
-    }
+  return parsedJson
+    .map((item: LlmProposalRawItem, idx: number) => {
+      // Match the reply back to its input by code, else positionally.
+      const sourceRaw = (item.code && byCode.get(item.code)) || rawItems[idx];
 
-    const source = fromGost34RequirementItems([sourceRaw])[0];
-    const proposedText = item.description || item.title || '';
-
-    const resolvedCategory =
-      item.category && LLM_CATEGORIES.includes(item.category)
-        ? (item.category as RequirementCategory)
-        : source.category;
-
-    const resolvedType =
-      item.category === 'functional'
-        ? 'system'
-        : source.type;
-
-    return {
-      ...source,
-      code: item.code || source.code,
-      category: resolvedCategory,
-      type: resolvedType,
-      normalizedText: proposedText || source.normalizedText || source.originalText,
-      approval: {
-        status: 'PROPOSED',
-        suggestedBy: `llm-${idPrefix}-${targetModel}`,
-        suggestedAt: new Date(stamp).toISOString(),
-      },
-      legacy: {
-        ...source.legacy,
-        normalizedBy: `ИИ-Нормализация: ${idPrefix}`,
+      // In case the LLM returned more items than we sent
+      if (!sourceRaw) {
+        return null;
       }
-    };
-  }).filter(Boolean) as Gost34RequirementV2[];
+
+      const source = fromGost34RequirementItems([sourceRaw])[0];
+      const proposedText = item.description || item.title || '';
+
+      const resolvedCategory =
+        item.category && LLM_CATEGORIES.includes(item.category)
+          ? (item.category as RequirementCategory)
+          : source.category;
+
+      const resolvedType = item.category === 'functional' ? 'system' : source.type;
+
+      return {
+        ...source,
+        code: item.code || source.code,
+        category: resolvedCategory,
+        type: resolvedType,
+        normalizedText: proposedText || source.normalizedText || source.originalText,
+        approval: {
+          status: 'PROPOSED',
+          suggestedBy: `llm-${idPrefix}-${targetModel}`,
+          suggestedAt: new Date(stamp).toISOString(),
+        },
+        legacy: {
+          ...source.legacy,
+          normalizedBy: `ИИ-Нормализация: ${idPrefix}`,
+        },
+      };
+    })
+    .filter(Boolean) as Gost34RequirementV2[];
 }
 
 export async function normalizeRequirementsWithLlm(
@@ -209,15 +208,21 @@ export async function normalizeRequirementsWithLlm(
       model: targetModel,
       messages,
       temperature: options.temperature ?? 0.2,
-      responseFormat: 'json'
+      responseFormat: 'json',
     });
 
     const parsedJson = extractJsonValue(res.text);
 
     if (Array.isArray(parsedJson) && parsedJson.length > 0) {
-      const providerLabel = detectedProvider === 'openai_compatible' ? 'LM Studio / OpenAI' : 'Ollama';
+      const providerLabel =
+        detectedProvider === 'openai_compatible' ? 'LM Studio / OpenAI' : 'Ollama';
       const idPrefix = detectedProvider === 'openai_compatible' ? 'lmstudio' : 'ollama';
-      const proposals = buildLlmProposals(parsedJson as LlmProposalRawItem[], rawItems, targetModel, idPrefix);
+      const proposals = buildLlmProposals(
+        parsedJson as LlmProposalRawItem[],
+        rawItems,
+        targetModel,
+        idPrefix,
+      );
       return {
         requirements: toGost34RequirementItems(proposals, {
           preferNormalized: true,
@@ -240,13 +245,18 @@ export async function normalizeRequirementsWithLlm(
         model: targetModel,
         messages,
         temperature: options.temperature ?? 0.2,
-        responseFormat: 'json'
+        responseFormat: 'json',
       });
 
       const parsedJson = extractJsonValue(res.text);
 
       if (Array.isArray(parsedJson) && parsedJson.length > 0) {
-        const proposals = buildLlmProposals(parsedJson as LlmProposalRawItem[], rawItems, targetModel, 'ollama');
+        const proposals = buildLlmProposals(
+          parsedJson as LlmProposalRawItem[],
+          rawItems,
+          targetModel,
+          'ollama',
+        );
         return {
           requirements: toGost34RequirementItems(proposals, {
             preferNormalized: true,

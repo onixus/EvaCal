@@ -17,8 +17,13 @@ export async function GET(req: NextRequest) {
   try {
     provider = resolveLlmProvider(providerId);
   } catch (e) {
-    const errorMsg = e instanceof EndpointNotAllowedError ? e.message : (e instanceof Error ? e.message : 'Unknown error');
-    return NextResponse.json({ 
+    const errorMsg =
+      e instanceof EndpointNotAllowedError
+        ? e.message
+        : e instanceof Error
+          ? e.message
+          : 'Unknown error';
+    return NextResponse.json({
       error: errorMsg,
       available: false,
       tzAuthorEnabled,

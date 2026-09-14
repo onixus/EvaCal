@@ -5,7 +5,7 @@ services:
     build:
       context: .
       target: migrate
-    restart: "no"
+    restart: 'no'
     environment:
       DATABASE_URL: ${DATABASE_URL:-file:./prisma/dev.db}
       SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD:-}

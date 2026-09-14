@@ -26,26 +26,12 @@
       }
     ],
     "calculationFacts": null,
-    "allowedCitationIds": [
-      "gost-34.602-2020"
-    ],
-    "allowedCitationTexts": [
-      "ГОСТ 34.602-2020"
-    ],
+    "allowedCitationIds": ["gost-34.602-2020"],
+    "allowedCitationTexts": ["ГОСТ 34.602-2020"],
     "speculate": false
   },
-  "baselineParagraphs": [
-    "Система охватывает смежные системы."
-  ],
-  "draftParagraphs": [
-    "Система охватывает 2 смежные системы и 3 группы функций."
-  ],
-  "expectedFlagCodes": [
-    "LLM_ADDED_NUMBER",
-    "LLM_ADDED_NUMBER"
-  ],
-  "expectedSeverities": [
-    "warn",
-    "warn"
-  ]
+  "baselineParagraphs": ["Система охватывает смежные системы."],
+  "draftParagraphs": ["Система охватывает 2 смежные системы и 3 группы функций."],
+  "expectedFlagCodes": ["LLM_ADDED_NUMBER", "LLM_ADDED_NUMBER"],
+  "expectedSeverities": ["warn", "warn"]
 }
