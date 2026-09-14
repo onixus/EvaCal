@@ -1,16 +1,18 @@
 import { notFound } from 'next/navigation';
 import { getProjectDetails } from '@/lib/project';
+import { getSession } from '@/lib/auth';
 import ProjectDetailClient, { SerializedProject } from './ProjectDetailClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ProjectDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const project = await getProjectDetails(params.id);
+  const [project, session] = await Promise.all([getProjectDetails(params.id), getSession()]);
 
   if (!project) {
     notFound();
   }
+  const canEditDeal = ['presale', 'architect', 'admin'].includes(session?.role ?? '');
 
   const serializedProject: SerializedProject = {
     id: project.id,
@@ -22,6 +24,28 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     createdBy: project.createdBy,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
+    deal: {
+      id: project.id,
+      dealStatus: project.dealStatus,
+      dealClosedAt: project.dealClosedAt?.toISOString() ?? null,
+      dealClosedBy: project.dealClosedBy,
+      lossReason: project.lossReason,
+      lossComment: project.lossComment,
+      competitor: project.competitor,
+      contractAmount: project.contractAmount,
+      contractCurrency: project.contractCurrency,
+      wonCalculationId: project.wonCalculationId,
+      actualsClosedAt: project.actualsClosedAt?.toISOString() ?? null,
+      calculations: project.calculations.map((c) => ({
+        id: c.id,
+        version: c.version,
+        status: c.status,
+        currency: c.currency,
+        stagesTotal: c.stages.filter((s) => !s.isApprovalTask).length,
+        stagesWithActual: c.stages.filter((s) => !s.isApprovalTask && s.actualHours !== null)
+          .length,
+      })),
+    },
     calculations: project.calculations.map((c) => ({
       id: c.id,
       name: c.name,
@@ -89,5 +113,5 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     })),
   };
 
-  return <ProjectDetailClient project={serializedProject} />;
+  return <ProjectDetailClient project={serializedProject} canEditDeal={canEditDeal} />;
 }

@@ -15,13 +15,13 @@ datasource db {
 
 // RBAC: only the architect and admin interfaces require a login; presale stays open.
 model User {
-  id                 String   @id @default(cuid())
-  username           String   @unique
+  id                 String         @id @default(cuid())
+  username           String         @unique
   role               String // architect | admin
   passwordHash       String
-  mustChangePassword Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  mustChangePassword Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
   harnessAgents      HarnessAgent[]
 }
 
@@ -141,11 +141,25 @@ model Project {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Исход сделки (Horizon E1). Сделка одна на проект, расчётов-версий много,
+  // поэтому исход живёт здесь, а факт по этапам — на выигранной версии.
+  dealStatus       String    @default("open") // open | won | lost | cancelled
+  dealClosedAt     DateTime?
+  dealClosedBy     String?
+  lossReason       String? // price | competitor | timing | no_budget | scope | relationship | other
+  lossComment      String?
+  competitor       String?
+  contractAmount   Float? // сумма договора без НДС
+  contractCurrency String?
+  wonCalculationId String? // версия расчёта, по которой подписан договор
+  actualsClosedAt  DateTime? // факт закрыт: этапы дальше правит только админ
+
   calculations Calculation[]
   packages     GostPackage[]
 
   @@index([createdAt, id])
   @@index([customer, status])
+  @@index([dealStatus, dealClosedAt])
 }
 
 // A concrete labor-cost calculation, produced by presale, refined by the architect.
@@ -161,6 +175,8 @@ model Calculation {
   // РП (project manager) allowance: 8h start + 8h close + complexity overhead.
   // Counted only in the calculation's total labor hours — never shown as a Gantt stage.
   pmHours                Float        @default(0)
+  // Факт часов РП по выигранной версии (Horizon E1).
+  actualPmHours          Float?
   createdBy              String       @default("presale")
   createdAt              DateTime     @default(now())
   updatedAt              DateTime     @updatedAt
@@ -282,6 +298,11 @@ model Stage {
   // Architect-editable Gantt controls (primary stages only, not approval-task rows):
   parallel           Boolean     @default(false) // starts alongside the preceding non-parallel stage
   approvalDays       Int? // custom duration (business days) for this stage's own approval task; null = default 3
+  // Факт по этапу выигранной версии (Horizon E1); null — факт не вносился.
+  actualHours        Float?
+  actualStartDate    DateTime?
+  actualEndDate      DateTime?
+  actualNote         String?
   createdAt          DateTime    @default(now())
 
   // Stages are only ever read as "all rows for one calculation, in Gantt order".

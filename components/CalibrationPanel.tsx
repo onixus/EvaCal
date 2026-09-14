@@ -292,6 +292,14 @@ export default function CalibrationPanel({
                   : undefined
               }
             />
+            {report.medianRealRatio !== null && (
+              <Stat
+                title="Факт у похожих"
+                value={fmtPct(report.medianRealRatio)}
+                hint={`факт / утверждено, ${report.realSamples} проект(а) с фактом`}
+                tone={ratioTone(report.medianRealRatio)}
+              />
+            )}
             <Stat
               title="Срок у похожих"
               value={report.medianDurationDays !== null ? `${report.medianDurationDays} дн.` : '—'}

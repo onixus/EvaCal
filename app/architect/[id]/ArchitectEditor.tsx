@@ -8,6 +8,7 @@ import GanttChart from '@/components/GanttChart';
 import StatusBadge from '@/components/StatusBadge';
 import TotalsSummary, { RiskRow } from '@/components/TotalsSummary';
 import ExportLinks from '@/components/ExportLinks';
+import ActualsPanel from '@/components/ActualsPanel';
 
 interface Calculation {
   id: string;
@@ -37,7 +38,13 @@ function nextKey() {
   return `new-${uid}`;
 }
 
-export default function ArchitectEditor({ calculation }: { calculation: Calculation }) {
+export default function ArchitectEditor({
+  calculation,
+  viewerRole = 'architect',
+}: {
+  calculation: Calculation;
+  viewerRole?: string;
+}) {
   const router = useRouter();
   const [stages, setStages] = useState<EditableStage[]>(
     calculation.stages
@@ -461,6 +468,8 @@ export default function ArchitectEditor({ calculation }: { calculation: Calculat
           risks={calculation.risks}
         />
       </div>
+
+      <ActualsPanel calculationId={calculation.id} role={viewerRole} />
 
       <div className="card p-5">
         <h2 className="mb-3 font-medium">Итоговый график</h2>
