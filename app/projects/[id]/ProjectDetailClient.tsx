@@ -830,30 +830,29 @@ export default function ProjectDetailClient({
                           {pkg.status !== 'approved' &&
                             (canDecide(pkg) ? (
                               <>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenReviewModal(pkg, 'approve')}
-                                className="btn-secondary !py-1 !px-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-nord-2"
-                                title="Утвердить данный выпуск"
-                              >
-                                ✓ Согласовать
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenReviewModal(pkg, 'reject')}
-                                className="btn-secondary !py-1 !px-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-nord-2"
-                                title="Отклонить выпуск с комментарием"
-                              >
-                                ✕ Отклонить
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenReviewModal(pkg, 'approve')}
+                                  className="btn-secondary !py-1 !px-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-nord-2"
+                                  title="Утвердить данный выпуск"
+                                >
+                                  ✓ Согласовать
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenReviewModal(pkg, 'reject')}
+                                  className="btn-secondary !py-1 !px-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-nord-2"
+                                  title="Отклонить выпуск с комментарием"
+                                >
+                                  ✕ Отклонить
+                                </button>
                               </>
                             ) : (
                               <span
                                 className="text-xs text-slate-500 dark:text-nord-muted"
                                 title="Решение на текущем этапе выносит другая роль"
                               >
-                                на подписи:{' '}
-                                {REVIEW_STAGE_LABELS[stageOf(pkg)] ?? 'ревью'}
+                                на подписи: {REVIEW_STAGE_LABELS[stageOf(pkg)] ?? 'ревью'}
                               </span>
                             ))}
                           <Link
