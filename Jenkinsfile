@@ -1,10 +1,15 @@
 pipeline {
-    agent {
-        docker {
-            image 'node:22.14-alpine3.21'
-            args '-u root:root'
-        }
-    }
+    // agent none на верхнем уровне — вынужденно и намеренно.
+    //
+    // Стадию с другим образом нельзя объявить внутри пайплайна, чей
+    // верхнеуровневый агент сам является контейнером: Jenkins поднимает вложенный
+    // агент ИЗНУТРИ него и упирается в отсутствие docker CLI. Билд #50 умер ровно
+    // так — `docker: not found`, exit 127.
+    //
+    // Поэтому основные проверки собраны в одну родительскую стадию со своим
+    // контейнером: внутри неё шаги по-прежнему делят общий /build, ради чего всё
+    // и затевалось. E2E — её сосед со своим образом.
+    agent none
 
     environment {
         CI = 'true'
@@ -40,77 +45,92 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                // Чтение с VirtioFS надёжно — теряются именно записи, поэтому
-                // копировать исходники наружу безопасно. tar, а не cp -a,
-                // ради --exclude (busybox tar 1.37 его поддерживает).
-                sh '''
-                    set -eu
-                    rm -rf "$BUILD_DIR"
-                    mkdir -p "$BUILD_DIR"
-                    tar -cf - --exclude=node_modules --exclude=.next . | (cd "$BUILD_DIR" && tar -xf -)
-                '''
-                sh 'cd "$BUILD_DIR" && npm ci'
-                sh 'cd "$BUILD_DIR" && npx prisma generate'
-            }
-        }
-
-        stage('Security Audit') {
-            steps {
-                catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-                    // Fail on high/critical advisories. Force public registry
-                    sh 'cd "$BUILD_DIR" && npm audit --audit-level=high --registry=https://registry.npmjs.org/'
+        stage('Проверки') {
+            agent {
+                docker {
+                    image 'node:22.14-alpine3.21'
+                    args '-u root:root'
                 }
             }
-        }
-
-        // Each check reports its own stage result instead of aborting the run,
-        // so a lint failure can no longer hide a failing test. Any failure
-        // still marks the whole build FAILURE.
-        stage('Lint') {
-            steps {
-                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    sh 'cd "$BUILD_DIR" && npm run lint'
+            stages {
+                stage('Checkout') {
+                    steps {
+                        checkout scm
+                    }
                 }
-            }
-        }
 
-        stage('Typecheck') {
-            steps {
-                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    sh 'cd "$BUILD_DIR" && npm run typecheck'
+                stage('Install Dependencies') {
+                    steps {
+                        // Чтение с VirtioFS надёжно — теряются именно записи, поэтому
+                        // копировать исходники наружу безопасно. tar, а не cp -a,
+                        // ради --exclude (busybox tar 1.37 его поддерживает).
+                        sh '''
+                            set -eu
+                            rm -rf "$BUILD_DIR"
+                            mkdir -p "$BUILD_DIR"
+                            tar -cf - --exclude=node_modules --exclude=.next . | (cd "$BUILD_DIR" && tar -xf -)
+                        '''
+                        sh 'cd "$BUILD_DIR" && npm ci'
+                        sh 'cd "$BUILD_DIR" && npx prisma generate'
+                    }
                 }
-            }
-        }
 
-        stage('Test') {
-            steps {
-                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    sh 'cd "$BUILD_DIR" && npm run test:ci'
+                stage('Security Audit') {
+                    steps {
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
+                            // Fail on high/critical advisories. Force public registry
+                            sh 'cd "$BUILD_DIR" && npm audit --audit-level=high --registry=https://registry.npmjs.org/'
+                        }
+                    }
+                }
+
+                // Each check reports its own stage result instead of aborting the run,
+                // so a lint failure can no longer hide a failing test. Any failure
+                // still marks the whole build FAILURE.
+                stage('Lint') {
+                    steps {
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            sh 'cd "$BUILD_DIR" && npm run lint'
+                        }
+                    }
+                }
+
+                stage('Typecheck') {
+                    steps {
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            sh 'cd "$BUILD_DIR" && npm run typecheck'
+                        }
+                    }
+                }
+
+                stage('Test') {
+                    steps {
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            sh 'cd "$BUILD_DIR" && npm run test:ci'
+                        }
+                    }
+                    post {
+                        always {
+                            // junit читает относительно воркспейса, а отчёт теперь
+                            // пишется в $BUILD_DIR — вернуть его назад. Один мелкий
+                            // файл: запись в bind-mount минимальна, и если отчёта нет
+                            // (упал сам vitest), allowEmptyResults это переживёт.
+                            sh 'cp "$BUILD_DIR/test-results.xml" "$WORKSPACE/" 2>/dev/null || true'
+                            junit testResults: 'test-results.xml', allowEmptyResults: true
+                        }
+                    }
+                }
+
+                stage('Build') {
+                    steps {
+                        sh 'cd "$BUILD_DIR" && npm run build'
+                    }
                 }
             }
             post {
                 always {
-                    // junit читает относительно воркспейса, а отчёт теперь
-                    // пишется в $BUILD_DIR — вернуть его назад. Один мелкий
-                    // файл: запись в bind-mount минимальна, и если отчёта нет
-                    // (упал сам vitest), allowEmptyResults это переживёт.
-                    sh 'cp "$BUILD_DIR/test-results.xml" "$WORKSPACE/" 2>/dev/null || true'
-                    junit testResults: 'test-results.xml', allowEmptyResults: true
+                    cleanWs()
                 }
-            }
-        }
-
-        stage('Build') {
-            steps {
-                sh 'cd "$BUILD_DIR" && npm run build'
             }
         }
 
@@ -184,14 +204,9 @@ pipeline {
                     sh 'cp -r /e2e/test-results "$WORKSPACE/" 2>/dev/null || true'
                     archiveArtifacts artifacts: 'playwright-report/**, test-results/**',
                                      allowEmptyArchive: true, fingerprint: false
+                    cleanWs()
                 }
             }
-        }
-    }
-
-    post {
-        always {
-            cleanWs()
         }
     }
 }
