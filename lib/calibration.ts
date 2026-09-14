@@ -12,6 +12,7 @@
  */
 import { computePmHours } from './pm';
 import { COMPLEXITY_OPTIONS } from './pm';
+import { median, round1, round2 } from './stats';
 
 // ---------------------------------------------------------------------------
 // Входные строки
@@ -176,21 +177,6 @@ export const MIN_SIMILARITY = 0.35;
 // ---------------------------------------------------------------------------
 // Вспомогательные
 // ---------------------------------------------------------------------------
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-function round1(n: number): number {
-  return Math.round(n * 10) / 10;
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
 
 function parseOptions(raw: string | null): string[] {
   if (!raw) return [];

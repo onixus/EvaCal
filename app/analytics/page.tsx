@@ -4,6 +4,7 @@ import { LEADERBOARD_PERIODS, parsePeriod } from '@/lib/leaderboard';
 import { loadAccuracyAnalytics, loadDealAnalytics } from '@/lib/actualsData';
 import { loadDeviationCatalog } from '@/lib/deviationsData';
 import DeviationChart from '@/components/DeviationChart';
+import StatCard from '@/components/StatCard';
 import { accuracyTone, type WinRate } from '@/lib/actuals';
 import { roleLabel } from '@/lib/roles';
 
@@ -25,11 +26,10 @@ export default async function AnalyticsPage(props: {
     sp.tab === 'accuracy' ? 'accuracy' : sp.tab === 'deviations' ? 'deviations' : 'deals';
   const href = (t: Tab, p = period) => `/analytics?tab=${t}${p === 'all' ? '' : `&period=${p}`}`;
 
-  const [deals, accuracy, catalog] = await Promise.all([
-    loadDealAnalytics(period),
-    loadAccuracyAnalytics(period),
-    loadDeviationCatalog(),
-  ]);
+  // Грузится только то, что показывает вкладка: остальные наборы — лишние запросы.
+  const deals = tab === 'deals' ? await loadDealAnalytics(period) : null;
+  const accuracy = tab === 'accuracy' ? await loadAccuracyAnalytics(period) : null;
+  const catalog = tab === 'deviations' ? await loadDeviationCatalog() : null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -78,14 +78,16 @@ export default async function AnalyticsPage(props: {
         </Link>
       </div>
 
-      {tab === 'deviations' ? (
+      {tab === 'deviations' && catalog ? (
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Stat
+            <StatCard
+              size="lg"
               title="Задач с фактом"
               value={String(catalog.tasks.filter((t) => t.samples > 0).length)}
             />
-            <Stat
+            <StatCard
+              size="lg"
               title="Наблюдений"
               value={String(catalog.rows)}
               hint="этапов выигранных версий с фактом"
@@ -131,14 +133,15 @@ export default async function AnalyticsPage(props: {
             />
           </Section>
         </div>
-      ) : tab === 'deals' ? (
+      ) : tab === 'deals' && deals ? (
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <Stat title="Сделок" value={String(deals.total)} />
-            <Stat title="Выиграно" value={String(deals.winRate.won)} />
-            <Stat title="Проиграно" value={String(deals.winRate.lost)} />
-            <Stat title="Отменено" value={String(deals.winRate.cancelled)} />
-            <Stat
+            <StatCard size="lg" title="Сделок" value={String(deals.total)} />
+            <StatCard size="lg" title="Выиграно" value={String(deals.winRate.won)} />
+            <StatCard size="lg" title="Проиграно" value={String(deals.winRate.lost)} />
+            <StatCard size="lg" title="Отменено" value={String(deals.winRate.cancelled)} />
+            <StatCard
+              size="lg"
               title="Win rate"
               value={fmtRate(deals.winRate)}
               hint={deals.winRate.lowSample ? 'мало данных' : undefined}
@@ -173,7 +176,7 @@ export default async function AnalyticsPage(props: {
                   m.month,
                   String(m.won),
                   String(m.lost),
-                  fmtPct(m.rate),
+                  pct(m.rate),
                 ])}
                 empty="Закрытых сделок нет."
               />
@@ -200,12 +203,13 @@ export default async function AnalyticsPage(props: {
             </Section>
           </div>
         </div>
-      ) : (
+      ) : accuracy ? (
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Stat title="Выигранных проектов" value={String(accuracy.projects)} />
-            <Stat title="С внесённым фактом" value={String(accuracy.withActuals)} />
-            <Stat
+            <StatCard size="lg" title="Выигранных проектов" value={String(accuracy.projects)} />
+            <StatCard size="lg" title="С внесённым фактом" value={String(accuracy.withActuals)} />
+            <StatCard
+              size="lg"
               title="Медиана |отклонения|"
               value={
                 accuracy.points.length
@@ -273,16 +277,13 @@ export default async function AnalyticsPage(props: {
             </Section>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
 function fmtRate(w: WinRate): string {
   return w.rate === null ? '—' : `${Math.round(w.rate * 100)}%`;
-}
-function fmtPct(r: number | null): string {
-  return r === null ? '—' : `${Math.round(r * 100)}%`;
 }
 function pct(r: number | null): string {
   return r === null ? '—' : `${Math.round(r * 100)}%`;
@@ -303,18 +304,6 @@ const TONE_CLS: Record<string, string> = {
   bad: 'text-rose-700 dark:text-rose-300',
   none: '',
 };
-
-function Stat({ title, value, hint }: { title: string; value: string; hint?: string }) {
-  return (
-    <div className="card p-4">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-nord-muted">
-        {title}
-      </div>
-      <div className="text-2xl font-extrabold text-slate-900 dark:text-nord-6">{value}</div>
-      {hint && <div className="text-[11px] text-slate-500 dark:text-nord-muted">{hint}</div>}
-    </div>
-  );
-}
 
 function Section(props: { title: string; subtitle: string; children: React.ReactNode }) {
   return (

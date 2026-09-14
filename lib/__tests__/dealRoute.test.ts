@@ -9,7 +9,7 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     project: { findUnique: vi.fn(), update: vi.fn() },
     calculation: { findUnique: vi.fn() },
-    stage: { findUnique: vi.fn(), update: vi.fn() },
+    stage: { findUnique: vi.fn(), update: vi.fn(), count: vi.fn(async () => 0) },
   },
 }));
 

@@ -21,12 +21,24 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       id: true,
       dealStatus: true,
       actualsClosedAt: true,
+      wonCalculationId: true,
+      contractAmount: true,
+      contractCurrency: true,
       calculations: { select: { id: true, status: true, currency: true } },
     },
   });
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
-  const resolved = resolveDeal(project, body);
+  const hasActuals = project.wonCalculationId
+    ? (await prisma.stage.count({
+        where: {
+          calculationId: project.wonCalculationId,
+          OR: [{ actualHours: { not: null } }, { actualEndDate: { not: null } }],
+        },
+      })) > 0
+    : false;
+
+  const resolved = resolveDeal({ ...project, hasActuals }, body);
   if (!resolved.ok) {
     return NextResponse.json({ error: resolved.error }, { status: resolved.status });
   }

@@ -8,6 +8,7 @@
  * Дашборд открытый (без входа), поэтому наружу идут только имена сотрудников
  * и агрегаты — ни названий расчётов, ни заказчиков, ни сумм смет.
  */
+import { median, round1 } from './stats';
 
 export type LeaderboardPeriod = '30' | '90' | '365' | 'all';
 
@@ -155,19 +156,8 @@ const LEGACY_PRESALE_AUTHORS: Record<string, string> = {
 // Вспомогательные
 // ---------------------------------------------------------------------------
 
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
 function daysBetween(from: Date, to: Date): number {
   return Math.max(0, (to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
-}
-
-function round1(n: number): number {
-  return Math.round(n * 10) / 10;
 }
 
 /**

@@ -46,6 +46,7 @@ export function parseCapacityQuery(params: URLSearchParams): CapacityQuery {
 export async function loadCapacityRows(
   from: Date,
   weeks: number,
+  withShifts = false,
 ): Promise<{
   calcs: CapacityCalcRow[];
   capacities: RoleCapacityRow[];
@@ -53,7 +54,8 @@ export async function loadCapacityRows(
   const rangeStart = weekStart(from);
   const rangeEnd = addDays(rangeStart, weeks * 7);
   // Сдвиг what-if может притянуть этапы из-за границ диапазона — берём с запасом в горизонт.
-  const pad = weeks * 7;
+  // Без сдвигов what-if запас за границами горизонта только раздувает выборку.
+  const pad = withShifts ? weeks * 7 : 0;
 
   const [calcs, capacities] = await Promise.all([
     prisma.calculation.findMany({
@@ -110,7 +112,7 @@ export async function loadCapacityRows(
 export async function loadCapacityMatrix(q: CapacityQuery): Promise<CapacityMatrix> {
   const from = q.from ?? new Date();
   const weeks = q.weeks ?? DEFAULT_WEEKS;
-  const { calcs, capacities } = await loadCapacityRows(from, weeks);
+  const { calcs, capacities } = await loadCapacityRows(from, weeks, Boolean(q.shifts?.length));
   return buildCapacityMatrix({
     calcs,
     capacities,
