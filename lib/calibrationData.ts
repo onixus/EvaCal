@@ -53,6 +53,59 @@ function toRow(c: RawCalc): CalibrationCalcRow {
   return { ...c, answers: safeJsonParse<Record<string, unknown>>(c.answers, {}) };
 }
 
+/**
+ * Все версии одного расчёта: и предки, и потомки по parentCalculationId.
+ *
+ * Одним запросом берутся только пары (id, parent) по шаблону — это дёшево и
+ * позволяет пройти цепочку в обе стороны в памяти. Отдельные запросы на каждое
+ * звено дали бы N+1, а вывести цепочку из уже загруженных кандидатов нельзя:
+ * промежуточная версия может быть черновиком и в выборку утверждённых не попасть.
+ *
+ * Обход с защитой от цикла: parentCalculationId задаётся приложением, но
+ * рассчитывать на отсутствие петли в данных нельзя — зациклившийся обход
+ * повесил бы запрос.
+ */
+async function lineageOf(calculationId: string, templateId: string): Promise<string[]> {
+  const rows = await prisma.calculation.findMany({
+    where: { templateId },
+    select: { id: true, parentCalculationId: true },
+  });
+
+  const parentOf = new Map<string, string | null>();
+  const childrenOf = new Map<string, string[]>();
+  for (const r of rows) {
+    parentOf.set(r.id, r.parentCalculationId);
+    if (r.parentCalculationId) {
+      const siblings = childrenOf.get(r.parentCalculationId) ?? [];
+      siblings.push(r.id);
+      childrenOf.set(r.parentCalculationId, siblings);
+    }
+  }
+
+  // Вверх до корня, затем вниз по всем потомкам корня — так в набор попадают
+  // и «братья»: версии, отпочковавшиеся от общего предка.
+  const seen = new Set<string>([calculationId]);
+  let root = calculationId;
+  for (;;) {
+    const parent = parentOf.get(root);
+    if (!parent || seen.has(parent)) break;
+    seen.add(parent);
+    root = parent;
+  }
+
+  const queue = [root];
+  while (queue.length > 0) {
+    const id = queue.pop() as string;
+    for (const child of childrenOf.get(id) ?? []) {
+      if (seen.has(child)) continue;
+      seen.add(child);
+      queue.push(child);
+    }
+  }
+
+  return [...seen];
+}
+
 export async function loadCalibration(
   calculationId: string,
   revealIdentity: boolean,
@@ -94,5 +147,6 @@ export async function loadCalibration(
     stageTemplates: target.template.stageTemplates,
     candidates: candidates.map(toRow),
     revealIdentity,
+    lineageIds: await lineageOf(target.id, target.templateId),
   });
 }

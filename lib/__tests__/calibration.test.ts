@@ -169,6 +169,51 @@ describe('lib/calibration — отчёт', () => {
     expect(r.neighbours.map((n) => n.id)).toEqual(['ok']);
   });
 
+  it('исключает свои версии, когда расчёт не привязан к проекту', () => {
+    // projectId === null у всех: отсечение по проекту здесь не работает вовсе,
+    // и собственные утверждённые версии должны отсекаться по цепочке версий.
+    const candidates = [
+      approved('v1', targetAnswers, 1.9, { projectId: null }),
+      approved('v2', targetAnswers, 1.9, { projectId: null }),
+      approved('чужой', targetAnswers, 1.2, { projectId: null }),
+    ];
+    const r = buildCalibration({
+      target: target({ projectId: null }),
+      fields,
+      stageTemplates,
+      candidates,
+      revealIdentity: true,
+      lineageIds: ['target', 'v1', 'v2'],
+    });
+    expect(r.poolSize).toBe(1);
+    expect(r.neighbours.map((n) => n.id)).toEqual(['чужой']);
+  });
+
+  it('обнулённый этап входит в медиану, отсутствующий — нет', () => {
+    const withZeroed = approved('zeroed', targetAnswers, 1);
+    // Этап оставлен в плане, но обнулён: архитектор сказал «столько и нужно».
+    withZeroed.stages = [stage('Обследование', 16, 0, 5), stage('Внедрение', 0, 5, 20)];
+
+    const withMissing = approved('missing', targetAnswers, 1);
+    // Этапа нет вовсе — отличить удаление от переименования нельзя.
+    withMissing.stages = [stage('Обследование', 16, 0, 5)];
+
+    const r = buildCalibration({
+      target: target(),
+      fields,
+      stageTemplates,
+      candidates: [withZeroed, withMissing],
+      revealIdentity: true,
+    });
+
+    const impl = r.stageAdjustments.find((a) => a.name === 'Внедрение');
+    expect(impl).toBeDefined();
+    // Одно наблюдение из двух соседей, и оно нулевое.
+    expect(impl!.samples).toBe(1);
+    expect(impl!.medianRatio).toBe(0);
+    expect(impl!.suggestedHours).toBe(0);
+  });
+
   it('ранжирует соседей по похожести и отбрасывает непохожие', () => {
     const candidates = [
       approved('far', { servers: 200, complexity: 'Сложный', ha: false, os: 'РЕД ОС' }, 1),

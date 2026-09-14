@@ -63,6 +63,13 @@ export interface CalibrationInput {
   candidates: CalibrationCalcRow[];
   /** Показывать ли названия и заказчиков соседей. Для гостей по share-ссылке — нет. */
   revealIdentity: boolean;
+  /**
+   * Вся цепочка версий целевого расчёта, включая его самого: предки и потомки
+   * по parentCalculationId. Собирается в `lib/calibrationData.ts` — здесь её
+   * вывести нельзя, промежуточные версии могут быть неутверждёнными и в
+   * candidates не попадать.
+   */
+  lineageIds?: string[];
   /** Сколько соседей брать. */
   k?: number;
 }
@@ -350,9 +357,20 @@ export function buildCalibration(input: CalibrationInput): CalibrationReport {
   const k = input.k ?? DEFAULT_K;
 
   // Свои версии и всё из того же проекта — не «похожие проекты», а тот же самый.
+  //
+  // Отсечения по projectId недостаточно: привязка к проекту необязательна, и у
+  // расчёта без неё projectId === null. Тогда условие по проекту истинно для
+  // всех кандидатов, и собственные утверждённые версии проходят фильтр. Ответы
+  // у них те же, похожесть около единицы — они занимают весь top-k и вытесняют
+  // настоящих соседей, после чего калибровка показывает не референс-класс, а
+  // собственную историю расчёта и подтверждает сама себя.
+  //
+  // Поэтому цепочка версий отсекается явно, по parentCalculationId.
+  const lineage = new Set(input.lineageIds ?? []);
   const pool = input.candidates.filter(
     (c) =>
       c.id !== target.id &&
+      !lineage.has(c.id) &&
       c.status === 'approved' &&
       (target.projectId === null || c.projectId !== target.projectId),
   );
@@ -435,8 +453,16 @@ export function buildCalibration(input: CalibrationInput): CalibrationReport {
     const stageRatios: number[] = [];
     scored.forEach((_, i) => {
       const f = neighbourFormulas[i].get(name) ?? 0;
-      const a = neighbourActuals[i].get(name) ?? 0;
-      if (f > 0 && a > 0) stageRatios.push(a / f);
+      const a = neighbourActuals[i].get(name);
+      // Обнулённый этап (есть в плане, 0 часов) — это ответ «столько и нужно»,
+      // и коэффициент 0 для медианы законен: раньше такие наблюдения отбрасывал
+      // фильтр a > 0, и самый сильный сигнал «этап не нужен» терялся.
+      //
+      // Отсутствующий этап (undefined) — другое дело: имя этапа редактируемо,
+      // поэтому пропажу нельзя отличить от переименования, и считать её нулём
+      // значило бы выдумывать данные. Такие наблюдения по-прежнему не входят
+      // в медиану, но их недобор виден по samples рядом с числом соседей.
+      if (f > 0 && a !== undefined) stageRatios.push(a / f);
     });
     const m = median(stageRatios);
     if (m === null) continue;

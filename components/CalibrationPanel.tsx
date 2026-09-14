@@ -324,7 +324,7 @@ export default function CalibrationPanel({
                       <th className="px-3 py-2 text-right font-semibold">Формула</th>
                       <th className="px-3 py-2 text-right font-semibold">Поправка</th>
                       <th className="px-3 py-2 text-right font-semibold">Ориентир</th>
-                      {!compact && <th className="px-3 py-2 text-right font-semibold">Проектов</th>}
+                      <th className="px-3 py-2 text-right font-semibold">Проектов</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-nord-3">
@@ -342,11 +342,23 @@ export default function CalibrationPanel({
                         <td className="px-3 py-2 text-right font-semibold text-slate-900 dark:text-nord-6">
                           {s.suggestedHours} ч
                         </td>
-                        {!compact && (
-                          <td className="px-3 py-2 text-right text-slate-500 dark:text-nord-muted">
+                        {/* Охват виден всегда: медиана по части соседей и по всем
+                            им — разной надёжности, и это не должно быть скрыто. */}
+                        <td className="px-3 py-2 text-right text-slate-500 dark:text-nord-muted">
+                          <span
+                            className={
+                              s.samples < report.neighbours.length
+                                ? 'text-amber-700 dark:text-nord-yellow'
+                                : ''
+                            }
+                          >
                             {s.samples}
-                          </td>
-                        )}
+                          </span>
+                          <span className="text-slate-400 dark:text-nord-muted">
+                            {' '}
+                            из {report.neighbours.length}
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
