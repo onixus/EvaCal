@@ -17,9 +17,13 @@ COPY . .
 # на этапе сборки. К базе здесь никто не обращается — реальное значение приходит из
 # docker-compose в runtime; это заглушка, совпадающая с путём тома /app/prisma.
 ENV DATABASE_URL="file:./prisma/dev.db"
+# Клиент компилирует SQL под диалект из схемы, поэтому СУБД выбирается на сборке:
+# docker compose build --build-arg DATABASE_PROVIDER=postgresql (см. docker-compose.yml).
+ARG DATABASE_PROVIDER=sqlite
+ENV DATABASE_PROVIDER=$DATABASE_PROVIDER
 RUN npm run build
 
-# --- migrate: one-off schema sync + seed (prisma db push and db:seed against the mounted SQLite volume) ---
+# --- migrate: one-off schema sync + seed (scripts/db-sync.ts: `db push` для SQLite, `migrate deploy` для PostgreSQL; затем db:seed) ---
 # Kept separate from `runner` so the app image stays slim; the CLI and its schema-engine
 # binary aren't needed to serve requests, only to initialize/update the DB before startup.
 FROM node:22.14-alpine3.21 AS migrate
@@ -33,13 +37,16 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json tsconfig.json prisma.config.ts ./
 COPY prisma ./prisma
 COPY lib ./lib
+COPY scripts ./scripts
 COPY reset-all.ts ./
+ARG DATABASE_PROVIDER=sqlite
+ENV DATABASE_PROVIDER=$DATABASE_PROVIDER
 COPY docker-migrate-entrypoint.sh /usr/local/bin/docker-migrate-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-migrate-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker-migrate-entrypoint.sh"]
 # В Prisma 7 у `db push` больше нет флага --skip-generate: команда и так не генерирует
 # клиент, поэтому generate вызывается отдельно — seed импортирует сгенерированный клиент.
-CMD ["sh", "-c", "npx prisma db push && npx prisma generate && npx tsx prisma/seed.ts"]
+CMD ["sh", "-c", "npx tsx scripts/db-sync.ts && npx prisma generate && npx tsx prisma/seed.ts"]
 
 # --- runner: minimal production image ---
 FROM node:22.14-alpine3.21 AS runner

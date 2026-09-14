@@ -49,7 +49,7 @@
 - [x] Audit trail (`AuditEvent`) with sensitive LLM prompt/completion redaction (`redactLlmMeta`).
 - [x] Docker multi-stage Alpine deployment with automated schema sync/seed and non-root runner (uid 1001).
 - [x] Jenkins CI/CD pipeline and GitHub Actions workflow with JUnit XML reporting (`test:ci`).
-- [x] Automated test suite: **57 test files, 487 tests (100% pass)**.
+- [x] Automated test suite: **63 test files, 534 tests (100% pass)**.
 
 ---
 
@@ -92,7 +92,7 @@
 
 ### Horizon C — Платформа данных и Multi-Tenant (P1)
 
-- [ ] Dual-mode SQLite → PostgreSQL адаптер с миграциями Prisma для высоконагруженных развёртываний.
+- [x] Dual-mode SQLite → PostgreSQL адаптер с миграциями Prisma для высоконагруженных развёртываний (провайдер по `DATABASE_URL`/`DATABASE_PROVIDER`, `lib/prisma.ts` выбирает адаптер, `prisma/postgresql/` — порождаемая схема и миграции, `npm run db:sync`, профиль `postgres` в docker-compose).
 - [ ] Multi-tenant изоляция (`tenantId` / организация на сущностях проекта, пользователей и расчётов).
 - [ ] Очередь фоновых задач генерации тяжелых комплектов (BullMQ / Redis / pg-boss) для предотвращения таймаутов.
 - [ ] Внешнее объектное хранилище артефактов (S3 / MinIO) для неизменяемых ZIP-пакетов.

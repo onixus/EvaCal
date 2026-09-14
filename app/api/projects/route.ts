@@ -4,6 +4,7 @@ import { requireStaff } from '@/lib/access';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { getOrCreateProject } from '@/lib/project';
 import { pageArgs, paginationHeaders, parseLimit, parsePage } from '@/lib/pagination';
+import { containsInsensitive } from '@/lib/textSearch';
 
 export async function GET(req: NextRequest) {
   const staff = await requireStaff();
@@ -17,9 +18,9 @@ export async function GET(req: NextRequest) {
   const where = search
     ? {
         OR: [
-          { name: { contains: search } },
-          { customer: { contains: search } },
-          { code: { contains: search } },
+          { name: containsInsensitive(search) },
+          { customer: containsInsensitive(search) },
+          { code: containsInsensitive(search) },
         ],
       }
     : {};

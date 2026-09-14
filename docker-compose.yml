@@ -1,24 +1,59 @@
+# Две СУБД на выбор (см. README, «PostgreSQL вместо SQLite»):
+#   SQLite (по умолчанию) — встраиваемая база в томе db-data, ничего настраивать не надо.
+#   PostgreSQL — в .env задать DATABASE_PROVIDER=postgresql и DATABASE_URL на сервер;
+#     встроенный сервер поднимается профилем: docker compose --profile postgres up -d --build
+#     с DATABASE_URL=postgresql://evacal:${POSTGRES_PASSWORD}@postgres:5432/evacal
+# Клиент Prisma компилирует SQL под диалект СУБД, поэтому провайдер фиксируется
+# на сборке образа (build-arg), а не только в runtime.
 services:
+  postgres:
+    image: postgres:16-alpine
+    profiles: ['postgres']
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-evacal}
+      POSTGRES_USER: ${POSTGRES_USER:-evacal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required for the postgres profile}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '20m'
+        max-file: '5'
+
   # Schema sync & seed: runs automatically before `app` starts, or manually via
   # `docker compose run --rm migrate`.
   migrate:
     build:
       context: .
       target: migrate
+      args:
+        DATABASE_PROVIDER: ${DATABASE_PROVIDER:-sqlite}
     restart: 'no'
     environment:
+      DATABASE_PROVIDER: ${DATABASE_PROVIDER:-sqlite}
       DATABASE_URL: ${DATABASE_URL:-file:./prisma/dev.db}
       SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD:-}
     volumes:
       - db-data:/app/prisma
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        DATABASE_PROVIDER: ${DATABASE_PROVIDER:-sqlite}
     restart: unless-stopped
     depends_on:
       migrate:
         condition: service_completed_successfully
     environment:
+      DATABASE_PROVIDER: ${DATABASE_PROVIDER:-sqlite}
       DATABASE_URL: ${DATABASE_URL:-file:./prisma/dev.db}
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
     volumes:
@@ -55,3 +90,4 @@ services:
 
 volumes:
   db-data:
+  pg-data:

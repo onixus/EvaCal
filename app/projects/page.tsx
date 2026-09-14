@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { pageArgs, parsePage } from '@/lib/pagination';
+import { containsInsensitive } from '@/lib/textSearch';
 import { grandTotalHours } from '@/lib/totals';
 import { backfillProjects } from '@/lib/project';
 import ProjectsListClient, { ProjectListItem } from './ProjectsListClient';
@@ -21,9 +22,9 @@ export default async function ProjectsPage(props: {
 
   if (search) {
     where.OR = [
-      { name: { contains: search } },
-      { customer: { contains: search } },
-      { code: { contains: search } },
+      { name: containsInsensitive(search) },
+      { customer: containsInsensitive(search) },
+      { code: containsInsensitive(search) },
     ];
   }
 
