@@ -141,9 +141,9 @@
 
 - **Frontend & Backend**: Next.js 15 (App Router, Server Components & Route Handlers), React 18, TypeScript.
 - **Styling**: Tailwind CSS (3 темы: High-Contrast, Nord Dark, Dark Fantasy).
-- **ORM & Database**: Prisma 7 в двух режимах — SQLite (`prisma/dev.db`, по умолчанию) или PostgreSQL 14+ (`DATABASE_URL=postgresql://…`, версионированные миграции в `prisma/postgresql/migrations`).
+- **ORM & Database**: Prisma 7. Основная СУБД — PostgreSQL 14+ (версионированные миграции в `prisma/postgresql/migrations`; тесты и сборка в CI идут против неё); для одного стенда без отдельной СУБД — встраиваемый SQLite (`DATABASE_PROVIDER=sqlite`).
 - **Генерация документов**: `docx`, `mammoth`, `jszip`, `pdfkit`, `xlsx` (SheetJS).
-- **Тестирование**: Vitest (**63 test suites, 534 tests**, Golden Tests ГОСТ 34, Eval Suite LLM, JUnit XML reporter).
+- **Тестирование**: Vitest (**63 test suites, 540 tests**, Golden Tests ГОСТ 34, Eval Suite LLM, JUnit XML reporter).
 - **CI/CD & Инфраструктура**: Docker multi-stage (Node 22 Alpine, non-root user 1001, automated schema sync & seed), Docker Compose, Nginx (TLS, HSTS, Gzip, Security Headers), Jenkins Pipeline (`Jenkinsfile`) & GitHub Actions.
 
 ---
@@ -161,9 +161,14 @@ cp .env.example .env
 # Сгенерируйте SESSION_SECRET при необходимости:
 # node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
-# 3. Инициализация базы данных и сидирование
-npm run db:push
+# 3. База данных: PostgreSQL (например, docker run -d -p 5432:5432 -e POSTGRES_USER=evacal \
+#    -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=evacal postgres:16-alpine), затем
+#    генерация клиента, миграции и сидирование
+npx prisma generate
+npm run db:sync
 npm run db:seed
+# Без PostgreSQL: DATABASE_PROVIDER=sqlite и DATABASE_URL="file:./prisma/dev.db" в .env,
+# те же три команды (db:sync под SQLite делает prisma db push)
 
 # 4. Запуск dev-сервера
 npm run dev
@@ -206,6 +211,7 @@ cp .env.example .env
 
 Отредактируйте `.env`:
 
+0. Задайте `POSTGRES_PASSWORD` для встроенного PostgreSQL (или `DATABASE_URL` внешнего сервера).
 1. Укажите случайный `SESSION_SECRET`:
    ```bash
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -228,33 +234,20 @@ docker compose up -d --build
   - **`http://localhost:3000`** (напрямую к приложению)
   - **`http://localhost`** / **`https://localhost`** (через Nginx reverse proxy)
 
-### PostgreSQL вместо SQLite
+### База данных: PostgreSQL или SQLite
 
-SQLite подходит для одного стенда: база лежит в томе `db-data`, и её достаточно копировать. Для нескольких реплик приложения, конкурентных транзакций и централизованных бэкапов переключитесь на PostgreSQL. Модель данных одна (`prisma/schema.prisma`); копия схемы под PostgreSQL в `prisma/postgresql/schema.prisma` порождается из неё командой `npm run db:schema:sync` и проверяется тестом.
+По умолчанию приложение работает на PostgreSQL: `docker compose up` поднимает сервис `postgres` (том `pg-data`), контейнер `migrate` применяет миграции `prisma/postgresql/migrations` (`prisma migrate deploy`), CI-пайплайн гоняет тесты, сборку и e2e против такого же сервера. Внешний сервер: укажите его адрес в `DATABASE_URL` в `.env`, встроенный тогда простаивает.
 
-Провайдер выводится из схемы `DATABASE_URL` (`file:` — SQLite, `postgresql://` — PostgreSQL). Prisma Client компилирует SQL под диалект конкретной СУБД, поэтому там, где клиент генерируется раньше, чем известен URL (сборка Docker-образа, CI), провайдер задаётся явно: `DATABASE_PROVIDER=postgresql`.
+Модель данных одна (`prisma/schema.prisma`); копия схемы под PostgreSQL в `prisma/postgresql/schema.prisma` порождается из неё командой `npm run db:schema:sync` и проверяется тестом. Провайдер выводится из схемы `DATABASE_URL` (`postgresql://` или `file:`). Prisma Client компилирует SQL под диалект конкретной СУБД, поэтому там, где клиент генерируется раньше, чем известен URL (сборка Docker-образа, CI), провайдер задаётся явно через `DATABASE_PROVIDER`.
 
-1. В `.env`:
-   ```env
-   DATABASE_PROVIDER=postgresql
-   DATABASE_URL="postgresql://evacal:secret@postgres:5432/evacal?schema=public"
-   POSTGRES_PASSWORD="secret"
-   ```
-   Внешний сервер: укажите его адрес в `DATABASE_URL`, `POSTGRES_PASSWORD` тогда не нужен.
-2. Запуск со встроенным сервером (профиль `postgres`) или без него, если сервер внешний:
-   ```bash
-   docker compose --profile postgres up -d --build
-   ```
-   `--build` обязателен при смене провайдера: образ должен быть собран под нужную СУБД.
-3. Схема применяется миграциями `prisma/postgresql/migrations` (`prisma migrate deploy`), сид работает без изменений.
+SQLite остаётся для одного стенда без отдельной СУБД. В `.env`:
 
-Локальная разработка на PostgreSQL:
-
-```bash
-DATABASE_PROVIDER=postgresql DATABASE_URL="postgresql://evacal:secret@localhost:5432/evacal" npx prisma generate
-npm run db:sync      # migrate deploy
-npm run db:seed
+```env
+DATABASE_PROVIDER=sqlite
+DATABASE_URL="file:./prisma/dev.db"
 ```
+
+и пересборка образа, так как провайдер фиксируется на сборке: `docker compose up -d --build`. База живёт в томе `db-data`, схема синхронизируется через `prisma db push`.
 
 Новая миграция после правки `prisma/schema.prisma` (нужен доступ к PostgreSQL):
 
@@ -263,7 +256,25 @@ npm run db:schema:sync
 npm run db:migrate:pg -- --name <что_изменилось>
 ```
 
-Перенос данных из SQLite в PostgreSQL штатной командой не делается: выгрузите таблицы любым инструментом (например, `sqlite3 .dump` → правка типов → `psql`) или начните с чистой базы и сида.
+Перенос данных между SQLite и PostgreSQL штатной командой не делается: выгрузите таблицы любым инструментом (например, `sqlite3 .dump` → правка типов → `psql`) или начните с чистой базы и сида.
+
+### Хранилище артефактов: файлы или S3
+
+ZIP выпущенных комплектов и DOCX тех.писателя лежат вне базы (`lib/gost34/storage.ts`). Два бэкенда за одним интерфейсом, в базе хранится одинаковый относительный ключ `<проект>/<пакет>.zip`, поэтому переключение не требует миграции строк, только переноса файлов.
+
+- **Файлы (по умолчанию)** — `GOST_PACKAGE_STORAGE_PATH` (`storage/gost-packages`), в Docker том `storage-data`. Подходит одному экземпляру приложения.
+- **S3-совместимое хранилище** — AWS S3, MinIO, Yandex/VK Object Storage, Ceph RGW. Единственный вариант для нескольких реплик и централизованных бэкапов. Включается заданным `S3_BUCKET` (или явно `GOST_PACKAGE_STORAGE=s3`); параметры в `.env.example`. При своём `S3_ENDPOINT` по умолчанию path-style адресация. Бакет создаётся заранее.
+
+Встроенный MinIO для стенда:
+
+```bash
+# .env: S3_BUCKET=evacal-artifacts, S3_ENDPOINT=http://minio:9000,
+#       S3_ACCESS_KEY_ID=evacal, S3_SECRET_ACCESS_KEY=<пароль>
+docker compose --profile minio up -d
+# затем создать бакет в консоли http://127.0.0.1:9001 (логин — S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY)
+```
+
+Целостность: SHA-256 считается при записи, отправляется в S3 как контрольная сумма объекта и пересчитывается при чтении; ответ API отдаёт его в `X-Checksum-SHA256`.
 
 ### Шаг 3. Как получить пароли после запуска в Docker
 

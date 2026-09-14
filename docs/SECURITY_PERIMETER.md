@@ -166,9 +166,11 @@ assertAllowedEndpoint(rawEndpoint, policy);
 
 ## 9. Эксплуатационные регламенты
 
-### Резервное копирование базы данных
+### Резервное копирование базы данных и артефактов
 
-При развёртывании на PostgreSQL (`DATABASE_PROVIDER=postgresql`) используйте штатный `pg_dump` сервера; том `db-data` в этом режиме базу не содержит. Ниже — вариант для SQLite.
+Артефакты комплектов (ZIP, DOCX) лежат отдельно от базы: в файловом режиме — том `storage-data`, в режиме S3 — бакет (`S3_BUCKET`), где бэкап и версионирование делаются средствами хранилища. Бэкап базы без артефактов неполон: `GostPackage.artifactPath` и `checksum` ссылаются на них.
+
+Основной режим — PostgreSQL: бэкап штатным `pg_dump` (в compose: `docker compose exec postgres pg_dump -U evacal evacal > backup.sql`), данные сервера в томе `pg-data`. Ниже — вариант для режима SQLite (`DATABASE_PROVIDER=sqlite`).
 
 #### SQLite
 

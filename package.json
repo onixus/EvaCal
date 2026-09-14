@@ -24,6 +24,7 @@
     "db:migrate:pg": "DATABASE_PROVIDER=postgresql prisma migrate dev"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1131.0",
     "@prisma/adapter-better-sqlite3": "^7.9.1",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.9.1",
