@@ -92,7 +92,7 @@ export default function UsersManager({ users }: { users: User[] }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {created && (
         <div className="card border-emerald-300 bg-emerald-50 p-4 text-sm dark:border-nord-green/50 dark:bg-nord-green/10">
           <p className="font-medium">
@@ -112,9 +112,11 @@ export default function UsersManager({ users }: { users: User[] }) {
         </div>
       )}
 
-      <div className="card p-6">
-        <h2 className="mb-3 font-medium">Новый пользователь</h2>
-        <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
+      <div className="card">
+        <div className="card-head">
+          <span className="card-title">Новый пользователь</span>
+        </div>
+        <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3 p-4">
           <div className="flex-1 min-w-[200px]">
             <label className="label">Логин</label>
             <input
@@ -138,32 +140,31 @@ export default function UsersManager({ users }: { users: User[] }) {
             {submitting ? 'Создание…' : 'Создать'}
           </button>
         </form>
-        {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
+        {error && <p className="px-4 pb-4 text-sm text-rose-600">{error}</p>}
       </div>
 
-      <div className="card p-5">
-        <h2 className="mb-3 font-medium">Существующие пользователи</h2>
+      <div className="card overflow-hidden">
+        <div className="card-head">
+          <span className="card-title">Существующие пользователи</span>
+        </div>
         {users.length === 0 ? (
-          <p className="text-sm text-slate-500">Пользователей пока нет.</p>
+          <p className="p-4 text-xs text-slate-500 dark:text-nord-muted">Пользователей пока нет.</p>
         ) : (
-          <table className="w-full text-sm">
+          <table className="table-list">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-nord-3 dark:text-nord-muted">
-                <th className="py-2 pr-4">Логин</th>
-                <th className="py-2 pr-4">Роль</th>
-                <th className="py-2 pr-4">Пароль</th>
-                <th className="py-2 pr-4">Создан</th>
-                <th className="py-2 pr-4" />
+              <tr>
+                <th>Логин</th>
+                <th>Роль</th>
+                <th>Пароль</th>
+                <th>Создан</th>
+                <th />
               </tr>
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr
-                  key={u.id}
-                  className="border-b border-slate-100 last:border-0 dark:border-nord-3"
-                >
-                  <td className="py-2 pr-4 font-medium">{u.username}</td>
-                  <td className="py-2 pr-4">
+                <tr key={u.id}>
+                  <td className="font-medium">{u.username}</td>
+                  <td>
                     <select
                       className="input w-56 py-1 text-xs"
                       value={u.role}
@@ -179,15 +180,15 @@ export default function UsersManager({ users }: { users: User[] }) {
                       {!ROLE_LABELS[u.role] && <option value={u.role}>{u.role}</option>}
                     </select>
                   </td>
-                  <td className="py-2 pr-4 text-slate-500 dark:text-nord-muted">
+                  <td className="text-slate-500 dark:text-nord-muted">
                     {u.mustChangePassword ? 'выдан, ещё не менялся' : 'изменён пользователем'}
                   </td>
-                  <td className="py-2 pr-4 text-slate-500 dark:text-nord-muted">
+                  <td className="nums text-slate-500 dark:text-nord-muted">
                     {new Date(u.createdAt).toLocaleDateString('ru-RU')}
                   </td>
-                  <td className="py-2 pr-4">
+                  <td>
                     <button
-                      className="btn-secondary px-2 py-1 text-xs text-rose-600"
+                      className="btn-secondary btn-sm text-rose-600"
                       disabled={busyId === u.id}
                       onClick={() => removeUser(u)}
                     >

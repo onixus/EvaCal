@@ -469,10 +469,10 @@ export default function DocumentPreviewStep({
     return (
       <div
         key={idx}
-        className="my-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-200 dark:border-nord-3"
+        className="my-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-nord-3"
       >
         {table.caption && (
-          <div className="bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-600 dark:text-nord-4 border-b border-slate-200 dark:border-slate-200 dark:border-nord-3">
+          <div className="bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-600 dark:text-nord-4 border-b border-slate-200 dark:border-nord-3">
             {table.caption}
           </div>
         )}
@@ -533,7 +533,7 @@ export default function DocumentPreviewStep({
             ? 'border-brand-500 bg-brand-50/10 dark:border-brand-500/80'
             : hasComments
               ? 'border-rose-300 bg-rose-50/20 dark:border-nord-red/40 dark:bg-nord-red/5'
-              : 'border-slate-200/80 dark:border-slate-200 dark:border-nord-3 bg-white dark:bg-nord-dark'
+              : 'border-slate-200/80 dark:border-nord-3 bg-white dark:bg-nord-2'
         }`}
       >
         {/* Замечания ревьювера к разделу */}
@@ -577,7 +577,7 @@ export default function DocumentPreviewStep({
           </div>
         )}
 
-        <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-200 dark:border-nord-3 pb-2.5 mb-3">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-nord-3 pb-2.5 mb-3">
           <div className="flex items-center gap-2">
             <h4
               className={`font-semibold text-slate-900 dark:text-slate-900 dark:text-nord-6 ${
@@ -677,7 +677,7 @@ export default function DocumentPreviewStep({
             )}
 
             {sec.subsections && sec.subsections.length > 0 && (
-              <div className="space-y-3 mt-4 pt-2 border-t border-slate-100 dark:border-slate-200 dark:border-nord-3/80 pl-2 sm:pl-4">
+              <div className="space-y-3 mt-4 pt-2 border-t border-slate-100 dark:border-nord-3/80 pl-2 sm:pl-4">
                 {sec.subsections.map((subSec) => renderSectionBlock(subSec, level + 1))}
               </div>
             )}
@@ -692,7 +692,7 @@ export default function DocumentPreviewStep({
   return (
     <div className="space-y-4">
       {/* Header Bar */}
-      <div className="space-y-3 border-b border-slate-200 dark:border-slate-200 dark:border-nord-3 pb-3">
+      <div className="space-y-3 border-b border-slate-200 dark:border-nord-3 pb-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="font-semibold text-slate-900 dark:text-slate-900 dark:text-nord-6 flex items-center gap-2">
@@ -900,7 +900,7 @@ export default function DocumentPreviewStep({
       {!loading && !error && ast && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* Section Outline (Left) */}
-          <div className="lg:col-span-4 rounded-xl border border-slate-200 dark:border-slate-200 dark:border-nord-3 bg-slate-50/50 dark:bg-nord-dark p-3 space-y-1.5 max-h-[600px] overflow-y-auto">
+          <div className="lg:col-span-4 rounded-xl border border-slate-200 dark:border-nord-3 bg-slate-50/50 dark:bg-nord-2 p-3 space-y-1.5 max-h-[600px] overflow-y-auto">
             <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-nord-muted dark:text-slate-500 px-2 py-1">
               Оглавление ТЗ ({flatSections.length} разд.)
             </div>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import PageHeader from '@/components/PageHeader';
 import {
   REVIEW_STAGE_LABELS,
   type ReviewStage,
@@ -105,70 +106,105 @@ export default function StudioPickerClient({
     });
   }, [calculationsWithStatus, activeTab, search]);
 
-  return (
-    <div className="space-y-4">
-      {/* Заголовок и пояснение счётчика */}
-      <div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
-              Студия ГОСТ 34
-            </h1>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
-              Выберите расчёт для выпуска документации: требования, профиль, применимость,
-              трассируемость и экспорт.
-            </p>
-          </div>
+  const tabs: { value: FilterTab; label: string; count: number }[] = [
+    { value: 'all', label: 'Все', count: calculations.length },
+    { value: 'rejected', label: 'Отклонённые', count: stats.rejected },
+    { value: 'draft', label: 'Черновики', count: stats.drafts },
+    { value: 'under_review', label: 'На ревью', count: stats.underReview },
+    { value: 'approved', label: 'Утверждённые', count: stats.approved },
+  ];
 
-          {/* Информационный бейдж счётчика */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            {stats.rejected > 0 && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('rejected')}
-                className="chip-block flex items-center gap-1.5 cursor-pointer hover:opacity-90"
-              >
-                <span>⚠️</span>
-                <span>Требуют доработки: {stats.rejected}</span>
-              </button>
-            )}
-            {stats.drafts > 0 && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('draft')}
-                className="chip-warn flex items-center gap-1.5 cursor-pointer hover:opacity-90"
-              >
-                <span>Черновики в работе: {stats.drafts}</span>
-              </button>
-            )}
-            {stats.underReview > 0 && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('under_review')}
-                className="chip-muted flex items-center gap-1.5 cursor-pointer hover:opacity-90"
-              >
-                <span>На согласовании: {stats.underReview}</span>
-              </button>
-            )}
-            {stats.approved > 0 && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('approved')}
-                className="chip-ok flex items-center gap-1.5 cursor-pointer hover:opacity-90"
-              >
-                <span>Выпущено: {stats.approved}</span>
-              </button>
-            )}
+  return (
+    <div className="page">
+      <PageHeader
+        title="Студия ГОСТ 34"
+        description="Выберите расчёт для выпуска документации: требования, профиль, применимость, трассируемость и экспорт."
+        actions={
+          stats.rejected + stats.drafts + stats.underReview + stats.approved > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {stats.rejected > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('rejected')}
+                  className="chip-block cursor-pointer hover:opacity-90"
+                >
+                  Требуют доработки: {stats.rejected}
+                </button>
+              )}
+              {stats.drafts > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('draft')}
+                  className="chip-warn cursor-pointer hover:opacity-90"
+                >
+                  Черновики в работе: {stats.drafts}
+                </button>
+              )}
+              {stats.underReview > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('under_review')}
+                  className="chip-muted cursor-pointer hover:opacity-90"
+                >
+                  На согласовании: {stats.underReview}
+                </button>
+              )}
+              {stats.approved > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('approved')}
+                  className="chip-ok cursor-pointer hover:opacity-90"
+                >
+                  Выпущено: {stats.approved}
+                </button>
+              )}
+            </div>
+          ) : undefined
+        }
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div
+            role="group"
+            aria-label="Статус комплекта"
+            className="flex flex-wrap items-center gap-1.5"
+          >
+            {tabs.map((tab) => {
+              const active = activeTab === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setActiveTab(tab.value)}
+                  className={`filter-chip ${active ? 'filter-chip-active' : ''}`}
+                >
+                  {tab.label}
+                  <span
+                    className={`filter-chip-count ${active ? 'bg-white/20' : 'bg-slate-100 text-slate-500 dark:bg-nord-1 dark:text-nord-muted'}`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по названию или заказчику…"
+            aria-label="Поиск по названию или заказчику"
+            className="input w-full sm:w-72"
+          />
         </div>
-      </div>
+      </PageHeader>
 
       {/* Блок приоритетного внимания: комплекты, возвращённые с замечаниями */}
       {rejectedList.length > 0 &&
         activeTab !== 'draft' &&
         activeTab !== 'under_review' &&
         activeTab !== 'approved' && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4 dark:border-nord-red/30 dark:bg-nord-red/10 space-y-3">
+          <div className="blocker-panel space-y-3 p-4">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-600 text-xs font-bold text-white dark:bg-nord-red">
@@ -194,7 +230,7 @@ export default function StudioPickerClient({
                 return (
                   <div
                     key={item.id}
-                    className="rounded-lg border border-rose-200 bg-white p-3.5 shadow-sm dark:border-nord-3 dark:bg-nord-2 space-y-2.5"
+                    className="row-flat space-y-2.5 border-rose-200 p-3.5 dark:border-nord-3"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -224,17 +260,14 @@ export default function StudioPickerClient({
                       </span>
 
                       <div className="flex items-center gap-1.5">
-                        <Link
-                          href={`/review/${pkg.id}`}
-                          className="btn-ghost !px-2 !py-1 !text-[11px]"
-                        >
+                        <Link href={`/review/${pkg.id}`} className="btn-ghost btn-sm">
                           Лист ревью
                         </Link>
                         <Link
                           href={`/calculations/${item.id}/studio`}
-                          className="btn-primary !bg-rose-600 hover:!bg-rose-700 dark:!bg-nord-red !px-2.5 !py-1 !text-[11px] !font-bold"
+                          className="btn-danger btn-sm"
                         >
-                          ✏️ Исправить в Студии →
+                          Исправить в Студии
                         </Link>
                       </div>
                     </div>
@@ -244,44 +277,6 @@ export default function StudioPickerClient({
             </div>
           </div>
         )}
-
-      {/* Поиск и фильтры по статусам */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 pb-1 sm:border-0 sm:pb-0 dark:border-nord-3">
-          {(
-            [
-              ['all', `Все (${calculations.length})`],
-              ['rejected', `Отклонённые (${stats.rejected})`],
-              ['draft', `Черновики (${stats.drafts})`],
-              ['under_review', `На ревью (${stats.underReview})`],
-              ['approved', `Утверждённые (${stats.approved})`],
-            ] as const
-          ).map(([tab, label]) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
-                activeTab === tab
-                  ? 'bg-slate-900 text-white dark:bg-nord-frost2 dark:text-nord-0'
-                  : 'text-slate-600 hover:bg-slate-100 dark:text-nord-4 dark:hover:bg-nord-3'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="w-full sm:w-64">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск по названию или заказчику…"
-            className="input !py-1.5 !text-xs w-full"
-          />
-        </div>
-      </div>
 
       {/* Список карточек расчётов */}
       {filtered.length === 0 ? (
@@ -300,7 +295,7 @@ export default function StudioPickerClient({
               <Link
                 key={calc.id}
                 href={`/calculations/${calc.id}/studio`}
-                className={`card-flat flex flex-col justify-between p-3.5 transition-colors hover:border-slate-300 dark:hover:border-nord-4/30 ${
+                className={`card-interactive flex flex-col justify-between p-3.5 ${
                   hasRejected
                     ? 'border-rose-200 bg-rose-50/20 hover:border-rose-300 dark:border-nord-red/30 dark:bg-nord-red/5'
                     : ''

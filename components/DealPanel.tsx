@@ -100,7 +100,7 @@ export default function DealPanel({
   }
 
   return (
-    <div className="card p-5" data-testid="deal-panel">
+    <div id="deal" className="card scroll-mt-16 p-5" data-testid="deal-panel">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">

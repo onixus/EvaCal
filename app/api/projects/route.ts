@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireStaff } from '@/lib/access';
+import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { getOrCreateProject } from '@/lib/project';
 import { pageArgs, paginationHeaders, parseLimit, parsePage } from '@/lib/pagination';
@@ -56,7 +57,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const staff = await requireStaff();
+  // Проект заводит и пресейл: с него начинается конвейер (расчёт → смета →
+  // комплект), а «Новый проект» в реестре показывается и этой роли.
+  const staff = await requireApiRole(['presale', 'architect', 'admin']);
   if (staff instanceof NextResponse) return staff;
 
   const body = await req.json().catch(() => ({}));

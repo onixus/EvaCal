@@ -11,6 +11,7 @@ export default async function ArchitectCalculationPage(props: { params: Promise<
     where: { id: params.id },
     include: {
       template: { select: { name: true } },
+      project: { select: { id: true, name: true } },
       stages: { orderBy: { order: 'asc' } },
       risks: { orderBy: { order: 'asc' } },
     },

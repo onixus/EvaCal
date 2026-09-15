@@ -4,7 +4,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Pagination from '@/components/Pagination';
+import PageHeader from '@/components/PageHeader';
+import FilterChips from '@/components/filters/FilterChips';
+import SearchField from '@/components/filters/SearchField';
+import { useQueryFilters } from '@/components/filters/useQueryFilters';
+import StageChip from '@/components/lifecycle/StageChip';
 import { PAGE_SIZE } from '@/lib/pagination';
+import { LIFECYCLE_STEPS, lifecycleStep, type LifecycleState } from '@/lib/lifecycle';
 
 export interface ProjectListItem {
   id: string;
@@ -13,11 +19,13 @@ export interface ProjectListItem {
   customer: string;
   description: string | null;
   status: string;
+  dealStatus: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
   calculationCount: number;
   packageCount: number;
+  lifecycle: LifecycleState;
   latestCalculation: {
     id: string;
     version: number;
@@ -38,26 +46,48 @@ export interface ProjectListItem {
 interface ProjectsListClientProps {
   projects: ProjectListItem[];
   total: number;
-  activeCount: number;
-  completedCount: number;
-  totalPackages: number;
   currentPage: number;
   searchQuery: string;
   statusFilter: string;
+  stageFilter: string | null;
+  statusCounts: Record<'all' | 'active' | 'on_hold' | 'completed' | 'archived', number>;
+  canCreate: boolean;
 }
+
+const STATUS_LABELS: Record<string, string> = {
+  active: 'Активен',
+  on_hold: 'На паузе',
+  completed: 'Завершён',
+  archived: 'Архив',
+};
+
+const STATUS_CHIP: Record<string, string> = {
+  active: 'chip-ok',
+  on_hold: 'chip-warn',
+  completed: 'chip-info',
+  archived: 'chip-muted',
+};
+
+const PACKAGE_LABELS: Record<string, string> = {
+  approved: 'утверждён',
+  under_review: 'на ревью',
+  rejected: 'отклонён',
+  archived: 'архив',
+  draft: 'черновик',
+};
 
 export default function ProjectsListClient({
   projects,
   total,
-  activeCount,
-  completedCount,
-  totalPackages,
   currentPage,
   searchQuery,
   statusFilter,
+  stageFilter,
+  statusCounts,
+  canCreate,
 }: ProjectsListClientProps) {
   const router = useRouter();
-  const [search, setSearch] = useState(searchQuery);
+  const { set } = useQueryFilters();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,21 +100,6 @@ export default function ProjectsListClient({
     description: '',
     status: 'active',
   });
-
-  function handleSearchSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const params = new URLSearchParams();
-    if (search.trim()) params.set('search', search.trim());
-    if (statusFilter && statusFilter !== 'all') params.set('status', statusFilter);
-    router.push(`/projects?${params.toString()}`);
-  }
-
-  function handleStatusChange(status: string) {
-    const params = new URLSearchParams();
-    if (search.trim()) params.set('search', search.trim());
-    if (status !== 'all') params.set('status', status);
-    router.push(`/projects?${params.toString()}`);
-  }
 
   async function handleCreateProject(e: React.FormEvent) {
     e.preventDefault();
@@ -118,341 +133,197 @@ export default function ProjectsListClient({
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Активен
-          </span>
-        );
-      case 'on_hold':
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-            На паузе
-          </span>
-        );
-      case 'completed':
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-            Завершён
-          </span>
-        );
-      case 'archived':
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-nord-1 dark:text-nord-muted">
-            Архив
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-nord-1 dark:text-nord-muted">
-            {status}
-          </span>
-        );
-    }
-  };
-
-  const getPackageStatusBadge = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return (
-          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-            УТВЕРЖДЁН
-          </span>
-        );
-      case 'under_review':
-        return (
-          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-            НА СОГЛАСОВАНИИ
-          </span>
-        );
-      case 'rejected':
-        return (
-          <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-950 dark:text-rose-300">
-            ОТКЛОНЁН
-          </span>
-        );
-      case 'archived':
-        return (
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-nord-1 dark:text-nord-muted">
-            АРХИВ
-          </span>
-        );
-      default:
-        return (
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-nord-1 dark:text-nord-4">
-            ЧЕРНОВИК
-          </span>
-        );
-    }
-  };
+  const query = new URLSearchParams();
+  if (searchQuery) query.set('search', searchQuery);
+  if (statusFilter !== 'all') query.set('status', statusFilter);
+  if (stageFilter) query.set('stage', stageFilter);
+  const paginationBasePath = query.toString() ? `/projects?${query}` : '/projects';
+  const filtered = Boolean(searchQuery || statusFilter !== 'all' || stageFilter);
 
   return (
-    <div className="space-y-6">
-      {/* Portfolio Stats Bar */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="card p-4">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-nord-muted">
-            Всего проектов
-          </span>
-          <div className="mt-1.5 text-2xl font-bold text-slate-900 dark:text-nord-6">{total}</div>
-          <div className="mt-0.5 text-xs text-slate-400 dark:text-nord-muted">
-            В корпоративном реестре
-          </div>
-        </div>
-
-        <div className="card p-4">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-nord-muted">
-            Активные проекты
-          </span>
-          <div className="mt-1.5 text-2xl font-bold text-emerald-600 dark:text-nord-green">
-            {activeCount}
-          </div>
-          <div className="mt-0.5 text-xs text-slate-400 dark:text-nord-muted">
-            В работе пресейла/архитектора
-          </div>
-        </div>
-
-        <div className="card p-4">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-nord-muted">
-            Завершенные
-          </span>
-          <div className="mt-1.5 text-2xl font-bold text-blue-600 dark:text-nord-frost2">
-            {completedCount}
-          </div>
-          <div className="mt-0.5 text-xs text-slate-400 dark:text-nord-muted">
-            Сданные заказчикам
-          </div>
-        </div>
-
-        <div className="card border-brand-200 bg-brand-50/30 p-4 dark:border-nord-frost4/40 dark:bg-nord-frost4/10">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-brand-700 dark:text-nord-frost2">
-            Выпуски ГОСТ 34
-          </span>
-          <div className="mt-1.5 text-2xl font-extrabold text-brand-700 dark:text-nord-frost2">
-            {totalPackages}
-          </div>
-          <div className="mt-0.5 text-xs text-brand-600/80 dark:text-nord-frost3">
-            Комплектов документации
-          </div>
-        </div>
-      </div>
-
-      {/* Header, Filters and Actions */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-nord-6">Проекты</h1>
-          <p className="text-xs text-slate-500 dark:text-nord-muted">
-            Единый реестр проектов: сметы, версии расчётов и комплекты ГОСТ 34
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button onClick={() => setIsCreateModalOpen(true)} className="btn-primary">
-            <span>+</span>
-            <span>Новый проект</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div className="card p-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          {/* Status Tabs */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            {[
-              { id: 'all', label: 'Все' },
-              { id: 'active', label: 'Активные' },
-              { id: 'on_hold', label: 'На паузе' },
-              { id: 'completed', label: 'Завершённые' },
-              { id: 'archived', label: 'Архив' },
-            ].map((tab) => {
-              const active = (statusFilter || 'all') === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => handleStatusChange(tab.id)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                    active
-                      ? 'bg-brand-600 text-white shadow-xs dark:bg-nord-frost4 dark:text-nord-0'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-nord-1 dark:text-nord-4 dark:hover:bg-nord-3'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Search Input */}
-          <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
-            <div className="relative w-full sm:w-64">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Поиск по названию, коду, заказчику..."
-                className="input text-xs !py-1.5 pl-8"
-              />
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
-                🔍
-              </span>
-            </div>
-            <button type="submit" className="btn-secondary !py-1.5 !px-3 text-xs">
-              Найти
+    <div className="page">
+      <PageHeader
+        title="Проекты"
+        description="Реестр проектов: этап конвейера, текущая смета и комплект ГОСТ 34 по каждому."
+        actions={
+          canCreate ? (
+            <button onClick={() => setIsCreateModalOpen(true)} className="btn-primary">
+              + Новый проект
             </button>
-            {searchQuery && (
+          ) : undefined
+        }
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <FilterChips
+            param="status"
+            ariaLabel="Статус проекта"
+            value={statusFilter}
+            defaultValue="all"
+            options={[
+              { value: 'all', label: 'Все', count: statusCounts.all },
+              { value: 'active', label: 'Активные', count: statusCounts.active },
+              { value: 'on_hold', label: 'На паузе', count: statusCounts.on_hold },
+              { value: 'completed', label: 'Завершённые', count: statusCounts.completed },
+              { value: 'archived', label: 'Архив', count: statusCounts.archived },
+            ]}
+          />
+          <SearchField placeholder="Название, шифр, заказчик…" className="w-full sm:w-72" />
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-nord-muted">
+            Этап
+          </span>
+          <FilterChips
+            param="stage"
+            ariaLabel="Этап конвейера"
+            value={stageFilter ?? 'all'}
+            defaultValue="all"
+            options={[
+              { value: 'all', label: 'Любой' },
+              ...LIFECYCLE_STEPS.map((s) => ({ value: s.id, label: s.short })),
+            ]}
+          />
+        </div>
+      </PageHeader>
+
+      {projects.length === 0 ? (
+        <div className="card p-10 text-center">
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-nord-5">
+            {filtered ? 'Проекты не найдены' : 'Пока нет ни одного проекта'}
+          </h3>
+          <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500 dark:text-nord-muted">
+            {filtered
+              ? 'Измените поисковый запрос или снимите фильтры.'
+              : 'Создайте первый проект, чтобы привязать к нему расчёты и выпуск ГОСТ 34.'}
+          </p>
+          <div className="mt-4 flex justify-center gap-2">
+            {filtered && (
               <button
                 type="button"
-                onClick={() => {
-                  setSearch('');
-                  router.push('/projects');
-                }}
-                className="text-xs text-slate-500 hover:text-slate-700 dark:text-nord-muted dark:hover:text-nord-4"
+                onClick={() => set({ search: null, status: null, stage: null })}
+                className="btn-secondary"
               >
-                Сброс
+                Сбросить фильтры
               </button>
             )}
-          </form>
-        </div>
-      </div>
-
-      {/* Main Projects Table */}
-      {projects.length === 0 ? (
-        <div className="card p-12 text-center">
-          <div className="text-3xl mb-3">📁</div>
-          <h3 className="font-semibold text-slate-800 dark:text-nord-5">
-            {searchQuery ? 'Проекты не найдены' : 'Пока нет ни одного проекта'}
-          </h3>
-          <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto dark:text-nord-muted">
-            {searchQuery
-              ? 'Попробуйте изменить поисковый запрос или фильтр по статусу.'
-              : 'Создайте первый проект для привязки расчетов и выпуска документации по ГОСТ 34.'}
-          </p>
-          <div className="mt-4">
-            <button onClick={() => setIsCreateModalOpen(true)} className="btn-primary">
-              Создать проект
-            </button>
+            {canCreate && (
+              <button onClick={() => setIsCreateModalOpen(true)} className="btn-primary">
+                Создать проект
+              </button>
+            )}
           </div>
         </div>
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="table-list min-w-[960px]">
               <thead>
-                <tr className="border-b border-slate-200/80 bg-slate-50/70 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:border-nord-3 dark:bg-nord-1/40 dark:text-nord-muted">
-                  <th className="py-3.5 px-4">Код / Проект</th>
-                  <th className="py-3.5 px-4">Заказчик</th>
-                  <th className="py-3.5 px-4">Статус</th>
-                  <th className="py-3.5 px-4">Текущий расчёт</th>
-                  <th className="py-3.5 px-4">Выпуск ГОСТ 34</th>
-                  <th className="py-3.5 px-4 text-center">Версий</th>
-                  <th className="py-3.5 px-4">Обновлён</th>
-                  <th className="py-3.5 px-4 text-right">Действия</th>
+                <tr>
+                  <th>Проект</th>
+                  <th>Этап конвейера</th>
+                  <th>Смета</th>
+                  <th>Комплект ГОСТ 34</th>
+                  <th>Статус</th>
+                  <th>Обновлён</th>
+                  <th className="text-right">Дальше</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-nord-3">
+              <tbody>
                 {projects.map((p) => {
+                  const step = lifecycleStep(p.lifecycle.stage);
                   return (
-                    <tr
-                      key={p.id}
-                      className="group transition-colors hover:bg-slate-50/80 dark:hover:bg-nord-3/30"
-                    >
-                      <td className="py-3.5 px-4">
+                    <tr key={p.id}>
+                      <td>
                         <div className="flex flex-col">
-                          {p.code && (
-                            <span className="font-mono text-[11px] font-bold text-brand-600 dark:text-nord-frost3">
-                              {p.code}
-                            </span>
-                          )}
                           <Link
                             href={`/projects/${p.id}`}
                             className="font-semibold text-slate-900 hover:text-brand-600 dark:text-nord-5 dark:hover:text-nord-frost2"
                           >
                             {p.name}
                           </Link>
-                          {p.description && (
-                            <span className="line-clamp-1 text-xs text-slate-400 dark:text-nord-muted">
-                              {p.description}
-                            </span>
-                          )}
+                          <span className="text-[11px] text-slate-500 dark:text-nord-muted">
+                            {p.code && (
+                              <span className="mr-1.5 font-mono font-bold text-brand-600 dark:text-nord-frost3">
+                                {p.code}
+                              </span>
+                            )}
+                            {p.customer}
+                          </span>
                         </div>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-700 font-medium dark:text-nord-4">
-                        {p.customer}
+                      <td className="min-w-[180px]">
+                        <div className="flex flex-col gap-0.5">
+                          <StageChip state={p.lifecycle} />
+                          <span
+                            className="line-clamp-1 text-[11px] text-slate-500 dark:text-nord-muted"
+                            title={`${step.label}: ${p.lifecycle.note}`}
+                          >
+                            {p.lifecycle.note}
+                          </span>
+                        </div>
                       </td>
-                      <td className="py-3.5 px-4">{getStatusBadge(p.status)}</td>
-                      <td className="py-3.5 px-4">
+                      <td className="whitespace-nowrap">
                         {p.latestCalculation ? (
-                          <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1.5">
+                          <div className="flex flex-col">
+                            <span className="nums text-xs">
                               <Link
                                 href={`/calculations/${p.latestCalculation.id}`}
-                                className="font-semibold text-xs text-brand-700 hover:underline dark:text-nord-frost2"
+                                className="font-semibold text-brand-700 hover:underline dark:text-nord-frost2"
                               >
                                 v{p.latestCalculation.version}
-                              </Link>
-                              <span className="text-xs text-slate-600 font-bold tabular-nums dark:text-nord-5">
+                              </Link>{' '}
+                              <span className="font-bold text-slate-700 dark:text-nord-5">
                                 {p.latestCalculation.totalHours} ч
                               </span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 dark:text-nord-muted">
-                              {p.latestCalculation.name}
+                            </span>
+                            <span className="text-[11px] text-slate-500 dark:text-nord-muted">
+                              версий: {p.calculationCount}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-xs text-slate-400 italic">Нет расчётов</span>
+                          <span className="text-xs italic text-slate-400">нет расчётов</span>
                         )}
                       </td>
-                      <td className="py-3.5 px-4">
+                      <td className="whitespace-nowrap">
                         {p.latestPackage ? (
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-semibold text-slate-700 dark:text-nord-4">
-                              v{p.latestPackage.version}
+                          <div className="flex flex-col">
+                            <span className="nums text-xs font-semibold text-slate-700 dark:text-nord-4">
+                              v{p.latestPackage.version}{' '}
+                              <span className="font-normal text-slate-500 dark:text-nord-muted">
+                                {PACKAGE_LABELS[p.latestPackage.status] ?? p.latestPackage.status}
+                              </span>
                             </span>
-                            {getPackageStatusBadge(p.latestPackage.status)}
+                            <span className="text-[11px] text-slate-500 dark:text-nord-muted">
+                              выпусков: {p.packageCount}
+                            </span>
                           </div>
                         ) : (
-                          <span className="text-xs text-slate-400 italic">Не выпускался</span>
+                          <span className="text-xs italic text-slate-400">не выпускался</span>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <div className="inline-flex items-center gap-1 text-xs text-slate-600 dark:text-nord-4">
-                          <span title="Расчётов сметы">📊 {p.calculationCount}</span>
-                          <span>/</span>
-                          <span title="Выпусков ГОСТ">📑 {p.packageCount}</span>
-                        </div>
+                      <td className="whitespace-nowrap">
+                        <span className={STATUS_CHIP[p.status] ?? 'chip-muted'}>
+                          {STATUS_LABELS[p.status] ?? p.status}
+                        </span>
                       </td>
-                      <td className="py-3.5 px-4 text-xs tabular-nums text-slate-500 dark:text-nord-muted">
+                      <td className="nums whitespace-nowrap text-xs text-slate-500 dark:text-nord-muted">
                         {new Date(p.updatedAt).toLocaleDateString('ru-RU')}
                       </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100">
+                      <td className="whitespace-nowrap text-right">
+                        {p.lifecycle.next && p.lifecycle.attention !== 'paused' ? (
                           <Link
-                            href={`/projects/${p.id}`}
-                            className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-nord-3 dark:bg-nord-2 dark:text-nord-4 dark:hover:bg-nord-3"
+                            href={p.lifecycle.next.href}
+                            className={`btn-sm ${
+                              p.lifecycle.attention === 'rejected' ? 'btn-danger' : 'btn-secondary'
+                            }`}
                           >
+                            {p.lifecycle.next.label}
+                          </Link>
+                        ) : (
+                          <Link href={`/projects/${p.id}`} className="btn-ghost btn-sm">
                             Карточка
                           </Link>
-                          {p.latestCalculation ? (
-                            <Link
-                              href={`/calculations/${p.latestCalculation.id}`}
-                              className="rounded-md border border-brand-200 bg-brand-50/50 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100/50 dark:border-nord-frost4/40 dark:bg-nord-frost4/10 dark:text-nord-frost2"
-                            >
-                              Хаб
-                            </Link>
-                          ) : (
-                            <Link
-                              href={`/presale?projectId=${p.id}`}
-                              className="rounded-md border border-brand-200 bg-brand-50/50 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100/50 dark:border-nord-frost4/40 dark:bg-nord-frost4/10 dark:text-nord-frost2"
-                            >
-                              + Расчёт
-                            </Link>
-                          )}
-                        </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -463,46 +334,36 @@ export default function ProjectsListClient({
         </div>
       )}
 
-      {/* Pagination */}
-      {(() => {
-        const queryParts = [];
-        if (searchQuery) queryParts.push(`search=${encodeURIComponent(searchQuery)}`);
-        if (statusFilter && statusFilter !== 'all')
-          queryParts.push(`status=${encodeURIComponent(statusFilter)}`);
-        const paginationBasePath =
-          queryParts.length > 0 ? `/projects?${queryParts.join('&')}` : '/projects';
-        return (
-          <Pagination
-            page={currentPage}
-            pageSize={PAGE_SIZE}
-            total={total}
-            basePath={paginationBasePath}
-          />
-        );
-      })()}
+      <Pagination
+        page={currentPage}
+        pageSize={PAGE_SIZE}
+        total={total}
+        basePath={paginationBasePath}
+      />
 
       {/* Create Project Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="card w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-            <div className="border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/60 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="card animate-in w-full max-w-lg overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5 dark:border-nord-3 dark:bg-nord-1/60">
               <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-nord-6">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-nord-6">
                   Создать новый проект
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-nord-muted">
-                  Регистрация проекта в корпоративном реестре EvaCal
+                  Проект объединяет версии сметы и выпуски ГОСТ 34
                 </p>
               </div>
               <button
                 onClick={() => setIsCreateModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-nord-4 text-sm font-bold"
+                aria-label="Закрыть"
+                className="text-sm font-bold text-slate-400 hover:text-slate-600 dark:hover:text-nord-4"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateProject} className="p-6 space-y-4">
+            <form onSubmit={handleCreateProject} className="space-y-4 p-5">
               {error && (
                 <div className="rounded-lg bg-rose-50 p-3 text-xs font-medium text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
                   {error}
@@ -510,55 +371,47 @@ export default function ProjectsListClient({
               )}
 
               <div>
-                <label className="label text-xs font-bold text-slate-700 dark:text-nord-4">
-                  Название проекта *
-                </label>
+                <label className="label">Название проекта *</label>
                 <input
                   type="text"
                   required
                   value={newProject.name}
                   onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
                   placeholder="например, АС «Единый процессинг платежей»"
-                  className="input text-sm"
+                  className="input"
                 />
               </div>
 
               <div>
-                <label className="label text-xs font-bold text-slate-700 dark:text-nord-4">
-                  Заказчик (Организация) *
-                </label>
+                <label className="label">Заказчик (организация) *</label>
                 <input
                   type="text"
                   required
                   value={newProject.customer}
                   onChange={(e) => setNewProject({ ...newProject, customer: e.target.value })}
                   placeholder="например, ПАО «Северный банк»"
-                  className="input text-sm"
+                  className="input"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label text-xs font-bold text-slate-700 dark:text-nord-4">
-                    Код проекта (шифр)
-                  </label>
+                  <label className="label">Код проекта (шифр)</label>
                   <input
                     type="text"
                     value={newProject.code}
                     onChange={(e) => setNewProject({ ...newProject, code: e.target.value })}
                     placeholder="PRJ-2026-001"
-                    className="input text-sm font-mono uppercase"
+                    className="input font-mono uppercase"
                   />
                 </div>
 
                 <div>
-                  <label className="label text-xs font-bold text-slate-700 dark:text-nord-4">
-                    Статус
-                  </label>
+                  <label className="label">Статус</label>
                   <select
                     value={newProject.status}
                     onChange={(e) => setNewProject({ ...newProject, status: e.target.value })}
-                    className="input text-sm"
+                    className="input"
                   >
                     <option value="active">Активен</option>
                     <option value="on_hold">На паузе</option>
@@ -569,28 +422,26 @@ export default function ProjectsListClient({
               </div>
 
               <div>
-                <label className="label text-xs font-bold text-slate-700 dark:text-nord-4">
-                  Описание / Цель проекта
-                </label>
+                <label className="label">Описание / цель проекта</label>
                 <textarea
                   rows={3}
                   value={newProject.description}
                   onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-                  placeholder="Краткое описание границ проекта, ключевых требований и стейкхолдеров..."
-                  className="input text-sm"
+                  placeholder="Границы проекта, ключевые требования и стейкхолдеры…"
+                  className="input"
                 />
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-nord-3">
+              <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3 dark:border-nord-3">
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="btn-secondary text-xs"
+                  className="btn-secondary"
                 >
                   Отмена
                 </button>
-                <button type="submit" disabled={creating} className="btn-primary text-xs">
-                  {creating ? 'Создание...' : 'Создать проект'}
+                <button type="submit" disabled={creating} className="btn-primary">
+                  {creating ? 'Создание…' : 'Создать проект'}
                 </button>
               </div>
             </form>

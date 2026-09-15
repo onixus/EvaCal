@@ -1,4 +1,5 @@
-import Link from 'next/link';
+import PageHeader from '@/components/PageHeader';
+import FilterChips from '@/components/filters/FilterChips';
 import { appRoleLabel } from '@/lib/appRoles';
 import {
   LEADERBOARD_PERIODS,
@@ -25,39 +26,21 @@ export default async function LeaderboardPage(props: {
   const board = await loadLeaderboard(period);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
-            Рейтинг команды
-          </h1>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
-            Самые эффективные и отстающие пресейлы и архитекторы. Открытый экран: только логины и
-            счётчики, без данных заказчиков.
-          </p>
-        </div>
-        <nav aria-label="Период" className="flex gap-1">
-          {LEADERBOARD_PERIODS.map((p) => {
-            const active = p.value === period;
-            return (
-              <Link
-                key={p.value}
-                href={p.value === 'all' ? '/leaderboard' : `/leaderboard?period=${p.value}`}
-                aria-current={active ? 'page' : undefined}
-                className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors ${
-                  active
-                    ? 'border-brand-100 bg-brand-50 text-brand-700 dark:border-nord-3 dark:bg-nord-3 dark:text-nord-frost2'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-nord-3 dark:text-nord-4 dark:hover:bg-nord-3'
-                }`}
-              >
-                {p.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
+    <div className="page-wide">
+      <PageHeader
+        title="Рейтинг команды"
+        description="Самые эффективные и отстающие пресейлы и архитекторы. Открытый экран: только логины и счётчики, без данных заказчиков."
+      >
+        <FilterChips
+          param="period"
+          options={LEADERBOARD_PERIODS.map((p) => ({ value: p.value, label: p.label }))}
+          value={period}
+          defaultValue="all"
+          ariaLabel="Период"
+        />
+      </PageHeader>
 
-      <div className="grid gap-5 2xl:grid-cols-2">
+      <div className="grid gap-5 min-[1800px]:grid-cols-2">
         <PresaleSection board={board.presale} />
         <ArchitectSection board={board.architects} />
       </div>
@@ -78,7 +61,7 @@ export default async function LeaderboardPage(props: {
 
 function SectionShell(props: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
-    <section className="card-flat">
+    <section className="card-flat min-w-0 overflow-hidden">
       <div className="border-b border-slate-100 px-4 py-2.5 dark:border-nord-3">
         <div className="text-xs font-bold text-slate-900 dark:text-nord-6">{props.title}</div>
         <div className="text-[10px] text-slate-400 dark:text-nord-muted">{props.subtitle}</div>
@@ -121,14 +104,14 @@ function ScoreBar({ score, tone }: { score: number; tone: 'top' | 'bottom' | 'ne
         ? 'bg-rose-500 dark:bg-nord-red'
         : 'bg-brand-600 dark:bg-nord-frost4';
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex shrink-0 items-center gap-2">
       <div
         role="meter"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={score}
         aria-label={`Оценка ${score} из 100`}
-        className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 dark:bg-nord-1"
+        className="h-1.5 w-14 overflow-hidden rounded-full bg-slate-100 dark:bg-nord-1"
       >
         <div className={`h-full rounded-full ${fill}`} style={{ width: `${score}%` }} />
       </div>
@@ -222,31 +205,37 @@ function PresaleTable(props: {
         <thead className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-nord-muted">
           <tr className="border-b border-slate-100 dark:border-nord-3">
             <th className="px-4 py-1.5 text-left font-semibold">Сотрудник</th>
-            <th className="px-2 py-1.5 text-right font-semibold" title="Расчётов создано">
+            <th
+              className="whitespace-nowrap px-2 py-1.5 text-right font-semibold"
+              title="Расчётов создано"
+            >
               Расч.
             </th>
-            <th className="px-2 py-1.5 text-right font-semibold" title="Утверждено / всего">
+            <th
+              className="whitespace-nowrap px-2 py-1.5 text-right font-semibold"
+              title="Утверждено / всего"
+            >
               Конверсия
             </th>
             <th
-              className="px-2 py-1.5 text-right font-semibold"
+              className="whitespace-nowrap px-2 py-1.5 text-right font-semibold"
               title="Доля расчётов с новой версией"
             >
               Переделки
             </th>
             <th
-              className="px-2 py-1.5 text-right font-semibold"
+              className="whitespace-nowrap px-2 py-1.5 text-right font-semibold"
               title="Медиана дней до утверждения"
             >
               Цикл
             </th>
             <th
-              className="px-2 py-1.5 text-right font-semibold"
+              className="whitespace-nowrap px-2 py-1.5 text-right font-semibold"
               title="Выиграно / (выиграно + проиграно) по исходам сделок"
             >
               Win rate
             </th>
-            <th className="px-4 py-1.5 text-right font-semibold">Оценка</th>
+            <th className="whitespace-nowrap px-4 py-1.5 text-right font-semibold">Оценка</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-nord-3">
@@ -259,22 +248,22 @@ function PresaleTable(props: {
                 <td className="px-4 py-2">
                   <PersonCell entry={row} rank={rank} />
                 </td>
-                <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
+                <td className="nums whitespace-nowrap px-2 py-2 text-right text-slate-700 dark:text-nord-4">
                   {row.total}
                 </td>
-                <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
+                <td className="nums whitespace-nowrap px-2 py-2 text-right text-slate-700 dark:text-nord-4">
                   {pct(row.conversion)}
                   <span className="ml-1 text-[10px] text-slate-400 dark:text-nord-muted">
                     ({row.approved}/{row.total})
                   </span>
                 </td>
-                <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
+                <td className="nums whitespace-nowrap px-2 py-2 text-right text-slate-700 dark:text-nord-4">
                   {pct(row.reworkRate)}
                 </td>
-                <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
+                <td className="nums whitespace-nowrap px-2 py-2 text-right text-slate-700 dark:text-nord-4">
                   {days(row.medianCycleDays)}
                 </td>
-                <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
+                <td className="nums whitespace-nowrap px-2 py-2 text-right text-slate-700 dark:text-nord-4">
                   {row.winRate === null ? '—' : pct(row.winRate)}
                   {row.won + row.lost > 0 && (
                     <span className="ml-1 text-[10px] text-slate-400 dark:text-nord-muted">
@@ -282,7 +271,7 @@ function PresaleTable(props: {
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-2">
+                <td className="whitespace-nowrap px-4 py-2">
                   <div className="flex justify-end">
                     <ScoreBar score={row.score} tone={props.tone} />
                   </div>
@@ -340,39 +329,42 @@ function ArchitectTable(props: {
           <tr className="border-b border-slate-100 dark:border-nord-3">
             <th className="px-4 py-1.5 text-left font-semibold">Сотрудник</th>
             <th
-              className="px-2 py-1.5 text-right font-semibold"
+              className="whitespace-nowrap px-2 py-1.5 text-right font-semibold"
               title="Согласовано расчётов пресейла"
             >
               Согл.
             </th>
             <th
-              className="px-2 py-1.5 text-right font-semibold"
+              className="whitespace-nowrap px-2 py-1.5 text-right font-semibold"
               title="Выпущено комплектов ГОСТ 34"
             >
               Выпуск
             </th>
-            <th className="px-2 py-1.5 text-right font-semibold" title="Утверждено в роли ГАП">
+            <th
+              className="whitespace-nowrap px-2 py-1.5 text-right font-semibold"
+              title="Утверждено в роли ГАП"
+            >
               ГАП
             </th>
             <th
-              className="px-2 py-1.5 text-right font-semibold"
+              className="whitespace-nowrap px-2 py-1.5 text-right font-semibold"
               title="Свои комплекты, принятые без возврата"
             >
               Приёмка
             </th>
             <th
-              className="px-2 py-1.5 text-right font-semibold"
+              className="whitespace-nowrap px-2 py-1.5 text-right font-semibold"
               title="Медиана дней от выпуска до утверждения"
             >
               Ревью
             </th>
             <th
-              className="px-2 py-1.5 text-right font-semibold"
+              className="whitespace-nowrap px-2 py-1.5 text-right font-semibold"
               title="Медиана |факт − план| / план по согласованным расчётам с фактом"
             >
               Точность
             </th>
-            <th className="px-4 py-1.5 text-right font-semibold">Оценка</th>
+            <th className="whitespace-nowrap px-4 py-1.5 text-right font-semibold">Оценка</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-nord-3">
@@ -386,16 +378,16 @@ function ArchitectTable(props: {
                 <td className="px-4 py-2">
                   <PersonCell entry={row} rank={rank} />
                 </td>
-                <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
+                <td className="nums whitespace-nowrap px-2 py-2 text-right text-slate-700 dark:text-nord-4">
                   {row.calcApproved}
                 </td>
-                <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
+                <td className="nums whitespace-nowrap px-2 py-2 text-right text-slate-700 dark:text-nord-4">
                   {row.released}
                 </td>
-                <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
+                <td className="nums whitespace-nowrap px-2 py-2 text-right text-slate-700 dark:text-nord-4">
                   {row.gapApproved}
                 </td>
-                <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
+                <td className="nums whitespace-nowrap px-2 py-2 text-right text-slate-700 dark:text-nord-4">
                   {pct(row.firstPassRate)}
                   {decided > 0 && (
                     <span className="ml-1 text-[10px] text-slate-400 dark:text-nord-muted">
@@ -403,10 +395,10 @@ function ArchitectTable(props: {
                     </span>
                   )}
                 </td>
-                <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
+                <td className="nums whitespace-nowrap px-2 py-2 text-right text-slate-700 dark:text-nord-4">
                   {days(row.medianTurnaroundDays)}
                 </td>
-                <td className="nums px-2 py-2 text-right text-slate-700 dark:text-nord-4">
+                <td className="nums whitespace-nowrap px-2 py-2 text-right text-slate-700 dark:text-nord-4">
                   {row.medianAbsDeviation === null ? '—' : `±${pct(row.medianAbsDeviation)}`}
                   {row.accuracySamples > 0 && (
                     <span className="ml-1 text-[10px] text-slate-400 dark:text-nord-muted">
@@ -414,7 +406,7 @@ function ArchitectTable(props: {
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-2">
+                <td className="whitespace-nowrap px-4 py-2">
                   <div className="flex justify-end">
                     <ScoreBar score={row.score} tone={props.tone} />
                   </div>

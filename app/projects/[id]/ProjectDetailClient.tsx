@@ -8,6 +8,8 @@ import { calculateCommercialSummary, formatCurrency } from '@/lib/commercial';
 import { safeJsonParse } from '@/lib/json';
 import type { PackageDiffResult } from '@/lib/gost34/diff';
 import DealPanel, { type DealProjectView } from '@/components/DealPanel';
+import PipelineStepper from '@/components/lifecycle/PipelineStepper';
+import type { LifecycleState } from '@/lib/lifecycle';
 import {
   canDecideReviewStage,
   REVIEW_STAGE_LABELS,
@@ -100,10 +102,12 @@ export interface SerializedProject {
 
 export default function ProjectDetailClient({
   project,
+  lifecycle,
   canEditDeal = false,
   sessionRole = null,
 }: {
   project: SerializedProject;
+  lifecycle: LifecycleState;
   canEditDeal?: boolean;
   sessionRole?: string | null;
 }) {
@@ -368,7 +372,7 @@ export default function ProjectDetailClient({
       case 'approved':
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-            ✓ УТВЕРЖДЁН
+            УТВЕРЖДЁН
           </span>
         );
       case 'under_review':
@@ -380,19 +384,19 @@ export default function ProjectDetailClient({
       case 'rejected':
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-800 dark:bg-rose-950 dark:text-rose-300">
-            ✕ ОТКЛОНЁН
+            ОТКЛОНЁН
           </span>
         );
       case 'archived':
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600 dark:bg-nord-1 dark:text-nord-muted">
-            📦 АРХИВ
+            АРХИВ
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600 dark:bg-nord-1 dark:text-nord-4">
-            📝 ЧЕРНОВИК
+            ЧЕРНОВИК
           </span>
         );
     }
@@ -412,7 +416,7 @@ export default function ProjectDetailClient({
     : null;
 
   return (
-    <div className="space-y-6">
+    <div className="page">
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-2 text-xs text-slate-500 dark:text-nord-muted">
         <Link href="/projects" className="hover:text-brand-600 dark:hover:text-nord-frost2">
@@ -424,90 +428,88 @@ export default function ProjectDetailClient({
 
       {/* Project Hero Header */}
       <div className="card overflow-hidden">
-        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5 dark:border-nord-3 dark:from-nord-1/40 dark:to-nord-2">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-3">
+        <div className="border-b border-slate-100 px-5 py-4 dark:border-nord-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2.5">
                 {project.code && (
                   <span className="rounded bg-brand-100 px-2 py-0.5 font-mono text-xs font-bold text-brand-800 dark:bg-nord-3 dark:text-nord-frost3">
                     {project.code}
                   </span>
                 )}
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-nord-6">
+                <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
                   {project.name}
                 </h1>
                 {getStatusBadge(project.status)}
               </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-nord-muted">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-nord-muted">
                 <span>
                   Заказчик:{' '}
                   <strong className="font-semibold text-slate-700 dark:text-nord-4">
                     {project.customer}
                   </strong>
                 </span>
-                <span>•</span>
+                <span aria-hidden>·</span>
                 <span>
-                  Создан:{' '}
+                  Создан{' '}
                   {new Date(project.createdAt).toLocaleDateString('ru-RU', {
                     day: 'numeric',
                     month: 'long',
                     year: 'numeric',
                   })}
                 </span>
-                <span>•</span>
+                <span aria-hidden>·</span>
                 <span>Автор: {project.createdBy}</span>
               </div>
               {project.description && (
-                <p className="text-xs text-slate-600 dark:text-nord-4 max-w-3xl leading-relaxed pt-1">
+                <p className="max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-nord-4">
                   {project.description}
                 </p>
               )}
             </div>
 
             {/* Quick Actions */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href={`/presale?projectId=${project.id}`}
-                className="btn-primary !py-1.5 !px-3 text-xs"
-              >
-                <span>+</span>
-                <span>Новый расчёт</span>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Link href={`/presale?projectId=${project.id}`} className="btn-primary">
+                + Новый расчёт
               </Link>
-              <button
-                onClick={() => setIsEditModalOpen(true)}
-                className="btn-secondary !py-1.5 !px-3 text-xs"
-              >
-                ✏️ Редактировать
+              <button onClick={() => setIsEditModalOpen(true)} className="btn-secondary">
+                Редактировать
               </button>
             </div>
           </div>
         </div>
 
+        {/* Конвейер: где проект сейчас, сколько тут стоит и что делать дальше. */}
+        <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-4 dark:border-nord-3 dark:bg-nord-1/40">
+          <PipelineStepper state={lifecycle} />
+        </div>
+
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-200/80 bg-white px-6 dark:border-nord-3 dark:bg-nord-2">
+        <div className="tab-bar border-b-0 bg-white px-3 dark:bg-nord-2">
           <button
             onClick={() => setActiveTab('calculations')}
             className={`tab-btn ${activeTab === 'calculations' ? 'tab-btn-active' : ''}`}
           >
-            <span>📊 Расчёты и версии ({project.calculations.length})</span>
+            <span>Расчёты и версии ({project.calculations.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('packages')}
             className={`tab-btn ${activeTab === 'packages' ? 'tab-btn-active' : ''}`}
           >
-            <span>📑 Реестр ГОСТ 34 ({project.packages.length})</span>
+            <span>Реестр ГОСТ 34 ({project.packages.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('commercial')}
             className={`tab-btn ${activeTab === 'commercial' ? 'tab-btn-active' : ''}`}
           >
-            <span>💰 Коммерческая сводка</span>
+            <span>Коммерческая сводка</span>
           </button>
           <button
             onClick={() => setActiveTab('settings')}
             className={`tab-btn ${activeTab === 'settings' ? 'tab-btn-active' : ''}`}
           >
-            <span>⚙️ Настройки проекта</span>
+            <span>Настройки проекта</span>
           </button>
         </div>
       </div>
@@ -527,17 +529,14 @@ export default function ProjectDetailClient({
                 параметров КП.
               </p>
             </div>
-            <Link
-              href={`/presale?projectId=${project.id}`}
-              className="btn-secondary !py-1.5 !px-3 text-xs"
-            >
+            <Link href={`/presale?projectId=${project.id}`} className="btn-secondary text-xs">
               + Создать расчёт с нуля
             </Link>
           </div>
 
           {project.calculations.length === 0 ? (
             <div className="card p-10 text-center">
-              <div className="text-2xl mb-2">📊</div>
+              <div className="text-2xl mb-2"></div>
               <h3 className="font-semibold text-slate-800 dark:text-nord-5">
                 В этом проекте ещё нет расчётов
               </h3>
@@ -591,7 +590,7 @@ export default function ProjectDetailClient({
 
                         {calc.versionComment && (
                           <p className="text-xs text-slate-600 dark:text-nord-4 italic">
-                            💬 {calc.versionComment}
+                            {calc.versionComment}
                           </p>
                         )}
 
@@ -602,13 +601,13 @@ export default function ProjectDetailClient({
                               {calc.template.name}
                             </strong>
                           </span>
-                          <span>•</span>
+                          <span aria-hidden>·</span>
                           <span>Старт: {new Date(calc.startDate).toLocaleDateString('ru-RU')}</span>
-                          <span>•</span>
+                          <span aria-hidden>·</span>
                           <span>
                             Обновлён: {new Date(calc.updatedAt).toLocaleDateString('ru-RU')}
                           </span>
-                          <span>•</span>
+                          <span aria-hidden>·</span>
                           <span>Автор: {calc.createdBy}</span>
                         </div>
                       </div>
@@ -635,18 +634,15 @@ export default function ProjectDetailClient({
                         </div>
 
                         <div className="flex items-center gap-2 pt-1">
-                          <Link
-                            href={`/calculations/${calc.id}`}
-                            className="btn-primary !py-1 !px-2.5 text-xs"
-                          >
+                          <Link href={`/calculations/${calc.id}`} className="btn-primary text-xs">
                             Хаб расчёта →
                           </Link>
                           <button
                             onClick={() => openCreateVersionModal(calc)}
-                            className="btn-secondary !py-1 !px-2.5 text-xs"
+                            className="btn-secondary text-xs"
                             title="Создать версию N+1 на основе этой сметы"
                           >
-                            🔄 Новая версия
+                            Новая версия
                           </button>
                         </div>
                       </div>
@@ -677,16 +673,13 @@ export default function ProjectDetailClient({
                 <button
                   type="button"
                   onClick={handleOpenDiffModal}
-                  className="btn-secondary !py-1.5 !px-3 text-xs bg-brand-50 border-brand-200 text-brand-700 hover:bg-brand-100 dark:bg-nord-3 dark:text-nord-frost3 font-bold"
+                  className="btn-secondary text-xs bg-brand-50 border-brand-200 text-brand-700 hover:bg-brand-100 dark:bg-nord-3 dark:text-nord-frost3 font-bold"
                 >
-                  📊 Сравнить версии
+                  Сравнить версии
                 </button>
               )}
               {latestCalc && (
-                <Link
-                  href={`/calculations/${latestCalc.id}`}
-                  className="btn-secondary !py-1.5 !px-3 text-xs"
-                >
+                <Link href={`/calculations/${latestCalc.id}`} className="btn-secondary text-xs">
                   + Выпустить комплект в мастере
                 </Link>
               )}
@@ -695,7 +688,7 @@ export default function ProjectDetailClient({
 
           {project.packages.length === 0 ? (
             <div className="card p-10 text-center">
-              <div className="text-2xl mb-2">📑</div>
+              <div className="text-2xl mb-2"></div>
               <h3 className="font-semibold text-slate-800 dark:text-nord-5">
                 Комплекты ГОСТ 34 ещё не выпускались
               </h3>
@@ -750,9 +743,9 @@ export default function ProjectDetailClient({
                               {pkg.standardProfileId} ({pkg.standardProfileVersion})
                             </strong>
                           </span>
-                          <span>•</span>
+                          <span aria-hidden>·</span>
                           <span>Генератор: {pkg.generatorVersion}</span>
-                          <span>•</span>
+                          <span aria-hidden>·</span>
                           <span>
                             Выпущен:{' '}
                             {new Date(pkg.createdAt).toLocaleDateString('ru-RU', {
@@ -763,7 +756,7 @@ export default function ProjectDetailClient({
                           </span>
                           {pkg.approvedBy && (
                             <>
-                              <span>•</span>
+                              <span aria-hidden>·</span>
                               <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
                                 Согласовал: {pkg.approvedBy}
                               </span>
@@ -773,7 +766,7 @@ export default function ProjectDetailClient({
 
                         {pkg.reviewComment && (
                           <div className="rounded-md bg-amber-50 p-2.5 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-                            <strong>💬 Комментарий согласования:</strong> {pkg.reviewComment}
+                            <strong>Комментарий согласования:</strong> {pkg.reviewComment}
                           </div>
                         )}
 
@@ -805,7 +798,7 @@ export default function ProjectDetailClient({
                             <a
                               href={`/api/gost34/packages/${pkg.id}/artifact`}
                               download
-                              className="btn-secondary !py-1 !px-2.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-nord-2"
+                              className="btn-secondary text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-nord-2"
                               title="Скачать неизменяемый ZIP-архив выпуска с контрольной суммой SHA-256"
                             >
                               ⬇ Скачать ZIP
@@ -814,17 +807,17 @@ export default function ProjectDetailClient({
                           <button
                             type="button"
                             onClick={() => handleOpenShareModal(pkg)}
-                            className="btn-secondary !py-1 !px-2.5 text-xs font-bold"
+                            className="btn-secondary text-xs font-bold"
                             title="Сгенерировать share-ссылку для согласования Заказчиком"
                           >
-                            🔗 Поделиться
+                            Поделиться
                           </button>
                           {pkg.status === 'rejected' && pkg.calculation && (
                             <Link
                               href={`/calculations/${pkg.calculation.id}/studio`}
-                              className="btn-primary !bg-rose-600 hover:!bg-rose-700 dark:!bg-nord-red !py-1 !px-2.5 text-xs font-bold"
+                              className="btn-primary !bg-rose-600 hover:!bg-rose-700 dark:!bg-nord-red text-xs font-bold"
                             >
-                              ✏️ Исправить в Студии
+                              Исправить в Студии
                             </Link>
                           )}
                           {pkg.status !== 'approved' &&
@@ -833,18 +826,18 @@ export default function ProjectDetailClient({
                                 <button
                                   type="button"
                                   onClick={() => handleOpenReviewModal(pkg, 'approve')}
-                                  className="btn-secondary !py-1 !px-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-nord-2"
+                                  className="btn-secondary text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-nord-2"
                                   title="Утвердить данный выпуск"
                                 >
-                                  ✓ Согласовать
+                                  Согласовать
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleOpenReviewModal(pkg, 'reject')}
-                                  className="btn-secondary !py-1 !px-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-nord-2"
+                                  className="btn-secondary text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-nord-2"
                                   title="Отклонить выпуск с комментарием"
                                 >
-                                  ✕ Отклонить
+                                  Отклонить
                                 </button>
                               </>
                             ) : (
@@ -857,7 +850,7 @@ export default function ProjectDetailClient({
                             ))}
                           <Link
                             href={`/calculations/${pkg.calculationId}`}
-                            className="btn-primary !py-1 !px-2.5 text-xs"
+                            className="btn-primary text-xs"
                           >
                             В хаб →
                           </Link>
@@ -885,10 +878,7 @@ export default function ProjectDetailClient({
               </p>
             </div>
             {latestCalc && (
-              <Link
-                href={`/calculations/${latestCalc.id}`}
-                className="btn-secondary !py-1.5 !px-3 text-xs"
-              >
+              <Link href={`/calculations/${latestCalc.id}`} className="btn-secondary text-xs">
                 Перейти к настройке ставок →
               </Link>
             )}
@@ -1099,9 +1089,7 @@ export default function ProjectDetailClient({
               <button
                 onClick={() => setIsEditModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-nord-4 text-sm font-bold"
-              >
-                ✕
-              </button>
+              ></button>
             </div>
 
             <form onSubmit={handleUpdateProject} className="p-6 space-y-4">
@@ -1213,9 +1201,7 @@ export default function ProjectDetailClient({
               <button
                 onClick={() => setIsVersionModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-nord-4 text-sm font-bold"
-              >
-                ✕
-              </button>
+              ></button>
             </div>
 
             <form onSubmit={handleCreateVersion} className="p-6 space-y-4">
@@ -1269,9 +1255,7 @@ export default function ProjectDetailClient({
             <div className="border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/60 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-nord-6">
-                  {reviewDecision === 'approve'
-                    ? '✅ Утверждение комплекта'
-                    : '❌ Отклонение комплекта'}
+                  {reviewDecision === 'approve' ? 'Утверждение комплекта' : 'Отклонение комплекта'}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-nord-muted">
                   {selectedPkgForReview.name} (v{selectedPkgForReview.version})
@@ -1280,9 +1264,7 @@ export default function ProjectDetailClient({
               <button
                 onClick={() => setIsReviewModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-nord-4 text-sm font-bold"
-              >
-                ✕
-              </button>
+              ></button>
             </div>
 
             <form onSubmit={handleSubmitReview} className="p-6 space-y-4">
@@ -1306,7 +1288,7 @@ export default function ProjectDetailClient({
                         : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-nord-3 dark:text-nord-4'
                     }`}
                   >
-                    ✓ Согласовать (Approve)
+                    Согласовать (Approve)
                   </button>
                   <button
                     type="button"
@@ -1317,7 +1299,7 @@ export default function ProjectDetailClient({
                         : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-nord-3 dark:text-nord-4'
                     }`}
                   >
-                    ✕ Отклонить (Reject)
+                    Отклонить (Reject)
                   </button>
                 </div>
               </div>
@@ -1371,7 +1353,7 @@ export default function ProjectDetailClient({
             <div className="border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/60 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-nord-6">
-                  🔗 Ссылка для согласования Заказчиком
+                  Ссылка для согласования Заказчиком
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-nord-muted">
                   Безопасный доступ без необходимости регистрации и staff-логина
@@ -1380,9 +1362,7 @@ export default function ProjectDetailClient({
               <button
                 onClick={() => setIsShareModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-nord-4 text-sm font-bold"
-              >
-                ✕
-              </button>
+              ></button>
             </div>
 
             <div className="p-6 space-y-4">
@@ -1413,7 +1393,7 @@ export default function ProjectDetailClient({
                       }}
                       className="btn-primary text-xs font-bold whitespace-nowrap"
                     >
-                      {isCopied ? '✓ Скопировано!' : 'Скопировать'}
+                      {isCopied ? 'Скопировано!' : 'Скопировать'}
                     </button>
                   </div>
                   <p className="text-[11px] text-slate-400">
@@ -1444,7 +1424,7 @@ export default function ProjectDetailClient({
             <div className="border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/60 flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-nord-6">
-                  📊 Структурное сравнение версий комплектов ГОСТ 34
+                  Структурное сравнение версий комплектов ГОСТ 34
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-nord-muted">
                   Анализ изменений требований, покрытия трассировки, применимости и оверрайдов
@@ -1453,9 +1433,7 @@ export default function ProjectDetailClient({
               <button
                 onClick={() => setIsDiffModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-nord-4 text-sm font-bold"
-              >
-                ✕
-              </button>
+              ></button>
             </div>
 
             <div className="border-b border-slate-200 bg-white p-4 dark:border-nord-3 dark:bg-nord-0 shrink-0">
@@ -1470,7 +1448,7 @@ export default function ProjectDetailClient({
                       setFromPkgId(e.target.value);
                       handleLoadDiff(e.target.value, toPkgId);
                     }}
-                    className="input text-xs !py-1"
+                    className="input text-xs"
                   >
                     {project.packages.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -1492,7 +1470,7 @@ export default function ProjectDetailClient({
                       setToPkgId(e.target.value);
                       handleLoadDiff(fromPkgId, e.target.value);
                     }}
-                    className="input text-xs !py-1"
+                    className="input text-xs"
                   >
                     {project.packages.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -1506,7 +1484,7 @@ export default function ProjectDetailClient({
                   type="button"
                   onClick={() => handleLoadDiff(fromPkgId, toPkgId)}
                   disabled={isDiffLoading || fromPkgId === toPkgId}
-                  className="btn-secondary !py-1 !px-2.5 text-xs font-bold"
+                  className="btn-secondary text-xs font-bold"
                 >
                   {isDiffLoading ? 'Сравнение...' : 'Обновить'}
                 </button>

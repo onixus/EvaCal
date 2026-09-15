@@ -1,15 +1,9 @@
 import { requireRole } from '@/lib/auth';
-import AuthBar from '@/components/AuthBar';
+import { PROJECT_VIEWER_ROLES } from '@/lib/appRoles';
 
 export default async function ProjectsLayout({ children }: { children: React.ReactNode }) {
-  const session = await requireRole(['architect', 'gap', 'admin'], '/projects');
-  return (
-    <div>
-      <AuthBar
-        username={session.username}
-        roleLabel={session.role === 'admin' ? 'администратор' : 'архитектор'}
-      />
-      {children}
-    </div>
-  );
+  // Пресейл заводит проекты и версии смет, поэтому реестр открыт и ему —
+  // раньше пункт «Проекты» был в его навигации, а экран разворачивал на логин.
+  await requireRole(PROJECT_VIEWER_ROLES, '/projects');
+  return <>{children}</>;
 }

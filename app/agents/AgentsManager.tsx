@@ -107,10 +107,12 @@ export default function AgentsManager({ isAdmin }: { isAdmin: boolean }) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="card p-5">
-        <h2 className="mb-3 font-medium">Подключить агента</h2>
-        <form onSubmit={submit} className="space-y-3">
+    <div className="space-y-5">
+      <div className="card">
+        <div className="card-head">
+          <span className="card-title">Подключить агента</span>
+        </div>
+        <form onSubmit={submit} className="space-y-3 p-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
               <span className="mb-1 block text-slate-600">Название</span>
@@ -162,16 +164,18 @@ export default function AgentsManager({ isAdmin }: { isAdmin: boolean }) {
                 {MODE_LABELS[mode]}
               </label>
             ))}
-            <button type="submit" className="btn btn-primary ml-auto">
+            <button type="submit" className="btn-primary ml-auto">
               Подключить
             </button>
           </div>
         </form>
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {error && <p className="px-4 pb-4 text-sm text-red-600">{error}</p>}
       </div>
 
-      <div className="card p-5">
-        <h2 className="mb-3 font-medium">Подключённые агенты</h2>
+      <div className="card">
+        <div className="card-head">
+          <span className="card-title">Подключённые агенты</span>
+        </div>
         {loading ? (
           <p className="text-sm text-slate-500">Загрузка…</p>
         ) : agents.length === 0 ? (

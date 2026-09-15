@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
   const calculation = await prisma.calculation.update({
     where: { id: params.id },
-    data: { status: 'approved' },
+    data: { status: 'approved', stageEnteredAt: new Date() },
   });
 
   // Кто согласовал — иначе вклад архитектора в рейтинг (/leaderboard) не виден:

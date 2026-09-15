@@ -1,18 +1,20 @@
 import { Suspense } from 'react';
 import LoginForm from './LoginForm';
+import PageHeader from '@/components/PageHeader';
 
 export default function LoginPage() {
   return (
-    <div className="mx-auto max-w-sm">
-      <div className="card p-6">
-        <h1 className="mb-1 text-xl font-semibold">Вход</h1>
-        <p className="mb-5 text-sm text-slate-500">
-          Пресейл, архитектор, ревьювер документации и администратор. После входа откроется рабочий
-          экран вашей роли.
-        </p>
-        <Suspense>
-          <LoginForm />
-        </Suspense>
+    <div className="page-narrow">
+      <div className="mx-auto max-w-sm space-y-5">
+        <PageHeader
+          title="Вход"
+          description="Пресейл, архитектор, ревьювер документации и администратор. После входа откроется рабочий экран вашей роли."
+        />
+        <div className="card p-5">
+          <Suspense>
+            <LoginForm />
+          </Suspense>
+        </div>
       </div>
     </div>
   );

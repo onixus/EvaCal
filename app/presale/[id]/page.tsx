@@ -23,6 +23,7 @@ export default async function PresaleCalculationPage(props: {
     where: { id: params.id },
     include: {
       template: { include: { fields: { orderBy: { order: 'asc' } } } },
+      project: { select: { id: true, name: true } },
       stages: { orderBy: { order: 'asc' } },
       risks: { orderBy: { order: 'asc' } },
     },

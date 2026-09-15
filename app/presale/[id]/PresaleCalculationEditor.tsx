@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DynamicForm, { FormFieldDef } from '@/components/DynamicForm';
@@ -13,6 +15,7 @@ import CalibrationPanel from '@/components/CalibrationPanel';
 import { storeShareToken, withShareHeaders } from '@/lib/shareClient';
 
 interface Calculation {
+  project?: { id: string; name: string } | null;
   id: string;
   name: string;
   customer: string;
@@ -86,10 +89,34 @@ export default function PresaleCalculationEditor({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <h1 className="text-xl font-semibold">Расчёт: {calculation.name}</h1>
-        <div className="flex items-center gap-3">
+    <div className="page">
+      {calculation.project && (
+        <nav className="flex items-center gap-2 text-xs text-slate-500 dark:text-nord-muted">
+          <Link href="/projects" className="hover:text-brand-600 dark:hover:text-nord-frost2">
+            Проекты
+          </Link>
+          <span>/</span>
+          <Link
+            href={`/projects/${calculation.project.id}`}
+            className="font-medium hover:text-brand-600 dark:hover:text-nord-frost2"
+          >
+            {calculation.project.name}
+          </Link>
+          <span>/</span>
+          <span className="font-semibold text-slate-900 dark:text-nord-5">Расчёт пресейла</span>
+        </nav>
+      )}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
+            {calculation.name}
+          </h1>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
+            Опросник и параметры сметы. Когда расчёт готов, отправьте его на согласование
+            архитектору.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={calculation.status} />
           <ExportLinks calculationId={calculation.id} />
         </div>

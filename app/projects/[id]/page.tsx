@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { getProjectDetails } from '@/lib/project';
 import { getSession } from '@/lib/auth';
 import { projectSchedule } from '@/lib/schedule';
+import { resolveLifecycle } from '@/lib/lifecycle';
+import { lifecycleInputFromRow } from '@/lib/lifecycleData';
 import ProjectDetailClient, { SerializedProject } from './ProjectDetailClient';
 
 export const dynamic = 'force-dynamic';
@@ -131,9 +133,13 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     })),
   };
 
+  // Списки уже отсортированы по версии вниз — первый элемент и есть текущий.
+  const lifecycle = resolveLifecycle(lifecycleInputFromRow(project));
+
   return (
     <ProjectDetailClient
       project={serializedProject}
+      lifecycle={lifecycle}
       canEditDeal={canEditDeal}
       sessionRole={session?.role ?? null}
     />

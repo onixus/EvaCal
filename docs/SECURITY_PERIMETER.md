@@ -154,7 +154,7 @@ assertAllowedEndpoint(rawEndpoint, policy);
    Сессионная cookie `evacal_session` выставляется с флагами:
    - `HttpOnly: true` (недоступна из JavaScript браузера, защита от XSS);
    - `SameSite: Lax` (защита от межсайтовой подделки запросов CSRF);
-   - `Secure: true` (активируется в `NODE_ENV=production` или при `FORCE_SECURE_COOKIES=true`).
+   - `Secure: true` (активируется в `NODE_ENV=production` или при `FORCE_SECURE_COOKIES=true`). Исключение — production-сборка, открытая по plain-http на `localhost`/`127.0.0.1` без `X-Forwarded-Proto: https` (локальный `npm run start`, e2e): там Secure не ставится, иначе Safari отбрасывает cookie и вход зацикливается. `FORCE_SECURE_COOKIES=true` отменяет исключение.
 4. **Непрерывная интеграция (CI):**
    В пайплайне сборки проверка уязвимостей зависимостей запускается в строгом режиме:
    ```bash

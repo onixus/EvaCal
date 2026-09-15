@@ -5,12 +5,21 @@ import { loadAccuracyAnalytics, loadDealAnalytics } from '@/lib/actualsData';
 import { loadDeviationCatalog } from '@/lib/deviationsData';
 import DeviationChart from '@/components/DeviationChart';
 import StatCard from '@/components/StatCard';
+import PageHeader from '@/components/PageHeader';
+import FilterChips from '@/components/filters/FilterChips';
+import AnalyticsTabs from './AnalyticsTabs';
 import { accuracyTone, type WinRate } from '@/lib/actuals';
 import { roleLabel } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
 type Tab = 'deals' | 'accuracy' | 'deviations';
+
+const TABS: { value: Tab; label: string }[] = [
+  { value: 'deals', label: 'Сделки' },
+  { value: 'accuracy', label: 'Точность оценок' },
+  { value: 'deviations', label: 'Отклонения по задачам' },
+];
 
 /**
  * Сделки и точность оценок (Horizon E1). Для сотрудников: тут есть названия
@@ -27,7 +36,6 @@ export default async function AnalyticsPage(props: {
   const period = parsePeriod(sp.period);
   const tab: Tab =
     sp.tab === 'accuracy' ? 'accuracy' : sp.tab === 'deviations' ? 'deviations' : 'deals';
-  const href = (t: Tab, p = period) => `/analytics?tab=${t}${p === 'all' ? '' : `&period=${p}`}`;
 
   // Грузится только то, что показывает вкладка: остальные наборы — лишние запросы.
   const deals = tab === 'deals' ? await loadDealAnalytics(period) : null;
@@ -35,51 +43,22 @@ export default async function AnalyticsPage(props: {
   const catalog = tab === 'deviations' ? await loadDeviationCatalog() : null;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
-            Сделки и точность оценок
-          </h1>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
-            Чем заканчиваются сделки и насколько факт расходится с утверждённой оценкой.
-          </p>
+    <div className="page">
+      <PageHeader
+        title="Сделки и точность оценок"
+        description="Чем заканчиваются сделки и насколько факт расходится с утверждённой оценкой."
+      >
+        <div className="space-y-3">
+          <FilterChips
+            param="period"
+            options={LEADERBOARD_PERIODS.map((p) => ({ value: p.value, label: p.label }))}
+            value={period}
+            defaultValue="all"
+            ariaLabel="Период"
+          />
+          <AnalyticsTabs tabs={TABS} value={tab} defaultValue="deals" />
         </div>
-        <nav aria-label="Период" className="flex gap-1">
-          {LEADERBOARD_PERIODS.map((p) => (
-            <Link
-              key={p.value}
-              href={href(tab, p.value)}
-              aria-current={p.value === period ? 'page' : undefined}
-              className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${
-                p.value === period
-                  ? 'border-brand-100 bg-brand-50 text-brand-700 dark:border-nord-3 dark:bg-nord-3 dark:text-nord-frost2'
-                  : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-nord-3 dark:text-nord-4 dark:hover:bg-nord-3'
-              }`}
-            >
-              {p.label}
-            </Link>
-          ))}
-        </nav>
-      </div>
-
-      <div className="flex border-b border-slate-200/80 dark:border-nord-3">
-        <Link href={href('deals')} className={`tab-btn ${tab === 'deals' ? 'tab-btn-active' : ''}`}>
-          Сделки
-        </Link>
-        <Link
-          href={href('accuracy')}
-          className={`tab-btn ${tab === 'accuracy' ? 'tab-btn-active' : ''}`}
-        >
-          Точность оценок
-        </Link>
-        <Link
-          href={href('deviations')}
-          className={`tab-btn ${tab === 'deviations' ? 'tab-btn-active' : ''}`}
-        >
-          Отклонения по задачам
-        </Link>
-      </div>
+      </PageHeader>
 
       {tab === 'deviations' && catalog ? (
         <div className="space-y-5">
@@ -310,10 +289,12 @@ const TONE_CLS: Record<string, string> = {
 
 function Section(props: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
-    <section className="card-flat overflow-hidden">
-      <div className="border-b border-slate-100 px-4 py-3 dark:border-nord-3">
-        <h2 className="text-sm font-bold text-slate-900 dark:text-nord-6">{props.title}</h2>
-        <p className="text-xs text-slate-500 dark:text-nord-muted">{props.subtitle}</p>
+    <section className="card overflow-hidden">
+      <div className="card-head">
+        <div className="min-w-0">
+          <h2 className="card-title">{props.title}</h2>
+          <p className="text-xs text-slate-500 dark:text-nord-muted">{props.subtitle}</p>
+        </div>
       </div>
       {props.children}
     </section>

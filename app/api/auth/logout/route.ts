@@ -8,6 +8,6 @@ export async function POST(req: NextRequest) {
     revokeSession(token);
   }
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(SESSION_COOKIE_NAME, '', { ...sessionCookieOptions(0), maxAge: 0 });
+  res.cookies.set(SESSION_COOKIE_NAME, '', { ...sessionCookieOptions(0, req), maxAge: 0 });
   return res;
 }

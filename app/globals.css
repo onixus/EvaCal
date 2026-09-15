@@ -3,25 +3,22 @@
 @tailwind utilities;
 
 /* =========================================================================
-   ПЛОТНОСТЬ (рефакторинг UI)
-   Базовый кегль 13px вместо 16px, радиусы 8-12 вместо 12-16, шапка 52px,
-   сайдбар 248px. Значения вынесены в переменные, чтобы шапка и сайдбар
-   считали отступы от одного источника.
+   КАРКАС И ПЛОТНОСТЬ
+   Базовый кегль 13px, шапка 52px, сайдбар 232px. Значения вынесены в
+   переменные, чтобы шапка и сайдбар считали отступы от одного источника.
    ========================================================================= */
 :root {
   --app-header-h: 52px;
-  --app-sidebar-w: 248px;
+  --app-sidebar-w: 232px;
 }
 
 /*
   Базовый кегль задаётся на body, а не на html: rem-единицы Tailwind считаются
-  от корня, и сдвиг корня на 13px пересчитал бы заодно всю шкалу отступов
-  (p-4 стал бы 13px) на экранах, которых рефакторинг не касается. Тут же
-  меняется только наследуемый размер текста.
+  от корня, и сдвиг корня на 13px пересчитал бы заодно всю шкалу отступов.
 */
 body {
   font-size: 13px;
-  @apply bg-slate-50 text-slate-900 dark:bg-nord-0 dark:text-nord-6 transition-colors duration-200 antialiased;
+  @apply bg-slate-50 text-slate-900 antialiased transition-colors duration-200 dark:bg-nord-0 dark:text-nord-6;
 }
 
 /* Каркас: сайдбар фиксирован, контент занимает остаток ширины. */
@@ -37,8 +34,20 @@ body {
   }
 }
 
-.app-header {
-  height: var(--app-header-h);
+/*
+  Контейнер экрана. Списки и дашборды держат читаемую ширину; трёхколоночные
+  экраны (студия, ревью) ставят `.page-wide` и занимают всю полосу.
+*/
+.page {
+  @apply mx-auto w-full max-w-7xl space-y-5;
+}
+
+.page-wide {
+  @apply w-full space-y-5;
+}
+
+.page-narrow {
+  @apply mx-auto w-full max-w-3xl space-y-5;
 }
 
 /* Числовые колонки таблиц не должны «прыгать» при пересчёте. */
@@ -46,62 +55,78 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* =========================================================================
+   ПОВЕРХНОСТИ
+   ========================================================================= */
 .card {
-  @apply bg-white rounded-xl border border-slate-200/80 shadow-sm
-    dark:bg-nord-2 dark:border-nord-3;
+  @apply rounded-xl border border-slate-200 bg-white shadow-sm dark:border-nord-3 dark:bg-nord-2;
 }
 
-/*
-  Плоская карточка новой плотности: бордер вместо тени, радиус 12.
-  `.card` остаётся как есть — на нём держатся экраны, которые рефакторинг
-  не трогает, и менять их вид заодно было бы регрессией.
-*/
 .card-flat {
-  @apply rounded-xl border border-slate-200 bg-white
-    dark:border-nord-3 dark:bg-nord-2;
+  @apply rounded-xl border border-slate-200 bg-white dark:border-nord-3 dark:bg-nord-2;
 }
 
 /* Вложенная строка внутри карточки: чуть светлее бордер, радиус 8. */
 .row-flat {
-  @apply rounded-lg border border-slate-100 bg-white
-    dark:border-nord-3 dark:bg-nord-1;
+  @apply rounded-lg border border-slate-100 bg-white dark:border-nord-3 dark:bg-nord-1;
 }
 
 .card-interactive {
-  @apply card transition-all duration-150 hover:shadow-md hover:border-slate-300 dark:hover:border-nord-4/30;
+  @apply card transition-all duration-150 hover:border-slate-300 hover:shadow-md dark:hover:border-nord-4/30;
 }
 
+/* Шапка карточки: заголовок раздела и действия справа. */
+.card-head {
+  @apply flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 dark:border-nord-3;
+}
+
+.card-title {
+  @apply text-sm font-bold text-slate-900 dark:text-nord-6;
+}
+
+/* =========================================================================
+   КНОПКИ. Компактный размер — базовый; `.btn-lg` для главных CTA.
+   ========================================================================= */
 .btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed select-none;
+  @apply inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.btn-lg {
+  @apply px-4 py-2 text-sm;
+}
+
+.btn-sm {
+  @apply px-2 py-1 text-[11px];
 }
 
 .btn-primary {
-  @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700 hover:shadow-md active:scale-[0.98]
-    dark:bg-nord-frost4 dark:hover:bg-nord-frost3 dark:text-white;
+  @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:scale-[0.98] dark:bg-nord-frost4 dark:text-white dark:hover:bg-nord-frost3;
 }
 
 .btn-secondary {
-  @apply btn bg-white border border-slate-200 text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 active:scale-[0.98]
-    dark:bg-nord-2 dark:border-nord-3 dark:text-nord-4 dark:hover:bg-nord-3 dark:hover:text-nord-6;
+  @apply btn border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 active:scale-[0.98] dark:border-nord-3 dark:bg-nord-2 dark:text-nord-4 dark:hover:bg-nord-3 dark:hover:text-nord-6;
 }
 
 .btn-ghost {
-  @apply btn text-slate-600 hover:bg-slate-100 dark:text-nord-4 dark:hover:bg-nord-3;
+  @apply btn text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-nord-4 dark:hover:bg-nord-3;
 }
 
 .btn-danger {
-  @apply btn bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 dark:bg-nord-red/20 dark:text-nord-redText dark:border-nord-red/40 dark:hover:bg-nord-red/30;
+  @apply btn border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-nord-red/40 dark:bg-nord-red/20 dark:text-nord-redText dark:hover:bg-nord-red/30;
 }
 
+/* =========================================================================
+   ФОРМЫ
+   ========================================================================= */
 .input {
-  @apply w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400
-    focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors
-    dark:bg-nord-1 dark:border-nord-3 dark:text-nord-6 dark:focus:ring-nord-frost2/20 dark:focus:border-nord-frost2
-    disabled:bg-slate-100 dark:disabled:bg-nord-2;
+  @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[13px] text-slate-900 transition-colors placeholder:text-slate-400
+    focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20
+    disabled:bg-slate-100
+    dark:border-nord-3 dark:bg-nord-1 dark:text-nord-6 dark:focus:border-nord-frost2 dark:focus:ring-nord-frost2/20 dark:disabled:bg-nord-2;
 }
 
 .label {
-  @apply block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5 dark:text-nord-4;
+  @apply mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-nord-muted;
 }
 
 .badge {
@@ -109,32 +134,48 @@ body {
 }
 
 /* =========================================================================
+   ФИЛЬТРЫ. Чип-переключатель у всех списков одинаковый: активный —
+   брендовая заливка, остальные — контур. Состояние берётся из URL.
+   ========================================================================= */
+.filter-chip {
+  @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 dark:border-nord-3 dark:bg-nord-2 dark:text-nord-4 dark:hover:bg-nord-3;
+}
+
+.filter-chip-active {
+  @apply border-brand-600 bg-brand-600 text-white hover:bg-brand-700 hover:text-white dark:border-nord-frost4 dark:bg-nord-frost4;
+}
+
+.filter-chip-count {
+  @apply nums rounded-full bg-black/10 px-1.5 text-[10px] font-bold;
+}
+
+/* =========================================================================
    СЕМАНТИКА СТАТУСОВ
    Одна палитра на панель блокеров студии, чек-лист нормоконтроля, лист
-   изменений и бейджи очереди ревью: ok / warn / block / muted.
+   изменений, бейджи очереди ревью и этап проекта: ok / warn / block / info / muted.
    ========================================================================= */
 .chip {
   @apply inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-px text-[10px] font-bold;
 }
 
 .chip-ok {
-  @apply chip border-emerald-200 bg-emerald-50 text-emerald-700
-    dark:border-nord-green/40 dark:bg-nord-green/15 dark:text-nord-green;
+  @apply chip border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-nord-green/40 dark:bg-nord-green/15 dark:text-nord-green;
 }
 
 .chip-warn {
-  @apply chip border-amber-200 bg-amber-50 text-amber-700
-    dark:border-nord-yellow/40 dark:bg-nord-yellow/15 dark:text-nord-yellow;
+  @apply chip border-amber-200 bg-amber-50 text-amber-700 dark:border-nord-yellow/40 dark:bg-nord-yellow/15 dark:text-nord-yellow;
 }
 
 .chip-block {
-  @apply chip border-rose-200 bg-rose-50 text-rose-700
-    dark:border-nord-red/40 dark:bg-nord-red/15 dark:text-nord-redText;
+  @apply chip border-rose-200 bg-rose-50 text-rose-700 dark:border-nord-red/40 dark:bg-nord-red/15 dark:text-nord-redText;
+}
+
+.chip-info {
+  @apply chip border-brand-100 bg-brand-50 text-brand-700 dark:border-nord-frost4/40 dark:bg-nord-frost4/15 dark:text-nord-frost2;
 }
 
 .chip-muted {
-  @apply chip border-slate-200 bg-slate-100 text-slate-500
-    dark:border-nord-3 dark:bg-nord-1 dark:text-nord-muted;
+  @apply chip border-slate-200 bg-slate-100 text-slate-500 dark:border-nord-3 dark:bg-nord-1 dark:text-nord-muted;
 }
 
 /* Точка статуса шага в рельсе студии и в списке проверок выпуска. */
@@ -149,15 +190,12 @@ body {
 
 /* Контейнер панели блокеров: тревожная рамка вокруг белых строк. */
 .blocker-panel {
-  @apply rounded-[10px] border border-rose-200 bg-rose-50/70
-    dark:border-nord-red/40 dark:bg-nord-red/10;
+  @apply rounded-[10px] border border-rose-200 bg-rose-50/70 dark:border-nord-red/40 dark:bg-nord-red/10;
 }
 
 /* Поле, обязательное к заполнению и не заполненное: рамка ведёт взгляд. */
 .input-error {
-  @apply border-rose-300 bg-rose-50/40
-    focus:border-rose-400 focus:ring-rose-400/20
-    dark:border-nord-red/60 dark:bg-nord-red/10;
+  @apply border-rose-300 bg-rose-50/40 focus:border-rose-400 focus:ring-rose-400/20 dark:border-nord-red/60 dark:bg-nord-red/10;
 }
 
 /*
@@ -179,23 +217,90 @@ body {
   border-radius: 8px;
 }
 
+/* Появление модальных окон. */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-in {
+  animation: fadeIn 150ms ease-out 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .field-flash {
+  .field-flash,
+  .animate-in {
     animation: none;
+  }
+  .field-flash {
     box-shadow: 0 0 0 3px theme('colors.brand.500 / 35%');
   }
 }
 
-/* Tab button styles */
+/* Мелкие утилиты, которых нет в Tailwind 3, но которые уже разошлись по экранам. */
+.shadow-xs {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.backdrop-blur-xs {
+  backdrop-filter: blur(2px);
+}
+
+/* =========================================================================
+   ВКЛАДКИ. Полоса прокручивается по горизонтали, чтобы на узком экране
+   вкладки не сжимались и не ломали строку.
+   ========================================================================= */
+.tab-bar {
+  @apply flex overflow-x-auto border-b border-slate-200 dark:border-nord-3;
+  scrollbar-width: thin;
+}
+
 .tab-btn {
-  @apply inline-flex items-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-slate-500 hover:border-slate-300 hover:text-slate-700 transition-colors dark:text-nord-muted dark:hover:text-nord-4 dark:hover:border-nord-3;
+  @apply inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-xs font-medium text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700 dark:text-nord-muted dark:hover:border-nord-3 dark:hover:text-nord-4;
 }
 
 .tab-btn-active {
-  @apply border-brand-600 text-brand-700 dark:border-nord-frost2 dark:text-nord-frost2 font-semibold;
+  @apply border-brand-600 font-semibold text-brand-700 dark:border-nord-frost2 dark:text-nord-frost2;
 }
 
-/* Blanket Nord re-skin for common slate utilities */
+/* =========================================================================
+   ТАБЛИЦЫ СПИСКОВ
+   ========================================================================= */
+.table-list {
+  @apply w-full text-left text-[13px];
+}
+
+.table-list thead tr {
+  @apply border-b border-slate-200 bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:border-nord-3 dark:bg-nord-1/40 dark:text-nord-muted;
+}
+
+.table-list th {
+  @apply px-3 py-2.5;
+}
+
+.table-list tbody {
+  @apply divide-y divide-slate-100 dark:divide-nord-3;
+}
+
+.table-list td {
+  @apply px-3 py-2.5 align-top;
+}
+
+.table-list tbody tr {
+  @apply transition-colors hover:bg-slate-50/80 dark:hover:bg-nord-3/30;
+}
+
+/* =========================================================================
+   NORD RE-SKIN
+   Экраны написаны на светлых slate-утилитах; в тёмной теме они переводятся
+   в палитру Nord одним слоем правил, а не дублированием dark: на каждом узле.
+   ========================================================================= */
 .dark .text-slate-900 {
   color: theme('colors.nord.6');
 }
@@ -222,171 +327,4 @@ body {
 }
 .dark .text-brand-700 {
   color: theme('colors.nord.frost2');
-}
-
-/* =========================================================================
-   DARK FANTASY & HEROINES THEME OVERRIDES (Gothic Dark Anime Aesthetic)
-   ========================================================================= */
-
-.dark-fantasy {
-  --df-bg-abyss: #040207;
-  --df-bg-crypt: #090511;
-  --df-bg-chamber: #11091f;
-  --df-bg-altar: #1b0f30;
-  --df-border: #2e164e;
-  --df-border-glow: #a855f7;
-  --df-rune: #c084fc;
-  --df-crimson: #e11d48;
-  --df-sapphire: #38bdf8;
-  --df-gold: #f59e0b;
-  --df-text: #f5f3ff;
-  --df-muted: #c4b5fd;
-}
-
-.dark-fantasy body {
-  background-color: var(--df-bg-abyss);
-  background-image:
-    radial-gradient(circle at 10% 5%, rgba(147, 51, 234, 0.18) 0%, transparent 40%),
-    radial-gradient(circle at 90% 15%, rgba(225, 29, 72, 0.14) 0%, transparent 35%),
-    radial-gradient(circle at 50% 85%, rgba(56, 189, 248, 0.08) 0%, transparent 45%),
-    radial-gradient(circle at 75% 80%, rgba(168, 85, 247, 0.12) 0%, transparent 40%);
-  background-attachment: fixed;
-  color: var(--df-text);
-}
-
-.dark-fantasy .card {
-  background-color: rgba(9, 5, 17, 0.85);
-  border-color: rgba(168, 85, 247, 0.22);
-  box-shadow:
-    0 10px 35px -5px rgba(0, 0, 0, 0.9),
-    0 0 15px rgba(168, 85, 247, 0.08);
-  backdrop-filter: blur(16px);
-}
-
-.dark-fantasy .card-interactive:hover {
-  border-color: rgba(192, 132, 252, 0.55);
-  box-shadow:
-    0 14px 45px -5px rgba(0, 0, 0, 0.95),
-    0 0 25px rgba(168, 85, 247, 0.25);
-  transform: translateY(-2px);
-}
-
-.dark-fantasy .btn-primary {
-  background: linear-gradient(135deg, #7e22ce 0%, #a855f7 50%, #9333ea 100%);
-  border: 1px solid rgba(232, 121, 249, 0.5);
-  color: #ffffff;
-  box-shadow:
-    0 0 20px rgba(168, 85, 247, 0.4),
-    inset 0 1px 1px rgba(255, 255, 255, 0.2);
-}
-
-.dark-fantasy .btn-primary:hover {
-  background: linear-gradient(135deg, #9333ea 0%, #c084fc 50%, #a855f7 100%);
-  box-shadow:
-    0 0 30px rgba(192, 132, 252, 0.6),
-    inset 0 1px 1px rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
-}
-
-.dark-fantasy .btn-secondary {
-  background-color: rgba(17, 9, 31, 0.85);
-  border-color: rgba(168, 85, 247, 0.3);
-  color: var(--df-text);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
-}
-
-.dark-fantasy .btn-secondary:hover {
-  background-color: rgba(27, 15, 48, 0.95);
-  border-color: rgba(192, 132, 252, 0.6);
-  color: #ffffff;
-  box-shadow: 0 0 15px rgba(168, 85, 247, 0.35);
-}
-
-.dark-fantasy .btn-danger {
-  background-color: rgba(225, 29, 72, 0.15);
-  border-color: rgba(225, 29, 72, 0.4);
-  color: #fca5a5;
-  box-shadow: 0 0 15px rgba(225, 29, 72, 0.2);
-}
-
-.dark-fantasy .btn-danger:hover {
-  background-color: rgba(225, 29, 72, 0.3);
-  border-color: rgba(244, 63, 94, 0.7);
-  color: #ffffff;
-  box-shadow: 0 0 25px rgba(244, 63, 94, 0.45);
-}
-
-.dark-fantasy .input {
-  background-color: rgba(9, 5, 17, 0.9);
-  border-color: rgba(168, 85, 247, 0.3);
-  color: var(--df-text);
-}
-
-.dark-fantasy .input:focus {
-  border-color: var(--df-rune);
-  box-shadow:
-    0 0 0 3px rgba(168, 85, 247, 0.25),
-    0 0 15px rgba(168, 85, 247, 0.3);
-}
-
-.dark-fantasy .label {
-  color: var(--df-muted);
-  letter-spacing: 0.08em;
-}
-
-.dark-fantasy .tab-btn-active {
-  border-color: var(--df-rune);
-  color: var(--df-rune);
-  text-shadow: 0 0 12px rgba(192, 132, 252, 0.6);
-}
-
-.dark-fantasy header,
-.dark-fantasy nav {
-  background-color: rgba(4, 2, 7, 0.88) !important;
-  border-color: rgba(168, 85, 247, 0.25) !important;
-  backdrop-filter: blur(20px) !important;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.85);
-}
-
-.dark-fantasy .text-slate-900 {
-  color: var(--df-text) !important;
-}
-.dark-fantasy .text-slate-700,
-.dark-fantasy .text-slate-600 {
-  color: var(--df-muted) !important;
-}
-.dark-fantasy .text-slate-500,
-.dark-fantasy .text-slate-400 {
-  color: #a78bfa !important;
-}
-.dark-fantasy .bg-slate-50,
-.dark-fantasy .bg-slate-100 {
-  background-color: rgba(17, 9, 31, 0.7) !important;
-}
-.dark-fantasy .border-slate-100,
-.dark-fantasy .border-slate-200,
-.dark-fantasy .border-slate-300 {
-  border-color: rgba(168, 85, 247, 0.22) !important;
-}
-.dark-fantasy .text-brand-700 {
-  color: #c084fc;
-}
-
-/* Ornate Gothic Rune Accents */
-.dark-fantasy .gothic-glow {
-  text-shadow:
-    0 0 12px rgba(192, 132, 252, 0.6),
-    0 0 24px rgba(168, 85, 247, 0.3);
-}
-
-.dark-fantasy .crimson-glow {
-  text-shadow:
-    0 0 12px rgba(251, 113, 133, 0.6),
-    0 0 24px rgba(225, 29, 72, 0.3);
-}
-
-.dark-fantasy .gold-glow {
-  text-shadow:
-    0 0 12px rgba(253, 224, 71, 0.6),
-    0 0 24px rgba(245, 158, 11, 0.3);
 }

@@ -79,7 +79,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
     totalStageHours + calculation.pmHours + calculation.risks.reduce((sum, r) => sum + r.hours, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="page-wide">
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-2 text-xs text-slate-500 dark:text-nord-muted">
         <Link href="/projects" className="hover:text-brand-600 dark:hover:text-nord-frost2">
@@ -104,7 +104,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
 
       {/* Project Hero Bar */}
       <div className="card overflow-hidden">
-        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5 dark:border-nord-3 dark:from-nord-1/40 dark:to-nord-2">
+        <div className="border-b border-slate-100 px-5 py-4 dark:border-nord-3">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-3">
@@ -113,7 +113,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
                     v{calculation.version}
                   </span>
                 )}
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-nord-6">
+                <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
                   {calculation.name}
                 </h1>
                 <StatusBadge status={calculation.status} />
@@ -125,21 +125,21 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
                     {calculation.customer}
                   </strong>
                 </span>
-                <span>•</span>
+                <span aria-hidden>·</span>
                 <span>
                   Шаблон:{' '}
                   <strong className="font-semibold text-slate-700 dark:text-nord-4">
                     {calculation.template.name}
                   </strong>
                 </span>
-                <span>•</span>
+                <span aria-hidden>·</span>
                 <span>Старт: {startDateFormatted}</span>
-                <span>•</span>
+                <span aria-hidden>·</span>
                 <span>Создан: {createdDateFormatted}</span>
               </div>
               {calculation.versionComment && (
                 <p className="text-xs text-slate-600 dark:text-nord-4 italic pt-0.5">
-                  💬 {calculation.versionComment}
+                  {calculation.versionComment}
                 </p>
               )}
             </div>
@@ -149,25 +149,25 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
               {calculation.project && (
                 <Link
                   href={`/projects/${calculation.project.id}`}
-                  className="btn-secondary !py-1.5 !px-3 text-xs font-semibold"
+                  className="btn-secondary"
                   title="Перейти в карточку проекта"
                 >
-                  📁 Карточка проекта
+                  Карточка проекта
                 </Link>
               )}
               <Link
                 href={`/architect/${calculation.id}`}
-                className="btn-secondary !py-1.5 !px-3 text-xs font-semibold"
+                className="btn-secondary"
                 title="Перейти к редактированию этапов и рисков"
               >
-                🛠️ Архитектор
+                Архитектор
               </Link>
               <Link
                 href={`/presale/${calculation.id}`}
-                className="btn-secondary !py-1.5 !px-3 text-xs font-semibold"
+                className="btn-secondary"
                 title="Открыть опросник пресейла"
               >
-                📝 Пресейл
+                Пресейл
               </Link>
               <ExportLinks
                 calculationId={calculation.id}
@@ -179,18 +179,18 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-200/80 bg-white px-6 dark:border-nord-3 dark:bg-nord-2">
+        <div className="tab-bar border-b-0 bg-white px-3 dark:bg-nord-2">
           <button
             onClick={() => setActiveTab('summary')}
             className={`tab-btn ${activeTab === 'summary' ? 'tab-btn-active' : ''}`}
           >
-            <span>📊 Сводка и опросник</span>
+            <span>Сводка и опросник</span>
           </button>
           <button
             onClick={() => setActiveTab('commercial')}
             className={`tab-btn ${activeTab === 'commercial' ? 'tab-btn-active' : ''}`}
           >
-            <span>💰 Смета и КП</span>
+            <span>Смета и КП</span>
             {calculation.marginPercent !== undefined && (
               <span className="rounded-full bg-emerald-100 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-700 dark:bg-nord-frost3/20 dark:text-nord-frost3">
                 {calculation.marginPercent}%
@@ -201,13 +201,13 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
             onClick={() => setActiveTab('scenarios')}
             className={`tab-btn ${activeTab === 'scenarios' ? 'tab-btn-active' : ''}`}
           >
-            <span>📈 Сценарии</span>
+            <span>Сценарии</span>
           </button>
           <button
             onClick={() => setActiveTab('schedule')}
             className={`tab-btn ${activeTab === 'schedule' ? 'tab-btn-active' : ''}`}
           >
-            <span>📅 План-график и Гант</span>
+            <span>План-график и Гант</span>
             <span className="rounded-full bg-slate-100 px-1.5 py-0.2 text-[10px] font-semibold text-slate-600 dark:bg-nord-3 dark:text-nord-4">
               {calculation.stages.length}
             </span>
@@ -216,19 +216,19 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
             onClick={() => setActiveTab('traceability')}
             className={`tab-btn ${activeTab === 'traceability' ? 'tab-btn-active' : ''}`}
           >
-            <span>🔗 Трассируемость</span>
+            <span>Трассируемость</span>
           </button>
           <button
             onClick={() => setActiveTab('specification')}
             className={`tab-btn ${activeTab === 'specification' ? 'tab-btn-active' : ''}`}
           >
-            <span>📦 Спецификация ПАК и ПО</span>
+            <span>Спецификация ПАК и ПО</span>
           </button>
           <button
             onClick={() => setActiveTab('gost34')}
             className={`tab-btn ${activeTab === 'gost34' ? 'tab-btn-active' : ''}`}
           >
-            <span>📑 ГОСТ 34 и документация</span>
+            <span>ГОСТ 34 и документация</span>
           </button>
         </div>
       </div>
@@ -399,11 +399,8 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
                   Сводная таблица этапов проекта, исполнителей и сроков
                 </p>
               </div>
-              <Link
-                href={`/architect/${calculation.id}`}
-                className="btn-secondary !py-1.5 !px-3 text-xs font-semibold"
-              >
-                Редактировать этапы ✏️
+              <Link href={`/architect/${calculation.id}`} className="btn-secondary">
+                Редактировать этапы{' '}
               </Link>
             </div>
             <StageTable stages={calculation.stages} />
@@ -440,18 +437,15 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
                 </p>
               </div>
 
-              <Link
-                href={`/calculations/${calculation.id}/studio`}
-                className="btn-primary !py-3 !px-5 text-sm font-semibold shadow-md whitespace-nowrap"
-              >
-                <span className="text-base">🚀</span>
+              <Link href={`/calculations/${calculation.id}/studio`} className="btn-primary btn-lg">
+                <span className="text-base"></span>
                 <span>Открыть Студию ГОСТ 34</span>
               </Link>
             </div>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
               <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-nord-3 dark:bg-nord-1/30">
-                <div className="text-lg">📋</div>
+                <div className="text-lg"></div>
                 <div className="mt-2 font-semibold text-slate-800 dark:text-nord-5">
                   ТЗ ГОСТ 34.602-2020
                 </div>
@@ -462,7 +456,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
               </div>
 
               <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-nord-3 dark:bg-nord-1/30">
-                <div className="text-lg">🤖</div>
+                <div className="text-lg"></div>
                 <div className="mt-2 font-semibold text-slate-800 dark:text-nord-5">
                   ИИ-нормализация требований
                 </div>
@@ -473,7 +467,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
               </div>
 
               <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-nord-3 dark:bg-nord-1/30">
-                <div className="text-lg">⚖️</div>
+                <div className="text-lg"></div>
                 <div className="mt-2 font-semibold text-slate-800 dark:text-nord-5">
                   Движок применимости
                 </div>

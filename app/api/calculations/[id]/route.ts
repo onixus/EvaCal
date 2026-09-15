@@ -80,6 +80,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
       startDate,
       pmHours,
       status: existing.status === 'pending_approval' ? 'draft' : existing.status,
+      stageEnteredAt: existing.status === 'pending_approval' ? new Date() : undefined,
       currency: body.currency ?? existing.currency,
       roleRates: roleRatesJson,
       overheadPercent:

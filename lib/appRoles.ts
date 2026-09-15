@@ -74,9 +74,9 @@ export function hasReviewerPowers(role: string | null | undefined): boolean {
   return role === 'techwriter' || role === 'gap' || role === 'reviewer' || hasArchitectPowers(role);
 }
 
-/** Роли, работающие с очередью нормоконтроля (первый этап). */
+/** Роли, работающие с очередью нормоконтроля (первый этап). Админ ведёт оба этапа. */
 export function isTechWriterRole(role: string | null | undefined): boolean {
-  return role === 'techwriter' || role === 'reviewer';
+  return role === 'techwriter' || role === 'reviewer' || role === 'admin';
 }
 
 /** Роли, работающие с очередью финального ревью (второй этап). */
@@ -89,105 +89,169 @@ export function isGapRole(role: string | null | undefined): boolean {
  * Архитектор попадает на очередь ГАП как наблюдатель: там его выпуски.
  */
 export function defaultReviewStageFor(role: string | null | undefined): 'tw' | 'gap' {
-  return isTechWriterRole(role) ? 'tw' : 'gap';
+  return role === 'admin' ? 'gap' : isTechWriterRole(role) ? 'tw' : 'gap';
+}
+
+/** Этапы ревью, очереди которых роль видит на экране `/review`. */
+export function reviewStagesFor(role: string | null | undefined): ('tw' | 'gap')[] {
+  if (role === 'admin') return ['tw', 'gap'];
+  return [defaultReviewStageFor(role)];
 }
 
 /**
- * Тема Dark Fantasy доступна только архитекторам и администраторам (staff).
- * Для остальных пользователей (пресейл, ревьювер, гости) она полностью скрыта
- * из интерфейса, чтобы не засорять UI недоступным функционалом.
+ * Экран после входа. Все роли попадают на рабочий стол: он показывает очередь
+ * именно этой роли и конвейер проектов, поэтому отдельные посадочные страницы
+ * больше не нужны.
  */
-export function canUseDarkFantasy(role: string | null | undefined): boolean {
-  return hasArchitectPowers(role);
-}
-
-/** Экран, на который роль попадает после входа. */
 export const ROLE_HOME: Record<AppRole, string> = {
-  presale: '/presale',
-  architect: '/projects',
-  techwriter: '/review',
-  gap: '/review',
-  reviewer: '/review',
-  admin: '/admin',
+  presale: '/',
+  architect: '/',
+  techwriter: '/',
+  gap: '/',
+  reviewer: '/',
+  admin: '/',
 };
+
+export type NavGroup = 'work' | 'docs' | 'analytics' | 'admin';
+
+export const NAV_GROUP_LABELS: Record<NavGroup, string> = {
+  work: 'Работа',
+  docs: 'Документация',
+  analytics: 'Аналитика',
+  admin: 'Администрирование',
+};
+
+export const NAV_GROUP_ORDER: NavGroup[] = ['work', 'docs', 'analytics', 'admin'];
 
 export interface NavItem {
   href: string;
   label: string;
+  group: NavGroup;
   /** Ключ счётчика из `/api/nav/badges`; пункт без ключа бейдж не показывает. */
   badgeKey?: 'studioDrafts' | 'reviewQueue' | 'gapQueue';
 }
 
+const DASHBOARD: NavItem = { href: '/', label: 'Рабочий стол', group: 'work' };
+const PROJECTS: NavItem = { href: '/projects', label: 'Проекты', group: 'work' };
+const CALCULATIONS: NavItem = { href: '/calculations', label: 'Расчёты и сметы', group: 'work' };
+const PRESALE: NavItem = { href: '/presale', label: 'Пресейл-мастер', group: 'work' };
+const STUDIO: NavItem = {
+  href: '/studio',
+  label: 'Студия ГОСТ 34',
+  group: 'work',
+  badgeKey: 'studioDrafts',
+};
+const BOARD: NavItem = { href: '/board', label: 'Доска заявок', group: 'work' };
+const CHANGELOG: NavItem = {
+  href: '/changelog',
+  label: 'Лист внутренних изменений',
+  group: 'docs',
+};
+const STANDARDS: NavItem = { href: '/standards', label: 'Чек-листы и стандарты', group: 'docs' };
+const CATALOG: NavItem = { href: '/architect', label: 'Архитектурный каталог', group: 'docs' };
+const CAPACITY: NavItem = { href: '/capacity', label: 'Ресурсный план', group: 'analytics' };
+const ANALYTICS: NavItem = { href: '/analytics', label: 'Сделки и точность', group: 'analytics' };
+const LEADERBOARD: NavItem = { href: '/leaderboard', label: 'Рейтинг команды', group: 'analytics' };
+const AGENTS: NavItem = { href: '/agents', label: 'Харнесс-агенты', group: 'admin' };
+const ADMIN: NavItem = { href: '/admin', label: 'Шаблоны и пользователи', group: 'admin' };
+
 /**
- * Навигация зависит от роли: у каждой свой набор экранов и свой порядок. Общие
- * пункты («Проекты», «Расчёты и сметы») повторяются намеренно — это входная
- * точка и для пресейла, и для архитектора.
+ * Навигация зависит от роли: у каждой свой набор экранов. Пункты сгруппированы
+ * по смыслу (работа → документация → аналитика → администрирование), чтобы
+ * список не читался как плоская простыня из десяти ссылок. Общие пункты
+ * («Рабочий стол», «Проекты») повторяются намеренно — это входная точка
+ * и для пресейла, и для архитектора.
  */
 export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
-  presale: [
-    { href: '/projects', label: 'Проекты' },
-    { href: '/presale', label: 'Пресейл-мастер' },
-    { href: '/', label: 'Расчёты и сметы' },
-    { href: '/analytics', label: 'Сделки и точность' },
-    { href: '/leaderboard', label: 'Рейтинг команды' },
-  ],
+  presale: [DASHBOARD, PROJECTS, PRESALE, CALCULATIONS, ANALYTICS, LEADERBOARD],
   architect: [
-    { href: '/projects', label: 'Проекты' },
-    { href: '/', label: 'Расчёты и сметы' },
-    { href: '/studio', label: 'Студия ГОСТ 34', badgeKey: 'studioDrafts' },
+    DASHBOARD,
+    PROJECTS,
+    CALCULATIONS,
+    STUDIO,
     // Архитектор выпускает комплект, но подпись ставит ГАП: пункт ведёт на ту
     // же очередь как наблюдательный — видно, где стоят его выпуски.
-    { href: '/review', label: 'Комплекты на подписи', badgeKey: 'gapQueue' },
-    { href: '/changelog', label: 'Лист внутренних изменений' },
-    { href: '/architect', label: 'Архитектурный каталог' },
-    { href: '/agents', label: 'Харнесс-агенты' },
-    { href: '/capacity', label: 'Ресурсный план' },
-    { href: '/analytics', label: 'Сделки и точность' },
-    { href: '/leaderboard', label: 'Рейтинг команды' },
+    { href: '/review', label: 'Комплекты на подписи', group: 'work', badgeKey: 'gapQueue' },
+    BOARD,
+    CHANGELOG,
+    CATALOG,
+    CAPACITY,
+    ANALYTICS,
+    LEADERBOARD,
+    AGENTS,
   ],
   techwriter: [
-    { href: '/review', label: 'Очередь нормоконтроля', badgeKey: 'reviewQueue' },
-    { href: '/changelog', label: 'Лист внутренних изменений' },
-    { href: '/standards', label: 'Чек-листы и стандарты' },
-    { href: '/capacity', label: 'Ресурсный план' },
-    { href: '/analytics', label: 'Сделки и точность' },
-    { href: '/leaderboard', label: 'Рейтинг команды' },
+    DASHBOARD,
+    { href: '/review', label: 'Очередь нормоконтроля', group: 'work', badgeKey: 'reviewQueue' },
+    BOARD,
+    CHANGELOG,
+    STANDARDS,
+    CAPACITY,
+    ANALYTICS,
+    LEADERBOARD,
   ],
   gap: [
-    { href: '/review', label: 'Финальное ревью (ГАП)', badgeKey: 'gapQueue' },
-    { href: '/projects', label: 'Проекты' },
-    { href: '/', label: 'Расчёты и сметы' },
-    { href: '/changelog', label: 'Лист внутренних изменений' },
-    { href: '/standards', label: 'Чек-листы и стандарты' },
-    { href: '/capacity', label: 'Ресурсный план' },
-    { href: '/analytics', label: 'Сделки и точность' },
-    { href: '/leaderboard', label: 'Рейтинг команды' },
+    DASHBOARD,
+    { href: '/review', label: 'Финальное ревью (ГАП)', group: 'work', badgeKey: 'gapQueue' },
+    BOARD,
+    PROJECTS,
+    CALCULATIONS,
+    CHANGELOG,
+    STANDARDS,
+    CAPACITY,
+    ANALYTICS,
+    LEADERBOARD,
   ],
   reviewer: [
-    { href: '/review', label: 'Очередь ревью', badgeKey: 'reviewQueue' },
-    { href: '/changelog', label: 'Лист внутренних изменений' },
-    { href: '/standards', label: 'Чек-листы и стандарты' },
-    { href: '/capacity', label: 'Ресурсный план' },
-    { href: '/analytics', label: 'Сделки и точность' },
-    { href: '/leaderboard', label: 'Рейтинг команды' },
+    DASHBOARD,
+    { href: '/review', label: 'Очередь ревью', group: 'work', badgeKey: 'reviewQueue' },
+    BOARD,
+    CHANGELOG,
+    STANDARDS,
+    CAPACITY,
+    ANALYTICS,
+    LEADERBOARD,
   ],
+  // Администратор — надмножество всех ролей: видит все экраны и обе очереди ревью.
   admin: [
-    { href: '/projects', label: 'Проекты' },
-    { href: '/', label: 'Расчёты и сметы' },
-    { href: '/studio', label: 'Студия ГОСТ 34', badgeKey: 'studioDrafts' },
-    // Админ ведёт оба этапа, но экран открывает очередь ГАП (`defaultReviewStageFor`),
-    // поэтому и счётчик у пункта — по ней: иначе число не совпадало бы со списком.
-    { href: '/review', label: 'Ревью документации', badgeKey: 'gapQueue' },
-    { href: '/changelog', label: 'Лист внутренних изменений' },
-    { href: '/architect', label: 'Архитектурный каталог' },
-    { href: '/agents', label: 'Харнесс-агенты' },
-    { href: '/admin', label: 'Шаблоны и пользователи' },
-    { href: '/capacity', label: 'Ресурсный план' },
-    { href: '/analytics', label: 'Сделки и точность' },
-    { href: '/leaderboard', label: 'Рейтинг команды' },
+    DASHBOARD,
+    PROJECTS,
+    PRESALE,
+    CALCULATIONS,
+    STUDIO,
+    { href: '/review', label: 'Ревью документации', group: 'work', badgeKey: 'reviewQueue' },
+    BOARD,
+    CHANGELOG,
+    STANDARDS,
+    CATALOG,
+    CAPACITY,
+    ANALYTICS,
+    LEADERBOARD,
+    ADMIN,
+    AGENTS,
   ],
 };
 
 export function navItemsFor(role: string | null | undefined): NavItem[] {
   return isAppRole(role) ? NAV_BY_ROLE[role] : [];
 }
+
+/** Пункты, сгруппированные для сайдбара; пустые группы не возвращаются. */
+export function navGroupsFor(
+  role: string | null | undefined,
+): { group: NavGroup; label: string; items: NavItem[] }[] {
+  const items = navItemsFor(role);
+  return NAV_GROUP_ORDER.map((group) => ({
+    group,
+    label: NAV_GROUP_LABELS[group],
+    items: items.filter((item) => item.group === group),
+  })).filter((g) => g.items.length > 0);
+}
+
+/** Кто может завести новый расчёт (кнопка в шапке и на рабочем столе). */
+export function canCreateCalculation(role: string | null | undefined): boolean {
+  return role === 'presale' || hasArchitectPowers(role);
+}
+
+/** Кто видит реестр проектов. Пресейл заводит проекты и версии смет, ГАП читает. */
+export const PROJECT_VIEWER_ROLES: AppRole[] = ['presale', 'architect', 'gap', 'admin'];

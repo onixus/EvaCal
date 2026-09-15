@@ -1,15 +1,6 @@
 import { requireRole } from '@/lib/auth';
-import AuthBar from '@/components/AuthBar';
 
 export default async function ArchitectLayout({ children }: { children: React.ReactNode }) {
-  const session = await requireRole(['architect', 'admin'], '/architect');
-  return (
-    <div>
-      <AuthBar
-        username={session.username}
-        roleLabel={session.role === 'admin' ? 'администратор' : 'архитектор'}
-      />
-      {children}
-    </div>
-  );
+  await requireRole(['architect', 'admin'], '/architect');
+  return <>{children}</>;
 }

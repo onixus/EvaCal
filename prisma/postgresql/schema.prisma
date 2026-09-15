@@ -171,6 +171,9 @@ model Calculation {
   template               FormTemplate @relation(fields: [templateId], references: [id])
   answers                String // JSON-encoded { [fieldKey]: value }
   status                 String       @default("draft") // draft | pending_approval | approved
+  // Момент последней смены статуса: срок «на этапе» считается от него, а не
+  // от updatedAt, который сбрасывает любая правка. Null — до первой смены.
+  stageEnteredAt         DateTime?
   startDate              DateTime     @default(now()) // anchors the whole Gantt schedule
   // РП (project manager) allowance: 8h start + 8h close + complexity overhead.
   // Counted only in the calculation's total labor hours — never shown as a Gantt stage.
@@ -227,6 +230,8 @@ model GostPackage {
   name    String // Package title (e.g., "Комплект ТЗ и ПМИ v1.0")
   version Int    @default(1)
   status  String @default("draft") // draft | under_review | approved | rejected | archived
+  // Момент последней смены status/reviewStage (см. Calculation.stageEnteredAt).
+  stageEnteredAt DateTime?
 
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
