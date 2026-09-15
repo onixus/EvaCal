@@ -28,6 +28,7 @@ RUN npm run build
 # Kept separate from `runner` so the app image stays slim; the CLI and its schema-engine
 # binary aren't needed to serve requests, only to initialize/update the DB before startup.
 FROM node:22.14-alpine3.21 AS migrate
+LABEL org.opencontainers.image.source="https://github.com/onixus/EvaCal"
 WORKDIR /app
 # su-exec drops from root (needed to chown the mounted volume) to the app's uid before running prisma,
 # so files in the volume end up owned by the same uid the runner stage serves requests as.
@@ -51,6 +52,11 @@ CMD ["sh", "-c", "npx tsx scripts/db-sync.ts && npx prisma generate && npx tsx p
 
 # --- runner: minimal production image ---
 FROM node:22.14-alpine3.21 AS runner
+# OCI-метки: по image.source GHCR привязывает пакет к репозиторию, и образ
+# появляется на странице Packages репозитория с его README и правами.
+LABEL org.opencontainers.image.source="https://github.com/onixus/EvaCal" \
+      org.opencontainers.image.title="EvaCal" \
+      org.opencontainers.image.description="Калькулятор трудозатрат и генератор комплекта ГОСТ 34"
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
