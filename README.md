@@ -2,6 +2,19 @@
 
 **EvaCal** — комплексная корпоративная платформа для пресейла, оценки трудозатрат, автоматизированной генерации комплекта нормативно-технической документации по **ГОСТ 34.602-2020 / РД 50-34.698-90** с оформлением по **ГОСТ 2.104-2006** (Формы 2 и 2а), сквозной матрицей трассируемости и модулем **«LLM как автор ТЗ»**.
 
+<p align="center">
+  <img alt="version" src="https://img.shields.io/badge/version-0.5.0-blue?style=flat-square">
+  <img alt="license" src="https://img.shields.io/badge/license-private-lightgrey?style=flat-square">
+  <img alt="next.js" src="https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js">
+  <img alt="react" src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black">
+  <img alt="typescript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat-square&logo=typescript&logoColor=white">
+  <img alt="prisma" src="https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma&logoColor=white">
+  <img alt="docker" src="https://img.shields.io/badge/Docker-GHCR-2496ED?style=flat-square&logo=docker&logoColor=white">
+  <img alt="jenkins" src="https://img.shields.io/badge/CI-Jenkins-D24939?style=flat-square&logo=jenkins&logoColor=white">
+  <img alt="tests" src="https://img.shields.io/badge/tests-Vitest%20%2B%20Playwright-6E9F18?style=flat-square&logo=vitest&logoColor=white">
+  <img alt="gost" src="https://img.shields.io/badge/ГОСТ-34.602--2020-8A2BE2?style=flat-square">
+</p>
+
 ---
 
 ## 🚀 Ключевые возможности
