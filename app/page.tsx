@@ -8,7 +8,15 @@ import {
   hasReviewerPowers,
   PROJECT_VIEWER_ROLES,
 } from '@/lib/appRoles';
-import { formatDays, LIFECYCLE_STEPS, summarizeLifecycle } from '@/lib/lifecycle';
+import {
+  daysSince,
+  formatDays,
+  freshnessFor,
+  LIFECYCLE_STEPS,
+  summarizeLifecycle,
+  type LifecycleFreshness,
+  type LifecycleStageId,
+} from '@/lib/lifecycle';
 import { loadPortfolioLifecycle, type PortfolioProject } from '@/lib/lifecycleData';
 import { REVIEW_STAGE_LABELS } from '@/lib/gost34/review/types';
 import PageHeader from '@/components/PageHeader';
@@ -16,8 +24,12 @@ import StageChip from '@/components/lifecycle/StageChip';
 
 export const dynamic = 'force-dynamic';
 
-function ageDays(from: Date): number {
-  return Math.max(0, Math.floor((Date.now() - from.getTime()) / 86_400_000));
+const NOW = () => new Date();
+
+/** Тон чипа очереди — по тем же порогам, что и этап проекта в реестре. */
+function toneFor(stage: LifecycleStageId, days: number): 'block' | 'warn' | 'info' {
+  const f: LifecycleFreshness = freshnessFor(stage, days);
+  return f === 'stale' ? 'block' : f === 'warn' ? 'warn' : 'info';
 }
 
 interface QueueItem {
@@ -48,13 +60,13 @@ async function loadQueue(
     return {
       title: stage === 'gap' ? 'Ждут вашего решения' : 'На нормоконтроле',
       items: pkgs.map((p) => {
-        const days = ageDays(p.releasedAt ?? p.createdAt);
+        const days = daysSince(p.stageEnteredAt ?? p.releasedAt ?? p.createdAt, NOW());
         return {
           href: `/review/${p.id}`,
           title: p.name,
           subtitle: `${p.project?.customer ?? ''} · v${p.version} · ${REVIEW_STAGE_LABELS[stage]}`,
           days,
-          tone: days >= 5 ? 'block' : days >= 2 ? 'warn' : 'info',
+          tone: toneFor(stage === 'gap' ? 'review_gap' : 'review_tw', days),
         };
       }),
     };
@@ -66,7 +78,14 @@ async function loadQueue(
         where: { status: 'pending_approval' },
         orderBy: { updatedAt: 'asc' },
         take: 6,
-        select: { id: true, name: true, customer: true, version: true, updatedAt: true },
+        select: {
+          id: true,
+          name: true,
+          customer: true,
+          version: true,
+          updatedAt: true,
+          stageEnteredAt: true,
+        },
       }),
       prisma.gostPackage.findMany({
         where: { status: 'rejected' },
@@ -78,6 +97,7 @@ async function loadQueue(
           version: true,
           calculationId: true,
           updatedAt: true,
+          stageEnteredAt: true,
           project: { select: { customer: true } },
         },
       }),
@@ -90,6 +110,7 @@ async function loadQueue(
           name: true,
           version: true,
           updatedAt: true,
+          stageEnteredAt: true,
           project: { select: { customer: true } },
         },
       }),
@@ -99,23 +120,29 @@ async function loadQueue(
         href: `/calculations/${p.calculationId}/studio`,
         title: `Исправить: ${p.name}`,
         subtitle: `${p.project?.customer ?? ''} · v${p.version} · возвращён с замечаниями`,
-        days: ageDays(p.updatedAt),
+        days: daysSince(p.stageEnteredAt ?? p.updatedAt, NOW()),
         tone: 'block' as const,
       })),
-      ...pending.map((c) => ({
-        href: `/architect/${c.id}`,
-        title: `Утвердить смету: ${c.name}`,
-        subtitle: `${c.customer} · v${c.version}`,
-        days: ageDays(c.updatedAt),
-        tone: ageDays(c.updatedAt) >= 3 ? ('warn' as const) : ('info' as const),
-      })),
-      ...gapQueue.map((p) => ({
-        href: `/review/${p.id}`,
-        title: `На подписи у ГАП: ${p.name}`,
-        subtitle: `${p.project?.customer ?? ''} · v${p.version}`,
-        days: ageDays(p.updatedAt),
-        tone: 'info' as const,
-      })),
+      ...pending.map((c) => {
+        const days = daysSince(c.stageEnteredAt ?? c.updatedAt, NOW());
+        return {
+          href: `/architect/${c.id}`,
+          title: `Утвердить смету: ${c.name}`,
+          subtitle: `${c.customer} · v${c.version}`,
+          days,
+          tone: toneFor('estimate_review', days),
+        };
+      }),
+      ...gapQueue.map((p) => {
+        const days = daysSince(p.stageEnteredAt ?? p.updatedAt, NOW());
+        return {
+          href: `/review/${p.id}`,
+          title: `На подписи у ГАП: ${p.name}`,
+          subtitle: `${p.project?.customer ?? ''} · v${p.version}`,
+          days,
+          tone: toneFor('review_gap', days),
+        };
+      }),
     ];
     return { title: 'Ваша очередь', items };
   }
@@ -125,19 +152,30 @@ async function loadQueue(
     where: { createdBy: username, status: { in: ['draft', 'pending_approval'] } },
     orderBy: { updatedAt: 'desc' },
     take: 8,
-    select: { id: true, name: true, customer: true, version: true, status: true, updatedAt: true },
+    select: {
+      id: true,
+      name: true,
+      customer: true,
+      version: true,
+      status: true,
+      updatedAt: true,
+      stageEnteredAt: true,
+    },
   });
   return {
     title: 'Ваши расчёты в работе',
-    items: mine.map((c) => ({
-      href: `/presale/${c.id}`,
-      title: c.name,
-      subtitle: `${c.customer} · v${c.version} · ${
-        c.status === 'draft' ? 'черновик' : 'на согласовании'
-      }`,
-      days: ageDays(c.updatedAt),
-      tone: c.status === 'draft' && ageDays(c.updatedAt) >= 7 ? 'warn' : 'info',
-    })),
+    items: mine.map((c) => {
+      const days = daysSince(c.stageEnteredAt ?? c.updatedAt, NOW());
+      return {
+        href: `/presale/${c.id}`,
+        title: c.name,
+        subtitle: `${c.customer} · v${c.version} · ${
+          c.status === 'draft' ? 'черновик' : 'на согласовании'
+        }`,
+        days,
+        tone: toneFor(c.status === 'draft' ? 'estimate' : 'estimate_review', days),
+      };
+    }),
   };
 }
 

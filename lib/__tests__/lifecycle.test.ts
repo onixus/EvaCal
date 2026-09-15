@@ -92,6 +92,29 @@ describe('resolveLifecycle: этап проекта по статусам рас
     expect(released.next?.href).toBe('/projects/p1#deal');
   });
 
+  it('stageEnteredAt важнее updatedAt: правка не сбрасывает срок на этапе', () => {
+    const s = resolveLifecycle(
+      input({
+        calculation: calc('approved', 20),
+        gostPackage: pkg('under_review', 'gap', {
+          updatedAt: daysAgo(0),
+          stageEnteredAt: daysAgo(6),
+        }),
+      }),
+      NOW,
+    );
+    expect(s.stage).toBe('review_gap');
+    expect(s.days).toBe(6);
+    expect(s.freshness).toBe('stale');
+
+    const est = resolveLifecycle(
+      input({ calculation: { ...calc('pending_approval', 0), stageEnteredAt: daysAgo(4) } }),
+      NOW,
+    );
+    expect(est.days).toBe(4);
+    expect(est.freshness).toBe('warn');
+  });
+
   it('отклонённый комплект остаётся на шаге комплекта с тревогой', () => {
     const s = resolveLifecycle(
       input({ calculation: calc('approved', 20), gostPackage: pkg('rejected', 'tw') }),

@@ -6,8 +6,7 @@ import { useCallback, useTransition } from 'react';
 /**
  * Фильтры списков живут в URL: экран серверный, и состояние в адресе даёт
  * ссылку на срез и корректную кнопку «назад». Хук меняет параметры и сразу
- * просит сервер перерисовать страницу — раньше часть экранов после смены
- * фильтра показывала кэшированный список.
+ * ведёт на новый адрес; динамическая страница перезапрашивается с сервера.
  *
  * Любая смена фильтра сбрасывает страницу пагинации: старый номер страницы
  * относился к другому набору строк.
@@ -29,9 +28,14 @@ export function useQueryFilters() {
       }
       if (!opts.keepPage) params.delete('page');
       const query = params.toString();
+      const target = query ? `${pathname}?${query}` : pathname;
+      const current = searchParams.toString() ? `${pathname}?${searchParams}` : pathname;
       startTransition(() => {
-        router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-        router.refresh();
+        // Динамические страницы Next 15 перезапрашиваются при смене адреса
+        // сами (staleTimes.dynamic = 0); refresh нужен только когда адрес не
+        // изменился — иначе каждый фильтр рендерил бы страницу дважды.
+        if (target === current) router.refresh();
+        else router.replace(target, { scroll: false });
       });
     },
     [router, pathname, searchParams],
@@ -39,10 +43,10 @@ export function useQueryFilters() {
 
   const reset = useCallback(() => {
     startTransition(() => {
-      router.replace(pathname, { scroll: false });
-      router.refresh();
+      if (searchParams.toString()) router.replace(pathname, { scroll: false });
+      else router.refresh();
     });
-  }, [router, pathname]);
+  }, [router, pathname, searchParams]);
 
   return { get, set, reset, pending };
 }

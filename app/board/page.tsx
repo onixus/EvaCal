@@ -20,49 +20,87 @@ export default async function BoardPage() {
   );
 
   const approvedSince = new Date(Date.now() - APPROVED_WINDOW_DAYS * 86_400_000);
-  const rows = await prisma.gostPackage.findMany({
-    where: {
-      OR: [
-        { status: { in: ['draft', 'under_review', 'rejected'] } },
-        { status: 'approved', approvedAt: { gte: approvedSince } },
-      ],
-    },
-    orderBy: [{ updatedAt: 'desc' }],
-    take: 300,
-    select: {
-      id: true,
-      name: true,
-      version: true,
-      status: true,
-      reviewStage: true,
-      reviewComment: true,
-      reviewComments: true,
-      reviewChecklist: true,
-      releasedAt: true,
-      releasedBy: true,
-      approvedAt: true,
-      approvedBy: true,
-      createdBy: true,
-      createdAt: true,
-      updatedAt: true,
-      calculationId: true,
-      project: { select: { id: true, name: true, code: true, customer: true } },
-      calculation: { select: { customer: true, name: true } },
-    },
-  });
+  const [rows, calcRows] = await Promise.all([
+    prisma.gostPackage.findMany({
+      where: {
+        OR: [
+          { status: { in: ['draft', 'under_review', 'rejected'] } },
+          { status: 'approved', approvedAt: { gte: approvedSince } },
+        ],
+      },
+      orderBy: [{ updatedAt: 'desc' }],
+      take: 300,
+      select: {
+        id: true,
+        name: true,
+        version: true,
+        status: true,
+        reviewStage: true,
+        reviewComment: true,
+        reviewComments: true,
+        reviewChecklist: true,
+        releasedAt: true,
+        releasedBy: true,
+        approvedAt: true,
+        approvedBy: true,
+        createdBy: true,
+        createdAt: true,
+        updatedAt: true,
+        calculationId: true,
+        stageEnteredAt: true,
+        project: { select: { id: true, name: true, code: true, customer: true } },
+        calculation: { select: { customer: true, name: true } },
+      },
+    }),
+    // Сметы: черновики пресейла, ожидающие утверждения архитектором и недавно
+    // утверждённые. Утверждённая смета — вход в конвейер комплекта, поэтому
+    // старые утверждённые не показываем: они уже живут в колонках комплектов.
+    prisma.calculation.findMany({
+      where: {
+        OR: [
+          { status: { in: ['draft', 'pending_approval'] } },
+          { status: 'approved', updatedAt: { gte: approvedSince } },
+        ],
+      },
+      orderBy: [{ updatedAt: 'asc' }],
+      take: 300,
+      select: {
+        id: true,
+        name: true,
+        customer: true,
+        version: true,
+        status: true,
+        createdBy: true,
+        createdAt: true,
+        updatedAt: true,
+        stageEnteredAt: true,
+        pmHours: true,
+        template: { select: { name: true } },
+        project: { select: { id: true, code: true } },
+        stages: { select: { hours: true, isApprovalTask: true } },
+        risks: { select: { hours: true } },
+      },
+    }),
+  ]);
 
-  // releasedBy/createdBy хранят id пользователя или логин — показываем логин.
+  // releasedBy/approvedBy хранят id пользователя, createdBy — логин; показываем логин.
   const actorIds = Array.from(
-    new Set(rows.flatMap((p) => [p.releasedBy, p.createdBy, p.approvedBy]).filter(Boolean)),
-  ) as string[];
+    new Set(
+      [
+        ...rows.flatMap((p) => [p.releasedBy, p.createdBy, p.approvedBy]),
+        ...calcRows.map((c) => c.createdBy),
+      ].filter((v): v is string => Boolean(v)),
+    ),
+  );
   const users = actorIds.length
     ? await prisma.user.findMany({
         where: { id: { in: actorIds } },
         select: { id: true, username: true },
       })
     : [];
-  const nameOf = (value: string | null) =>
-    value ? (users.find((u) => u.id === value)?.username ?? value) : null;
+  const usernameById = new Map(users.map((u) => [u.id, u.username]));
+  const nameOf = (value: string | null): string | null =>
+    value ? (usernameById.get(value) ?? value) : null;
 
   const cards: BoardCard[] = rows.map((p) => ({
     id: p.id,
@@ -80,46 +118,19 @@ export default async function BoardPage() {
       ? { id: p.project.id, name: p.project.name, code: p.project.code }
       : { id: null, name: p.calculation.name, code: null },
     customer: p.project?.customer ?? p.calculation.customer,
-    author: nameOf(p.releasedBy) ?? nameOf(p.createdBy) ?? p.createdBy,
+    author: nameOf(p.releasedBy ?? p.createdBy) ?? p.createdBy,
     approvedBy: nameOf(p.approvedBy),
     // Момент попадания в текущую колонку: выпуск — для нормоконтроля,
     // последнее изменение — для остальных.
-    enteredAt: (p.status === 'under_review' && p.reviewStage !== 'gap'
-      ? (p.releasedAt ?? p.updatedAt)
-      : p.status === 'approved'
-        ? (p.approvedAt ?? p.updatedAt)
-        : p.updatedAt
+    enteredAt: (
+      p.stageEnteredAt ??
+      (p.status === 'under_review' && p.reviewStage !== 'gap'
+        ? (p.releasedAt ?? p.updatedAt)
+        : p.status === 'approved'
+          ? (p.approvedAt ?? p.updatedAt)
+          : p.updatedAt)
     ).toISOString(),
   }));
-
-  // Сметы: черновики пресейла, ожидающие утверждения архитектором и недавно
-  // утверждённые. Утверждённая смета — вход в конвейер комплекта, поэтому
-  // старые утверждённые не показываем: они уже живут в колонках комплектов.
-  const calcRows = await prisma.calculation.findMany({
-    where: {
-      OR: [
-        { status: { in: ['draft', 'pending_approval'] } },
-        { status: 'approved', updatedAt: { gte: approvedSince } },
-      ],
-    },
-    orderBy: [{ updatedAt: 'asc' }],
-    take: 300,
-    select: {
-      id: true,
-      name: true,
-      customer: true,
-      version: true,
-      status: true,
-      createdBy: true,
-      createdAt: true,
-      updatedAt: true,
-      pmHours: true,
-      template: { select: { name: true } },
-      project: { select: { id: true, code: true } },
-      stages: { select: { hours: true, isApprovalTask: true } },
-      risks: { select: { hours: true } },
-    },
-  });
 
   const estimates: EstimateCard[] = calcRows.map((c) => ({
     id: c.id,
@@ -131,7 +142,7 @@ export default async function BoardPage() {
     template: c.template.name,
     totalHours: Math.round(grandTotalHours(c.stages, c.pmHours, c.risks) * 10) / 10,
     project: c.project ? { id: c.project.id, code: c.project.code } : null,
-    enteredAt: c.updatedAt.toISOString(),
+    enteredAt: (c.stageEnteredAt ?? c.updatedAt).toISOString(),
   }));
 
   return (

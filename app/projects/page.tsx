@@ -16,8 +16,11 @@ export const dynamic = 'force-dynamic';
 
 const STATUSES = ['active', 'on_hold', 'completed', 'archived'];
 
+/** Верхняя граница сканирования при фильтре по этапу: столько проектов в работе не бывает. */
+const STAGE_SCAN_LIMIT = 2000;
+
 function isStage(value: string | undefined): value is LifecycleStageId {
-  return !!value && value in LIFECYCLE_INDEX;
+  return !!value && Object.hasOwn(LIFECYCLE_INDEX, value);
 }
 
 export default async function ProjectsPage(props: {
@@ -74,24 +77,51 @@ export default async function ProjectsPage(props: {
     },
   };
 
+  const now = new Date();
+  const orderBy = [{ updatedAt: 'desc' as const }, { id: 'desc' as const }];
+
   /*
     Этап конвейера — вычисляемое поле, а не колонка, поэтому фильтр по нему
-    считается в памяти: проектов сотни, и это дешевле, чем дублировать
-    статус в базе и следить за его согласованностью.
+    считается в памяти. Чтобы не тащить этапы и риски всех проектов ради одной
+    страницы, сначала берём только поля конвейера, отбираем id нужной
+    страницы и лишь для них читаем полную выборку.
   */
-  const [statusCounts, rawProjects, totalMatching] = await Promise.all([
-    prisma.project.groupBy({ by: ['status'], _count: { _all: true } }),
-    prisma.project.findMany({
+  async function pageOfStage(stageId: LifecycleStageId) {
+    const light = await prisma.project.findMany({
       where,
-      ...(stage ? { skip: 0, take: 500 } : pageArgs(page)),
-      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
-      select,
-    }),
-    prisma.project.count({ where }),
+      take: STAGE_SCAN_LIMIT,
+      orderBy,
+      select: {
+        id: true,
+        status: true,
+        dealStatus: true,
+        dealClosedAt: true,
+        createdAt: true,
+        calculations: { take: 1, orderBy: { version: 'desc' }, select: LIFECYCLE_CALC_SELECT },
+        packages: { take: 1, orderBy: { version: 'desc' }, select: LIFECYCLE_PACKAGE_SELECT },
+      },
+    });
+    const matching = light.filter(
+      (p) => resolveLifecycle(lifecycleInputFromRow(p), now).stage === stageId,
+    );
+    const ids = matching.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((p) => p.id);
+    const rows = ids.length
+      ? await prisma.project.findMany({ where: { id: { in: ids } }, orderBy, select })
+      : [];
+    return { rows, total: matching.length };
+  }
+
+  const [statusCounts, pageData] = await Promise.all([
+    prisma.project.groupBy({ by: ['status'], _count: { _all: true } }),
+    stage
+      ? pageOfStage(stage)
+      : Promise.all([
+          prisma.project.findMany({ where, ...pageArgs(page), orderBy, select }),
+          prisma.project.count({ where }),
+        ]).then(([rows, total]) => ({ rows, total })),
   ]);
 
-  const now = new Date();
-  let items: ProjectListItem[] = rawProjects.map((p) => {
+  const items: ProjectListItem[] = pageData.rows.map((p) => {
     const latestCalc = p.calculations[0] ?? null;
     const latestPkg = p.packages[0] ?? null;
     return {
@@ -130,12 +160,7 @@ export default async function ProjectsPage(props: {
     };
   });
 
-  let total = totalMatching;
-  if (stage) {
-    items = items.filter((p) => p.lifecycle.stage === stage);
-    total = items.length;
-    items = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  }
+  const total = pageData.total;
 
   const countOf = (s: string) => statusCounts.find((c) => c.status === s)?._count._all ?? 0;
 

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { canCreateCalculation, navItemsFor } from '@/lib/appRoles';
+import { canCreateCalculation, NAV_BY_ROLE, NAV_GROUP_LABELS, navItemsFor } from '@/lib/appRoles';
 import { isNavActive } from './AppSidebar';
 
 interface Session {
@@ -14,36 +14,31 @@ interface Session {
 /**
  * Заголовок экрана выводится из адреса, а не передаётся страницей: шапка
  * общая для всего приложения и не должна знать про каждый экран отдельно.
- * Порядок важен — более длинные префиксы проверяются первыми.
+ * Разделы верхнего уровня берутся из навигации (`NAV_BY_ROLE`), чтобы шапка
+ * и сайдбар не расходились; здесь только экраны, которых в навигации нет.
  */
-const TITLES: [prefix: string, root: string, title: string][] = [
+const DETAIL_TITLES: [prefix: string, root: string, title: string][] = [
   ['/calculations/', 'Расчёты', 'Рабочее пространство расчёта'],
-  ['/calculations', 'Работа', 'Расчёты и сметы'],
   ['/presale/', 'Пресейл', 'Расчёт пресейла'],
-  ['/presale', 'Пресейл', 'Пресейл-мастер'],
   ['/review/', 'Ревью', 'Ревью комплекта'],
-  ['/review', 'Ревью', 'Очередь ревью'],
-  ['/board', 'Работа', 'Доска заявок'],
-  ['/changelog', 'Документация', 'Лист внутренних изменений'],
-  ['/studio', 'Документация', 'Студия ГОСТ 34'],
-  ['/standards', 'Документация', 'Чек-листы и стандарты'],
   ['/projects/', 'Проекты', 'Карточка проекта'],
-  ['/projects', 'Работа', 'Проекты'],
   ['/architect/', 'Архитектура', 'Редактор архитектора'],
-  ['/architect', 'Архитектура', 'Архитектурный каталог'],
-  ['/agents', 'Администрирование', 'Харнесс-агенты'],
   ['/admin/capacity', 'Администрирование', 'Ёмкость ролей'],
   ['/admin/users', 'Администрирование', 'Пользователи'],
-  ['/admin', 'Администрирование', 'Шаблоны и пользователи'],
-  ['/capacity', 'Аналитика', 'Ресурсный план'],
-  ['/analytics/deviations', 'Аналитика', 'Конструктор срезов отклонений'],
-  ['/analytics', 'Аналитика', 'Сделки и точность'],
-  ['/leaderboard', 'Аналитика', 'Рейтинг команды'],
   ['/account', 'Профиль', 'Учётная запись'],
   ['/login', 'EvaCal', 'Вход'],
 ];
 
-export function resolveTitle(pathname: string | null): { root: string; title: string } {
+/** Все пункты навигации без повторов; при совпадении href побеждает первая роль. */
+const NAV_ROUTES = Object.values(NAV_BY_ROLE)
+  .flat()
+  .filter((item, i, all) => all.findIndex((x) => x.href === item.href) === i)
+  .sort((a, b) => b.href.length - a.href.length);
+
+export function resolveTitle(
+  pathname: string | null,
+  role?: string | null,
+): { root: string; title: string } {
   if (!pathname || pathname === '/') return { root: 'EvaCal', title: 'Рабочий стол' };
 
   // Студия и лист изменений живут внутри расчёта — у них свои заголовки,
@@ -53,8 +48,17 @@ export function resolveTitle(pathname: string | null): { root: string; title: st
     return { root: 'Документация', title: 'Лист внутренних изменений' };
   }
 
-  const match = TITLES.find(([prefix]) => pathname.startsWith(prefix));
-  return match ? { root: match[1], title: match[2] } : { root: 'EvaCal', title: 'Раздел' };
+  const detail = DETAIL_TITLES.find(([prefix]) => pathname.startsWith(prefix));
+  if (detail) return { root: detail[1], title: detail[2] };
+
+  // Подпись раздела зависит от роли («Очередь нормоконтроля» у тех.писателя,
+  // «Комплекты на подписи» у архитектора) — сперва ищем в её навигации.
+  const own = navItemsFor(role).find((item) => item.href !== '/' && pathname.startsWith(item.href));
+  const item =
+    own ?? NAV_ROUTES.find((route) => route.href !== '/' && pathname.startsWith(route.href));
+  return item
+    ? { root: NAV_GROUP_LABELS[item.group], title: item.label }
+    : { root: 'EvaCal', title: 'Раздел' };
 }
 
 export default function AppHeader() {
@@ -68,7 +72,7 @@ export default function AppHeader() {
       .catch(() => setSession(null));
   }, [pathname]);
 
-  const { root, title } = resolveTitle(pathname);
+  const { root, title } = resolveTitle(pathname, session?.role);
   const navItems = navItemsFor(session?.role);
 
   return (

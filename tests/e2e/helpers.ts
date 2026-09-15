@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * Пароль стендовых учёток берётся из окружения: общего дефолтного пароля в
@@ -116,4 +116,28 @@ export async function createCalculationViaWizard(page: Page): Promise<string> {
   const match = page.url().match(/\/(?:calculations|presale)\/([a-z0-9]+)/i);
   if (!match) throw new Error(`Не удалось прочитать id расчёта из ${page.url()}`);
   return match[1];
+}
+
+/**
+ * Перетаскивание карточки доски. `locator.dragTo` делает одно движение мыши,
+ * и если исходная карточка была за краем экрана, браузер не начинает
+ * HTML5-drag. Явная последовательность с двумя наведениями надёжнее.
+ */
+export async function dragCardTo(page: Page, card: Locator, target: Locator): Promise<void> {
+  // Обработчики drag-событий появляются после гидратации: пока клиентские
+  // чанки не загружены, карточка видна, но перетаскивание ни к чему не ведёт.
+  await page.waitForLoadState('networkidle');
+  await card.scrollIntoViewIfNeeded();
+  const from = await card.boundingBox();
+  const to = await target.boundingBox();
+  if (!from || !to) throw new Error('Карточка или колонка не видны');
+  // Явные координаты и промежуточные шаги: Chromium начинает HTML5-drag только
+  // после движения нажатой мыши, а один прыжок к цели он иногда пропускает.
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + from.width / 2 + 10, from.y + from.height / 2 + 10, { steps: 4 });
+  await page.mouse.move(to.x + to.width / 2, to.y + Math.min(80, to.height / 2), { steps: 12 });
+  await page.waitForTimeout(100);
+  await page.mouse.move(to.x + to.width / 2 + 2, to.y + Math.min(82, to.height / 2), { steps: 2 });
+  await page.mouse.up();
 }

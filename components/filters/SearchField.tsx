@@ -21,8 +21,13 @@ export default function SearchField({
   const [value, setValue] = useState(applied);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Внешняя смена адреса (сброс, «назад») подтягивает поле к URL.
-  useEffect(() => setValue(applied), [applied]);
+  // Внешняя смена адреса (сброс, «назад») подтягивает поле к URL. Пока поле
+  // в фокусе, пользователь печатает — его ввод не перезаписываем.
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (document.activeElement === inputRef.current) return;
+    setValue(applied);
+  }, [applied]);
 
   function apply(next: string) {
     if (timer.current) clearTimeout(timer.current);
@@ -51,6 +56,7 @@ export default function SearchField({
         ⌕
       </span>
       <input
+        ref={inputRef}
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}

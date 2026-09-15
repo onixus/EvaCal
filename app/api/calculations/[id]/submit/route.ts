@@ -28,7 +28,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
   const calculation = await prisma.calculation.update({
     where: { id: params.id },
-    data: { status: 'pending_approval' },
+    data: { status: 'pending_approval', stageEnteredAt: new Date() },
   });
 
   await writeAudit({

@@ -74,6 +74,8 @@ export interface LifecycleInput {
     status: string;
     createdAt: DateLike;
     updatedAt: DateLike;
+    /** Момент последней смены статуса; null у записей до появления поля. */
+    stageEnteredAt?: DateLike;
   } | null;
   /** Последняя версия комплекта или null. */
   gostPackage: {
@@ -85,6 +87,7 @@ export interface LifecycleInput {
     updatedAt: DateLike;
     releasedAt: DateLike;
     approvedAt: DateLike;
+    stageEnteredAt?: DateLike;
   } | null;
 }
 
@@ -177,15 +180,17 @@ export function resolveLifecycle(input: LifecycleInput, now: Date = new Date()):
     }
   } else if (pkg && pkg.status === 'approved') {
     stage = 'released';
-    enteredAt = firstDate(pkg.approvedAt, pkg.updatedAt, pkg.createdAt);
+    enteredAt = firstDate(pkg.stageEnteredAt, pkg.approvedAt, pkg.updatedAt, pkg.createdAt);
     note = 'Комплект выпущен и утверждён';
     next = { label: 'Зафиксировать исход сделки', href: `${projectHref}#deal` };
   } else if (pkg && pkg.status === 'under_review') {
     const gap = pkg.reviewStage === 'gap';
     stage = gap ? 'review_gap' : 'review_tw';
+    // Переходы пишут stageEnteredAt; у старых записей — выпуск для нормоконтроля
+    // и последняя правка для ГАП (updatedAt сбрасывает любой комментарий).
     enteredAt = gap
-      ? firstDate(pkg.updatedAt, pkg.releasedAt, pkg.createdAt)
-      : firstDate(pkg.releasedAt, pkg.updatedAt, pkg.createdAt);
+      ? firstDate(pkg.stageEnteredAt, pkg.updatedAt, pkg.releasedAt, pkg.createdAt)
+      : firstDate(pkg.stageEnteredAt, pkg.releasedAt, pkg.updatedAt, pkg.createdAt);
     note = gap ? 'Ждёт финального решения ГАП' : 'На нормоконтроле у тех.писателя';
     next = {
       label: gap ? 'Открыть финальное ревью' : 'Открыть нормоконтроль',
@@ -193,7 +198,7 @@ export function resolveLifecycle(input: LifecycleInput, now: Date = new Date()):
     };
   } else if (pkg && (pkg.status === 'draft' || pkg.status === 'rejected')) {
     stage = 'package';
-    enteredAt = firstDate(pkg.updatedAt, pkg.createdAt);
+    enteredAt = firstDate(pkg.stageEnteredAt, pkg.updatedAt, pkg.createdAt);
     if (pkg.status === 'rejected') {
       attention = 'rejected';
       note = 'Комплект возвращён с замечаниями';
@@ -204,12 +209,12 @@ export function resolveLifecycle(input: LifecycleInput, now: Date = new Date()):
     }
   } else if (calc && calc.status === 'approved') {
     stage = 'estimate_approved';
-    enteredAt = firstDate(calc.updatedAt, calc.createdAt);
+    enteredAt = firstDate(calc.stageEnteredAt, calc.updatedAt, calc.createdAt);
     note = 'Смета утверждена, комплект ещё не начат';
     next = { label: 'Открыть Студию ГОСТ 34', href: `/calculations/${calc.id}/studio` };
   } else if (calc && calc.status === 'pending_approval') {
     stage = 'estimate_review';
-    enteredAt = firstDate(calc.updatedAt, calc.createdAt);
+    enteredAt = firstDate(calc.stageEnteredAt, calc.updatedAt, calc.createdAt);
     note = 'Смета ждёт утверждения архитектором';
     next = { label: 'Утвердить смету', href: `/architect/${calc.id}` };
   } else if (calc) {

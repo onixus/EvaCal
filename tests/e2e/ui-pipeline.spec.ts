@@ -1,5 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { createCalculationViaWizard, createProject, E2E_PASSWORD, loginAs } from './helpers';
+import {
+  createCalculationViaWizard,
+  createProject,
+  dragCardTo,
+  E2E_PASSWORD,
+  loginAs,
+} from './helpers';
 
 /**
  * Новый UI: рабочий стол, конвейер проекта, фильтры в URL и доска заявок.
@@ -8,6 +14,9 @@ import { createCalculationViaWizard, createProject, E2E_PASSWORD, loginAs } from
  */
 test.describe('UI: конвейер проекта, фильтры и доска заявок', () => {
   test.setTimeout(240000);
+  // Доска — три и пять колонок в ряд: на узком окне колонки складываются и
+  // перетаскивание уходит за край экрана.
+  test.use({ viewport: { width: 1600, height: 1000 } });
   const STAMP = Date.now().toString(36);
   const PROJECT_NAME = `Единое окно (e2e ${STAMP})`;
   const CUSTOMER_NAME = `АО «Регион ${STAMP}»`;
@@ -57,10 +66,10 @@ test.describe('UI: конвейер проекта, фильтры и доска
     await expect(page.getByTestId('lifecycle-next')).toHaveText(/Утвердить смету/);
 
     // Архитектор: очередь на рабочем столе и утверждение перетаскиванием на доске.
+    // Очередь показывает несколько самых старых смет, поэтому нашу проверяем на доске.
     await loginAs(page, 'architect', password);
-    await expect(
-      page.getByRole('link', { name: new RegExp(`Утвердить смету: .*${STAMP}`) }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Ваша очередь' })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Утвердить смету:/ }).first()).toBeVisible();
 
     await page.goto('/board');
     const pending = page.getByRole('region', { name: 'На утверждении' });
@@ -68,7 +77,7 @@ test.describe('UI: конвейер проекта, фильтры и доска
     const card = pending.locator('article').filter({ hasText: CUSTOMER_NAME });
     await expect(card).toBeVisible();
 
-    await card.dragTo(approved);
+    await dragCardTo(page, card, approved);
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByRole('heading', { name: 'Утвердить смету' })).toBeVisible();
     await dialog.getByRole('button', { name: 'Утвердить' }).click();

@@ -481,6 +481,7 @@ export async function releaseGostPackage(input: {
         `Комплект ГОСТ 34 v${nextVersion} (${input.documentTypes.join(', ').toUpperCase()})`,
       version: nextVersion,
       status: 'under_review',
+      stageEnteredAt: new Date(),
       standardProfileId: input.standardProfileId,
       standardProfileVersion: input.standardProfileVersion,
       generatorVersion: input.generatorVersion,
@@ -522,6 +523,7 @@ export async function releaseGostPackage(input: {
       },
       data: {
         status: 'archived',
+        stageEnteredAt: new Date(),
       },
     });
 
@@ -590,6 +592,7 @@ export async function reviewGostPackage(input: {
       where: { id: pkg.id },
       data: {
         status: 'rejected',
+        stageEnteredAt: new Date(),
         // Этап не сбрасывается: вернувшись после правок, комплект продолжает
         // с того места, где его отклонили, а не начинает нормоконтроль заново.
         reviewComment: input.comment?.trim() || null,
@@ -604,6 +607,7 @@ export async function reviewGostPackage(input: {
       data: {
         status: 'under_review',
         reviewStage: 'gap',
+        stageEnteredAt: new Date(),
         reviewComment: input.comment?.trim() || null,
       },
     });
@@ -614,6 +618,7 @@ export async function reviewGostPackage(input: {
     data: {
       status: 'approved',
       reviewStage: 'done',
+      stageEnteredAt: new Date(),
       approvedAt: new Date(),
       approvedBy: input.actorId || 'reviewer',
       reviewComment: input.comment?.trim() || null,
@@ -633,6 +638,7 @@ export async function updateGostPackageStatus(
     where: { id: packageId },
     data: {
       status,
+      stageEnteredAt: new Date(),
       approvedAt: status === 'approved' ? new Date() : undefined,
       approvedBy: status === 'approved' ? options?.approvedBy || 'architect' : undefined,
       reviewComment: options?.reviewComment,
