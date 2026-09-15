@@ -59,6 +59,10 @@ async function loginOnce(page: Page, username: string, password: string): Promis
     await passInputs.nth(1).fill(FORCED_NEW_PASSWORD);
     await page.getByRole('button', { name: /Сменить пароль/i }).click();
     await expect(page.getByText('Пароль изменён')).toBeVisible({ timeout: 15000 });
+    // После смены пароля остаёмся на /account — идём на рабочий стол, как и при
+    // обычном входе, чтобы сценарии не зависели от того, первый это вход или нет.
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
     return FORCED_NEW_PASSWORD;
   }
   return password;
