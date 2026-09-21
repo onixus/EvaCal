@@ -6,7 +6,8 @@ import {
 
 describe('implementation sizing for SIEM / IDM / NGFW', () => {
   it('detects profiles by questionnaire keys without confusing legacy NGFW/SZI', () => {
-    expect(detectImplementationSizingProfile('x', {}, ['event_sources_count'])).toBe('siem');
+    expect(detectImplementationSizingProfile('x', {}, ['event_sources_count', 'hot_retention_days'])).toBe('siem');
+    expect(detectImplementationSizingProfile('legacy SIEM', {}, ['event_sources_count', 'eps_estimate'])).toBeNull();
     expect(detectImplementationSizingProfile('x', {}, ['identities_count'])).toBe('idm');
     expect(detectImplementationSizingProfile('x', {}, ['rules_count'])).toBe('ngfw');
     expect(detectImplementationSizingProfile('legacy', {}, ['ngfw_clusters_count', 'endpoints_count'])).toBeNull();
