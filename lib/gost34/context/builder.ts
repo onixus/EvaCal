@@ -354,14 +354,39 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
 
   const platformsAnswer = findAnswer(answers, /platform|платформ|стек|субд|операционн|os_/i);
   const platformsList = platformsAnswer ? toList(platformsAnswer.value) : undefined;
+  const dedicatedNgfwPreset =
+    Boolean(answers.ngfw_clusters_count) &&
+    Boolean(
+      answers.rules_count ||
+        answers.network_zones_count ||
+        answers.internet_throughput_gbps ||
+        answers.peak_concurrent_sessions,
+    );
+
   if (platformsList) {
     infrastructure.platforms = platformsList;
     record(state, 'infrastructure.platforms', 'questionnaire', platformsAnswer!.key);
+  } else if (dedicatedNgfwPreset) {
+    infrastructure.platforms = [
+      'NGFW-платформа для межсетевого экранирования, сегментации и сервисов L7',
+      'Подсистема централизованного управления и журналирования NGFW',
+    ];
+    record(state, 'infrastructure.platforms', 'questionnaire', 'ngfw_implementation_preset');
+  } else if (answers.identities_count || answers.target_systems_count) {
+    const directory = toText(answers.directory_platform);
+    infrastructure.platforms = [
+      'IDM / IGA-платформа управления жизненным циклом идентичностей и доступа',
+      directory && !/определить/i.test(directory)
+        ? `Служба каталога: ${directory}`
+        : 'Корпоративная служба каталога (уточняется на обследовании)',
+    ];
+    record(state, 'infrastructure.platforms', 'questionnaire', 'idm_preset');
   } else if (
     answers.ngfw_clusters_count ||
     answers.storage_audits_count ||
     answers.vpn_tunnels_count
   ) {
+    // Старый комбинированный NGFW/SZI-пресет сохраняет прежнее обогащение.
     infrastructure.platforms = [
       'Межсетевые экраны NGFW UserGate в отказоустойчивом кластере HA',
       'СЗИ от вредоносного ПО Kaspersky Endpoint Security',
@@ -369,7 +394,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
       'СКЗИ ViPNet Coordinator HW (ГОСТ-VPN)',
     ];
     infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'ngfw_preset');
+    record(state, 'infrastructure.platforms', 'questionnaire', 'ngfw_szi_preset');
   } else if (answers.servers_count || answers.db_clusters_count) {
     infrastructure.platforms = [
       'Серверные платформы отечественного производства YADRO Vegman / Аквариус',
@@ -431,6 +456,28 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     const rCount = toNumber(answers.racks_count) || 1;
     infrastructure.computeResources = `${sCount} серверных платформ в ${rCount} стойках 42U с резервированием по питанию и подключением к SAN/LAN`;
     record(state, 'infrastructure.computeResources', 'questionnaire', 'servers_count');
+  } else if (dedicatedNgfwPreset) {
+    const ngfwCount = toNumber(answers.ngfw_clusters_count) || 1;
+    const ha = toBool(answers.ngfw_ha_required) ?? true;
+    const internet = toNumber(answers.internet_throughput_gbps) || 0;
+    const eastWest = toNumber(answers.east_west_throughput_gbps) || 0;
+    const headroom = toNumber(answers.capacity_headroom_percent) || 0;
+    const target = (internet + eastWest) * (1 + headroom / 100);
+    infrastructure.computeResources = `${ngfwCount} кластер(а/ов), ${ngfwCount * (ha ? 2 : 1)} узлов NGFW; целевая производительность с запасом — ${target.toFixed(2)} Гбит/с`;
+    record(state, 'infrastructure.computeResources', 'questionnaire', 'ngfw_implementation_sizing');
+  } else if (answers.event_sources_count || answers.eps_estimate) {
+    const eps = toNumber(answers.eps_estimate) || 0;
+    const peakFactor = toNumber(answers.eps_peak_factor) || 2;
+    const sourcesCount = toNumber(answers.event_sources_count) || 0;
+    infrastructure.computeResources = `SIEM-контур на ${sourcesCount} источников; средний поток ${eps} EPS, проектный пик ${Math.ceil(eps * peakFactor)} EPS; емкость хранения уточняется по размеру события и ретенции`;
+    record(state, 'infrastructure.computeResources', 'questionnaire', 'siem_sizing');
+  } else if (answers.identities_count || answers.target_systems_count) {
+    const identities = toNumber(answers.identities_count) || 0;
+    const targets = toNumber(answers.target_systems_count) || 0;
+    const ha = toBool(answers.idm_ha_required) ?? true;
+    const appNodes = Math.max(ha ? 2 : 1, Math.ceil(identities / 50000), Math.ceil(targets / 20));
+    infrastructure.computeResources = `IDM / IGA: ${identities} идентичностей, ${targets} целевых систем, не менее ${appNodes} логических прикладных узлов по пресейл-sizing`;
+    record(state, 'infrastructure.computeResources', 'questionnaire', 'idm_sizing');
   } else if (answers.ngfw_clusters_count) {
     const ngfwCount = toNumber(answers.ngfw_clusters_count) || 1;
     infrastructure.computeResources = `${ngfwCount} кластеров аппаратных платформ UserGate NGFW (HA Active-Passive), серверы управления Kaspersky Security Center и Cyberpeak`;
@@ -478,7 +525,9 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   }
   if (
     Object.keys(availability).length === 0 &&
-    (answers.servers_count || answers.db_clusters_count || answers.ngfw_clusters_count)
+    (answers.servers_count ||
+      answers.db_clusters_count ||
+      (answers.ngfw_clusters_count && !dedicatedNgfwPreset))
   ) {
     availability.availabilityTargetPercent = 99.9;
     availability.rtoMinutes = 15;
@@ -512,6 +561,21 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (volumeAnswer) {
     performance.dataVolume = toText(volumeAnswer.value);
     record(state, 'performance.dataVolume', 'questionnaire', volumeAnswer.key);
+  } else if (answers.eps_estimate) {
+    const eps = toNumber(answers.eps_estimate) || 0;
+    const peakFactor = toNumber(answers.eps_peak_factor) || 2;
+    performance.dataVolume = `SIEM: ${eps} EPS average / ${Math.ceil(eps * peakFactor)} EPS peak`;
+    record(state, 'performance.dataVolume', 'questionnaire', 'eps_estimate');
+  } else if (answers.identities_count) {
+    const identities = toNumber(answers.identities_count) || 0;
+    const jml = toNumber(answers.jml_events_per_day) || 0;
+    performance.dataVolume = `IDM: ${identities} идентичностей; ${jml} JML-событий/сутки`;
+    record(state, 'performance.dataVolume', 'questionnaire', 'identities_count');
+  } else if (dedicatedNgfwPreset) {
+    const internet = toNumber(answers.internet_throughput_gbps) || 0;
+    const eastWest = toNumber(answers.east_west_throughput_gbps) || 0;
+    performance.dataVolume = `NGFW: ${internet} Гбит/с Internet + ${eastWest} Гбит/с East-West`;
+    record(state, 'performance.dataVolume', 'questionnaire', 'ngfw_throughput');
   }
   if (Object.keys(performance).length > 0) {
     ctx.performance = performance;
@@ -554,7 +618,10 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     record(state, 'security.authentication', 'questionnaire', authAnswer!.key);
   }
 
-  if (answers.ngfw_clusters_count || answers.storage_audits_count || answers.vpn_tunnels_count) {
+  if (
+    !dedicatedNgfwPreset &&
+    (answers.ngfw_clusters_count || answers.storage_audits_count || answers.vpn_tunnels_count)
+  ) {
     if (security.personalDataProcessed === undefined) security.personalDataProcessed = true;
     if (!security.securityClass)
       security.securityClass =
