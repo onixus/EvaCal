@@ -363,10 +363,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
         answers.peak_concurrent_sessions,
     );
 
-  if (platformsList) {
-    infrastructure.platforms = platformsList;
-    record(state, 'infrastructure.platforms', 'questionnaire', platformsAnswer!.key);
-  } else if (dedicatedNgfwPreset) {
+  if (dedicatedNgfwPreset) {
     infrastructure.platforms = [
       'NGFW-платформа для межсетевого экранирования, сегментации и сервисов L7',
       'Подсистема централизованного управления и журналирования NGFW',
@@ -381,6 +378,17 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
         : 'Корпоративная служба каталога (уточняется на обследовании)',
     ];
     record(state, 'infrastructure.platforms', 'questionnaire', 'idm_preset');
+  } else if (answers.event_sources_count || answers.siem_platform) {
+    const siemPlatform = toText(answers.siem_platform);
+    infrastructure.platforms = [
+      siemPlatform && !/определить/i.test(siemPlatform)
+        ? `SIEM-платформа ${siemPlatform}`
+        : 'SIEM-платформа (выбор подтверждается по результатам пилота/обследования)',
+    ];
+    record(state, 'infrastructure.platforms', 'questionnaire', 'siem_preset');
+  } else if (platformsList) {
+    infrastructure.platforms = platformsList;
+    record(state, 'infrastructure.platforms', 'questionnaire', platformsAnswer!.key);
   } else if (
     answers.ngfw_clusters_count ||
     answers.storage_audits_count ||
@@ -421,15 +429,6 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     ];
     infrastructure.importSubstitution = true;
     record(state, 'infrastructure.platforms', 'questionnaire', 'migration_preset');
-  } else if (answers.event_sources_count || answers.siem_platform) {
-    const siemPlatform = toText(answers.siem_platform);
-    infrastructure.platforms = [
-      siemPlatform && !/определить/i.test(siemPlatform)
-        ? `SIEM-платформа ${siemPlatform}`
-        : 'SIEM-платформа (MaxPatrol SIEM / Kaspersky KUMA)',
-    ];
-    infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'siem_preset');
   } else if (answers.protected_vms_count || answers.backup_volume_tb) {
     infrastructure.platforms = [
       'Система резервного копирования «Кибер Бэкап» / RuBackup',
@@ -547,7 +546,10 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   }
 
   const performance: ProjectContext['performance'] = {};
-  const concurrentAnswer = findAnswer(answers, /concurrent|одновремен/i);
+  const concurrentAnswer = findAnswer(
+    answers,
+    /concurrent(?!.*session)|одновремен.*пользоват|users?_count/i,
+  );
   if (concurrentAnswer) {
     performance.concurrentUsers = toNumber(concurrentAnswer.value);
     record(state, 'performance.concurrentUsers', 'questionnaire', concurrentAnswer.key);
