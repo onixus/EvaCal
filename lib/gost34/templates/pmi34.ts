@@ -1,5 +1,6 @@
 import { Gost34InputPayload, Gost34Section } from '../types';
 import { Gost34RequirementV2, getRequirementEffectiveText } from '../requirements/v2';
+import { resolvePmiTest } from '../traceability/matrix';
 
 export function buildPMI34Sections(payload: Gost34InputPayload): Gost34Section[] {
   const meta = payload.metadata;
@@ -57,16 +58,23 @@ export function buildPMI34Sections(payload: Gost34InputPayload): Gost34Section[]
             const method = r.verificationMethod || 'TEST';
             const criteria = r.acceptanceCriteria?.join('; ');
             const text = getRequirementEffectiveText(r);
+            const isImplementationPreset = /^ТР-(SIEM|IDM|NGFW)-/i.test(r.code);
+            const profileTest = isImplementationPreset
+              ? resolvePmiTest({ ...r, description: text }, idx + 1)
+              : null;
+
             return [
               idx + 1,
               r.code,
               r.title,
-              `Метод: ${method}`,
-              // Заданный критерий приёмки печатается как есть: он и есть
-              // ожидаемый результат проверки. Универсальная формулировка
-              // остаётся только там, где критерий не задан, и тогда её
-              // дополняет выдержка из требования.
+              profileTest
+                ? `${profileTest.testTitle}. Методика: ${profileTest.method}`
+                : `Метод: ${method}`,
+              // Для специализированных пресетов criteria формируется из
+              // ответов опросника; fallback профильной методики нужен только
+              // если пользователь удалил критерий на этапе редактирования.
               criteria ||
+                profileTest?.expectedResult ||
                 `Успешное выполнение проверки без ошибок (Требование: ${text.substring(0, 50)}...)`,
             ];
           }),
