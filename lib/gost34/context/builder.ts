@@ -362,6 +362,12 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
         answers.internet_throughput_gbps ||
         answers.peak_concurrent_sessions,
     );
+  const dedicatedSiemPreset = Boolean(
+    answers.eps_peak_factor ||
+      answers.avg_event_size_bytes ||
+      answers.hot_retention_days ||
+      answers.correlation_rules_count,
+  );
 
   if (dedicatedNgfwPreset) {
     infrastructure.platforms = [
@@ -378,13 +384,23 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
         : 'Корпоративная служба каталога (уточняется на обследовании)',
     ];
     record(state, 'infrastructure.platforms', 'questionnaire', 'idm_preset');
-  } else if (answers.event_sources_count || answers.siem_platform) {
+  } else if (dedicatedSiemPreset) {
     const siemPlatform = toText(answers.siem_platform);
     infrastructure.platforms = [
       siemPlatform && !/определить/i.test(siemPlatform)
         ? `SIEM-платформа ${siemPlatform}`
         : 'SIEM-платформа (выбор подтверждается по результатам пилота/обследования)',
     ];
+    record(state, 'infrastructure.platforms', 'questionnaire', 'siem_full_preset');
+  } else if (answers.event_sources_count || answers.siem_platform) {
+    // Legacy SIEM сохраняет прежнее обогащение для воспроизводимости.
+    const siemPlatform = toText(answers.siem_platform);
+    infrastructure.platforms = [
+      siemPlatform && !/определить/i.test(siemPlatform)
+        ? `SIEM-платформа ${siemPlatform}`
+        : 'SIEM-платформа (MaxPatrol SIEM / Kaspersky KUMA)',
+    ];
+    infrastructure.importSubstitution = true;
     record(state, 'infrastructure.platforms', 'questionnaire', 'siem_preset');
   } else if (platformsList) {
     infrastructure.platforms = platformsList;
@@ -464,7 +480,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     const target = (internet + eastWest) * (1 + headroom / 100);
     infrastructure.computeResources = `${ngfwCount} кластер(а/ов), ${ngfwCount * (ha ? 2 : 1)} узлов NGFW; целевая производительность с запасом — ${target.toFixed(2)} Гбит/с`;
     record(state, 'infrastructure.computeResources', 'questionnaire', 'ngfw_implementation_sizing');
-  } else if (answers.event_sources_count || answers.eps_estimate) {
+  } else if (dedicatedSiemPreset) {
     const eps = toNumber(answers.eps_estimate) || 0;
     const peakFactor = toNumber(answers.eps_peak_factor) || 2;
     const sourcesCount = toNumber(answers.event_sources_count) || 0;
@@ -563,7 +579,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (volumeAnswer) {
     performance.dataVolume = toText(volumeAnswer.value);
     record(state, 'performance.dataVolume', 'questionnaire', volumeAnswer.key);
-  } else if (answers.eps_estimate) {
+  } else if (dedicatedSiemPreset) {
     const eps = toNumber(answers.eps_estimate) || 0;
     const peakFactor = toNumber(answers.eps_peak_factor) || 2;
     performance.dataVolume = `SIEM: ${eps} EPS average / ${Math.ceil(eps * peakFactor)} EPS peak`;
