@@ -117,10 +117,14 @@ export function detectImplementationSizingProfile(
   const keys = new Set([...Object.keys(answers), ...fieldKeys]);
   const name = (templateName || '').toLowerCase();
 
+  // Новый полный SIEM-профиль отличаем от прежнего короткого пресета по
+  // sizing-полям. Это сохраняет воспроизводимость старых расчетов: повторный
+  // экспорт legacy-SIEM не получает новые требования задним числом.
   if (
-    keys.has('event_sources_count') ||
-    keys.has('eps_estimate') ||
-    /\bsiem\b|soc|мониторинг.*иб/i.test(name)
+    keys.has('eps_peak_factor') ||
+    keys.has('avg_event_size_bytes') ||
+    keys.has('hot_retention_days') ||
+    keys.has('correlation_rules_count')
   ) {
     return 'siem';
   }
