@@ -30,7 +30,9 @@ describe('presale sizing -> GOST 34 requirements and PMI', () => {
 
     const pmi = buildPMI34Sections(payload);
     const rows = pmi.find((section) => section.id === 'sec-3')?.tables?.[0]?.rows ?? [];
-    expect(rows.some((row) => row[1] === 'ТР-SIEM-01')).toBe(true);
+    const siemRow = rows.find((row) => row[1] === 'ТР-SIEM-01');
+    expect(siemRow).toBeDefined();
+    expect(String(siemRow?.[3])).toContain('Проверка приема, нормализации и обработки событий SIEM');
   });
 
   it.each([
