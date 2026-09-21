@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import DynamicForm, { FormFieldDef } from '@/components/DynamicForm';
 import { storeShareToken, withShareHeaders } from '@/lib/shareClient';
+import ImplementationSizingPreview, {
+  type ImplementationSizingPreviewData,
+} from '@/components/presale/ImplementationSizingPreview';
 
 export interface TemplateDef {
   id: string;
@@ -24,6 +27,7 @@ interface EstimatePreview {
   priceTotal: number;
   fieldCount: number;
   answeredCount: number;
+  sizing: ImplementationSizingPreviewData | null;
   stages: {
     name: string;
     roleLabel: string;
@@ -412,6 +416,12 @@ export default function NewCalculationForm({
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {estimate?.sizing && (
+              <div className="pt-2">
+                <ImplementationSizingPreview sizing={estimate.sizing} />
               </div>
             )}
           </div>
