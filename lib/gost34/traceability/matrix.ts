@@ -199,6 +199,50 @@ export function resolvePmiTest(
     `${req.code} ${req.title} ${req.description || ''} ${req.category || ''}`.toLowerCase();
   const testNum = String(idx).padStart(2, '0');
 
+  // SIEM / SOC — отдельная методика вместо универсального теста СЗИ.
+  if (/siem|soc|eps|корреляц|источник.*событ|ретенц|коллектор/i.test(text)) {
+    return {
+      testCode: `ПМИ-SIEM-${testNum}`,
+      testTitle: 'Проверка приема, нормализации и обработки событий SIEM',
+      method:
+        'Генерация контрольного потока событий, проверка нормализации и поиска, воспроизведение согласованного сценария корреляции и контроль остановки одного источника/коллектора',
+      expectedResult:
+        'Контрольные события поступают и нормализуются, сценарий корреляции формирует ожидаемый результат, потеря или остановка потока диагностируется.',
+    };
+  }
+
+  // IDM / IGA — JML, провижининг, роли, SoD и рекертификация.
+  if (
+    /idm|iga|joiner|mover|leaver|jml|провиж|рекертиф|sod|идентичност|учетн.*запис|ролевая модель/i.test(
+      text,
+    )
+  ) {
+    return {
+      testCode: `ПМИ-IDM-${testNum}`,
+      testTitle: 'Проверка жизненного цикла идентичностей и управления доступом',
+      method:
+        'Создание тестового JML-события, прохождение заявки/согласования, проверка назначения и отзыва роли, сверка целевой системы и журнала аудита',
+      expectedResult:
+        'Целевое состояние учетной записи и прав соответствует принятому решению, конфликтные назначения обрабатываются политикой, все действия трассируются в аудите.',
+    };
+  }
+
+  // NGFW — межсетевые политики, L7, TLS inspection и HA.
+  if (
+    /ngfw|межсетев.*экран|сетев.*зон|tls.?inspect|ips|правил.*фильтрац|failover|cps|сесс/i.test(
+      text,
+    )
+  ) {
+    return {
+      testCode: `ПМИ-NGFW-${testNum}`,
+      testTitle: 'Проверка политик NGFW, сервисов безопасности и отказоустойчивости',
+      method:
+        'Проверка разрешенных/запрещенных потоков между зонами, тест IPS/TLS-inspection по согласованным сценариям и имитация отказа активного узла HA-кластера',
+      expectedResult:
+        'Разрешенные потоки проходят, запрещенные блокируются и журналируются, сервисы безопасности применяют согласованные политики, HA восстанавливает обработку трафика.',
+    };
+  }
+
   // ПАК и серверное оборудование
   if (
     /пак|сервер|схд|оборудован|стойк|коммутатор|ибп|raid|nvme|ipmi|ilo|idrac|bmc|yadro|аквариус|fplus/i.test(
@@ -359,7 +403,16 @@ export function buildFullTraceabilityMatrix(
         (keyLower.includes('sec') && reqLower.includes('безопасн')) ||
         (keyLower.includes('fz') && reqLower.includes('фз')) ||
         (keyLower.includes('pac') && reqLower.includes('пак')) ||
-        (keyLower.includes('hard') && reqLower.includes('оборудован'))
+        (keyLower.includes('hard') && reqLower.includes('оборудован')) ||
+        ((keyLower.includes('eps') || keyLower.includes('event_')) &&
+          /siem|событ|производительн/.test(reqLower)) ||
+        ((keyLower.includes('identit') || keyLower.includes('jml') || keyLower.includes('role')) &&
+          /idm|идентич|доступ|рол/.test(reqLower)) ||
+        ((keyLower.includes('ngfw') ||
+          keyLower.includes('rules') ||
+          keyLower.includes('throughput') ||
+          keyLower.includes('session')) &&
+          /ngfw|межсетев|производительн|политик/.test(reqLower))
       ) {
         const fieldMeta = fieldKeyToField.get(key);
         sourceQuestion = {
