@@ -17,6 +17,7 @@ import { validateRequirements } from './validation';
 import { evaluateApplicability } from './applicability';
 import { buildTraceability } from './traceability/engine';
 import type { TraceLink } from './traceability/types';
+import { buildImplementationSizing } from '../presets/implementationSizing';
 import {
   normalizeMetadata,
   parseAnswers,
@@ -66,6 +67,19 @@ export function analyzeAndNormalizeInput(input: {
   const requirementsV2: Gost34RequirementV2[] = shouldIncludeStages
     ? extractRequirementsFromStages(stages)
     : [];
+
+  // Специализированные SIEM/IDM/NGFW пресейлы дают не только трудозатраты,
+  // но и проверяемые системные требования, рассчитанные из ответов опросника.
+  // Они попадают в ТЗ и ПМИ с критериями приемки и остаются DRAFT до ревью.
+  const implementationSizing = buildImplementationSizing(calc?.template?.name, parsedAnswers);
+  if (implementationSizing) {
+    requirementsV2.push(
+      ...fromGost34RequirementItems(implementationSizing.gostRequirements, {
+        sourceSection: 'Пресейл-опросник и автоматический sizing',
+      }),
+    );
+  }
+
   requirementsV2.push(...fromGost34RequirementItems(input.rawRequirements || []));
 
   const baseCustomRequirements = toGost34RequirementItems(requirementsV2, {
