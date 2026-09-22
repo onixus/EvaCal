@@ -102,7 +102,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       },
     });
 
-    await recordRelease(params.id, standardProfileId, [docType.toLowerCase()], { docType }, undefined, access.actorId);
+    await recordRelease(
+      params.id,
+      standardProfileId,
+      [docType.toLowerCase()],
+      { docType },
+      undefined,
+      access.actorId,
+    );
 
     await writeAudit({
       actorType: actorTypeFromAccess(access.kind),
@@ -354,4 +361,3 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     return gost34ErrorResponse(err) || handleApiError(err, 'Export error', 500);
   }
 }
-

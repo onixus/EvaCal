@@ -76,4 +76,3 @@ export function buildBindingUpdate(
 export function isMigrated(binding: ProjectStandardBinding): boolean {
   return binding.standardProfileId === MIGRATION_TARGET_PROFILE_ID;
 }
-

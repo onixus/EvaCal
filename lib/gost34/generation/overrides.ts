@@ -16,7 +16,10 @@ export function applySectionOverrides(
     const override = overrides[sec.id] ?? overrides[sec.title];
     const raw = override?.paragraphs;
     const paragraphs = raw
-      ? raw.map(stripClausePrefix).filter(Boolean).map((p, i) => `${sec.numStr}.${i + 1} ${p}`)
+      ? raw
+          .map(stripClausePrefix)
+          .filter(Boolean)
+          .map((p, i) => `${sec.numStr}.${i + 1} ${p}`)
       : sec.paragraphs;
     return {
       ...sec,
@@ -26,4 +29,3 @@ export function applySectionOverrides(
     };
   });
 }
-

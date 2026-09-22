@@ -956,4 +956,3 @@ export default function DocumentPreviewStep({
     </div>
   );
 }
-

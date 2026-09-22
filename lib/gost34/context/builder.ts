@@ -589,7 +589,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     ctx.funding = funding;
     record(state, 'funding', 'questionnaire', fundingAnswer!.key);
   } else {
-    gap(state, 'funding', 'Источники и порядок финансирования работ', 'major', 'Договор или решение Заказчика');
+    gap(
+      state,
+      'funding',
+      'Источники и порядок финансирования работ',
+      'major',
+      'Договор или решение Заказчика',
+    );
   }
 
   // ── Жизненный цикл (из расчёта) ──────────────────────────────────────
@@ -637,4 +643,3 @@ function stripMeta(override: Partial<ProjectContext>): Partial<ProjectContext> {
 export function hasBlockingGaps(context: ProjectContext): boolean {
   return (context.gaps || []).some((g) => g.severity === 'blocking');
 }
-

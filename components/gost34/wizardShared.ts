@@ -96,4 +96,3 @@ export const SUBPANEL_CLASS =
 export function fieldAnchorId(fieldRef: string): string {
   return `field-${fieldRef.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
 }
-

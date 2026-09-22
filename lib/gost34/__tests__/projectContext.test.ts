@@ -244,4 +244,3 @@ describe('buildProjectContext: цели и измеримые критерии �
     expect(ctx.measurableGoalCriteria).toEqual([{ metric: 'Время отклика', target: '1 с' }]);
   });
 });
-

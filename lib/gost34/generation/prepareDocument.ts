@@ -36,7 +36,8 @@ export function prepareGost34Document(
     });
     validTzAuthor = validation.validTzAuthor;
     tzAuthorDiagnostics = validation.diagnostics;
-    if (!preview && tzAuthorDiagnostics.length > 0) {
+    // Предпросмотр показывает отклонённые правки с пояснением, выпуск — нет.
+    if (!preview && validation.hasHardFlags) {
       throw new TzAuthorHardFlagsError(tzAuthorDiagnostics);
     }
   }
@@ -48,9 +49,10 @@ export function prepareGost34Document(
     includeProposed,
   });
   const sections = applySectionOverrides(baselineAst.sections, overrides);
-  const issues = docType === 'TZ' && payload.standardProfile.id !== LEGACY_GOST34_PROFILE_ID
-    ? validateSchemaCoverage(TZ_SCHEMA_2020, sections)
-    : baselineAst.diagnostics.issues;
+  const issues =
+    docType === 'TZ' && payload.standardProfile.id !== LEGACY_GOST34_PROFILE_ID
+      ? validateSchemaCoverage(TZ_SCHEMA_2020, sections)
+      : baselineAst.diagnostics.issues;
   const diagnostics = { ...baselineAst.diagnostics, issues };
   const ast = { ...baselineAst, sections, diagnostics };
 

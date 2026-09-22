@@ -160,6 +160,17 @@ pipeline {
                     }
                 }
 
+                // Сквозная проверка движка ГОСТ 34: реальная сборка AST и DOCX
+                // по golden-сценариям, без БД и LLM. Держим отдельной стадией —
+                // падение здесь означает сломанный выпуск документов, а не тест.
+                stage('GOST 34 Verify') {
+                    steps {
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            sh 'cd "$BUILD_DIR" && npm run test:gost34:verify'
+                        }
+                    }
+                }
+
                 stage('Build') {
                     steps {
                         sh 'cd "$BUILD_DIR" && npm run build'

@@ -1,10 +1,32 @@
-import { Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle, HeadingLevel, convertMillimetersToTwip, TableOfContents, VerticalAlign } from 'docx';
+import {
+  Paragraph,
+  TextRun,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
+  AlignmentType,
+  BorderStyle,
+  HeadingLevel,
+  convertMillimetersToTwip,
+  TableOfContents,
+  VerticalAlign,
+} from 'docx';
 import type { Gost34Section, Gost34TableData } from '../types';
 import type { LayoutProfile } from './layout';
 import type { DocxTypography } from './typography';
-import { formatTableCaption, sanitizeDocText, splitNumberedClause, toHeadingCase } from './textFormat';
+import {
+  formatTableCaption,
+  sanitizeDocText,
+  splitNumberedClause,
+  toHeadingCase,
+} from './textFormat';
 
-export function buildDocumentBody(sections: Gost34Section[], layoutProfile: LayoutProfile, { run }: DocxTypography): (Paragraph | Table)[] {
+export function buildDocumentBody(
+  sections: Gost34Section[],
+  layoutProfile: LayoutProfile,
+  { run }: DocxTypography,
+): (Paragraph | Table)[] {
   const contentWidthMm = 210 - layoutProfile.margins.leftMm - layoutProfile.margins.rightMm;
   // Helper to build GOST paragraph
   const makeGostParagraph = (text: string): Paragraph => {
@@ -49,7 +71,12 @@ export function buildDocumentBody(sections: Gost34Section[], layoutProfile: Layo
       : [run(`${numStr} ${heading}`, { bold: true, deltaPt: level === 1 ? 2 : 0 })];
 
     return new Paragraph({
-      heading: level === 1 ? HeadingLevel.HEADING_1 : level === 2 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3,
+      heading:
+        level === 1
+          ? HeadingLevel.HEADING_1
+          : level === 2
+            ? HeadingLevel.HEADING_2
+            : HeadingLevel.HEADING_3,
       alignment: isAppendix ? AlignmentType.CENTER : AlignmentType.LEFT,
       pageBreakBefore: level === 1,
       spacing: { before: level === 1 ? 0 : 360, after: 240 },

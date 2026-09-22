@@ -183,4 +183,3 @@ export const CONTEXT_GAP_PLACEHOLDER = 'Требует уточнения у З�
 export function formatGap(label: string): string {
   return `${label}: ${CONTEXT_GAP_PLACEHOLDER}.`;
 }
-

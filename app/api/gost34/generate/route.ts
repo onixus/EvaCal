@@ -45,4 +45,3 @@ export async function POST(req: NextRequest) {
     return gost34ErrorResponse(err) || handleApiError(err, 'Failed to generate document', 500);
   }
 }
-

@@ -401,4 +401,3 @@ export function collectGroundingPack(params: {
     speculate,
   };
 }
-

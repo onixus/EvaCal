@@ -2,7 +2,11 @@ import { AlignmentType, Paragraph, Table } from 'docx';
 import type { Gost34DocMetadata } from '../types';
 import type { DocxTypography } from './typography';
 
-export function buildTitlePage(meta: Gost34DocMetadata, docTitleText: string, { run }: DocxTypography): (Paragraph | Table)[] {
+export function buildTitlePage(
+  meta: Gost34DocMetadata,
+  docTitleText: string,
+  { run }: DocxTypography,
+): (Paragraph | Table)[] {
   const sigs = meta.signatures;
   /**
    * Блок подписи титульного листа: «УТВЕРЖДАЮ» Заказчика и «СОГЛАСОВАНО»

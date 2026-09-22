@@ -48,6 +48,29 @@ export interface StudioLatestPackage {
   updatedAt: string;
 }
 
+const SCHEMA_ISSUE_LABELS: Record<string, string> = {
+  missing: 'отсутствует',
+  empty: 'без данных',
+  'out-of-order': 'нарушен порядок',
+};
+
+/** Разбор ответа 409 gost34_invalid_structure в текст для панели ошибок. */
+function formatSchemaIssues(issues: unknown): string {
+  if (!Array.isArray(issues) || issues.length === 0) {
+    return 'Сервер не вернул перечень разделов.';
+  }
+
+  const listed = issues
+    .slice(0, 5)
+    .map(
+      (issue: any) =>
+        `«${issue?.title ?? issue?.nodeId}» — ${SCHEMA_ISSUE_LABELS[issue?.kind] ?? issue?.kind}`,
+    )
+    .join('; ');
+  const rest = issues.length > 5 ? ` и ещё ${issues.length - 5}` : '';
+
+  return `Разделы: ${listed}${rest}.`;
+}
 
 type SectionOverrides = Record<string, { title?: string; paragraphs?: string[]; items?: string[] }>;
 
@@ -473,6 +496,15 @@ export default function Gost34Studio({
             `Экспорт заблокирован: критические замечания в принятых черновиках ТЗ (${details})`,
           );
         }
+        // Проверка структуры отдаёт готовый разбор по разделам — показываем его,
+        // а не код ошибки: иначе непонятно, что именно править в документе.
+        if (res.status === 409 && data?.error === 'gost34_invalid_structure') {
+          throw new Error(
+            `Экспорт заблокирован: итоговая структура ТЗ не соответствует профилю. ${formatSchemaIssues(
+              data.issues,
+            )}`,
+          );
+        }
         throw new Error(data?.error || 'Ошибка при генерации документа ГОСТ 34');
       }
 
@@ -888,4 +920,3 @@ export default function Gost34Studio({
     </div>
   );
 }
-

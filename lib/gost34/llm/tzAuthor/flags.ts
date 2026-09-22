@@ -497,4 +497,3 @@ export function isHardFlag(flag: LlmDraftFlag): boolean {
 export function hasHardFlags(flags: LlmDraftFlag[]): boolean {
   return flags.some(isHardFlag);
 }
-

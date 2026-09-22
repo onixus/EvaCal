@@ -164,4 +164,3 @@ export async function exportGost34ToDocx(ast: Gost34DocumentAST): Promise<Buffer
 
   return await Packer.toBuffer(doc);
 }
-

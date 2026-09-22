@@ -18,4 +18,3 @@ export function contentDisposition(safeName: string, extension: string): string 
     safeName,
   )}.${extension}`;
 }
-

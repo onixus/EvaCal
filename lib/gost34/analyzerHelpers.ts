@@ -109,4 +109,3 @@ export function calculateTotals(
   const totalRiskHours = risks.reduce((sum, r) => sum + r.hours, 0);
   return totalStageHours + totalRiskHours + pmHours;
 }
-

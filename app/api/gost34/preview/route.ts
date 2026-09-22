@@ -42,26 +42,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'not found' }, { status: 404 });
     }
 
-    const prepared = prepareGost34Document({
-      calculation,
-      rawRequirements,
-      vendorFiles,
-      projectContext,
-      metadataOverride: {
-        docType,
-        contractNumber,
-        city,
-        signatures,
-        layoutProfileId,
-        enrichRequirements: Boolean(enrich),
-        enrichmentOptions,
-        standardProfileId,
-        applicabilityOverrides,
+    const prepared = prepareGost34Document(
+      {
+        calculation,
+        rawRequirements,
+        vendorFiles,
+        projectContext,
+        metadataOverride: {
+          docType,
+          contractNumber,
+          city,
+          signatures,
+          layoutProfileId,
+          enrichRequirements: Boolean(enrich),
+          enrichmentOptions,
+          standardProfileId,
+          applicabilityOverrides,
+        },
+        manualTraceLinks: manualLinks,
+        sectionOverrides,
+        tzAuthor,
       },
-      manualTraceLinks: manualLinks,
-      sectionOverrides,
-      tzAuthor,
-    }, { mode: 'preview', includeProposed: Boolean(includeProposed) });
+      { mode: 'preview', includeProposed: Boolean(includeProposed) },
+    );
 
     return NextResponse.json(prepared);
   } catch (err: unknown) {
@@ -69,4 +72,3 @@ export async function POST(req: NextRequest) {
     return gost34ErrorResponse(err) || handleApiError(err, 'Preview generation failed', 500);
   }
 }
-
