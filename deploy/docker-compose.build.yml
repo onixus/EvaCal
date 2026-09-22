@@ -1,0 +1,14 @@
+# Наложение «из исходников»: образы собираются из клона репозитория
+# (EVACAL_SOURCE в .env) вместо pull из ghcr.io. Подключается через COMPOSE_FILE.
+services:
+  migrate:
+    build:
+      context: ${EVACAL_SOURCE:?EVACAL_SOURCE (path to the repository) is required}
+      target: migrate
+      args:
+        DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}
+  app:
+    build:
+      context: ${EVACAL_SOURCE:?EVACAL_SOURCE (path to the repository) is required}
+      args:
+        DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}

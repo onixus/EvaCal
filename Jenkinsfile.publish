@@ -90,10 +90,15 @@ pipeline {
           // Ветка → тег по её имени, слеши в дефисы (ghcr не любит слеши).
           def ref = params.REF.trim()
           def isTag = ref ==~ /^v?\d+\.\d+.*/
-          def tags = isTag
-            ? ["${env.IMAGE}:${ref.replaceFirst(/^v/, '')}", "${env.IMAGE}:latest"]
-            : ["${env.IMAGE}:${ref.replaceAll('/', '-')}"]
+          def suffixes = isTag
+            ? [ref.replaceFirst(/^v/, ''), 'latest']
+            : [ref.replaceAll('/', '-')]
+          // Два образа с одинаковыми тегами: приложение (runner) и migrate —
+          // установщик deploy/install.sh тянет оба из ghcr.io.
+          def tags = suffixes.collect { "${env.IMAGE}:${it}" }
+          def migrateTags = suffixes.collect { "${env.IMAGE}-migrate:${it}" }
           def tagArgs = tags.collect { "-t ${it}" }.join(' ')
+          def migrateTagArgs = migrateTags.collect { "-t ${it}" }.join(' ')
           def platforms = params.MULTIARCH ? 'linux/amd64,linux/arm64' : 'linux/arm64'
           def output = params.DRY_RUN ? '' : '--push'
 
@@ -105,7 +110,12 @@ pipeline {
             docker buildx build --builder evacal-publisher \
               --platform ${platforms} \
               ${tagArgs} ${output} .
+
+            docker buildx build --builder evacal-publisher \
+              --platform ${platforms} --target migrate \
+              ${migrateTagArgs} ${output} .
           """
+          tags += migrateTags
 
           if (params.DRY_RUN) {
             echo "DRY_RUN: собрано, публикации не было. Теги были бы: ${tags.join(', ')}"

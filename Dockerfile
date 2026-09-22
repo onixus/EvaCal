@@ -43,6 +43,10 @@ COPY scripts ./scripts
 COPY reset-all.ts ./
 ARG DATABASE_PROVIDER=postgresql
 ENV DATABASE_PROVIDER=$DATABASE_PROVIDER
+# Клиент генерируется и здесь, а не только в CMD: `docker compose run migrate <другая
+# команда>` (сброс паролей из установщика) обходит CMD и без клиента падает на импорте.
+ENV DATABASE_URL="file:./prisma/dev.db"
+RUN npx prisma generate
 COPY docker-migrate-entrypoint.sh /usr/local/bin/docker-migrate-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-migrate-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker-migrate-entrypoint.sh"]

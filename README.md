@@ -258,7 +258,19 @@ npm run dev
 
 ---
 
-## 🐳 Запуск через Docker Compose
+## 📦 Установка на сервер одной командой
+
+Для стенда или продакшена не нужны ни Node.js, ни клон репозитория — только Docker:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/onixus/EvaCal/main/deploy/install.sh | sudo bash
+```
+
+Установщик разложит конфигурацию в `/opt/evacal`, сгенерирует секреты и сертификат, загрузит образы из `ghcr.io`, применит миграции и напечатает пароли учётных записей. Дальше стенд обслуживается командой `evacal` (`status`, `logs`, `update`, `backup`, `restore`, `passwords`, `uninstall`). Параметры (`--domain`, `--version`, `--cert/--key`, `--no-tls`, `--database-url`, `--source`) и устройство стека описаны в [`deploy/README.md`](deploy/README.md).
+
+---
+
+## 🐳 Запуск через Docker Compose (из исходников)
 
 Развёртывание через Docker автоматизировано: контейнер миграции `migrate` выполняет синхронизацию схемы БД и сидирование до старта веб-приложения `app`.
 
