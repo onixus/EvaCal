@@ -1,0 +1,118 @@
+# EvaCal — продакшен-стек на готовых образах из ghcr.io.
+#
+# Управляется установщиком deploy/install.sh; параметры берутся из .env рядом
+# с этим файлом. Наложения (через COMPOSE_FILE в .env):
+#   docker-compose.tls.yml   — HTTPS: порт 443 и каталог certs/
+#   docker-compose.build.yml — сборка образов из исходников вместо pull
+#
+# Сам по себе файл поднимает: postgres → migrate (миграции + сид) → app → web (nginx, :80).
+name: ${COMPOSE_PROJECT_NAME:-evacal}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-evacal}
+      POSTGRES_USER: ${POSTGRES_USER:-evacal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '20m'
+        max-file: '5'
+
+  # Одноразовый контейнер: миграции схемы + сид пресетов и учётных записей.
+  # Повторный запуск вручную: docker compose run --rm migrate
+  migrate:
+    image: ${EVACAL_MIGRATE_IMAGE:-ghcr.io/onixus/evacal-migrate}:${EVACAL_TAG:-latest}
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-evacal}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-evacal}?schema=public}
+      SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD:-}
+    volumes:
+      - db-data:/app/prisma
+
+  app:
+    image: ${EVACAL_IMAGE:-ghcr.io/onixus/evacal}:${EVACAL_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-evacal}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-evacal}?schema=public}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      SHARE_TOKEN_SECRET: ${SHARE_TOKEN_SECRET:-}
+      FORCE_SECURE_COOKIES: ${FORCE_SECURE_COOKIES:-}
+      GOST_PACKAGE_STORAGE: ${GOST_PACKAGE_STORAGE:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-}
+      S3_PREFIX: ${S3_PREFIX:-}
+      OLLAMA_HOST: ${OLLAMA_HOST:-}
+      LMSTUDIO_HOST: ${LMSTUDIO_HOST:-}
+      EVACAL_LLM_DISABLE_LOCAL: ${EVACAL_LLM_DISABLE_LOCAL:-}
+      EVACAL_LLM_PROVIDERS: ${EVACAL_LLM_PROVIDERS:-}
+      EVACAL_LLM_DEFAULT_PROVIDER: ${EVACAL_LLM_DEFAULT_PROVIDER:-}
+      EVACAL_LLM_ALLOW_LOOPBACK: ${EVACAL_LLM_ALLOW_LOOPBACK:-}
+      EVACAL_LLM_ALLOW_PRIVATE_NETWORK: ${EVACAL_LLM_ALLOW_PRIVATE_NETWORK:-}
+    volumes:
+      - db-data:/app/prisma
+      - storage-data:/app/storage
+    expose:
+      - '3000'
+    deploy:
+      resources:
+        limits:
+          cpus: ${EVACAL_APP_CPUS:-2.0}
+          memory: ${EVACAL_APP_MEMORY:-2048M}
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '20m'
+        max-file: '5'
+
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - '${EVACAL_HTTP_PORT:-80}:80'
+    # Каталог, а не одиночный файл: bind-mount файла «залипает» на старом inode
+    # после перезаписи установщиком, и nginx -s reload читает устаревший конфиг.
+    volumes:
+      - ./nginx:/etc/nginx/evacal:ro
+    command: ['nginx', '-c', '/etc/nginx/evacal/nginx.conf', '-g', 'daemon off;']
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1/api/health || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '20m'
+        max-file: '5'
+
+volumes:
+  db-data:
+  pg-data:
+  storage-data:

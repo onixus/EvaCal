@@ -1,0 +1,8 @@
+# Наложение HTTPS: публикует 443 и монтирует сертификаты из ./certs
+# (fullchain.pem + privkey.pem). Подключается через COMPOSE_FILE в .env.
+services:
+  web:
+    ports:
+      - '${EVACAL_HTTPS_PORT:-443}:443'
+    volumes:
+      - ./certs:/etc/nginx/certs:ro

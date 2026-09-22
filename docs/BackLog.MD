@@ -50,6 +50,7 @@
 - [x] Audit trail (`AuditEvent`) with sensitive LLM prompt/completion redaction (`redactLlmMeta`).
 - [x] Docker multi-stage Alpine deployment with automated schema sync/seed and non-root runner (uid 1001).
 - [x] Jenkins CI/CD pipeline and GitHub Actions workflow with JUnit XML reporting (`test:ci`).
+- [x] One-command installer `deploy/install.sh` (prebuilt `ghcr.io` images, generated secrets and TLS cert, health wait, credentials output) with `evacal status|logs|update|backup|restore|passwords|uninstall`; `evacal-migrate` image published alongside the app image.
 - [x] Automated test suite: **71 test files, 594 tests (100% pass)**.
 
 ---
