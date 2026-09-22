@@ -1,8 +1,9 @@
+import { gost34ErrorResponse } from '@/lib/gost34/generation/apiError';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth';
 import { GOST34_LLM_ROLES } from '../roles';
-import { generateGost34Document, TzAuthorHardFlagsError } from '@/lib/gost34';
-import { responseBody } from '@/lib/export';
+import { generateGost34Document } from '@/lib/gost34';
+import { responseBody, contentDisposition } from '@/lib/exportResponse';
 import { handleApiError } from '@/lib/apiHelpers';
 
 export async function POST(req: NextRequest) {
@@ -15,6 +16,7 @@ export async function POST(req: NextRequest) {
       calculation,
       metadataOverride,
       rawRequirements,
+      vendorFiles,
       projectContext,
       manualTraceLinks,
       sectionOverrides,
@@ -25,6 +27,7 @@ export async function POST(req: NextRequest) {
       calculation,
       metadataOverride,
       rawRequirements,
+      vendorFiles,
       projectContext,
       manualTraceLinks,
       sectionOverrides,
@@ -34,17 +37,11 @@ export async function POST(req: NextRequest) {
     return new NextResponse(responseBody(buffer), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': contentDisposition(filename.replace(/\.docx$/, ''), 'docx'),
         'Content-Length': String(buffer.length),
       },
     });
   } catch (err: unknown) {
-    if (err instanceof TzAuthorHardFlagsError) {
-      return NextResponse.json(
-        { error: 'tz_author_hard_flags', nodes: err.nodes },
-        { status: 409 },
-      );
-    }
-    return handleApiError(err, 'Failed to generate document', 500);
+    return gost34ErrorResponse(err) || handleApiError(err, 'Failed to generate document', 500);
   }
 }

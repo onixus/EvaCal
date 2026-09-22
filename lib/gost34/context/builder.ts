@@ -630,41 +630,8 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     record(state, 'security.authentication', 'questionnaire', authAnswer!.key);
   }
 
-  if (
-    implementationProfile !== 'ngfw' &&
-    (answers.ngfw_clusters_count || answers.storage_audits_count || answers.vpn_tunnels_count)
-  ) {
-    if (security.personalDataProcessed === undefined) security.personalDataProcessed = true;
-    if (!security.securityClass)
-      security.securityClass =
-        'Класс защищенности УЗ-1..3 / К1..К3 в соответствии с требованиями ФСТЭК России';
-    if (!security.regulatoryScope) {
-      security.regulatoryScope = [
-        'Приказ ФСТЭК России № 21 (ПДн)',
-        'Приказ ФСТЭК России № 239 (КИИ)',
-        '152-ФЗ «О персональных данных»',
-        '187-ФЗ «О безопасности КИИ РФ»',
-      ];
-    }
-    record(state, 'security', 'questionnaire', 'ngfw_preset');
-  } else if (answers.kii_objects_count) {
-    security.kiiObject = true;
-    security.personalDataProcessed = true;
-    if (!security.securityClass) {
-      security.securityClass =
-        toText(answers.target_security_level) || '1-3 категория КИИ / К1-К3 ГИС';
-    }
-    if (!security.regulatoryScope) {
-      security.regulatoryScope = [
-        '187-ФЗ «О безопасности КИИ РФ»',
-        'Приказ ФСТЭК России № 239',
-        'Приказ ФСТЭК России № 17 (ГИС)',
-        'Приказ ФСТЭК России № 21 (ИСПДн)',
-        'Приказы ФСБ России № 282, 378',
-      ];
-    }
-    record(state, 'security', 'questionnaire', 'kii_preset');
-  }
+  // Количество СЗИ не подтверждает обработку ПДн, категорию КИИ или состав НПА.
+  // Эти сведения берутся только из явных ответов и ручного проектного контекста.
   if (Object.keys(security).length > 0) {
     ctx.security = security;
   } else {
@@ -689,6 +656,21 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
       'Классы обрабатываемых данных',
       'major',
       'Опросник или обследование объекта автоматизации',
+    );
+  }
+
+  const fundingAnswer = findAnswer(answers, /финансирован|funding/i);
+  const funding = fundingAnswer ? toText(fundingAnswer.value) : undefined;
+  if (funding) {
+    ctx.funding = funding;
+    record(state, 'funding', 'questionnaire', fundingAnswer!.key);
+  } else {
+    gap(
+      state,
+      'funding',
+      'Источники и порядок финансирования работ',
+      'major',
+      'Договор или решение Заказчика',
     );
   }
 

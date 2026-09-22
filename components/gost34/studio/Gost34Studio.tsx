@@ -1,5 +1,6 @@
 'use client';
 
+import { DEFAULT_SIGNATURES } from '@/lib/gost34/metadataDefaults';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { GostDocumentType, Gost34RequirementItem } from '@/lib/gost34/types';
@@ -47,13 +48,29 @@ export interface StudioLatestPackage {
   updatedAt: string;
 }
 
-const DEFAULT_SIGNATURES: Record<string, string> = {
-  developer: 'Иванов А.В.',
-  checker: 'Петров С.Н.',
-  normControl: 'Васильева Е.И.',
-  approver: 'Михайлов Д.П.',
-  customerApprover: 'Александров И.В.',
+const SCHEMA_ISSUE_LABELS: Record<string, string> = {
+  missing: 'отсутствует',
+  empty: 'без данных',
+  'out-of-order': 'нарушен порядок',
 };
+
+/** Разбор ответа 409 gost34_invalid_structure в текст для панели ошибок. */
+function formatSchemaIssues(issues: unknown): string {
+  if (!Array.isArray(issues) || issues.length === 0) {
+    return 'Сервер не вернул перечень разделов.';
+  }
+
+  const listed = issues
+    .slice(0, 5)
+    .map(
+      (issue: any) =>
+        `«${issue?.title ?? issue?.nodeId}» — ${SCHEMA_ISSUE_LABELS[issue?.kind] ?? issue?.kind}`,
+    )
+    .join('; ');
+  const rest = issues.length > 5 ? ` и ещё ${issues.length - 5}` : '';
+
+  return `Разделы: ${listed}${rest}.`;
+}
 
 type SectionOverrides = Record<string, { title?: string; paragraphs?: string[]; items?: string[] }>;
 
@@ -100,8 +117,8 @@ export default function Gost34Studio({
   >({});
   const [manualLinks, setManualLinks] = useState<TraceLink[]>([]);
   const [signatures, setSignatures] = useState<Record<string, string>>(DEFAULT_SIGNATURES);
-  const [contractNumber, setContractNumber] = useState('Договор № 01-ГС/2026');
-  const [city, setCity] = useState('Москва');
+  const [contractNumber, setContractNumber] = useState('');
+  const [city, setCity] = useState('');
   const [sectionOverrides, setSectionOverrides] = useState<SectionOverrides>({});
   const [tzAuthor, setTzAuthor] = useState<TzAuthorState>({
     promptVersion: TZ_AUTHOR_PROMPT_VERSION,
@@ -166,6 +183,7 @@ export default function Gost34Studio({
         if (snap.standardProfileId) setStandardProfileId(snap.standardProfileId);
         if (snap.layoutProfileId) setLayoutProfileId(snap.layoutProfileId);
         if (snap.docType) setDocType(snap.docType);
+        if (Array.isArray(snap.uploadedFiles)) setUploadedFiles(snap.uploadedFiles);
         if (Array.isArray(snap.requirements) && snap.requirements.length > 0) {
           setRequirements(snap.requirements);
         }
@@ -327,6 +345,7 @@ export default function Gost34Studio({
       applicabilityOverrides,
       ...signatures,
       rawRequirements: requirements,
+      vendorFiles: uploadedFiles,
       /** Подтверждённые связи печатаются в матрице прослеживаемости документа. */
       manualLinks,
       sectionOverrides,
@@ -341,6 +360,7 @@ export default function Gost34Studio({
       applicabilityOverrides,
       signatures,
       requirements,
+      uploadedFiles,
       manualLinks,
       sectionOverrides,
       tzAuthor,
@@ -422,6 +442,7 @@ export default function Gost34Studio({
         contractNumber,
         city,
         requirements,
+        uploadedFiles,
         applicabilityOverrides,
         manualLinks,
         signatures,
@@ -473,6 +494,15 @@ export default function Gost34Studio({
             : '';
           throw new Error(
             `Экспорт заблокирован: критические замечания в принятых черновиках ТЗ (${details})`,
+          );
+        }
+        // Проверка структуры отдаёт готовый разбор по разделам — показываем его,
+        // а не код ошибки: иначе непонятно, что именно править в документе.
+        if (res.status === 409 && data?.error === 'gost34_invalid_structure') {
+          throw new Error(
+            `Экспорт заблокирован: итоговая структура ТЗ не соответствует профилю. ${formatSchemaIssues(
+              data.issues,
+            )}`,
           );
         }
         throw new Error(data?.error || 'Ошибка при генерации документа ГОСТ 34');
@@ -803,6 +833,10 @@ export default function Gost34Studio({
           {activeStep === 'preview' && (
             <DocumentPreviewStep
               decisions={{
+                contractNumber,
+                city,
+                vendorFiles: uploadedFiles,
+                enrichmentOptions: review?.applicability.options,
                 standardProfileId,
                 layoutProfileId,
                 docType,

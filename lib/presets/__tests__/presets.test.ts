@@ -16,6 +16,20 @@ describe('Industry Presets Library', () => {
     expect(categories).toContain('infrastructure');
   });
 
+  it('спрашивает источники финансирования во всех пресетах (ГОСТ 34.602)', () => {
+    for (const preset of INDUSTRY_PRESETS) {
+      const funding = preset.fields.find((field) => field.key === 'funding_source');
+      expect(funding, `пресет ${preset.id} без поля финансирования`).toBeDefined();
+    }
+  });
+
+  it('не создаёт коллизий order при добавлении общих полей', () => {
+    for (const preset of INDUSTRY_PRESETS) {
+      const orders = preset.fields.map((field) => field.order);
+      expect(new Set(orders).size, `пресет ${preset.id}`).toBe(orders.length);
+    }
+  });
+
   it('keeps preset ids and field keys unique', () => {
     const ids = INDUSTRY_PRESETS.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);

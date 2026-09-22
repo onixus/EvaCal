@@ -1,6 +1,6 @@
 import { GroundingPack } from './grounding';
 import { LlmDraftFlag, LlmDraftFlagCode, LlmDraftFlagSeverity } from './types';
-import { stripClausePrefix } from '../../index';
+import { stripClausePrefix } from '../../generation/overrides';
 import { CITATION_CATALOG, CITATION_SHAPE } from './citationCatalog';
 import {
   UPPER_BOUND_PATTERN,

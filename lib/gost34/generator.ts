@@ -1,3 +1,4 @@
+import { UnsupportedGostDocumentTypeError } from './generation/errors';
 import { Gost34InputPayload, Gost34DocumentAST, Gost34Section } from './types';
 import { ContextGap } from './context/types';
 import { SchemaValidationIssue } from './schema/types';
@@ -45,7 +46,10 @@ export function buildGost34DocumentAST(
   const meta = payload.metadata;
   const docType = meta.docType || 'TZ';
 
-  const builder = BUILDERS[docType] || BUILDERS['TZ'];
+  if (!Object.prototype.hasOwnProperty.call(BUILDERS, docType)) {
+    throw new UnsupportedGostDocumentTypeError(docType);
+  }
+  const builder = BUILDERS[docType];
   const result = builder(payload);
 
   return {

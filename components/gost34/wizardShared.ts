@@ -1,4 +1,4 @@
-import type { Gost34RequirementItem } from '@/lib/gost34/types';
+import type { Gost34RequirementItem, Gost34DocMetadata } from '@/lib/gost34/types';
 import type { ApplicabilityOverride } from '@/lib/gost34/applicability/types';
 import type { TraceLink } from '@/lib/gost34/traceability/types';
 import type { WizardReviewResult, WizardStepStatus } from '@/lib/gost34/wizard/types';
@@ -9,6 +9,10 @@ export interface WizardDecisions {
   standardProfileId: string;
   layoutProfileId: string;
   docType: string;
+  contractNumber?: string;
+  city?: string;
+  vendorFiles?: string[];
+  enrichmentOptions?: Gost34DocMetadata['enrichmentOptions'];
   rawRequirements: Gost34RequirementItem[];
   applicabilityOverrides: Record<string, ApplicabilityOverride>;
   manualLinks: TraceLink[];

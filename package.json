@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:ci": "vitest run --reporter=default --reporter=junit --outputFile=test-results.xml",
     "test:watch": "vitest",
+    "test:gost34:verify": "tsx scripts/verify-gost34.cjs",
     "test:golden:update": "tsx lib/gost34/__tests__/golden/update.ts",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",

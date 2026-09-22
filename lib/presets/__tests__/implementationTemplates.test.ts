@@ -10,7 +10,10 @@ describe('SIEM, IDM and NGFW implementation presets', () => {
   ])('%s is a full presale questionnaire', (id, stageCount, fieldCount) => {
     const preset = INDUSTRY_PRESETS.find((item) => item.id === id);
     expect(preset).toBeDefined();
-    expect(preset?.fields).toHaveLength(fieldCount);
+    // Нижняя граница, а не точное число: к каждому пресету при сборке
+    // библиотеки добавляются общие поля ГОСТ 34 (см. withCommonGostFields).
+    // Тест сторожит, что опросник не усох, а не его точный состав.
+    expect(preset?.fields.length).toBeGreaterThanOrEqual(fieldCount);
     expect(preset?.stageTemplates).toHaveLength(stageCount);
     expect(preset?.riskTemplates.length).toBeGreaterThanOrEqual(5);
     expect(preset?.stageTemplates.every((stage) => Boolean(stage.requirements))).toBe(true);

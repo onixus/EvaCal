@@ -1,3 +1,4 @@
+import type { TzAuthorState } from './gost34/llm/tzAuthor/types';
 import { prisma } from './prisma';
 import { storePackageArtifact } from './gost34/storage';
 
@@ -32,6 +33,7 @@ export interface GostWizardSnapshot {
    */
   projectContext?: Record<string, unknown>;
   uploadedFiles?: string[];
+  tzAuthor?: TzAuthorState;
   applicabilityOverrides?: Record<string, unknown>;
   manualLinks?: unknown[];
   signatures?: Record<string, string>;

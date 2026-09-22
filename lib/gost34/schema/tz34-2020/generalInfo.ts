@@ -35,6 +35,13 @@ export const sectionGeneralInfo: SchemaNode = {
       'Порядок оформления и предъявления Заказчику результатов работ определён разделом «Порядок контроля и приёмки АС» настоящего ТЗ.',
     );
 
-    return { items, gaps: start || end ? [] : gapsFor(context, ['lifecycle']) };
+    if (context.funding?.trim()) {
+      items.push(`Источники и порядок финансирования работ: ${context.funding.trim()}.`);
+    }
+
+    return {
+      items,
+      gaps: gapsFor(context, start || end ? ['funding'] : ['lifecycle', 'funding']),
+    };
   },
 };

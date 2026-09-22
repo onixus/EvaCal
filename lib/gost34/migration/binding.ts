@@ -11,7 +11,7 @@ import type { ProjectStandardBinding, ProjectStandardBindingRecord } from './typ
  * документов, а не при правках вёрстки: по ней видно, каким кодом выпущен
  * лежащий у Заказчика комплект.
  */
-export const GOST34_GENERATOR_VERSION = '2.0.0';
+export const GOST34_GENERATOR_VERSION = '2.1.0';
 
 /**
  * Профиль, которым читаются проекты без сохранённой привязки. Такие проекты

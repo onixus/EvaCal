@@ -7,7 +7,7 @@ import { detectDraftFlags } from './flags';
 import { TzSectionProposal, TZ_AUTHOR_PROMPT_VERSION } from './types';
 import { TZ_SCHEMA_2020 } from '../../schema/tz34-2020';
 import { buildTzAuthorPromptMessages } from './prompts/tz-author-v1';
-import { stripClausePrefix } from '../../index';
+import { stripClausePrefix } from '../../generation/overrides';
 
 export interface DraftTzSectionInput {
   nodeId: string;

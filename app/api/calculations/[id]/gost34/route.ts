@@ -1,3 +1,5 @@
+import { gost34ErrorResponse } from '@/lib/gost34/generation/apiError';
+import { DEFAULT_SIGNATURES } from '@/lib/gost34/metadataDefaults';
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { prisma } from '@/lib/prisma';
@@ -16,7 +18,6 @@ import {
   getZipEntries,
   resolveGost34Profile,
   resolveLayoutProfileId,
-  TzAuthorHardFlagsError,
 } from '@/lib/gost34';
 import { requireCalcAccess } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
@@ -26,20 +27,6 @@ import {
   releaseGostPackage,
   type GostWizardSnapshot,
 } from '@/lib/project';
-
-/**
- * Fallback signatories used when the caller supplies none. Single source of
- * truth: the GET, POST and batch-ZIP paths must not drift apart.
- */
-const DEFAULT_SIGNATURES = {
-  developer: 'Иванов А.В.',
-  checker: 'Петров С.Н.',
-  techControl: 'Сидоров К.М.',
-  normControl: 'Васильева Е.И.',
-  approver: 'Михайлов Д.П.',
-  customerApprover: 'Александров И.В.',
-  invSubl: 'ИНВ-102938',
-};
 
 /**
  * Фиксирует в расчёте и проекте, каким нормативным профилем и какой версией генератора
@@ -76,66 +63,77 @@ async function recordRelease(
 }
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
-  const access = await requireCalcAccess(req, params.id, ['export']);
-  if (access instanceof NextResponse) return access;
+  try {
+    const params = await props.params;
+    const access = await requireCalcAccess(req, params.id, ['export']);
+    if (access instanceof NextResponse) return access;
 
-  const calc = await loadCalculationForExport(params.id);
-  if (!calc) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    const calc = await loadCalculationForExport(params.id);
+    if (!calc) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
-  const searchParams = req.nextUrl.searchParams;
-  const docType = (searchParams.get('docType') || 'TZ') as GostDocumentType;
-  const contractNumber = searchParams.get('contractNumber') || undefined;
-  const city = searchParams.get('city') || undefined;
-  const enrich = searchParams.get('enrich') !== 'false';
+    const searchParams = req.nextUrl.searchParams;
+    const docType = (searchParams.get('docType') || 'TZ') as GostDocumentType;
+    const contractNumber = searchParams.get('contractNumber') || undefined;
+    const city = searchParams.get('city') || undefined;
+    const enrich = searchParams.get('enrich') !== 'false';
 
-  const standardProfileId = searchParams.get('profile') || undefined;
-  const layoutProfileId = resolveLayoutProfileId(searchParams.get('layout'));
+    const standardProfileId = searchParams.get('profile') || undefined;
+    const layoutProfileId = resolveLayoutProfileId(searchParams.get('layout'));
 
-  const { buffer, filename } = await generateGost34Document({
-    calculation: calc,
-    metadataOverride: {
-      docType,
-      contractNumber,
-      city,
-      enrichRequirements: enrich,
-      standardProfileId,
-      layoutProfileId,
-      signatures: {
-        ...DEFAULT_SIGNATURES,
-        developer: searchParams.get('developer') || DEFAULT_SIGNATURES.developer,
-        checker: searchParams.get('checker') || DEFAULT_SIGNATURES.checker,
-        normControl: searchParams.get('normControl') || DEFAULT_SIGNATURES.normControl,
-        approver: searchParams.get('approver') || DEFAULT_SIGNATURES.approver,
-        customerApprover:
-          searchParams.get('customerApprover') || DEFAULT_SIGNATURES.customerApprover,
-        signDate: new Date().toLocaleDateString('ru-RU'),
+    const { buffer, filename } = await generateGost34Document({
+      calculation: calc,
+      metadataOverride: {
+        docType,
+        contractNumber,
+        city,
+        enrichRequirements: enrich,
+        standardProfileId,
+        layoutProfileId,
+        signatures: {
+          ...DEFAULT_SIGNATURES,
+          developer: searchParams.get('developer') || DEFAULT_SIGNATURES.developer,
+          checker: searchParams.get('checker') || DEFAULT_SIGNATURES.checker,
+          normControl: searchParams.get('normControl') || DEFAULT_SIGNATURES.normControl,
+          approver: searchParams.get('approver') || DEFAULT_SIGNATURES.approver,
+          customerApprover:
+            searchParams.get('customerApprover') || DEFAULT_SIGNATURES.customerApprover,
+          signDate: searchParams.get('signDate') || DEFAULT_SIGNATURES.signDate,
+        },
       },
-    },
-  });
+    });
 
-  await recordRelease(params.id, standardProfileId);
+    await recordRelease(
+      params.id,
+      standardProfileId,
+      [docType.toLowerCase()],
+      { docType },
+      undefined,
+      access.actorId,
+    );
 
-  await writeAudit({
-    actorType: actorTypeFromAccess(access.kind),
-    actorId: access.actorId,
-    action: 'calculation.export.gost34',
-    entityType: 'calculation',
-    entityId: params.id,
-    meta: { docType, method: 'GET' },
-    ip: clientIp(req),
-  });
+    await writeAudit({
+      actorType: actorTypeFromAccess(access.kind),
+      actorId: access.actorId,
+      action: 'calculation.export.gost34',
+      entityType: 'calculation',
+      entityId: params.id,
+      meta: { docType, method: 'GET' },
+      ip: clientIp(req),
+    });
 
-  return new NextResponse(responseBody(buffer), {
-    headers: {
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'Content-Disposition': contentDisposition(
-        safeFileName(filename.replace(/\.docx$/, '')),
-        'docx',
-      ),
-      'Content-Length': String(buffer.length),
-    },
-  });
+    return new NextResponse(responseBody(buffer), {
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'Content-Disposition': contentDisposition(
+          safeFileName(filename.replace(/\.docx$/, '')),
+          'docx',
+        ),
+        'Content-Length': String(buffer.length),
+      },
+    });
+  } catch (err: unknown) {
+    return gost34ErrorResponse(err) || handleApiError(err, 'Export error', 500);
+  }
 }
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -158,12 +156,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       applicabilityOverrides,
       developer = DEFAULT_SIGNATURES.developer,
       checker = DEFAULT_SIGNATURES.checker,
+      techControl = DEFAULT_SIGNATURES.techControl,
+      invSubl = DEFAULT_SIGNATURES.invSubl,
+      signDate = DEFAULT_SIGNATURES.signDate,
       normControl = DEFAULT_SIGNATURES.normControl,
       approver = DEFAULT_SIGNATURES.approver,
       customerApprover = DEFAULT_SIGNATURES.customerApprover,
       standardProfileId,
       layoutProfileId,
       rawRequirements,
+      vendorFiles,
       manualLinks,
       sectionOverrides,
       tzAuthor,
@@ -179,10 +181,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       ...DEFAULT_SIGNATURES,
       developer,
       checker,
+      techControl,
+      invSubl,
       normControl,
       approver,
       customerApprover,
-      signDate: new Date().toLocaleDateString('ru-RU'),
+      signDate,
     };
 
     // If batch ZIP export is requested
@@ -197,6 +201,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
           const { buffer } = await generateGost34Document({
             calculation: calc,
             rawRequirements,
+            vendorFiles,
             projectContext,
             manualTraceLinks: manualLinks,
             sectionOverrides,
@@ -231,6 +236,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         contractNumber,
         city,
         requirements: rawRequirements,
+        uploadedFiles: vendorFiles,
+        tzAuthor,
         projectContext,
         applicabilityOverrides,
         manualLinks,
@@ -282,6 +289,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const { buffer, filename } = await generateGost34Document({
       calculation: calc,
       rawRequirements,
+      vendorFiles,
       projectContext,
       manualTraceLinks: manualLinks,
       sectionOverrides,
@@ -306,6 +314,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       contractNumber,
       city,
       requirements: rawRequirements,
+      uploadedFiles: vendorFiles,
+      tzAuthor,
       projectContext,
       applicabilityOverrides,
       manualLinks,
@@ -347,13 +357,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       },
     });
   } catch (err: unknown) {
-    if (err instanceof TzAuthorHardFlagsError) {
-      return NextResponse.json(
-        { error: 'tz_author_hard_flags', nodes: err.nodes },
-        { status: 409 },
-      );
-    }
     console.error('Error in GOST 34 POST export:', err);
-    return handleApiError(err, 'Export error', 500);
+    return gost34ErrorResponse(err) || handleApiError(err, 'Export error', 500);
   }
 }
