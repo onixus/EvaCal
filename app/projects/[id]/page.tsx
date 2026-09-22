@@ -4,7 +4,8 @@ import { getSession } from '@/lib/auth';
 import { projectSchedule } from '@/lib/schedule';
 import { resolveLifecycle } from '@/lib/lifecycle';
 import { lifecycleInputFromRow } from '@/lib/lifecycleData';
-import ProjectDetailClient, { SerializedProject } from './ProjectDetailClient';
+import ProjectDetailClient from './ProjectDetailClient';
+import type { SerializedProject } from './project-detail/types';
 
 export const dynamic = 'force-dynamic';
 
