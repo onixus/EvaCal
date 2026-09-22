@@ -189,6 +189,19 @@ export function resolveGostSection(req: {
 }
 
 /**
+ * Требования, порождённые пресейл-sizing специализированных внедрений, несут
+ * собственный префикс кода. Профиль ПМИ определяем по нему, а не по тексту:
+ * комбинированное требование вида «фильтрация NGFW и антивирус по ФСТЭК № 21»
+ * должно остаться в общей методике ИБ, а не уехать в узкий NGFW-сценарий.
+ */
+const IMPLEMENTATION_CODE = /^\s*ТР-(SIEM|IDM|NGFW)-/i;
+
+export function implementationProfileOf(code: string): 'SIEM' | 'IDM' | 'NGFW' | null {
+  const match = IMPLEMENTATION_CODE.exec(code || '');
+  return match ? (match[1].toUpperCase() as 'SIEM' | 'IDM' | 'NGFW') : null;
+}
+
+/**
  * Generates corresponding PMI (ГОСТ 34.603) testing method and procedure.
  */
 export function resolvePmiTest(
@@ -198,6 +211,43 @@ export function resolvePmiTest(
   const text =
     `${req.code} ${req.title} ${req.description || ''} ${req.category || ''}`.toLowerCase();
   const testNum = String(idx).padStart(2, '0');
+  const implementationProfile = implementationProfileOf(req.code);
+
+  // SIEM / SOC — отдельная методика вместо универсального теста СЗИ.
+  if (implementationProfile === 'SIEM') {
+    return {
+      testCode: `ПМИ-SIEM-${testNum}`,
+      testTitle: 'Проверка приема, нормализации и обработки событий SIEM',
+      method:
+        'Генерация контрольного потока событий, проверка нормализации и поиска, воспроизведение согласованного сценария корреляции и контроль остановки одного источника/коллектора',
+      expectedResult:
+        'Контрольные события поступают и нормализуются, сценарий корреляции формирует ожидаемый результат, потеря или остановка потока диагностируется.',
+    };
+  }
+
+  // IDM / IGA — JML, провижининг, роли, SoD и рекертификация.
+  if (implementationProfile === 'IDM') {
+    return {
+      testCode: `ПМИ-IDM-${testNum}`,
+      testTitle: 'Проверка жизненного цикла идентичностей и управления доступом',
+      method:
+        'Создание тестового JML-события, прохождение заявки/согласования, проверка назначения и отзыва роли, сверка целевой системы и журнала аудита',
+      expectedResult:
+        'Целевое состояние учетной записи и прав соответствует принятому решению, конфликтные назначения обрабатываются политикой, все действия трассируются в аудите.',
+    };
+  }
+
+  // NGFW — межсетевые политики, L7, TLS inspection и HA.
+  if (implementationProfile === 'NGFW') {
+    return {
+      testCode: `ПМИ-NGFW-${testNum}`,
+      testTitle: 'Проверка политик NGFW, сервисов безопасности и отказоустойчивости',
+      method:
+        'Проверка разрешенных/запрещенных потоков между зонами, тест IPS/TLS-inspection по согласованным сценариям и имитация отказа активного узла HA-кластера',
+      expectedResult:
+        'Разрешенные потоки проходят, запрещенные блокируются и журналируются, сервисы безопасности применяют согласованные политики, HA восстанавливает обработку трафика.',
+    };
+  }
 
   // ПАК и серверное оборудование
   if (
@@ -359,7 +409,16 @@ export function buildFullTraceabilityMatrix(
         (keyLower.includes('sec') && reqLower.includes('безопасн')) ||
         (keyLower.includes('fz') && reqLower.includes('фз')) ||
         (keyLower.includes('pac') && reqLower.includes('пак')) ||
-        (keyLower.includes('hard') && reqLower.includes('оборудован'))
+        (keyLower.includes('hard') && reqLower.includes('оборудован')) ||
+        ((keyLower.includes('eps') || keyLower.includes('event_')) &&
+          /siem|событ|производительн/.test(reqLower)) ||
+        ((keyLower.includes('identit') || keyLower.includes('jml') || keyLower.includes('role')) &&
+          /idm|идентич|доступ|рол/.test(reqLower)) ||
+        ((keyLower.includes('ngfw') ||
+          keyLower.includes('rules') ||
+          keyLower.includes('throughput') ||
+          keyLower.includes('session')) &&
+          /ngfw|межсетев|производительн|политик/.test(reqLower))
       ) {
         const fieldMeta = fieldKeyToField.get(key);
         sourceQuestion = {

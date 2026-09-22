@@ -183,6 +183,89 @@ describe('buildProjectContext: автоматическое обогащение
     expect(ctx.availability?.availabilityTargetPercent).toBe(99.9);
   });
 
+  it('для отдельного NGFW использует vendor-neutral контекст и не выдумывает ПДн/КИИ', () => {
+    const ctx = buildProjectContext({
+      answers: {
+        ngfw_clusters_count: 2,
+        network_zones_count: 8,
+        rules_count: 300,
+        internet_throughput_gbps: 4,
+        east_west_throughput_gbps: 6,
+        capacity_headroom_percent: 30,
+        ngfw_ha_required: true,
+        availability_target_percent: 99.99,
+      },
+      stages: [{ id: 's1', order: 1, name: 'Развертывание NGFW', role: 'engineer', hours: 80 }],
+    });
+
+    expect(ctx.infrastructure?.platforms).toContain(
+      'NGFW-платформа для межсетевого экранирования, сегментации и сервисов L7',
+    );
+    expect(ctx.infrastructure?.platforms?.join(' ')).not.toContain('Kaspersky');
+    expect(ctx.infrastructure?.platforms?.join(' ')).not.toContain('Cyberpeak');
+    expect(ctx.infrastructure?.computeResources).toContain('4 узлов NGFW');
+    expect(ctx.security?.personalDataProcessed).toBeUndefined();
+    expect(ctx.security?.regulatoryScope).toBeUndefined();
+    expect(ctx.availability?.availabilityTargetPercent).toBe(99.99);
+  });
+
+  it('различает полный и legacy SIEM при построении контекста', () => {
+    const full = buildProjectContext({
+      answers: {
+        event_sources_count: 100,
+        eps_estimate: 5000,
+        eps_peak_factor: 2,
+        avg_event_size_bytes: 800,
+        hot_retention_days: 30,
+        correlation_rules_count: 20,
+        siem_platform: 'Определить по результатам пилота',
+      },
+      stages: [],
+    });
+    const legacy = buildProjectContext({
+      answers: {
+        event_sources_count: 100,
+        eps_estimate: 5000,
+        siem_platform: 'Определить по результатам пилота',
+      },
+      stages: [],
+    });
+
+    expect(full.infrastructure?.platforms).toEqual([
+      'SIEM-платформа (выбор подтверждается по результатам пилота/обследования)',
+    ]);
+    expect(full.infrastructure?.computeResources).toContain('проектный пик 10000 EPS');
+    expect(full.infrastructure?.importSubstitution).toBeUndefined();
+
+    expect(legacy.infrastructure?.platforms).toEqual([
+      'SIEM-платформа (MaxPatrol SIEM / Kaspersky KUMA)',
+    ]);
+    expect(legacy.infrastructure?.importSubstitution).toBe(true);
+  });
+
+  it('строит IDM-контекст из нового пресейл-опросника', () => {
+    const ctx = buildProjectContext({
+      answers: {
+        identities_count: 120000,
+        target_systems_count: 35,
+        jml_events_per_day: 500,
+        idm_ha_required: true,
+        directory_platform: 'ALD Pro',
+        availability_target_percent: 99.9,
+      },
+      stages: [],
+    });
+
+    expect(ctx.infrastructure?.platforms).toContain(
+      'IDM / IGA-платформа управления жизненным циклом идентичностей и доступа',
+    );
+    expect(ctx.infrastructure?.platforms).toContain('Служба каталога: ALD Pro');
+    expect(ctx.infrastructure?.computeResources).toContain(
+      'не менее 3 логических прикладных узлов',
+    );
+    expect(ctx.performance?.dataVolume).toContain('120000 идентичностей');
+  });
+
   it('обогащает контекст ГОСТ 34 спецификацией ПАК и СУБД (YADRO, Astra Linux, Postgres Pro)', () => {
     const ctx = buildProjectContext({
       answers: {
