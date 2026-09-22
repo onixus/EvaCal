@@ -1,6 +1,6 @@
 import { Gost34InputPayload, Gost34Section } from '../types';
 import { Gost34RequirementV2, getRequirementEffectiveText } from '../requirements/v2';
-import { resolvePmiTest } from '../traceability/matrix';
+import { implementationProfileOf, resolvePmiTest } from '../traceability/matrix';
 
 export function buildPMI34Sections(payload: Gost34InputPayload): Gost34Section[] {
   const meta = payload.metadata;
@@ -58,8 +58,7 @@ export function buildPMI34Sections(payload: Gost34InputPayload): Gost34Section[]
             const method = r.verificationMethod || 'TEST';
             const criteria = r.acceptanceCriteria?.join('; ');
             const text = getRequirementEffectiveText(r);
-            const isImplementationPreset = /^ТР-(SIEM|IDM|NGFW)-/i.test(r.code);
-            const profileTest = isImplementationPreset
+            const profileTest = implementationProfileOf(r.code)
               ? resolvePmiTest({ ...r, description: text }, idx + 1)
               : null;
 

@@ -34,11 +34,7 @@ export interface ImplementationSizing {
   gostRequirements: Gost34RequirementItem[];
 }
 
-function numberAnswer(
-  answers: Record<string, unknown>,
-  key: string,
-  fallback = 0,
-): number {
+function numberAnswer(answers: Record<string, unknown>, key: string, fallback = 0): number {
   const raw = answers[key];
   if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
   if (typeof raw === 'string') {
@@ -48,11 +44,7 @@ function numberAnswer(
   return fallback;
 }
 
-function booleanAnswer(
-  answers: Record<string, unknown>,
-  key: string,
-  fallback = false,
-): boolean {
+function booleanAnswer(answers: Record<string, unknown>, key: string, fallback = false): boolean {
   const raw = answers[key];
   if (typeof raw === 'boolean') return raw;
   if (typeof raw === 'number') return raw !== 0;
@@ -63,11 +55,7 @@ function booleanAnswer(
   return fallback;
 }
 
-function textAnswer(
-  answers: Record<string, unknown>,
-  key: string,
-  fallback = '',
-): string {
+function textAnswer(answers: Record<string, unknown>, key: string, fallback = ''): string {
   const raw = answers[key];
   if (raw === null || raw === undefined) return fallback;
   const text = String(raw).trim();
@@ -109,55 +97,62 @@ function requirement(
   };
 }
 
-export function detectImplementationSizingProfile(
-  templateName: string | undefined,
-  answers: Record<string, unknown>,
-  fieldKeys: string[] = [],
+/**
+ * Ключи-драйверы специализированных опросников внедрения — единственный
+ * признак, по которому узнаётся профиль.
+ *
+ * Полный SIEM-профиль отличаем от прежнего короткого пресета по sizing-полям,
+ * а выделенный NGFW — от комбинированного `preset-ngfw-szi` по сетевым
+ * драйверам: `ngfw_clusters_count` есть в обоих. Это сохраняет
+ * воспроизводимость старых расчётов — повторный экспорт legacy-пресета не
+ * получает новые требования задним числом.
+ */
+const PROFILE_DRIVER_KEYS: ReadonlyArray<
+  readonly [ImplementationSizingProfile, readonly string[]]
+> = [
+  [
+    'siem',
+    ['eps_peak_factor', 'avg_event_size_bytes', 'hot_retention_days', 'correlation_rules_count'],
+  ],
+  ['idm', ['identities_count', 'target_systems_count']],
+  [
+    'ngfw',
+    ['rules_count', 'network_zones_count', 'internet_throughput_gbps', 'peak_concurrent_sessions'],
+  ],
+];
+
+/**
+ * Единственная точка распознавания профиля. И пресейл-sizing, и обогащение
+ * ProjectContext ходят сюда: раньше у них были свои независимые эвристики,
+ * которые расходились на смешанных анкетах.
+ */
+export function detectImplementationSizingProfileFromKeys(
+  keys: Iterable<string>,
 ): ImplementationSizingProfile | null {
-  const keys = new Set([...Object.keys(answers), ...fieldKeys]);
-  const name = (templateName || '').toLowerCase();
-
-  // Новый полный SIEM-профиль отличаем от прежнего короткого пресета по
-  // sizing-полям. Это сохраняет воспроизводимость старых расчетов: повторный
-  // экспорт legacy-SIEM не получает новые требования задним числом.
-  if (
-    keys.has('eps_peak_factor') ||
-    keys.has('avg_event_size_bytes') ||
-    keys.has('hot_retention_days') ||
-    keys.has('correlation_rules_count')
-  ) {
-    return 'siem';
+  const present = keys instanceof Set ? keys : new Set(keys);
+  for (const [profile, drivers] of PROFILE_DRIVER_KEYS) {
+    if (drivers.some((key) => present.has(key))) return profile;
   }
-
-  if (
-    keys.has('identities_count') ||
-    keys.has('target_systems_count') ||
-    /\bidm\b|\biga\b|идентификац.*доступ/i.test(name)
-  ) {
-    return 'idm';
-  }
-
-  // Не захватываем старый комбинированный preset-ngfw-szi только по
-  // ngfw_clusters_count: у специализированного NGFW-опросника есть сетевые
-  // драйверы rules_count / network_zones_count / internet_throughput_gbps.
-  if (
-    keys.has('rules_count') ||
-    keys.has('network_zones_count') ||
-    keys.has('internet_throughput_gbps') ||
-    /внедрение ngfw|сегментац.*периметр/i.test(name)
-  ) {
-    return 'ngfw';
-  }
-
   return null;
 }
 
+/**
+ * Профиль определяется только по ключам опросника — не по названию шаблона.
+ * Название совпадает у полного и у прежнего короткого пресета, и распознавание
+ * по нему добавляло бы новые требования в уже выпущенные комплекты.
+ */
+export function detectImplementationSizingProfile(
+  answers: Record<string, unknown>,
+  fieldKeys: string[] = [],
+): ImplementationSizingProfile | null {
+  return detectImplementationSizingProfileFromKeys([...Object.keys(answers), ...fieldKeys]);
+}
+
 export function buildImplementationSizing(
-  templateName: string | undefined,
   answers: Record<string, unknown>,
   fieldKeys: string[] = [],
 ): ImplementationSizing | null {
-  const profile = detectImplementationSizingProfile(templateName, answers, fieldKeys);
+  const profile = detectImplementationSizingProfile(answers, fieldKeys);
   if (!profile) return null;
 
   if (profile === 'siem') return buildSiemSizing(answers);
@@ -191,13 +186,18 @@ function buildSiemSizing(answers: Record<string, unknown>): ImplementationSizing
   const ingestUnits = Math.max(peakEps > 0 ? Math.ceil(peakEps / 5_000) : 1, platformHa ? 2 : 1);
 
   const warnings: string[] = [];
-  if (avgEps <= 0) warnings.push('Не задан средний EPS: расчёт хранилища и ingest-ёмкости предварительный.');
+  if (avgEps <= 0)
+    warnings.push('Не задан средний EPS: расчёт хранилища и ingest-ёмкости предварительный.');
   if (!answers.avg_event_size_bytes)
     warnings.push('Размер события принят 800 байт. Уточните по пилотной выборке логов.');
   if (!answers.compression_ratio)
-    warnings.push('Коэффициент сжатия принят 2:1. Фактическое значение зависит от формата событий и платформы.');
+    warnings.push(
+      'Коэффициент сжатия принят 2:1. Фактическое значение зависит от формата событий и платформы.',
+    );
   if (customConnectors > 0)
-    warnings.push(`Нестандартных коннекторов: ${customConnectors}. Для них требуется отдельная оценка парсеров и тестовых данных.`);
+    warnings.push(
+      `Нестандартных коннекторов: ${customConnectors}. Для них требуется отдельная оценка парсеров и тестовых данных.`,
+    );
 
   const peakCriterion =
     peakEps > 0
@@ -287,28 +287,140 @@ function buildSiemSizing(answers: Record<string, unknown>): ImplementationSizing
     label: 'SIEM / SOC',
     summary: `Проектный профиль: ${compact(peakEps)} EPS peak, ${sources} источников, ${round(hotStorageTb + archiveStorageTb, 2)} ТБ расчетного хранения.`,
     metrics: [
-      { key: 'peak_eps', label: 'Проектный peak EPS', value: Math.ceil(peakEps), unit: 'EPS', basis: `avg EPS × ${peakFactor}` },
-      { key: 'daily_raw', label: 'Сырой поток в сутки', value: round(dailyRawGb, 1), unit: 'ГБ/сут', basis: `${eventSizeBytes} байт/событие` },
-      { key: 'hot_storage', label: 'Оперативное хранение', value: round(hotStorageTb, 2), unit: 'ТБ', basis: `${hotDays} суток, запас 25%, сжатие ${compressionRatio}:1` },
-      { key: 'archive_storage', label: 'Архивное хранение', value: round(archiveStorageTb, 2), unit: 'ТБ', basis: `${archiveDays} суток, запас 15%` },
-      { key: 'collectors', label: 'Экземпляры коллекторов', value: collectorInstances, unit: 'шт.', basis: `${logicalCollectors} логических × ${collectorHa ? '2 (HA)' : '1'}` },
-      { key: 'ingest_units', label: 'Логические ingest-юниты', value: ingestUnits, unit: 'юн.', basis: 'планировочная единица 5k EPS; не вендорский BOM' },
-      { key: 'use_cases', label: 'Сценарии корреляции', value: useCases, unit: 'шт.', basis: 'из пресейл-опросника' },
-      { key: 'integrations', label: 'Внешние интеграции', value: integrations, unit: 'шт.', basis: 'IRP/SOAR/TI/Service Desk и др.' },
+      {
+        key: 'peak_eps',
+        label: 'Проектный peak EPS',
+        value: Math.ceil(peakEps),
+        unit: 'EPS',
+        basis: `avg EPS × ${peakFactor}`,
+      },
+      {
+        key: 'daily_raw',
+        label: 'Сырой поток в сутки',
+        value: round(dailyRawGb, 1),
+        unit: 'ГБ/сут',
+        basis: `${eventSizeBytes} байт/событие`,
+      },
+      {
+        key: 'hot_storage',
+        label: 'Оперативное хранение',
+        value: round(hotStorageTb, 2),
+        unit: 'ТБ',
+        basis: `${hotDays} суток, запас 25%, сжатие ${compressionRatio}:1`,
+      },
+      {
+        key: 'archive_storage',
+        label: 'Архивное хранение',
+        value: round(archiveStorageTb, 2),
+        unit: 'ТБ',
+        basis: `${archiveDays} суток, запас 15%`,
+      },
+      {
+        key: 'collectors',
+        label: 'Экземпляры коллекторов',
+        value: collectorInstances,
+        unit: 'шт.',
+        basis: `${logicalCollectors} логических × ${collectorHa ? '2 (HA)' : '1'}`,
+      },
+      {
+        key: 'ingest_units',
+        label: 'Логические ingest-юниты',
+        value: ingestUnits,
+        unit: 'юн.',
+        basis: 'планировочная единица 5k EPS; не вендорский BOM',
+      },
+      {
+        key: 'use_cases',
+        label: 'Сценарии корреляции',
+        value: useCases,
+        unit: 'шт.',
+        basis: 'из пресейл-опросника',
+      },
+      {
+        key: 'integrations',
+        label: 'Внешние интеграции',
+        value: integrations,
+        unit: 'шт.',
+        basis: 'IRP/SOAR/TI/Service Desk и др.',
+      },
     ],
     warnings,
     tzSections: [
-      { code: '4.1.1', title: 'Надежность и доступность', items: ['HA критических компонентов', `целевая доступность ${sla}%`, 'контроль очередей и восстановления приема'] },
-      { code: '4.1.2', title: 'Защита информации', items: ['RBAC операторов/аналитиков/администраторов', 'аудит административных изменений', 'защищенное взаимодействие компонентов'] },
-      { code: '4.1.4', title: 'Производительность', items: [`средний поток ${Math.ceil(avgEps)} EPS`, `пиковый поток ${Math.ceil(peakEps)} EPS`, 'масштабирование ingest и хранения'] },
-      { code: '4.1.6', title: 'Интеграции', items: [`${sources} источников событий`, `${customConnectors} нестандартных коннекторов`, `${integrations} внешних интеграций`] },
-      { code: '4.2.1', title: 'Функции мониторинга', items: [`${useCases} use cases`, 'нормализация и категоризация', 'контроль полноты логирования'] },
+      {
+        code: '4.1.1',
+        title: 'Надежность и доступность',
+        items: [
+          'HA критических компонентов',
+          `целевая доступность ${sla}%`,
+          'контроль очередей и восстановления приема',
+        ],
+      },
+      {
+        code: '4.1.2',
+        title: 'Защита информации',
+        items: [
+          'RBAC операторов/аналитиков/администраторов',
+          'аудит административных изменений',
+          'защищенное взаимодействие компонентов',
+        ],
+      },
+      {
+        code: '4.1.4',
+        title: 'Производительность',
+        items: [
+          `средний поток ${Math.ceil(avgEps)} EPS`,
+          `пиковый поток ${Math.ceil(peakEps)} EPS`,
+          'масштабирование ingest и хранения',
+        ],
+      },
+      {
+        code: '4.1.6',
+        title: 'Интеграции',
+        items: [
+          `${sources} источников событий`,
+          `${customConnectors} нестандартных коннекторов`,
+          `${integrations} внешних интеграций`,
+        ],
+      },
+      {
+        code: '4.2.1',
+        title: 'Функции мониторинга',
+        items: [
+          `${useCases} use cases`,
+          'нормализация и категоризация',
+          'контроль полноты логирования',
+        ],
+      },
     ],
     pmiScenarios: [
-      { code: 'ПМИ-SIEM-01', title: 'Нагрузочный прием событий', method: `Генерация потока до ${Math.ceil(peakEps)} EPS с контрольной выборкой событий.`, expectedResult: peakCriterion },
-      { code: 'ПМИ-SIEM-02', title: 'Подключение источников', method: 'Генерация характерных тестовых событий на согласованных источниках и проверка нормализации.', expectedResult: 'События поступают, нормализуются и доступны для поиска; разрыв потока диагностируется.' },
-      { code: 'ПМИ-SIEM-03', title: 'Корреляция', method: 'Воспроизведение позитивных и негативных сценариев для согласованных use cases.', expectedResult: 'Позитивные сценарии создают инциденты, отрицательные не формируют заведомо ложный результат.' },
-      { code: 'ПМИ-SIEM-04', title: 'Отказоустойчивость', method: 'Отключение одного критического компонента/коллектора в тестовом контуре.', expectedResult: 'Прием и обработка событий продолжаются или восстанавливаются в согласованное время без нарушения контрольной выборки.' },
+      {
+        code: 'ПМИ-SIEM-01',
+        title: 'Нагрузочный прием событий',
+        method: `Генерация потока до ${Math.ceil(peakEps)} EPS с контрольной выборкой событий.`,
+        expectedResult: peakCriterion,
+      },
+      {
+        code: 'ПМИ-SIEM-02',
+        title: 'Подключение источников',
+        method:
+          'Генерация характерных тестовых событий на согласованных источниках и проверка нормализации.',
+        expectedResult:
+          'События поступают, нормализуются и доступны для поиска; разрыв потока диагностируется.',
+      },
+      {
+        code: 'ПМИ-SIEM-03',
+        title: 'Корреляция',
+        method: 'Воспроизведение позитивных и негативных сценариев для согласованных use cases.',
+        expectedResult:
+          'Позитивные сценарии создают инциденты, отрицательные не формируют заведомо ложный результат.',
+      },
+      {
+        code: 'ПМИ-SIEM-04',
+        title: 'Отказоустойчивость',
+        method: 'Отключение одного критического компонента/коллектора в тестовом контуре.',
+        expectedResult:
+          'Прием и обработка событий продолжаются или восстанавливаются в согласованное время без нарушения контрольной выборки.',
+      },
     ],
     gostRequirements: requirements,
   };
@@ -333,18 +445,31 @@ function buildIdmSizing(answers: Record<string, unknown>): ImplementationSizing 
   const provisionSla = Math.max(1, numberAnswer(answers, 'provisioning_sla_minutes', 30));
   const availability = Math.max(0, numberAnswer(answers, 'availability_target_percent', 99.9));
 
-  const appNodes = Math.max(ha ? 2 : 1, Math.ceil(identities / 50_000), Math.ceil(targetSystems / 20));
+  const appNodes = Math.max(
+    ha ? 2 : 1,
+    Math.ceil(identities / 50_000),
+    Math.ceil(targetSystems / 20),
+  );
   const connectorWorkers = Math.max(1, Math.ceil(targetSystems / 10), Math.ceil(peakJml / 3_000));
   const relations = identities * avgEntitlements;
   const connectors = targetSystems + sources;
   const campaignVolume = recertification ? relations : 0;
 
   const warnings: string[] = [];
-  if (identities <= 0) warnings.push('Не задано количество идентичностей: нагрузочные оценки IDM предварительные.');
-  if (targetSystems <= 0) warnings.push('Не задан перечень/количество целевых систем: интеграционный контур не может быть оценен полностью.');
+  if (identities <= 0)
+    warnings.push('Не задано количество идентичностей: нагрузочные оценки IDM предварительные.');
+  if (targetSystems <= 0)
+    warnings.push(
+      'Не задан перечень/количество целевых систем: интеграционный контур не может быть оценен полностью.',
+    );
   if (!answers.avg_entitlements_per_identity)
-    warnings.push('Среднее число назначений принято равным 8 на идентичность; уточните по выгрузке текущих прав.');
-  if (pam) warnings.push('PAM-интеграция оценивается как отдельный интерфейс; состав привилегированных сценариев требуется уточнить на обследовании.');
+    warnings.push(
+      'Среднее число назначений принято равным 8 на идентичность; уточните по выгрузке текущих прав.',
+    );
+  if (pam)
+    warnings.push(
+      'PAM-интеграция оценивается как отдельный интерфейс; состав привилегированных сценариев требуется уточнить на обследовании.',
+    );
 
   const requirements: Gost34RequirementItem[] = [
     requirement(
@@ -445,28 +570,143 @@ function buildIdmSizing(answers: Record<string, unknown>): ImplementationSizing 
     label: 'IDM / IGA',
     summary: `Проектный профиль: ${compact(identities)} идентичностей, ${targetSystems} целевых систем, ${compact(relations)} связей прав.`,
     metrics: [
-      { key: 'app_nodes', label: 'Прикладные узлы', value: appNodes, unit: 'шт.', basis: `${ha ? 'HA, ' : ''}50k идентичностей/узел или 20 систем/узел` },
-      { key: 'connector_workers', label: 'Логические connector workers', value: connectorWorkers, unit: 'юн.', basis: '10 систем/юнит или 3k peak JML/сутки' },
-      { key: 'connectors', label: 'Интеграционные коннекторы', value: connectors, unit: 'шт.', basis: 'мастер-источники + целевые системы' },
-      { key: 'relations', label: 'Связи идентичность-полномочие', value: compact(relations), unit: 'записей', basis: `${avgEntitlements} назначений/идентичность` },
-      { key: 'peak_jml', label: 'Пиковый JML-поток', value: Math.ceil(peakJml), unit: 'событий/сут', basis: `средний поток × ${peakFactor}` },
-      { key: 'roles', label: 'Бизнес-роли', value: roles, unit: 'шт.', basis: 'из пресейл-опросника' },
-      { key: 'workflows', label: 'Маршруты согласования', value: approvalFlows, unit: 'шт.', basis: 'из пресейл-опросника' },
-      { key: 'recert_volume', label: 'Объем кампании рекертификации', value: recertification ? compact(campaignVolume) : 'не включено', unit: recertification ? 'решений' : undefined, basis: recertificationPeriod },
+      {
+        key: 'app_nodes',
+        label: 'Прикладные узлы',
+        value: appNodes,
+        unit: 'шт.',
+        basis: `${ha ? 'HA, ' : ''}50k идентичностей/узел или 20 систем/узел`,
+      },
+      {
+        key: 'connector_workers',
+        label: 'Логические connector workers',
+        value: connectorWorkers,
+        unit: 'юн.',
+        basis: '10 систем/юнит или 3k peak JML/сутки',
+      },
+      {
+        key: 'connectors',
+        label: 'Интеграционные коннекторы',
+        value: connectors,
+        unit: 'шт.',
+        basis: 'мастер-источники + целевые системы',
+      },
+      {
+        key: 'relations',
+        label: 'Связи идентичность-полномочие',
+        value: compact(relations),
+        unit: 'записей',
+        basis: `${avgEntitlements} назначений/идентичность`,
+      },
+      {
+        key: 'peak_jml',
+        label: 'Пиковый JML-поток',
+        value: Math.ceil(peakJml),
+        unit: 'событий/сут',
+        basis: `средний поток × ${peakFactor}`,
+      },
+      {
+        key: 'roles',
+        label: 'Бизнес-роли',
+        value: roles,
+        unit: 'шт.',
+        basis: 'из пресейл-опросника',
+      },
+      {
+        key: 'workflows',
+        label: 'Маршруты согласования',
+        value: approvalFlows,
+        unit: 'шт.',
+        basis: 'из пресейл-опросника',
+      },
+      {
+        key: 'recert_volume',
+        label: 'Объем кампании рекертификации',
+        value: recertification ? compact(campaignVolume) : 'не включено',
+        unit: recertification ? 'решений' : undefined,
+        basis: recertificationPeriod,
+      },
     ],
     warnings,
     tzSections: [
-      { code: '4.1.1', title: 'Надежность', items: [`доступность ${availability}%`, `${appNodes} прикладных узлов`, 'резервирование конфигурации и очередей'] },
-      { code: '4.1.2', title: 'Защита информации', items: [`${roles} бизнес-ролей`, sod ? 'SoD включен' : 'SoD опционален', 'аудит всех решений по доступу'] },
-      { code: '4.1.4', title: 'Производительность', items: [`${identities} идентичностей`, `${Math.ceil(peakJml)} peak JML/сутки`, `SLA провижининга ${provisionSla} мин`] },
-      { code: '4.1.6', title: 'Интеграции', items: [`${sources} мастер-источников`, `${targetSystems} целевых систем`, pam ? 'интеграция с PAM' : 'PAM не заявлен'] },
-      { code: '4.2.1', title: 'Функции IDM/IGA', items: ['Joiner/Mover/Leaver', 'заявки и согласования', recertification ? `рекертификация: ${recertificationPeriod}` : 'рекертификация не включена'] },
+      {
+        code: '4.1.1',
+        title: 'Надежность',
+        items: [
+          `доступность ${availability}%`,
+          `${appNodes} прикладных узлов`,
+          'резервирование конфигурации и очередей',
+        ],
+      },
+      {
+        code: '4.1.2',
+        title: 'Защита информации',
+        items: [
+          `${roles} бизнес-ролей`,
+          sod ? 'SoD включен' : 'SoD опционален',
+          'аудит всех решений по доступу',
+        ],
+      },
+      {
+        code: '4.1.4',
+        title: 'Производительность',
+        items: [
+          `${identities} идентичностей`,
+          `${Math.ceil(peakJml)} peak JML/сутки`,
+          `SLA провижининга ${provisionSla} мин`,
+        ],
+      },
+      {
+        code: '4.1.6',
+        title: 'Интеграции',
+        items: [
+          `${sources} мастер-источников`,
+          `${targetSystems} целевых систем`,
+          pam ? 'интеграция с PAM' : 'PAM не заявлен',
+        ],
+      },
+      {
+        code: '4.2.1',
+        title: 'Функции IDM/IGA',
+        items: [
+          'Joiner/Mover/Leaver',
+          'заявки и согласования',
+          recertification
+            ? `рекертификация: ${recertificationPeriod}`
+            : 'рекертификация не включена',
+        ],
+      },
     ],
     pmiScenarios: [
-      { code: 'ПМИ-IDM-01', title: 'Joiner/Mover/Leaver', method: 'Создание тестовых кадровых событий приема, перевода и увольнения с фиксацией времени.', expectedResult: `Целевое состояние достигается в пределах ${provisionSla} минут для автоматизированных интеграций.` },
-      { code: 'ПМИ-IDM-02', title: 'Провижининг и отзыв доступа', method: 'Создание заявки, прохождение маршрута согласования и отзыв тестового назначения.', expectedResult: 'Состояние целевой учетной записи и аудит соответствуют принятому решению.' },
-      { code: 'ПМИ-IDM-03', title: 'RBAC / SoD', method: 'Назначение разрешенной и конфликтующей комбинации ролей.', expectedResult: sod ? 'Конфликт SoD выявляется и обрабатывается по политике.' : 'Назначения соответствуют утвержденной матрице ролей.' },
-      { code: 'ПМИ-IDM-04', title: 'Рекертификация', method: 'Запуск тестовой кампании на контрольной группе пользователей.', expectedResult: recertification ? 'Решения владельцев ресурсов фиксируются и применяются к назначениям.' : 'Функция доступна для последующего включения или исключение документировано.' },
+      {
+        code: 'ПМИ-IDM-01',
+        title: 'Joiner/Mover/Leaver',
+        method:
+          'Создание тестовых кадровых событий приема, перевода и увольнения с фиксацией времени.',
+        expectedResult: `Целевое состояние достигается в пределах ${provisionSla} минут для автоматизированных интеграций.`,
+      },
+      {
+        code: 'ПМИ-IDM-02',
+        title: 'Провижининг и отзыв доступа',
+        method: 'Создание заявки, прохождение маршрута согласования и отзыв тестового назначения.',
+        expectedResult: 'Состояние целевой учетной записи и аудит соответствуют принятому решению.',
+      },
+      {
+        code: 'ПМИ-IDM-03',
+        title: 'RBAC / SoD',
+        method: 'Назначение разрешенной и конфликтующей комбинации ролей.',
+        expectedResult: sod
+          ? 'Конфликт SoD выявляется и обрабатывается по политике.'
+          : 'Назначения соответствуют утвержденной матрице ролей.',
+      },
+      {
+        code: 'ПМИ-IDM-04',
+        title: 'Рекертификация',
+        method: 'Запуск тестовой кампании на контрольной группе пользователей.',
+        expectedResult: recertification
+          ? 'Решения владельцев ресурсов фиксируются и применяются к назначениям.'
+          : 'Функция доступна для последующего включения или исключение документировано.',
+      },
     ],
     gostRequirements: requirements,
   };
@@ -499,11 +739,22 @@ function buildNgfwSizing(answers: Record<string, unknown>): ImplementationSizing
   const zonePairs = zones > 1 ? (zones * (zones - 1)) / 2 : 0;
 
   const warnings: string[] = [];
-  if (baseTraffic <= 0) warnings.push('Не задана пропускная способность: аппаратный класс NGFW нельзя выбрать по производительности.');
-  if (concurrentSessions <= 0) warnings.push('Не задан пик одновременных сессий: проверьте лимит session table по статистике действующих шлюзов.');
-  if (cps <= 0) warnings.push('Не задан пик новых соединений/с: CPS необходимо снять с действующего периметра или пилота.');
+  if (baseTraffic <= 0)
+    warnings.push(
+      'Не задана пропускная способность: аппаратный класс NGFW нельзя выбрать по производительности.',
+    );
+  if (concurrentSessions <= 0)
+    warnings.push(
+      'Не задан пик одновременных сессий: проверьте лимит session table по статистике действующих шлюзов.',
+    );
+  if (cps <= 0)
+    warnings.push(
+      'Не задан пик новых соединений/с: CPS необходимо снять с действующего периметра или пилота.',
+    );
   if (tlsPercent > 0)
-    warnings.push('TLS inspection требует отдельной проверки производительности на выбранном наборе шифров и исключений certificate pinning.');
+    warnings.push(
+      'TLS inspection требует отдельной проверки производительности на выбранном наборе шифров и исключений certificate pinning.',
+    );
 
   const performanceCriterion =
     targetSecurityThroughput > 0
@@ -588,28 +839,140 @@ function buildNgfwSizing(answers: Record<string, unknown>): ImplementationSizing
     label: 'NGFW',
     summary: `Проектный профиль: ${clusters} кластер(а/ов), ${round(targetSecurityThroughput, 2)} Гбит/с target security throughput, ${rules} правил миграции.`,
     metrics: [
-      { key: 'nodes', label: 'Узлы NGFW', value: applianceNodes, unit: 'шт.', basis: `${clusters} кластер(а/ов) × ${ha ? '2 (HA)' : '1'}` },
-      { key: 'target_throughput', label: 'Target security throughput', value: round(targetSecurityThroughput, 2), unit: 'Гбит/с', basis: `Internet + East-West + ${headroom}% запаса` },
-      { key: 'tls_throughput', label: 'TLS inspection target', value: round(tlsThroughput, 2), unit: 'Гбит/с', basis: `${tlsPercent}% интернет-трафика + запас` },
-      { key: 'sessions', label: 'Пиковые сессии', value: compact(concurrentSessions), unit: 'сессий', basis: 'из телеметрии/опросника' },
-      { key: 'cps', label: 'Новые соединения', value: compact(cps), unit: 'CPS', basis: 'пиковое значение' },
-      { key: 'migration_batches', label: 'Пакеты миграции правил', value: migrationBatches, unit: 'пак.', basis: 'до 100 правил/контрольную волну' },
-      { key: 'zone_pairs', label: 'Потенциальные пары зон', value: zonePairs, unit: 'пар', basis: `${zones} зон, верхняя оценка` },
-      { key: 'vpn', label: 'VPN-нагрузка', value: `${vpnUsers} users / ${siteVpn} site-to-site`, basis: 'из пресейл-опросника' },
+      {
+        key: 'nodes',
+        label: 'Узлы NGFW',
+        value: applianceNodes,
+        unit: 'шт.',
+        basis: `${clusters} кластер(а/ов) × ${ha ? '2 (HA)' : '1'}`,
+      },
+      {
+        key: 'target_throughput',
+        label: 'Target security throughput',
+        value: round(targetSecurityThroughput, 2),
+        unit: 'Гбит/с',
+        basis: `Internet + East-West + ${headroom}% запаса`,
+      },
+      {
+        key: 'tls_throughput',
+        label: 'TLS inspection target',
+        value: round(tlsThroughput, 2),
+        unit: 'Гбит/с',
+        basis: `${tlsPercent}% интернет-трафика + запас`,
+      },
+      {
+        key: 'sessions',
+        label: 'Пиковые сессии',
+        value: compact(concurrentSessions),
+        unit: 'сессий',
+        basis: 'из телеметрии/опросника',
+      },
+      {
+        key: 'cps',
+        label: 'Новые соединения',
+        value: compact(cps),
+        unit: 'CPS',
+        basis: 'пиковое значение',
+      },
+      {
+        key: 'migration_batches',
+        label: 'Пакеты миграции правил',
+        value: migrationBatches,
+        unit: 'пак.',
+        basis: 'до 100 правил/контрольную волну',
+      },
+      {
+        key: 'zone_pairs',
+        label: 'Потенциальные пары зон',
+        value: zonePairs,
+        unit: 'пар',
+        basis: `${zones} зон, верхняя оценка`,
+      },
+      {
+        key: 'vpn',
+        label: 'VPN-нагрузка',
+        value: `${vpnUsers} users / ${siteVpn} site-to-site`,
+        basis: 'из пресейл-опросника',
+      },
     ],
     warnings,
     tzSections: [
-      { code: '4.1.1', title: 'Надежность', items: [`${clusters} HA-кластер(а/ов)`, `доступность ${availability}%`, 'сценарий failover и rollback'] },
-      { code: '4.1.2', title: 'Защита информации', items: [`${zones} зон безопасности`, `${rules} правил к миграции`, ips ? 'IPS включен' : 'IPS не заявлен', `TLS inspection ${tlsPercent}%`] },
-      { code: '4.1.4', title: 'Производительность', items: [`${round(targetSecurityThroughput, 2)} Гбит/с target`, `${compact(concurrentSessions)} сессий`, `${compact(cps)} CPS`] },
-      { code: '4.1.6', title: 'Интеграции', items: [`${integrations} инфраструктурных интеграций`, siem ? 'передача событий в SIEM' : 'SIEM не заявлен', `${siteVpn} site-to-site VPN`] },
-      { code: '6.1', title: 'Приемочные испытания', items: ['позитивные/негативные сетевые потоки', 'failover HA', 'нагрузочный профиль', 'rollback'] },
+      {
+        code: '4.1.1',
+        title: 'Надежность',
+        items: [
+          `${clusters} HA-кластер(а/ов)`,
+          `доступность ${availability}%`,
+          'сценарий failover и rollback',
+        ],
+      },
+      {
+        code: '4.1.2',
+        title: 'Защита информации',
+        items: [
+          `${zones} зон безопасности`,
+          `${rules} правил к миграции`,
+          ips ? 'IPS включен' : 'IPS не заявлен',
+          `TLS inspection ${tlsPercent}%`,
+        ],
+      },
+      {
+        code: '4.1.4',
+        title: 'Производительность',
+        items: [
+          `${round(targetSecurityThroughput, 2)} Гбит/с target`,
+          `${compact(concurrentSessions)} сессий`,
+          `${compact(cps)} CPS`,
+        ],
+      },
+      {
+        code: '4.1.6',
+        title: 'Интеграции',
+        items: [
+          `${integrations} инфраструктурных интеграций`,
+          siem ? 'передача событий в SIEM' : 'SIEM не заявлен',
+          `${siteVpn} site-to-site VPN`,
+        ],
+      },
+      {
+        code: '6.1',
+        title: 'Приемочные испытания',
+        items: [
+          'позитивные/негативные сетевые потоки',
+          'failover HA',
+          'нагрузочный профиль',
+          'rollback',
+        ],
+      },
     ],
     pmiScenarios: [
-      { code: 'ПМИ-NGFW-01', title: 'Матрица сетевых доступов', method: 'Проверка согласованных разрешенных и запрещенных потоков между зонами.', expectedResult: 'Разрешенные соединения проходят, запрещенные блокируются и журналируются.' },
-      { code: 'ПМИ-NGFW-02', title: 'Производительность', method: `Генерация согласованного трафика до ${round(targetSecurityThroughput, 2)} Гбит/с с включенными целевыми сервисами безопасности.`, expectedResult: performanceCriterion },
-      { code: 'ПМИ-NGFW-03', title: 'HA / Failover', method: 'Отключение активного узла кластера в тестовом контуре и контроль ключевых сессий.', expectedResult: 'Трафик восстанавливается на резервном узле, конфигурация остается согласованной.' },
-      { code: 'ПМИ-NGFW-04', title: 'IPS / TLS inspection', method: 'Воспроизведение тестовой сигнатуры и HTTPS-сценариев с разрешенными и исключенными категориями.', expectedResult: 'Политики применяются в соответствии с матрицей, критичные исключенные приложения сохраняют работоспособность.' },
+      {
+        code: 'ПМИ-NGFW-01',
+        title: 'Матрица сетевых доступов',
+        method: 'Проверка согласованных разрешенных и запрещенных потоков между зонами.',
+        expectedResult: 'Разрешенные соединения проходят, запрещенные блокируются и журналируются.',
+      },
+      {
+        code: 'ПМИ-NGFW-02',
+        title: 'Производительность',
+        method: `Генерация согласованного трафика до ${round(targetSecurityThroughput, 2)} Гбит/с с включенными целевыми сервисами безопасности.`,
+        expectedResult: performanceCriterion,
+      },
+      {
+        code: 'ПМИ-NGFW-03',
+        title: 'HA / Failover',
+        method: 'Отключение активного узла кластера в тестовом контуре и контроль ключевых сессий.',
+        expectedResult:
+          'Трафик восстанавливается на резервном узле, конфигурация остается согласованной.',
+      },
+      {
+        code: 'ПМИ-NGFW-04',
+        title: 'IPS / TLS inspection',
+        method:
+          'Воспроизведение тестовой сигнатуры и HTTPS-сценариев с разрешенными и исключенными категориями.',
+        expectedResult:
+          'Политики применяются в соответствии с матрицей, критичные исключенные приложения сохраняют работоспособность.',
+      },
     ],
     gostRequirements: requirements,
   };

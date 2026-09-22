@@ -83,7 +83,6 @@ export async function POST(req: NextRequest) {
     }).length;
 
     const implementationSizing = buildImplementationSizing(
-      template.name,
       answers,
       template.fields.map((field) => field.key),
     );

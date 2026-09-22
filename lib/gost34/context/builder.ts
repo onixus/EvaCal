@@ -25,6 +25,7 @@ import {
   UserGroup,
 } from './types';
 import { Gost34RequirementItem, Gost34RiskItem, Gost34StageItem } from '../types';
+import { detectImplementationSizingProfileFromKeys } from '../../presets/implementationSizing';
 
 export interface ProjectContextInput {
   systemName?: string;
@@ -139,6 +140,14 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   const state: BuildState = { provenance: [], gaps: [] };
 
   const ctx: ProjectContext = {};
+
+  /**
+   * Профиль специализированного внедрения (SIEM / IDM / NGFW) распознаём тем же
+   * детектором, что и пресейл-sizing: раньше здесь была отдельная эвристика по
+   * truthiness ответов, из-за которой `0 правил` уводил проект в legacy-ветку
+   * с чужими вендорами в ТЗ.
+   */
+  const implementationProfile = detectImplementationSizingProfileFromKeys(Object.keys(answers));
 
   // ── Объект автоматизации и назначение ────────────────────────────────
   const objectAnswer = findAnswer(answers, /object|объект|процесс|бизнес/i);
@@ -354,28 +363,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
 
   const platformsAnswer = findAnswer(answers, /platform|платформ|стек|субд|операционн|os_/i);
   const platformsList = platformsAnswer ? toList(platformsAnswer.value) : undefined;
-  const dedicatedNgfwPreset =
-    Boolean(answers.ngfw_clusters_count) &&
-    Boolean(
-      answers.rules_count ||
-        answers.network_zones_count ||
-        answers.internet_throughput_gbps ||
-        answers.peak_concurrent_sessions,
-    );
-  const dedicatedSiemPreset = Boolean(
-    answers.eps_peak_factor ||
-      answers.avg_event_size_bytes ||
-      answers.hot_retention_days ||
-      answers.correlation_rules_count,
-  );
-
-  if (dedicatedNgfwPreset) {
+  if (implementationProfile === 'ngfw') {
     infrastructure.platforms = [
       'NGFW-платформа для межсетевого экранирования, сегментации и сервисов L7',
       'Подсистема централизованного управления и журналирования NGFW',
     ];
     record(state, 'infrastructure.platforms', 'questionnaire', 'ngfw_implementation_preset');
-  } else if (answers.identities_count || answers.target_systems_count) {
+  } else if (implementationProfile === 'idm') {
     const directory = toText(answers.directory_platform);
     infrastructure.platforms = [
       'IDM / IGA-платформа управления жизненным циклом идентичностей и доступа',
@@ -384,7 +378,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
         : 'Корпоративная служба каталога (уточняется на обследовании)',
     ];
     record(state, 'infrastructure.platforms', 'questionnaire', 'idm_preset');
-  } else if (dedicatedSiemPreset) {
+  } else if (implementationProfile === 'siem') {
     const siemPlatform = toText(answers.siem_platform);
     infrastructure.platforms = [
       siemPlatform && !/определить/i.test(siemPlatform)
@@ -471,7 +465,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     const rCount = toNumber(answers.racks_count) || 1;
     infrastructure.computeResources = `${sCount} серверных платформ в ${rCount} стойках 42U с резервированием по питанию и подключением к SAN/LAN`;
     record(state, 'infrastructure.computeResources', 'questionnaire', 'servers_count');
-  } else if (dedicatedNgfwPreset) {
+  } else if (implementationProfile === 'ngfw') {
     const ngfwCount = toNumber(answers.ngfw_clusters_count) || 1;
     const ha = toBool(answers.ngfw_ha_required) ?? true;
     const internet = toNumber(answers.internet_throughput_gbps) || 0;
@@ -480,13 +474,13 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     const target = (internet + eastWest) * (1 + headroom / 100);
     infrastructure.computeResources = `${ngfwCount} кластер(а/ов), ${ngfwCount * (ha ? 2 : 1)} узлов NGFW; целевая производительность с запасом — ${target.toFixed(2)} Гбит/с`;
     record(state, 'infrastructure.computeResources', 'questionnaire', 'ngfw_implementation_sizing');
-  } else if (dedicatedSiemPreset) {
+  } else if (implementationProfile === 'siem') {
     const eps = toNumber(answers.eps_estimate) || 0;
     const peakFactor = toNumber(answers.eps_peak_factor) || 2;
     const sourcesCount = toNumber(answers.event_sources_count) || 0;
     infrastructure.computeResources = `SIEM-контур на ${sourcesCount} источников; средний поток ${eps} EPS, проектный пик ${Math.ceil(eps * peakFactor)} EPS; емкость хранения уточняется по размеру события и ретенции`;
     record(state, 'infrastructure.computeResources', 'questionnaire', 'siem_sizing');
-  } else if (answers.identities_count || answers.target_systems_count) {
+  } else if (implementationProfile === 'idm') {
     const identities = toNumber(answers.identities_count) || 0;
     const targets = toNumber(answers.target_systems_count) || 0;
     const ha = toBool(answers.idm_ha_required) ?? true;
@@ -542,7 +536,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     Object.keys(availability).length === 0 &&
     (answers.servers_count ||
       answers.db_clusters_count ||
-      (answers.ngfw_clusters_count && !dedicatedNgfwPreset))
+      (answers.ngfw_clusters_count && implementationProfile !== 'ngfw'))
   ) {
     availability.availabilityTargetPercent = 99.9;
     availability.rtoMinutes = 15;
@@ -562,10 +556,10 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   }
 
   const performance: ProjectContext['performance'] = {};
-  const concurrentAnswer = findAnswer(
-    answers,
-    /concurrent(?!.*session)|одновремен.*пользоват|users?_count/i,
-  );
+  // findAnswer сверяет только ключи полей (латиница), поэтому кириллические
+  // альтернативы здесь недостижимы. peak_concurrent_sessions исключаем явно:
+  // это сессии NGFW, а не одновременные пользователи системы.
+  const concurrentAnswer = findAnswer(answers, /concurrent(?!.*session)|users?_count/i);
   if (concurrentAnswer) {
     performance.concurrentUsers = toNumber(concurrentAnswer.value);
     record(state, 'performance.concurrentUsers', 'questionnaire', concurrentAnswer.key);
@@ -579,17 +573,17 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (volumeAnswer) {
     performance.dataVolume = toText(volumeAnswer.value);
     record(state, 'performance.dataVolume', 'questionnaire', volumeAnswer.key);
-  } else if (dedicatedSiemPreset) {
+  } else if (implementationProfile === 'siem') {
     const eps = toNumber(answers.eps_estimate) || 0;
     const peakFactor = toNumber(answers.eps_peak_factor) || 2;
     performance.dataVolume = `SIEM: ${eps} EPS average / ${Math.ceil(eps * peakFactor)} EPS peak`;
     record(state, 'performance.dataVolume', 'questionnaire', 'eps_estimate');
-  } else if (answers.identities_count) {
+  } else if (implementationProfile === 'idm') {
     const identities = toNumber(answers.identities_count) || 0;
     const jml = toNumber(answers.jml_events_per_day) || 0;
     performance.dataVolume = `IDM: ${identities} идентичностей; ${jml} JML-событий/сутки`;
     record(state, 'performance.dataVolume', 'questionnaire', 'identities_count');
-  } else if (dedicatedNgfwPreset) {
+  } else if (implementationProfile === 'ngfw') {
     const internet = toNumber(answers.internet_throughput_gbps) || 0;
     const eastWest = toNumber(answers.east_west_throughput_gbps) || 0;
     performance.dataVolume = `NGFW: ${internet} Гбит/с Internet + ${eastWest} Гбит/с East-West`;
@@ -637,7 +631,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   }
 
   if (
-    !dedicatedNgfwPreset &&
+    implementationProfile !== 'ngfw' &&
     (answers.ngfw_clusters_count || answers.storage_audits_count || answers.vpn_tunnels_count)
   ) {
     if (security.personalDataProcessed === undefined) security.personalDataProcessed = true;

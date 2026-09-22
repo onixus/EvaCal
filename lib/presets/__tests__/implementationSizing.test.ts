@@ -6,15 +6,21 @@ import {
 
 describe('implementation sizing for SIEM / IDM / NGFW', () => {
   it('detects profiles by questionnaire keys without confusing legacy NGFW/SZI', () => {
-    expect(detectImplementationSizingProfile('x', {}, ['event_sources_count', 'hot_retention_days'])).toBe('siem');
-    expect(detectImplementationSizingProfile('legacy SIEM', {}, ['event_sources_count', 'eps_estimate'])).toBeNull();
-    expect(detectImplementationSizingProfile('x', {}, ['identities_count'])).toBe('idm');
-    expect(detectImplementationSizingProfile('x', {}, ['rules_count'])).toBe('ngfw');
-    expect(detectImplementationSizingProfile('legacy', {}, ['ngfw_clusters_count', 'endpoints_count'])).toBeNull();
+    expect(
+      detectImplementationSizingProfile({}, ['event_sources_count', 'hot_retention_days']),
+    ).toBe('siem');
+    expect(
+      detectImplementationSizingProfile({}, ['event_sources_count', 'eps_estimate']),
+    ).toBeNull();
+    expect(detectImplementationSizingProfile({}, ['identities_count'])).toBe('idm');
+    expect(detectImplementationSizingProfile({}, ['rules_count'])).toBe('ngfw');
+    expect(
+      detectImplementationSizingProfile({}, ['ngfw_clusters_count', 'endpoints_count']),
+    ).toBeNull();
   });
 
   it('sizes SIEM throughput and storage and emits testable GOST requirements', () => {
-    const sizing = buildImplementationSizing('SIEM', {
+    const sizing = buildImplementationSizing({
       event_sources_count: 160,
       eps_estimate: 10_000,
       eps_peak_factor: 2,
@@ -31,11 +37,13 @@ describe('implementation sizing for SIEM / IDM / NGFW', () => {
     expect(sizing.profile).toBe('siem');
     expect(sizing.metrics.find((m) => m.key === 'peak_eps')?.value).toBe(20_000);
     expect(Number(sizing.metrics.find((m) => m.key === 'hot_storage')?.value)).toBeGreaterThan(3);
-    expect(sizing.gostRequirements.some((r) => r.code === 'ТР-SIEM-01' && Boolean(r.criterion))).toBe(true);
+    expect(
+      sizing.gostRequirements.some((r) => r.code === 'ТР-SIEM-01' && Boolean(r.criterion)),
+    ).toBe(true);
   });
 
   it('sizes IDM by identity and connector load', () => {
-    const sizing = buildImplementationSizing('IDM / IGA', {
+    const sizing = buildImplementationSizing({
       identities_count: 120_000,
       target_systems_count: 35,
       authoritative_sources_count: 2,
@@ -46,12 +54,14 @@ describe('implementation sizing for SIEM / IDM / NGFW', () => {
     })!;
 
     expect(sizing.profile).toBe('idm');
-    expect(Number(sizing.metrics.find((m) => m.key === 'app_nodes')?.value)).toBeGreaterThanOrEqual(3);
+    expect(Number(sizing.metrics.find((m) => m.key === 'app_nodes')?.value)).toBeGreaterThanOrEqual(
+      3,
+    );
     expect(sizing.gostRequirements.map((r) => r.code)).toContain('ТР-IDM-01');
   });
 
   it('sizes NGFW target throughput with headroom', () => {
-    const sizing = buildImplementationSizing('Внедрение NGFW', {
+    const sizing = buildImplementationSizing({
       ngfw_clusters_count: 2,
       network_zones_count: 8,
       rules_count: 450,

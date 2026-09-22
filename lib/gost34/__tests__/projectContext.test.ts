@@ -259,7 +259,9 @@ describe('buildProjectContext: автоматическое обогащение
       'IDM / IGA-платформа управления жизненным циклом идентичностей и доступа',
     );
     expect(ctx.infrastructure?.platforms).toContain('Служба каталога: ALD Pro');
-    expect(ctx.infrastructure?.computeResources).toContain('не менее 3 логических прикладных узлов');
+    expect(ctx.infrastructure?.computeResources).toContain(
+      'не менее 3 логических прикладных узлов',
+    );
     expect(ctx.performance?.dataVolume).toContain('120000 идентичностей');
   });
 

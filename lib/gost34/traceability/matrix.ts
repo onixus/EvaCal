@@ -189,6 +189,19 @@ export function resolveGostSection(req: {
 }
 
 /**
+ * Требования, порождённые пресейл-sizing специализированных внедрений, несут
+ * собственный префикс кода. Профиль ПМИ определяем по нему, а не по тексту:
+ * комбинированное требование вида «фильтрация NGFW и антивирус по ФСТЭК № 21»
+ * должно остаться в общей методике ИБ, а не уехать в узкий NGFW-сценарий.
+ */
+const IMPLEMENTATION_CODE = /^\s*ТР-(SIEM|IDM|NGFW)-/i;
+
+export function implementationProfileOf(code: string): 'SIEM' | 'IDM' | 'NGFW' | null {
+  const match = IMPLEMENTATION_CODE.exec(code || '');
+  return match ? (match[1].toUpperCase() as 'SIEM' | 'IDM' | 'NGFW') : null;
+}
+
+/**
  * Generates corresponding PMI (ГОСТ 34.603) testing method and procedure.
  */
 export function resolvePmiTest(
@@ -198,9 +211,10 @@ export function resolvePmiTest(
   const text =
     `${req.code} ${req.title} ${req.description || ''} ${req.category || ''}`.toLowerCase();
   const testNum = String(idx).padStart(2, '0');
+  const implementationProfile = implementationProfileOf(req.code);
 
   // SIEM / SOC — отдельная методика вместо универсального теста СЗИ.
-  if (/siem|soc|eps|корреляц|источник.*событ|ретенц|коллектор/i.test(text)) {
+  if (implementationProfile === 'SIEM') {
     return {
       testCode: `ПМИ-SIEM-${testNum}`,
       testTitle: 'Проверка приема, нормализации и обработки событий SIEM',
@@ -212,11 +226,7 @@ export function resolvePmiTest(
   }
 
   // IDM / IGA — JML, провижининг, роли, SoD и рекертификация.
-  if (
-    /idm|iga|joiner|mover|leaver|jml|провиж|рекертиф|sod|идентичност|учетн.*запис|ролевая модель/i.test(
-      text,
-    )
-  ) {
+  if (implementationProfile === 'IDM') {
     return {
       testCode: `ПМИ-IDM-${testNum}`,
       testTitle: 'Проверка жизненного цикла идентичностей и управления доступом',
@@ -228,11 +238,7 @@ export function resolvePmiTest(
   }
 
   // NGFW — межсетевые политики, L7, TLS inspection и HA.
-  if (
-    /ngfw|межсетев.*экран|сетев.*зон|tls.?inspect|ips|правил.*фильтрац|failover|cps|сесс/i.test(
-      text,
-    )
-  ) {
+  if (implementationProfile === 'NGFW') {
     return {
       testCode: `ПМИ-NGFW-${testNum}`,
       testTitle: 'Проверка политик NGFW, сервисов безопасности и отказоустойчивости',

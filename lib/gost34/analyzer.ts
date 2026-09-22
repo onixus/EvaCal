@@ -71,7 +71,7 @@ export function analyzeAndNormalizeInput(input: {
   // Специализированные SIEM/IDM/NGFW пресейлы дают не только трудозатраты,
   // но и проверяемые системные требования, рассчитанные из ответов опросника.
   // Они попадают в ТЗ и ПМИ с критериями приемки и остаются DRAFT до ревью.
-  const implementationSizing = buildImplementationSizing(calc?.template?.name, parsedAnswers);
+  const implementationSizing = buildImplementationSizing(parsedAnswers);
   if (implementationSizing) {
     requirementsV2.push(
       ...fromGost34RequirementItems(implementationSizing.gostRequirements, {
