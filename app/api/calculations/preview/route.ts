@@ -6,6 +6,7 @@ import { pmHoursFor, primaryStagesFromTemplate, scheduleConfigFromTemplate } fro
 import { expandWithApprovals, scheduleItems, totalLaborHours } from '@/lib/scheduling';
 import { calculateCommercialSummary } from '@/lib/commercial';
 import { roleLabel } from '@/lib/roles';
+import { buildImplementationSizing } from '@/lib/presets/implementationSizing';
 
 /**
  * Предварительная оценка по ответам опросника — без записи в БД.
@@ -81,6 +82,22 @@ export async function POST(req: NextRequest) {
       return value !== undefined && value !== null && String(value).trim() !== '';
     }).length;
 
+    const implementationSizing = buildImplementationSizing(
+      answers,
+      template.fields.map((field) => field.key),
+    );
+    const sizing = implementationSizing
+      ? {
+          profile: implementationSizing.profile,
+          label: implementationSizing.label,
+          summary: implementationSizing.summary,
+          metrics: implementationSizing.metrics,
+          warnings: implementationSizing.warnings,
+          tzSections: implementationSizing.tzSections,
+          pmiScenarios: implementationSizing.pmiScenarios,
+        }
+      : null;
+
     return NextResponse.json({
       totalHours: Math.round(totalHours * 10) / 10,
       stageCount: scheduled.filter((s) => !s.isApprovalTask).length,
@@ -91,6 +108,7 @@ export async function POST(req: NextRequest) {
       priceTotal: commercial.grandTotal,
       fieldCount: template.fields.length,
       answeredCount,
+      sizing,
       stages: scheduled.map((s) => ({
         name: s.name,
         role: s.role,

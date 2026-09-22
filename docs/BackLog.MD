@@ -13,9 +13,10 @@
 
 ### 2. Industry Presets & Russian Domain Knowledge
 
-- [x] NGFW (UserGate) preset with HA clusters, FSTEK certificate #3905, 188-FZ Registry #1194.
+- [x] Dedicated NGFW implementation preset with HA, segmentation, rule migration, security services and SIEM integrations; legacy combined NGFW/SZI preset retained.
 - [x] Hardware & PAC (YADRO Vegman / Aquarius / All-Flash NVMe TATLIN) preset with Minpromtorg Registry (PP RF #878/#719).
-- [x] Endpoint Security (Kaspersky) preset with FSTEK certificate #4068 and KUMA SIEM (#9128).
+- [x] SIEM / SOC implementation preset with source onboarding, EPS sizing, custom connectors, correlation rules, response procedures and optional ГосСОПКА integration.
+- [x] IDM / IGA implementation preset with identity sources, Joiner/Mover/Leaver, RBAC/SoD, provisioning, recertification and target-system integrations.
 - [x] Unstructured Data Audit (Cyberpeak) preset with Registry #12590.
 - [x] GOST-VPN (ViPNet) preset with FSB (KS1/KS2/KS3) and FSTEK certificates.
 - [x] OS & DBMS (Astra Linux SE #2557, Postgres Pro Enterprise #4063) with FSTEK certificates.

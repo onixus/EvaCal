@@ -1,0 +1,313 @@
+import { IndustryPreset } from '../types';
+
+/** Полный пресейл-опросник NGFW для периметра и внутренней сегментации. */
+export const NGFW_IMPLEMENTATION_PRESET: IndustryPreset = {
+  id: 'preset-ngfw-implementation',
+  name: 'Внедрение NGFW и сегментация сетевого периметра',
+  category: 'security',
+  description:
+    'Полный пресейл-профиль NGFW: HA-кластеры, зоны и правила, Internet/East-West throughput, sessions/CPS, TLS inspection, IPS, VPN, внешние интеграции, SIEM, окно переключения и требования к rollback.',
+  workDayHours: 6,
+  includeWeekends: false,
+  defaultMarginPercent: 26,
+  defaultRoleRates: {
+    architect: 5000,
+    engineer: 4000,
+    analyst: 3500,
+    consultant: 4300,
+    developer: 3600,
+    pm: 4100,
+  },
+  fields: [
+    {
+      label: 'Количество кластеров NGFW',
+      key: 'ngfw_clusters_count',
+      type: 'number',
+      required: true,
+      order: 0,
+    },
+    {
+      label: 'Количество сетевых зон / сегментов',
+      key: 'network_zones_count',
+      type: 'number',
+      required: true,
+      order: 1,
+    },
+    {
+      label: 'Количество правил, подлежащих миграции / ревизии',
+      key: 'rules_count',
+      type: 'number',
+      required: true,
+      order: 2,
+    },
+    {
+      label: 'Количество внешних интеграций (AD/LDAP, DNS, PKI, SIEM, NTP и др.)',
+      key: 'integrations_count',
+      type: 'number',
+      required: true,
+      order: 3,
+    },
+    {
+      label: 'Пиковый Internet-трафик, Гбит/с',
+      key: 'internet_throughput_gbps',
+      type: 'number',
+      required: true,
+      order: 4,
+    },
+    {
+      label: 'Пиковый East-West / межсегментный трафик, Гбит/с',
+      key: 'east_west_throughput_gbps',
+      type: 'number',
+      required: true,
+      order: 5,
+    },
+    {
+      label: 'Запас производительности, %',
+      key: 'capacity_headroom_percent',
+      type: 'number',
+      required: true,
+      order: 6,
+    },
+    {
+      label: 'Пиковое число одновременных сессий',
+      key: 'peak_concurrent_sessions',
+      type: 'number',
+      required: true,
+      order: 7,
+    },
+    {
+      label: 'Пиковое число новых соединений в секунду (CPS)',
+      key: 'peak_new_connections_per_sec',
+      type: 'number',
+      required: true,
+      order: 8,
+    },
+    {
+      label: 'Доля трафика для TLS inspection, %',
+      key: 'tls_inspection_percent',
+      type: 'number',
+      required: true,
+      order: 9,
+    },
+    { label: 'Требуется IPS', key: 'ips_required', type: 'checkbox', required: false, order: 10 },
+    {
+      label: 'Требуется отказоустойчивость HA',
+      key: 'ngfw_ha_required',
+      type: 'checkbox',
+      required: false,
+      order: 11,
+    },
+    {
+      label: 'Целевая доступность NGFW, %',
+      key: 'availability_target_percent',
+      type: 'number',
+      required: true,
+      order: 12,
+    },
+    {
+      label: 'Количество одновременных удаленных VPN-пользователей',
+      key: 'remote_vpn_users',
+      type: 'number',
+      required: false,
+      order: 13,
+    },
+    {
+      label: 'Количество site-to-site VPN-туннелей',
+      key: 'site_to_site_vpn_count',
+      type: 'number',
+      required: false,
+      order: 14,
+    },
+    {
+      label: 'Требуется интеграция с SIEM',
+      key: 'siem_integration_required',
+      type: 'checkbox',
+      required: false,
+      order: 15,
+    },
+    {
+      label: 'Требуемые динамические протоколы маршрутизации',
+      key: 'routing_protocols',
+      type: 'select',
+      options: ['Не требуются', 'OSPF', 'BGP', 'OSPF + BGP', 'Иные / уточнить'],
+      required: true,
+      order: 16,
+    },
+    {
+      label: 'Режим внедрения',
+      key: 'deployment_mode',
+      type: 'select',
+      options: [
+        'Greenfield',
+        'Миграция с существующего NGFW',
+        'Замена классических МЭ',
+        'Внутренняя сегментация / DC firewall',
+      ],
+      required: true,
+      order: 17,
+    },
+    {
+      label: 'Окно промышленного переключения / ограничения',
+      key: 'cutover_window',
+      type: 'text',
+      required: true,
+      order: 18,
+    },
+    {
+      label: 'Количество критичных бизнес-сервисов для smoke-test после переключения',
+      key: 'critical_services_count',
+      type: 'number',
+      required: true,
+      order: 19,
+    },
+    {
+      label: 'Количество публичных / DNAT-сервисов',
+      key: 'published_services_count',
+      type: 'number',
+      required: false,
+      order: 20,
+    },
+    {
+      label: 'Сложность сетевого контура',
+      key: 'complexity',
+      type: 'complexity',
+      required: true,
+      order: 21,
+    },
+    {
+      label: 'Дополнительные требования / ограничения NGFW',
+      key: 'comment',
+      type: 'textarea',
+      required: false,
+      order: 22,
+    },
+    {
+      label: 'Цели создания системы (через точку с запятой)',
+      key: 'project_goals',
+      type: 'textarea',
+      required: false,
+      order: 23,
+    },
+    {
+      label: 'Измеримые критерии достижения целей («показатель = целевое значение»)',
+      key: 'goal_criteria',
+      type: 'textarea',
+      required: false,
+      order: 24,
+    },
+  ],
+  stageTemplates: [
+    {
+      name: 'Обследование сетевых потоков и инвентаризация политик',
+      role: 'analyst',
+      baseHours: 32,
+      hoursPerUnit: 0.09,
+      driverFieldKey: 'rules_count',
+      requirements:
+        'Исполнитель обязан собрать L2/L3-схемы, таблицы маршрутизации, телеметрию throughput/sessions/CPS, экспорт политик, владельцев сервисов и сформировать матрицу сетевых взаимодействий и перечень зависимостей.',
+      order: 0,
+    },
+    {
+      name: 'Проектирование архитектуры NGFW, зон и политики миграции',
+      role: 'architect',
+      baseHours: 36,
+      hoursPerUnit: 2.5,
+      driverFieldKey: 'network_zones_count',
+      requirements:
+        'Исполнитель обязан разработать размещение кластеров, зоны, маршрутизацию, HA, NAT, IPS, TLS inspection, sizing по трафику/sessions/CPS, сетевые потоки управления и последовательность миграции с rollback.',
+      order: 1,
+    },
+    {
+      name: 'Развертывание и кластеризация NGFW',
+      role: 'engineer',
+      baseHours: 24,
+      hoursPerUnit: 20,
+      driverFieldKey: 'ngfw_clusters_count',
+      requirements:
+        'Исполнитель обязан установить и обновить NGFW, настроить HA, интерфейсы, маршрутизацию, синхронизацию состояния, административный доступ, резервное копирование, мониторинг и базовую hardening-конфигурацию.',
+      order: 2,
+    },
+    {
+      name: 'Миграция и оптимизация правил межсетевого экранирования',
+      role: 'engineer',
+      baseHours: 24,
+      hoursPerUnit: 0.28,
+      driverFieldKey: 'rules_count',
+      requirements:
+        'Исполнитель обязан перенести согласованные объекты, NAT и правила, выполнить дедупликацию, устранить неиспользуемые/теневые политики, проверить принцип минимально необходимых доступов и документировать исключения.',
+      order: 3,
+    },
+    {
+      name: 'Настройка сервисов безопасности и внешних интеграций',
+      role: 'engineer',
+      baseHours: 24,
+      hoursPerUnit: 7,
+      driverFieldKey: 'integrations_count',
+      requirements:
+        'Исполнитель обязан настроить IPS, контроль приложений, URL-фильтрацию и TLS inspection в заявленном объеме, а также интеграции с AD/LDAP, DNS/NTP, PKI, SIEM и системами управления.',
+      order: 4,
+    },
+    {
+      name: 'Настройка VPN, маршрутизации и публикации сервисов',
+      role: 'engineer',
+      baseHours: 20,
+      hoursPerUnit: 5,
+      driverFieldKey: 'site_to_site_vpn_count',
+      requirements:
+        'Исполнитель обязан настроить заявленные remote-access/site-to-site VPN, динамическую маршрутизацию, опубликованные сервисы и проверить отсутствие несанкционированного транзита между зонами.',
+      order: 5,
+    },
+    {
+      name: 'Тестовая миграция и подготовка промышленного переключения',
+      role: 'architect',
+      baseHours: 28,
+      hoursPerUnit: 2,
+      driverFieldKey: 'critical_services_count',
+      requirements:
+        'Исполнитель обязан провести репетицию переключения, подготовить runbook, матрицу smoke-tests, критерии go/no-go, план rollback и последовательность проверки критичных сервисов после изменения маршрута.',
+      order: 6,
+    },
+    {
+      name: 'Опытная эксплуатация, переключение, обучение и ПМИ',
+      role: 'consultant',
+      baseHours: 36,
+      hoursPerUnit: 5,
+      driverFieldKey: 'ngfw_clusters_count',
+      requirements:
+        'Исполнитель обязан выполнить согласованное переключение, проверить разрешенные/запрещенные потоки, throughput, sessions/CPS, IPS/TLS, HA/failover и rollback, обучить администраторов и провести приемочные испытания по ПМИ.',
+      order: 7,
+    },
+  ],
+  riskTemplates: [
+    {
+      description:
+        'Фактические сетевые зависимости не отражены в схемах и правилах, из-за чего во время миграции выявятся дополнительные разрешенные потоки.',
+      hours: 24,
+      order: 0,
+    },
+    {
+      description:
+        'Телеметрия текущего периметра не содержит достоверных пиков throughput/sessions/CPS, что создает риск неверного аппаратного сайзинга.',
+      hours: 20,
+      order: 1,
+    },
+    {
+      description:
+        'Существующая политика содержит большое число теневых, дублирующих и any-any правил, требующих владельческого согласования перед переносом.',
+      hours: 24,
+      order: 2,
+    },
+    {
+      description:
+        'TLS inspection конфликтует с certificate pinning, mTLS либо специализированной криптографией части приложений и потребует управляемых исключений.',
+      hours: 20,
+      order: 3,
+    },
+    {
+      description:
+        'Окно переключения недостаточно для полного набора smoke-tests и проверенного rollback, потребуется поэтапная миграция.',
+      hours: 20,
+      order: 4,
+    },
+  ],
+};
