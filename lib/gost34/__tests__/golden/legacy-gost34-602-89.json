@@ -117,7 +117,8 @@
     "infrastructure.computeResources",
     "availability",
     "performance",
-    "dataClasses"
+    "dataClasses",
+    "funding"
   ],
   "schemaIssues": []
 }

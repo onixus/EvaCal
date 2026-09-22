@@ -88,6 +88,12 @@ export default function DocumentPreviewStep({
           body: JSON.stringify({
             calculationId,
             docType: decisions.docType,
+            contractNumber: decisions.contractNumber,
+            city: decisions.city,
+            signatures: decisions.signatures,
+            layoutProfileId: decisions.layoutProfileId,
+            vendorFiles: decisions.vendorFiles,
+            enrichmentOptions: decisions.enrichmentOptions,
             rawRequirements: decisions.rawRequirements,
             standardProfileId: decisions.standardProfileId,
             applicabilityOverrides: decisions.applicabilityOverrides,
@@ -128,6 +134,12 @@ export default function DocumentPreviewStep({
       isCancelled = true;
     };
   }, [
+    decisions.contractNumber,
+    decisions.city,
+    decisions.signatures,
+    decisions.layoutProfileId,
+    decisions.vendorFiles,
+    decisions.enrichmentOptions,
     calculationId,
     decisions.docType,
     decisions.rawRequirements,
@@ -944,3 +956,4 @@ export default function DocumentPreviewStep({
     </div>
   );
 }
+

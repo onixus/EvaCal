@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadCalculationForExport } from '@/lib/export';
-import { analyzeAndNormalizeInput } from '@/lib/gost34/analyzer';
-import { buildGost34DocumentAST } from '@/lib/gost34/generator';
-import {
-  applySectionOverrides,
-  validateTzAuthorProposals,
-  TzAuthorDiagnostic,
-} from '@/lib/gost34/index';
-import { overlaysForDocument } from '@/lib/gost34/llm/tzAuthor/project';
-import { GostDocumentType } from '@/lib/gost34/types';
+import { prepareGost34Document } from '@/lib/gost34/generation/prepareDocument';
+import { gost34ErrorResponse } from '@/lib/gost34/generation/apiError';
 import { requireCalcAccess } from '@/lib/access';
 import { handleApiError } from '@/lib/apiHelpers';
 
@@ -20,6 +13,12 @@ export async function POST(req: NextRequest) {
     const {
       calculationId,
       docType = 'TZ',
+      contractNumber,
+      city,
+      signatures,
+      layoutProfileId,
+      enrich = true,
+      enrichmentOptions,
       rawRequirements = [],
       vendorFiles = [],
       standardProfileId,
@@ -43,58 +42,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'not found' }, { status: 404 });
     }
 
-    const normalizedPayload = analyzeAndNormalizeInput({
-      calculation: calculation as any,
+    const prepared = prepareGost34Document({
+      calculation,
       rawRequirements,
       vendorFiles,
       projectContext,
       metadataOverride: {
         docType,
+        contractNumber,
+        city,
+        signatures,
+        layoutProfileId,
+        enrichRequirements: Boolean(enrich),
+        enrichmentOptions,
         standardProfileId,
         applicabilityOverrides,
       },
       manualTraceLinks: manualLinks,
-    });
-
-    const astWithDiagnostics = buildGost34DocumentAST(normalizedPayload);
-
-    let validTzAuthor = tzAuthor;
-    let tzAuthorDiagnostics: TzAuthorDiagnostic[] = [];
-
-    if (docType === 'TZ' && tzAuthor) {
-      const validation = validateTzAuthorProposals({
-        payload: normalizedPayload,
-        context: normalizedPayload.projectContext,
-        tzAuthor,
-        checkProposed: Boolean(includeProposed),
-      });
-      validTzAuthor = validation.validTzAuthor;
-      tzAuthorDiagnostics = validation.diagnostics;
-    }
-
-    const effectiveOverrides = overlaysForDocument({
-      docType: docType as GostDocumentType,
       sectionOverrides,
-      tzAuthor: validTzAuthor,
-      includeProposed: Boolean(includeProposed),
-    });
+      tzAuthor,
+    }, { mode: 'preview', includeProposed: Boolean(includeProposed) });
 
-    const overriddenSections =
-      Object.keys(effectiveOverrides).length > 0
-        ? applySectionOverrides(astWithDiagnostics.sections, effectiveOverrides)
-        : astWithDiagnostics.sections;
-
-    return NextResponse.json({
-      ast: {
-        ...astWithDiagnostics,
-        sections: overriddenSections,
-      },
-      baselineAst: astWithDiagnostics,
-      diagnostics: astWithDiagnostics.diagnostics,
-      tzAuthorDiagnostics,
-    });
+    return NextResponse.json(prepared);
   } catch (err: unknown) {
     console.error('Error in GOST 34 document preview endpoint:', err);
-    return handleApiError(err, 'Preview generation failed', 500);
+    return gost34ErrorResponse(err) || handleApiError(err, 'Preview generation failed', 500);
   }
 }
+

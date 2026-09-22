@@ -163,6 +163,8 @@ export interface ProjectContext {
 
   dataClasses?: DataClass[];
 
+  /** Источники и порядок финансирования работ (ГОСТ 34.602-2020, 4.3). */
+  funding?: string;
   lifecycle?: LifecycleContext;
   deploymentModel?: DeploymentModel;
 
@@ -181,3 +183,4 @@ export const CONTEXT_GAP_PLACEHOLDER = 'Требует уточнения у З�
 export function formatGap(label: string): string {
   return `${label}: ${CONTEXT_GAP_PLACEHOLDER}.`;
 }
+

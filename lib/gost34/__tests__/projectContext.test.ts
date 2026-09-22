@@ -177,8 +177,9 @@ describe('buildProjectContext: автоматическое обогащение
     expect(ctx.infrastructure?.computeResources).toContain(
       '2 кластеров аппаратных платформ UserGate NGFW',
     );
-    expect(ctx.security?.personalDataProcessed).toBe(true);
-    expect(ctx.security?.regulatoryScope).toContain('187-ФЗ «О безопасности КИИ РФ»');
+    expect(ctx.security?.personalDataProcessed).toBeUndefined();
+    expect(ctx.security?.regulatoryScope).toBeUndefined();
+    expect(ctx.security?.securityClass).toBeUndefined();
     expect(ctx.availability?.availabilityTargetPercent).toBe(99.9);
   });
 
@@ -243,3 +244,4 @@ describe('buildProjectContext: цели и измеримые критерии �
     expect(ctx.measurableGoalCriteria).toEqual([{ metric: 'Время отклика', target: '1 с' }]);
   });
 });
+

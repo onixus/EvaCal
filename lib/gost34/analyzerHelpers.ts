@@ -1,3 +1,4 @@
+import { DEFAULT_SIGNATURES } from './metadataDefaults';
 import {
   Gost34DocMetadata,
   Gost34CalculationInput,
@@ -21,20 +22,11 @@ export function normalizeMetadata(
     systemName,
     fullSystemName: `Автоматизированная система «${systemName}»`,
     documentCode: `АБВГ.${(calc?.id || '001').substring(0, 6).toUpperCase()}.${docType}`,
-    contractNumber: 'Договор № 01-ГС/2026',
+    contractNumber: '',
     customerName,
-    developerName: 'ООО «Исполнитель»',
-    signatures: {
-      developer: 'Иванов А.В.',
-      checker: 'Петров С.Н.',
-      techControl: 'Сидоров К.М.',
-      normControl: 'Васильева Е.И.',
-      approver: 'Михайлов Д.П.',
-      customerApprover: 'Александров И.В.',
-      invSubl: 'ИНВ-102938',
-      signDate: '06.08.2026',
-    },
-    city: 'Москва',
+    developerName: 'Требует уточнения у Заказчика',
+    signatures: { ...DEFAULT_SIGNATURES },
+    city: 'Требует уточнения у Заказчика',
     year: currentYear,
     version: '1.0',
     enrichRequirements: true,
@@ -42,7 +34,9 @@ export function normalizeMetadata(
 
   return {
     ...defaultMeta,
-    ...(metadataOverride || {}),
+    ...Object.fromEntries(
+      Object.entries(metadataOverride || {}).filter(([, value]) => value !== undefined),
+    ),
     signatures: {
       ...defaultMeta.signatures,
       ...(metadataOverride?.signatures || {}),
@@ -115,3 +109,4 @@ export function calculateTotals(
   const totalRiskHours = risks.reduce((sum, r) => sum + r.hours, 0);
   return totalStageHours + totalRiskHours + pmHours;
 }
+

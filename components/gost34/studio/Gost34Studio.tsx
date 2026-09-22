@@ -1,5 +1,6 @@
 'use client';
 
+import { DEFAULT_SIGNATURES } from '@/lib/gost34/metadataDefaults';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { GostDocumentType, Gost34RequirementItem } from '@/lib/gost34/types';
@@ -47,13 +48,6 @@ export interface StudioLatestPackage {
   updatedAt: string;
 }
 
-const DEFAULT_SIGNATURES: Record<string, string> = {
-  developer: 'Иванов А.В.',
-  checker: 'Петров С.Н.',
-  normControl: 'Васильева Е.И.',
-  approver: 'Михайлов Д.П.',
-  customerApprover: 'Александров И.В.',
-};
 
 type SectionOverrides = Record<string, { title?: string; paragraphs?: string[]; items?: string[] }>;
 
@@ -100,8 +94,8 @@ export default function Gost34Studio({
   >({});
   const [manualLinks, setManualLinks] = useState<TraceLink[]>([]);
   const [signatures, setSignatures] = useState<Record<string, string>>(DEFAULT_SIGNATURES);
-  const [contractNumber, setContractNumber] = useState('Договор № 01-ГС/2026');
-  const [city, setCity] = useState('Москва');
+  const [contractNumber, setContractNumber] = useState('');
+  const [city, setCity] = useState('');
   const [sectionOverrides, setSectionOverrides] = useState<SectionOverrides>({});
   const [tzAuthor, setTzAuthor] = useState<TzAuthorState>({
     promptVersion: TZ_AUTHOR_PROMPT_VERSION,
@@ -166,6 +160,7 @@ export default function Gost34Studio({
         if (snap.standardProfileId) setStandardProfileId(snap.standardProfileId);
         if (snap.layoutProfileId) setLayoutProfileId(snap.layoutProfileId);
         if (snap.docType) setDocType(snap.docType);
+        if (Array.isArray(snap.uploadedFiles)) setUploadedFiles(snap.uploadedFiles);
         if (Array.isArray(snap.requirements) && snap.requirements.length > 0) {
           setRequirements(snap.requirements);
         }
@@ -327,6 +322,7 @@ export default function Gost34Studio({
       applicabilityOverrides,
       ...signatures,
       rawRequirements: requirements,
+      vendorFiles: uploadedFiles,
       /** Подтверждённые связи печатаются в матрице прослеживаемости документа. */
       manualLinks,
       sectionOverrides,
@@ -341,6 +337,7 @@ export default function Gost34Studio({
       applicabilityOverrides,
       signatures,
       requirements,
+      uploadedFiles,
       manualLinks,
       sectionOverrides,
       tzAuthor,
@@ -422,6 +419,7 @@ export default function Gost34Studio({
         contractNumber,
         city,
         requirements,
+        uploadedFiles,
         applicabilityOverrides,
         manualLinks,
         signatures,
@@ -803,6 +801,10 @@ export default function Gost34Studio({
           {activeStep === 'preview' && (
             <DocumentPreviewStep
               decisions={{
+                contractNumber,
+                city,
+                vendorFiles: uploadedFiles,
+                enrichmentOptions: review?.applicability.options,
                 standardProfileId,
                 layoutProfileId,
                 docType,
@@ -886,3 +888,4 @@ export default function Gost34Studio({
     </div>
   );
 }
+

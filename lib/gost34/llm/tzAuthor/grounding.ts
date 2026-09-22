@@ -148,6 +148,7 @@ function getContextSlice(
     case 'tz2020-general':
       return {
         metadata: payload.metadata,
+        funding: ctx.funding,
         lifecycle: ctx.lifecycle,
       };
     case 'tz2020-goals-goals':
@@ -400,3 +401,4 @@ export function collectGroundingPack(params: {
     speculate,
   };
 }
+

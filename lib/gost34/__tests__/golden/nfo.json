@@ -11,7 +11,7 @@
     {
       "numStr": "1",
       "title": "ОБЩИЕ СВЕДЕНИЯ",
-      "paragraphs": 9
+      "paragraphs": 10
     },
     {
       "numStr": "2",
@@ -150,7 +150,8 @@
     "roles",
     "integrations",
     "deploymentModel",
-    "performance"
+    "performance",
+    "funding"
   ],
   "schemaIssues": []
 }

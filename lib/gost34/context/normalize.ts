@@ -46,6 +46,17 @@ export function normalizeProjectContextForGeneration(
     gaps: [...(context.gaps || [])],
   };
 
+  if (!normalized.funding?.trim()) {
+    upsertGap(normalized.gaps!, {
+      path: 'funding',
+      label: 'Источники и порядок финансирования работ',
+      severity: 'major',
+      hint: 'Договор или решение Заказчика',
+    });
+  } else {
+    normalized.gaps = removeGap(normalized.gaps!, 'funding');
+  }
+
   const deploymentModel = resolveDeploymentModel(context);
   if (deploymentModel) {
     normalized.deploymentModel = deploymentModel;
@@ -100,3 +111,4 @@ export function normalizeProjectContextForGeneration(
 
   return normalized;
 }
+
