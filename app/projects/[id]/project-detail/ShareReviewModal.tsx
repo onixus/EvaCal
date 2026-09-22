@@ -53,23 +53,41 @@ export default function ShareReviewModal({
       <div className="card w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
         <div className="border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/60 flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-nord-6">Ссылка для согласования Заказчиком</h3>
-            <p className="text-xs text-slate-500 dark:text-nord-muted">Безопасный доступ без необходимости регистрации и staff-логина</p>
+            <h3 className="text-base font-bold text-slate-900 dark:text-nord-6">
+              Ссылка для согласования Заказчиком
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-nord-muted">
+              Безопасный доступ без необходимости регистрации и staff-логина
+            </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-nord-4 text-sm font-bold" aria-label="Закрыть" />
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-nord-4 text-sm font-bold"
+            aria-label="Закрыть"
+          >
+            ✕
+          </button>
         </div>
 
         <div className="p-6 space-y-4">
           <p className="text-xs text-slate-600 dark:text-nord-4">
-            По этой ссылке представитель Заказчика может изучить комплект ГОСТ 34, скачать неизменяемый ZIP-архив (с проверкой SHA-256) и утвердить или отклонить выпуск.
+            По этой ссылке представитель Заказчика может изучить комплект ГОСТ 34, скачать
+            неизменяемый ZIP-архив (с проверкой SHA-256) и утвердить или отклонить выпуск.
           </p>
 
           {generating ? (
-            <div className="text-xs text-slate-500 animate-pulse text-center py-4">Генерация криптографического токена доступа...</div>
+            <div className="text-xs text-slate-500 animate-pulse text-center py-4">
+              Генерация криптографического токена доступа...
+            </div>
           ) : shareLink ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <input type="text" readOnly value={shareLink} className="input text-xs font-mono select-all flex-1" />
+                <input
+                  type="text"
+                  readOnly
+                  value={shareLink}
+                  className="input text-xs font-mono select-all flex-1"
+                />
                 <button
                   type="button"
                   onClick={() => {
@@ -82,12 +100,17 @@ export default function ShareReviewModal({
                   {copied ? 'Скопировано!' : 'Скопировать'}
                 </button>
               </div>
-              <p className="text-[11px] text-slate-400">Срок действия ссылки: 14 дней. Права: просмотр, скачивание ZIP, согласование (без права изменения сметы).</p>
+              <p className="text-[11px] text-slate-400">
+                Срок действия ссылки: 14 дней. Права: просмотр, скачивание ZIP, согласование (без
+                права изменения сметы).
+              </p>
             </div>
           ) : null}
 
           <div className="pt-3 flex items-center justify-end border-t border-slate-100 dark:border-nord-3">
-            <button type="button" onClick={onClose} className="btn-secondary text-xs">Закрыть</button>
+            <button type="button" onClick={onClose} className="btn-secondary text-xs">
+              Закрыть
+            </button>
           </div>
         </div>
       </div>
