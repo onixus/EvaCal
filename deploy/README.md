@@ -39,14 +39,14 @@ curl -fsSL https://raw.githubusercontent.com/onixus/EvaCal/main/deploy/install.s
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/onixus/EvaCal/main/deploy/install.sh \
-  | sudo bash -s -- install --domain evacal.corp.local --version 0.5.0 \
+  | sudo bash -s -- install --domain evacal.corp.local --version 0.6.0 \
       --cert /etc/ssl/evacal/fullchain.pem --key /etc/ssl/evacal/privkey.pem
 ```
 
 | Параметр                          | Значение                                                                    |
 | --------------------------------- | --------------------------------------------------------------------------- |
 | `--dir DIR`                       | каталог установки (`/opt/evacal` или `~/evacal`)                            |
-| `--version TAG`                   | тег образов: `latest` (по умолчанию), `0.5.0`, `main`                       |
+| `--version TAG`                   | тег образов: `latest` (по умолчанию), `0.6.0`, `main`                       |
 | `--domain HOST`                   | DNS-имя или IP стенда; под него выпускается сертификат и печатается адрес   |
 | `--http-port N`, `--https-port N` | порты nginx на хосте (80 / 443)                                             |
 | `--no-tls`                        | только HTTP: TLS терминирует внешний прокси или стенд в доверенной сети     |
