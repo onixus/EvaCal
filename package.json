@@ -9,8 +9,9 @@
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx --max-warnings 0",
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:ci": "vitest run --reporter=default --reporter=junit --outputFile=test-results.xml",
+    "test": "npm run test:deploy && vitest run",
+    "test:ci": "npm run test:deploy && vitest run --reporter=default --reporter=junit --outputFile=test-results.xml",
+    "test:deploy": "node --test deploy/tests/*.check.mjs",
     "test:watch": "vitest",
     "test:gost34:verify": "tsx scripts/verify-gost34.cjs",
     "test:golden:update": "tsx lib/gost34/__tests__/golden/update.ts",
@@ -39,7 +40,7 @@
     "pdfkit": "^0.19.1",
     "pg": "^8.23.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "^18.3.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
   },
   "devDependencies": {

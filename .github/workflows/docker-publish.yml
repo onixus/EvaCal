@@ -1,69 +1,62 @@
-name: Build and Push Docker Image to GHCR
+name: Publish Docker pair (manual fallback)
 
-# ОТКЛЮЧЕНО: заменено локальным Jenkins (Jenkinsfile.publish, джоба
-# evacal-publish). Образы по-прежнему уезжают в ghcr.io — лимит у нас на
-# минуты раннеров, а не на реестр, поэтому деплой не меняется.
-# Учти отличие: тут пуш шёл на КАЖДЫЙ коммит в main и в ветку
-# fix/docker-migrate-perms-and-seed; в Jenkins публикация ручная, по REF.
-# Вернуть: раскомментировать push/pull_request ниже.
+# Jenkins is primary. No automatic push/PR triggers or runner-minute consumption.
 on:
   workflow_dispatch:
-  # push:
-  #   branches:
-  #     - main
-  #     - fix/docker-migrate-perms-and-seed
-  #   tags:
-  #     - 'v*'
-  # pull_request:
-  #   branches:
-  #     - main
+    inputs:
+      ref:
+        description: 'Existing release tag or branch'
+        required: true
+        default: main
+      dry_run:
+        description: 'Build only, without publishing'
+        type: boolean
+        default: true
+      multiarch:
+        description: 'Build amd64 + arm64 (otherwise native amd64)'
+        type: boolean
+        default: true
 
-env:
-  REGISTRY: ghcr.io
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: evacal-publish
+  cancel-in-progress: false
 
 jobs:
-  build-and-push:
+  publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
+    timeout-minutes: 90
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Lowercase image name
-        run: |
-          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry (GHCR)
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+      - uses: actions/checkout@v4
         with:
-          registry: ${{ env.REGISTRY }}
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: docker/setup-qemu-action@v3
+        if: ${{ inputs.multiarch }}
+      - uses: docker/setup-buildx-action@v3
+        id: buildx
+      - uses: docker/login-action@v3
+        if: ${{ !inputs.dry_run }}
+        with:
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
+      - name: Test, build pair, smoke, promote and package
+        env:
+          REF: ${{ inputs.ref }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          MULTIARCH: ${{ inputs.multiarch }}
+          EVACAL_BUILDER: ${{ steps.buildx.outputs.name }}
+        run: bash scripts/docker-publish.sh
+      - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.dry_run }}
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          name: evacal-deploy
+          path: dist/*-deploy.tar.gz*
+          if-no-files-found: error
