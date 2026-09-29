@@ -8,6 +8,9 @@ test-results
 .env
 .env.*
 !.env.example
+# Keep legacy data out of build contexts even without a runtime driver.
+**/*.sqlite
+**/*.sqlite-*
 **/*.db
 **/*.db-*
 storage
