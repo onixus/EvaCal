@@ -1,0 +1,87 @@
+name: PR 94 review fixes verification
+on:
+  push:
+    branches: [refactor/postgresql-only]
+    paths: [.github/workflows/review-fixes-verify.yml]
+permissions:
+  contents: read
+env:
+  CI: 'true'
+  NEXT_TELEMETRY_DISABLED: '1'
+  DATABASE_URL: 'postgresql://evacal:evacal@127.0.0.1:5432/evacal?schema=public'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: evacal
+          POSTGRES_PASSWORD: evacal
+          POSTGRES_DB: evacal
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U evacal -d evacal"
+          --health-interval 5s --health-timeout 3s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate and validate
+        run: |
+          npx --no-install prisma generate
+          npx --no-install prisma validate
+      - name: PostgreSQL migration replay and integration
+        run: |
+          npm run db:sync
+          npm run db:sync
+          npm run db:status
+          npm run test:postgres
+      - name: Custom schema integration
+        env:
+          DATABASE_URL: 'postgresql://evacal:evacal@127.0.0.1:5432/evacal?schema=review_probe'
+        run: |
+          npm run db:sync
+          npm run test:postgres
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        if: ${{ !cancelled() }}
+        run: npm run typecheck
+      - name: Unit and regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:ci
+      - name: Installer and Compose contracts
+        if: ${{ !cancelled() }}
+        run: npm run test:deploy
+      - name: Production build
+        if: ${{ !cancelled() }}
+        run: npm run build
+      - name: Check working tree
+        if: ${{ !cancelled() }}
+        run: |
+          git diff --check
+          git diff --exit-code
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: review-fixes-test-results
+          path: test-results.xml
+          if-no-files-found: ignore
+          retention-days: 3
+  docker-data-exclusion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build runner and migrate with database canaries
+        run: bash scripts/test-docker-data-exclusion.sh
