@@ -1,7 +1,9 @@
 #!/bin/sh
-# Runs as root so it can fix ownership of the mounted db-data volume (which Docker
-# creates as root-owned on first use), then drops to the same uid the app container
-# runs as before executing prisma/seed — otherwise the app can't open the db file.
-set -e
-chown -R nextjs:nodejs /app
-exec su-exec nextjs:nodejs "$@"
+set -eu
+# Только изменяемые данные, не рекурсивный chown всего приложения/node_modules.
+mkdir -p /app/data /app/storage
+chown nextjs:nodejs /app/data /app/storage
+for file in /app/data/dev.db /app/data/dev.db-wal /app/data/dev.db-shm /app/data/dev.db-journal; do
+  [ ! -f "$file" ] || chown nextjs:nodejs "$file"
+done
+exec su-exec nextjs:nodejs /usr/local/bin/docker-entrypoint.sh "$@"

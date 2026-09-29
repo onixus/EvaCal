@@ -69,10 +69,11 @@ pipeline {
                         // Мелкий клон вместо полного и повтор с очисткой: объём
                         // записи падает на порядки, а гарантии здесь
                         // статистические — осечка не значит, что обречена и
-                        // следующая попытка. deleteDir() обязателен, иначе
-                        // повтор упрётся в мусор от неудачного клона.
+                        // следующая попытка. Очистка содержимого обязательна, иначе
+                        // повтор упрётся в мусор от неудачного клона. Корневой inode
+                        // сохраняем: активный Docker-agent использует его как cwd.
                         retry(3) {
-                            deleteDir()
+                            sh 'find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +'
                             checkout([
                                 $class: 'GitSCM',
                                 branches: scm.branches,
@@ -96,6 +97,7 @@ pipeline {
                         // ради --exclude (busybox tar 1.37 его поддерживает).
                         sh '''
                             set -eu
+                            apk add --no-cache bash tar openssl docker-cli docker-cli-compose
                             rm -rf "$BUILD_DIR"
                             mkdir -p "$BUILD_DIR"
                             tar -cf - --exclude=node_modules --exclude=.next . | (cd "$BUILD_DIR" && tar -xf -)
@@ -138,6 +140,14 @@ pipeline {
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                             sh 'cd "$BUILD_DIR" && npm run typecheck'
+                        }
+                    }
+                }
+
+                stage('Deployment contracts') {
+                    steps {
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            sh 'cd "$BUILD_DIR" && docker compose version && npm run test:deploy'
                         }
                     }
                 }
@@ -245,14 +255,14 @@ pipeline {
                 //
                 // Повтор с очисткой, потому что гарантии здесь статистические:
                 // VirtioFS теряет записи недетерминированно, и осечка не значит,
-                // что следующая попытка обречена. deleteDir() обязателен — после
+                // что следующая попытка обречена. Очистка содержимого обязательна — после
                 // неудачного клона в воркспейсе остаётся мусор, и повтор без
                 // очистки упрётся в него, а не в чистое место.
                 //
                 // Ветку и remote берём у самой джобы, чтобы конфиг не разъезжался
                 // с Jenkinsfile.
                 retry(3) {
-                    deleteDir()
+                    sh 'find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +'
                     checkout([
                         $class: 'GitSCM',
                         branches: scm.branches,
@@ -320,9 +330,8 @@ pipeline {
                     // Отчёт и трассы забираются в воркспейс: внутри контейнера они
                     // исчезнут вместе с ним, а разбирать падение сквозного сценария
                     // без них почти невозможно.
-                    sh 'cp -r /e2e/playwright-report "$WORKSPACE/" 2>/dev/null || true'
-                    sh 'cp -r /e2e/test-results "$WORKSPACE/" 2>/dev/null || true'
-                    archiveArtifacts artifacts: 'playwright-report/**, test-results/**',
+                    sh 'if [ -d /e2e/test-results ]; then tar -czf "$WORKSPACE/e2e-results.tar.gz" -C /e2e test-results; fi'
+                    archiveArtifacts artifacts: 'e2e-results.tar.gz',
                                      allowEmptyArchive: true, fingerprint: false
                     cleanWs()
                 }

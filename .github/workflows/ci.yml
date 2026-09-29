@@ -55,6 +55,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: npm run typecheck
 
+      - name: Deployment contracts
+        if: ${{ !cancelled() }}
+        run: npm run test:deploy
+
       - name: Test
         if: ${{ !cancelled() }}
         run: npm run test
