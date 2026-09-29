@@ -101,9 +101,11 @@ export function matchStageByRules(
   }
 
   // 3. Инфраструктура, монтаж, ПНР, ОС, СУБД, виртуализация (Infra & Setup)
+  // This vocabulary describes customer projects, not EvaCal database drivers.
+  // Keep other database names even though EvaCal itself only uses PostgreSQL.
   if (
     req.category === 'infra_setup' ||
-    /монтаж|пнр|пусконалад|настройк.*ос|установк.*ос|astra linux|астра линукс|ред ос|альт линукс|базальт|ubuntu|rhel|debian|субд|баз.*данн|postgresql|postgres pro|постгрес|oracle|clickhouse|redis|виртуализац|zvirt|vmmanager|openstack|kubernetes|k8s|docker|openshift|proxmox|freeipa|active directory|ldap|dns|dhcp|резервн.*копирован|бэкап|киберпротект|rubackup|veeam/i.test(
+    /монтаж|пнр|пусконалад|настройк.*ос|установк.*ос|astra linux|астра линукс|ред ос|альт линукс|базальт|ubuntu|rhel|debian|субд|баз.*данн|postgresql|postgres pro|постгрес|sqlite|oracle|clickhouse|redis|виртуализац|zvirt|vmmanager|openstack|kubernetes|k8s|docker|openshift|proxmox|freeipa|active directory|ldap|dns|dhcp|резервн.*копирован|бэкап|киберпротект|rubackup|veeam/i.test(
       reqText,
     )
   ) {
