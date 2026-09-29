@@ -18,13 +18,25 @@ env:
   CI: 'true'
   NEXT_TELEMETRY_DISABLED: '1'
   # prisma.config.ts резолвит DATABASE_URL при любом запуске CLI, включая generate
-  DATABASE_URL: 'file:./prisma/dev.db'
+  DATABASE_URL: 'postgresql://evacal:evacal@127.0.0.1:5432/evacal?schema=public'
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: evacal
+          POSTGRES_PASSWORD: evacal
+          POSTGRES_DB: evacal
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U evacal -d evacal"
+          --health-interval 5s --health-timeout 3s --health-retries 12
 
     steps:
       - name: Checkout repository
@@ -41,6 +53,12 @@ jobs:
 
       - name: Generate Prisma client
         run: npx prisma generate
+
+      - name: PostgreSQL migrations and integration
+        run: |
+          npm run db:sync
+          npm run db:sync
+          npm run test:postgres
 
       - name: Security audit
         run: npm audit --audit-level=high --registry=https://registry.npmjs.org/
