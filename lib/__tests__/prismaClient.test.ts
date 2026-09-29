@@ -1,7 +1,4 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 
 /**
  * Регрессия на P2028 «Transaction not found».
@@ -17,18 +14,10 @@ import path from 'node:path';
  * сломанном коде.
  */
 describe('prisma client', () => {
-  let dir: string;
-
   beforeAll(() => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'evacal-prisma-'));
     vi.stubEnv('NODE_ENV', 'production');
-    // Клиент сгенерирован под одну СУБД и отвергает адаптер другой, поэтому URL
-    // подбирается под сборку. Соединение здесь не открывается: адаптер pg
-    // ленивый, и до первого запроса сервер не нужен.
-    const url =
-      process.env.DATABASE_PROVIDER === 'postgresql'
-        ? (process.env.DATABASE_URL ?? 'postgresql://evacal:evacal@localhost:5432/evacal')
-        : `file:${path.join(dir, 'test.db')}`;
+    // The PostgreSQL adapter is lazy: these tests never open a connection.
+    const url = 'postgresql://evacal:evacal@127.0.0.1:5432/evacal';
     vi.stubEnv('DATABASE_URL', url);
     delete (globalThis as { prisma?: unknown }).prisma;
   });
@@ -36,7 +25,6 @@ describe('prisma client', () => {
   afterAll(() => {
     vi.unstubAllEnvs();
     delete (globalThis as { prisma?: unknown }).prisma;
-    fs.rmSync(dir, { recursive: true, force: true });
   });
 
   it('переиспользует один клиент в production, а не создаёт по клиенту на обращение', async () => {

@@ -261,7 +261,7 @@ interface Requirement {
 - Next.js;
 - Tailwind CSS;
 - Prisma;
-- PostgreSQL/SQLite;
+- PostgreSQL;
 - Docker;
 - CPU/RAM;
 - назначение EvaCal;

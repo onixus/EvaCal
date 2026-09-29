@@ -72,7 +72,7 @@ async function seedDefaultUsers() {
 
   // Файл пишется только в корень проекта (в .gitignore). В Docker корень образа
   // migrate эфемерный, поэтому пароли там живут ровно столько, сколько лог
-  // контейнера: `docker compose logs migrate`. В том db-data рядом с базой
+  // контейнера: `docker compose logs migrate`. В постоянное хранилище
   // пароли не сохраняем — иначе они читались бы из контейнера app бессрочно.
   const credentialsFile = path.resolve(__dirname, '..', 'credentials.local.txt');
   try {

@@ -198,11 +198,11 @@ _Доска заявок: дорожки смет и комплектов ГОС
 
 - **Frontend & Backend**: Next.js 15 (App Router, Server Components & Route Handlers), React 18, TypeScript.
 - **Styling**: Tailwind CSS (светлая и тёмная Nord темы).
-- **ORM & Database**: Prisma 7. Основная СУБД — PostgreSQL 14+ (версионированные миграции в `prisma/postgresql/migrations`; тесты и сборка в CI идут против неё); для одного стенда без отдельной СУБД — встраиваемый SQLite (`DATABASE_PROVIDER=sqlite`).
+- **ORM & Database**: Prisma 7 и PostgreSQL — единственная СУБД во всех окружениях. Каноническая схема: `prisma/schema.prisma`; версионированные миграции: `prisma/migrations`. Docker и CI используют PostgreSQL 16.
 - **Генерация документов**: `docx`, `mammoth`, `jszip`, `pdfkit`, `xlsx` (SheetJS).
 - **Хранилище артефактов**: файловое (том `storage-data`) или S3-совместимое через `@aws-sdk/client-s3` (AWS S3, MinIO, Yandex/VK Object Storage).
 - **Аналитика**: чистые модули без ORM (`lib/actuals.ts`, `lib/capacity.ts`, `lib/schedule.ts`, `lib/deviations.ts`), графики на inline-SVG без внешних библиотек.
-- **Тестирование**: Vitest (**85 test suites, 712 tests**, Golden Tests ГОСТ 34, Eval Suite LLM, JUnit XML reporter).
+- **Тестирование**: Vitest, Golden Tests ГОСТ 34, Eval Suite LLM, JUnit XML reporter, контрактные тесты установки и интеграционные проверки PostgreSQL. Актуальное число тестов публикуется отчётом CI.
 - **CI/CD & Инфраструктура**: Docker multi-stage (Node 22 Alpine, non-root user 1001, automated schema sync & seed), Docker Compose, Nginx (TLS, HSTS, Gzip, Security Headers), Jenkins Pipeline (`Jenkinsfile`) & GitHub Actions.
 
 ---
@@ -213,21 +213,19 @@ _Доска заявок: дорожки смет и комплектов ГОС
 # 1. Клонирование и установка зависимостей
 git clone https://github.com/onixus/EvaCal.git
 cd EvaCal
-npm install
-
-# 2. Настройка окружения
+# 2. Настройка окружения и воспроизводимая установка зависимостей
 cp .env.example .env
+CI=true npm ci
 # Сгенерируйте SESSION_SECRET при необходимости:
 # node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
-# 3. База данных: PostgreSQL (например, docker run -d -p 5432:5432 -e POSTGRES_USER=evacal \
-#    -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=evacal postgres:16-alpine), затем
-#    генерация клиента, миграции и сидирование
+# 3. Локальный PostgreSQL (пример; имя контейнера должно быть свободно)
+docker run -d --name evacal-pg -p 127.0.0.1:5432:5432 \
+  -e POSTGRES_USER=evacal -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=evacal postgres:16-alpine
+# После готовности сервера: генерация клиента, миграции и сидирование
 npx prisma generate
 npm run db:sync
 npm run db:seed
-# Без PostgreSQL: DATABASE_PROVIDER=sqlite и DATABASE_URL="file:./prisma/dev.db" в .env,
-# те же три команды (db:sync под SQLite делает prisma db push)
 
 # 4. Запуск dev-сервера
 npm run dev
@@ -282,7 +280,7 @@ cp .env.example .env
 
 Отредактируйте `.env`:
 
-0. Задайте `POSTGRES_PASSWORD` для встроенного PostgreSQL (или `DATABASE_URL` внешнего сервера).
+0. Задайте `POSTGRES_PASSWORD` для встроенного PostgreSQL и `DATABASE_URL=""`: Compose соберёт внутренний URL сервиса `postgres`. Не оставляйте URL с `localhost` из dev-примера — внутри контейнера это само приложение. Для внешнего PostgreSQL используйте `deploy/install.sh --database-url URL` или base-overlay без `docker-compose.postgres.yml`.
 1. Укажите случайный `SESSION_SECRET`:
    ```bash
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -299,35 +297,30 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-- Контейнер `migrate` запустится первым, синхронизирует схему (`scripts/db-sync.ts`: `prisma db push` для SQLite, `prisma migrate deploy` для PostgreSQL), сгенерирует Prisma Client, наполнит базу данных отраслевыми пресетами и создаст учётные записи пользователей.
+- После готовности `postgres` контейнер `migrate` применит историю миграций (`scripts/db-sync.ts`: `prisma migrate deploy`), наполнит базу отраслевыми пресетами и создаст учётные записи. Prisma Client уже сгенерирован при сборке образа.
 - После успешного завершения миграции автоматически запустится основной контейнер `app`.
 - Веб-интерфейс будет доступен по адресу:
-  - **`http://localhost:3000`** (напрямую к приложению)
   - **`http://localhost`** / **`https://localhost`** (через Nginx reverse proxy)
 
-### База данных: PostgreSQL или SQLite
+### База данных: PostgreSQL
 
-По умолчанию приложение работает на PostgreSQL: `docker compose up` поднимает сервис `postgres` (том `pg-data`), контейнер `migrate` применяет миграции `prisma/postgresql/migrations` (`prisma migrate deploy`), CI-пайплайн гоняет тесты, сборку и e2e против такого же сервера. Внешний сервер: укажите его адрес в `DATABASE_URL` в `.env`, встроенный тогда простаивает.
+Во всех окружениях используется PostgreSQL. `lib/prisma.ts` создаёт один ленивый Prisma Client с `@prisma/adapter-pg`; `DATABASE_URL` обязателен и принимает только `postgresql://` или `postgres://`. Некорректный URL останавливает запуск, без создания другой базы. Встроенный сервер Compose хранит данные в томе `pg-data`; внешняя БД подключается через `deploy/install.sh --database-url URL` без лишнего сервиса `postgres`.
 
-Модель данных одна (`prisma/schema.prisma`); копия схемы под PostgreSQL в `prisma/postgresql/schema.prisma` порождается из неё командой `npm run db:schema:sync` и проверяется тестом. Провайдер выводится из схемы `DATABASE_URL` (`postgresql://` или `file:`). Prisma Client компилирует SQL под диалект конкретной СУБД, поэтому там, где клиент генерируется раньше, чем известен URL (сборка Docker-образа, CI), провайдер задаётся явно через `DATABASE_PROVIDER`.
-
-SQLite остаётся для одного стенда без отдельной СУБД. В `.env`:
-
-```env
-DATABASE_PROVIDER=sqlite
-DATABASE_URL="file:./prisma/dev.db"
-```
-
-и пересборка образа, так как провайдер фиксируется на сборке: `docker compose up -d --build`. База живёт в томе `db-data`, схема синхронизируется через `prisma db push`.
-
-Новая миграция после правки `prisma/schema.prisma` (нужен доступ к PostgreSQL):
+**Единственный источник модели** — `prisma/schema.prisma`. Клиент генерируется в `lib/generated/prisma`; миграции лежат в `prisma/migrations`. Производных копий схемы и переключения диалектов при сборке нет.
 
 ```bash
-npm run db:schema:sync
-npm run db:migrate:pg -- --name <что_изменилось>
+# После правки схемы, только на выделенной dev-базе (Prisma использует shadow DB):
+npm run db:migrate -- --name <что_изменилось>
+# Применение уже закоммиченных миграций, в том числе в production:
+npm run db:sync
+npm run db:status
+# Проверка реальных транзакций, внешних ключей и поиска на тестовой БД:
+npm run test:postgres
 ```
 
-Перенос данных между SQLite и PostgreSQL штатной командой не делается: выгрузите таблицы любым инструментом (например, `sqlite3 .dump` → правка типов → `psql`) или начните с чистой базы и сида.
+История опубликованных PostgreSQL-миграций сохранена: имена каталогов и SQL не изменены, поэтому существующая `_prisma_migrations` остаётся совместимой. Перед обновлением нужен согласованный бэкап БД и артефактов. Несовместимые старые конфигурации установщик отклоняет до изменения установки; перенос данных из других СУБД выполняется отдельно. Старые неиспользуемые тома автоматически не удаляются.
+
+Подробная схема компонентов, правила миграций и сценарии проверки — [архитектура данных](docs/DATABASE_ARCHITECTURE.md).
 
 ### Хранилище артефактов: файлы или S3
 
@@ -371,7 +364,7 @@ EvaCal — учётные записи по умолчанию (созданы �
 ======================================================================
 ```
 
-Лог живёт столько же, сколько контейнер `migrate` (`docker compose down` его удаляет). В том `db-data` пароли не сохраняются.
+Лог живёт столько же, сколько контейнер `migrate` (`docker compose down` его удаляет). Пароли не сохраняются в постоянном хранилище приложения.
 
 #### Способ 2. Сброс паролей в Docker-стенде
 
@@ -453,5 +446,6 @@ npm run build
 | [docs/CRITICAL_ASSESSMENT_AND_ROADMAP.md](docs/CRITICAL_ASSESSMENT_AND_ROADMAP.md) | Критическая оценка продукта, архитектурные горизонты A–E и дорожная карта развития                                             |
 | [docs/BUSINESS_FEATURES_DESIGN.md](docs/BUSINESS_FEATURES_DESIGN.md)               | **Horizon E:** факт и исход сделки, ресурсный план по портфелю, контроль сроков и конструктор срезов по отклонениям            |
 | [docs/GOST34_MODERNIZATION_PLAN.md](docs/GOST34_MODERNIZATION_PLAN.md)             | План модернизации модуля ГОСТ 34 (структура разделов, нормативная база, профили)                                               |
+| [docs/DATABASE_ARCHITECTURE.md](docs/DATABASE_ARCHITECTURE.md) | Архитектура PostgreSQL, единая схема, миграции, эксплуатация и проверки |
 | [docs/SECURITY_PERIMETER.md](docs/SECURITY_PERIMETER.md)                           | Периметр безопасности: модель доступа ACL, серверная аннуляция сессий, share-токены, аудит                                     |
 | [docs/BackLog.MD](docs/BackLog.MD)                                                 | Статус вех разработки, закрытые задачи и бэклог функциональности                                                               |

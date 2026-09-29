@@ -36,7 +36,7 @@ SESSION_SECRET=$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')
 POSTGRES_PASSWORD=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
 ENV
 # Do not inherit application/database settings from the publisher's shell.
-unset DATABASE_URL DATABASE_PROVIDER COMPOSE_FILE COMPOSE_PROFILES COMPOSE_PROJECT_NAME SESSION_SECRET POSTGRES_PASSWORD
+unset DATABASE_URL COMPOSE_FILE COMPOSE_PROFILES COMPOSE_PROJECT_NAME SESSION_SECRET POSTGRES_PASSWORD
 compose config --quiet
 compose pull
 compose up -d --wait --wait-timeout 300
@@ -45,7 +45,7 @@ compose exec -T web wget -qO- http://127.0.0.1/api/health
 compose exec -T app node -e "const fs=require('fs'); fs.writeFileSync('/app/storage/.smoke','ok'); fs.unlinkSync('/app/storage/.smoke')"
 # Deliberately put obsolete code-shaped files in the data volume. They must not
 # shadow the schema or seed from the next image on migration rerun.
-compose run --rm --no-deps -T migrate sh -c 'mkdir -p /app/data/postgresql; echo obsolete > /app/data/postgresql/schema.prisma; ! grep -q obsolete /app/prisma/postgresql/schema.prisma'
+compose run --rm --no-deps -T migrate sh -c 'mkdir -p /app/storage/prisma; echo obsolete > /app/storage/prisma/schema.prisma; ! grep -q obsolete /app/prisma/schema.prisma; rm -rf /app/storage/prisma'
 compose stop app web
 compose rm -sf migrate
 compose up -d --wait --wait-timeout 300

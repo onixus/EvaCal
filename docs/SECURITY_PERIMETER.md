@@ -149,7 +149,7 @@ assertAllowedEndpoint(rawEndpoint, policy);
    ```
    Процесс Node.js работает с `UID 1001` и не имеет прав `root` на хост-системе.
 2. **Точки монтирования томов:**
-   База данных SQLite монтируется в изолированный volume `db-data`. Скрипт миграции выставляет корректные права владения `chown -R nextjs:nodejs /app/prisma` перед запуском приложения.
+   Встроенный PostgreSQL хранит данные в отдельном томе `pg-data`, недоступном контейнеру приложения. `app` и `migrate` монтируют только `storage-data:/app/storage`; схема и миграции `/app/prisma` поставляются в образе и не перекрываются томами. Entrypoint migrate меняет владельца только каталога `/app/storage`, затем понижает привилегии до UID 1001.
 3. **Безопасность Cookie:**
    Сессионная cookie `evacal_session` выставляется с флагами:
    - `HttpOnly: true` (недоступна из JavaScript браузера, защита от XSS);
@@ -170,14 +170,32 @@ assertAllowedEndpoint(rawEndpoint, policy);
 
 Артефакты комплектов (ZIP, DOCX) лежат отдельно от базы: в файловом режиме — том `storage-data`, в режиме S3 — бакет (`S3_BUCKET`), где бэкап и версионирование делаются средствами хранилища. Бэкап базы без артефактов неполон: `GostPackage.artifactPath` и `checksum` ссылаются на них.
 
-Основной режим — PostgreSQL: бэкап штатным `pg_dump` (в compose: `docker compose exec postgres pg_dump -U evacal evacal > backup.sql`), данные сервера в томе `pg-data`. Ниже — вариант для режима SQLite (`DATABASE_PROVIDER=sqlite`).
-
-#### SQLite
+PostgreSQL — единственная СУБД. Используйте `evacal backup`: менеджер временно
+останавливает app/web, создаёт custom dump (`pg_dump -Fc`), архив локальных
+артефактов и `.env`, затем возвращает ранее запущенные контейнеры. Архив имеет
+права `600` и содержит секреты. Внешние писатели в БД должны быть остановлены
+отдельно. Для S3 необходима отдельная согласованная копия базы и объектов.
 
 ```bash
-# Создание мгновенной горячей копии из volume db-data
-docker compose run --rm migrate sh -c 'cp prisma/dev.db prisma/dev.db.bak-$(date +%Y%m%d%H%M%S)'
+evacal backup
+evacal restore /защищённый/путь/evacal-backup.tar.gz
 ```
+
+При ручном бэкапе одного PostgreSQL:
+
+```bash
+docker compose exec -T postgres pg_dump -U evacal -d evacal -Fc > backup.dump
+```
+
+Это только дамп БД, не полный бэкап
+EvaCal; артефакты и конфигурацию сохраняют отдельно. Файлы работающего сервера
+из тома `pg-data` нельзя считать согласованным бэкапом без PostgreSQL-aware
+процедуры. Восстановление проверяет тип архива, пути и наличие дампа до
+остановки app/web; `pg_restore` прекращает работу при ошибке и выполняется
+в одной транзакции. Параметры подключения не берутся из архивной `.env`.
+
+См. [архитектуру данных](DATABASE_ARCHITECTURE.md) и
+[регламент эксплуатации](../deploy/README.md#данные-и-резервные-копии).
 
 ### Сброс скомпрометированных паролей на стенде
 

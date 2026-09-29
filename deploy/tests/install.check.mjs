@@ -5,7 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { DatabaseSync } from 'node:sqlite';
 
 const deploy = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const installer = path.join(deploy, 'install.sh');
@@ -49,17 +48,13 @@ else if (a[0] === 'image' && a[1] === 'inspect') {
   if (process.env.MOCK_IMAGE_GC && state.image !== state.tag &&
       a.includes('--entrypoint') && !a.some(x => state.pins?.[x] === state.image)) process.exit(125);
   if (a.includes('--entrypoint') && a.includes('tar')) process.stdout.write(require('zlib').gzipSync(Buffer.alloc(1024)));
-  if (a.includes('--entrypoint') && a.includes('node') && a.includes('-e')) {
-    const r=require('child_process').spawnSync(process.execPath,['-e',a[a.indexOf('-e')+1]],{stdio:'inherit'});
-    process.exit(r.status ?? 1);
-  }
   if (a.includes('psql') && process.env.MOCK_FAIL_PG_PREFLIGHT) process.exit(1);
   if (a.includes('pg_dump')) { if(process.env.MOCK_FAIL_BACKUP) process.exit(1); process.stdout.write('external database dump'); }
   if (a.includes('pg_restore') && process.env.MOCK_FAIL_RESTORE) process.exit(1);
 
 } else if (a[0] === 'inspect') {
   const template = a[2] || '';
-  if (template.includes('.Mounts')) console.log(template.includes('/app/storage') ? 'custom_storage-data' : 'custom_db-data');
+  if (template.includes('.Mounts')) console.log(template.includes('/app/storage') ? 'custom_storage-data' : '');
   else if (template.includes('.Image')) console.log(state.image);
   else if (template.includes('.State.Running')) console.log(state.running ? 'true' : 'false');
   else if (template.includes('.NetworkSettings.Networks')) console.log('fixture_default');
@@ -81,13 +76,7 @@ else if (a[0] === 'image' && a[1] === 'inspect') {
     if (!args.includes('--no-deps') || args.includes('app')) state.image=state.tag;
     state.running=true; save();
   }
-  else if (args[0] === 'run' && process.env.MOCK_RESTORE_DATA && args.includes('migrate')) {
-    const flag=args.includes('-ec')?'-ec':'-c', command=args[args.indexOf(flag)+1];
-    if(command.includes('/app/data/')) {
-      const r=require('child_process').spawnSync('sh',[flag,command.replaceAll('/app/data',process.env.MOCK_RESTORE_DATA)],{stdio:'inherit'});
-      process.exit(r.status ?? 1);
-    }
-  }
+
 }
 `, { mode: 0o755 });
   fs.writeFileSync(path.join(bin, 'curl'), `#!/usr/bin/env node
@@ -112,7 +101,7 @@ fs.copyFileSync(path.join(process.env.MOCK_SOURCE, 'deploy', url.split('/deploy/
 test('help needs no Docker and creates no installation', t=>{
   const f=fixture(t); f.ok(f.run(['--help'])); assert.equal(fs.existsSync(f.dir),false); assert.equal(f.calls().length,0);
 });
-for (const args of [['--version'],['--sqlite','--database-url','postgresql://db/test'],['--cert','missing'],['typo']]) {
+for (const args of [['--version'],['--unknown-database'],['--cert','missing'],['typo']]) {
   test(`bad arguments fail before Docker: ${args.join(' ')}`, t=>{
     const f=fixture(t), r=f.run(args,{},installer,false); assert.notEqual(r.status,0);
     assert.doesNotMatch(r.stderr,/unbound variable/); assert.equal(f.calls().length,0);
@@ -154,9 +143,10 @@ test('external PostgreSQL needs no local database and preserves dollars', t=>{
   const f=fixture(t), url='postgresql://user:p$WORD%23@database:5432/evacal';
   f.ok(f.run(['install','--local','--database-url',url,'--yes'])); assert.equal(f.value('DATABASE_URL'),url); assert.doesNotMatch(f.value('COMPOSE_FILE'),/postgres/);
 });
-test('SQLite source install uses data-only paths and never pulls GHCR', t=>{
-  const f=fixture(t); f.ok(f.run(['install','--local','--source',f.source,'--sqlite','--yes']));
-  assert.equal(f.value('DATABASE_URL'),'file:/app/data/dev.db'); assert.doesNotMatch(f.value('COMPOSE_FILE'),/postgres/); assert.match(f.value('COMPOSE_FILE'),/build/);
+test('PostgreSQL source install uses local app images and retains its database service', t=>{
+  const f=fixture(t); f.ok(f.run(['install','--local','--source',f.source,'--yes']));
+  assert.equal(f.value('DATABASE_URL'),''); assert.match(f.value('COMPOSE_FILE'),/postgres/); assert.match(f.value('COMPOSE_FILE'),/build/);
+  assert.equal(f.value('DATABASE_PROVIDER'), '');
   assert.equal(f.calls().some(x=>x.a[0]==='pull'),false); assert.ok(f.calls().some(x=>x.a.includes('build')));
 });
 test('bad ports and Compose v1 do not commit configuration', t=>{
@@ -210,7 +200,7 @@ test('failed backup aborts update before replacing live configuration', t=>{
   assert.equal(f.calls().some(x=>x.a.includes('rm')&&x.a.includes('migrate')),false);
 });
 
-// Review regressions: lifecycle is mocked, but tar and SQLite validation execute
+// Review regressions: lifecycle is mocked, but archive validation executes
 // the actual implementation against isolated files, not canned success output.
 function shell(f, code, args = [], extra = {}) {
   return spawnSync('bash', ['-c', 'source "$1"; INSTALL_DIR="$2"; shift 2; ' + code,
@@ -277,75 +267,57 @@ test('standalone backup resumes existing containers even when the local tag chan
 function tar(f, file, dir, entries) {
   f.ok(spawnSync('tar', ['-czf', file, '-C', dir, ...(entries.length ? entries : ['-T', '/dev/null'])], { encoding: 'utf8' }));
 }
-function backupFixture(f, provider, populate) {
+function backupFixture(f, provider = 'postgresql', dump = 'fixture custom dump') {
   const dir = fs.mkdtempSync(path.join(f.root, 'backup-'));
   fs.writeFileSync(path.join(dir, 'PROVIDER'), provider + '\n');
   tar(f, path.join(dir, 'storage.tgz'), dir, []);
-  if (provider === 'sqlite') {
-    const database = path.join(dir, 'database'); fs.mkdirSync(database);
-    const cleanup = populate(database);
-    tar(f, path.join(dir, 'sqlite.tgz'), database, fs.readdirSync(database));
-    cleanup?.();
-  } else fs.writeFileSync(path.join(dir, 'db.dump'), 'fixture custom dump');
+  if (dump !== null) fs.writeFileSync(path.join(dir, 'db.dump'), dump);
   const file = path.join(dir, 'backup.tar.gz');
-  tar(f, file, dir, ['PROVIDER', 'storage.tgz', provider === 'sqlite' ? 'sqlite.tgz' : 'db.dump']);
+  tar(f, file, dir, ['PROVIDER', 'storage.tgz', ...(dump === null ? [] : ['db.dump'])]);
   return file;
 }
-function createDatabase(file, value) {
-  const db = new DatabaseSync(file);
-  db.exec('CREATE TABLE marker(value TEXT NOT NULL)');
-  db.prepare('INSERT INTO marker VALUES (?)').run(value);
-  return db;
-}
-for (const [name, populate] of [
-  ['empty archive', () => {}],
-  ['missing dev.db', dir => { fs.writeFileSync(path.join(dir, 'dev.db-wal'), 'not a database'); }],
-  ['zero-byte dev.db', dir => { fs.writeFileSync(path.join(dir, 'dev.db'), ''); }],
-  ['non-SQLite dev.db', dir => { fs.writeFileSync(path.join(dir, 'dev.db'), 'invalid'.repeat(100)); }],
-  ['corrupt SQLite page with valid header', dir => {
-    const file = path.join(dir, 'dev.db'); createDatabase(file, 'saved').close();
-    const bytes = fs.readFileSync(file); bytes[100] = 255; fs.writeFileSync(file, bytes);
-  }],
+
+for (const [name, provider, dump] of [
+  ['unsupported archive', 'unsupported', 'dump'],
+  ['missing dump', 'postgresql', null],
+  ['empty dump', 'postgresql', ''],
 ]) {
-  test(`restore rejects ${name} before stopping or touching the current database`, t => {
-    const f = fixture(t); f.ok(f.run(['install', '--local', '--source', f.source, '--sqlite']));
-    const live = path.join(f.root, 'live-data'); fs.mkdirSync(live);
-    const dbFile = path.join(live, 'dev.db'); createDatabase(dbFile, 'current').close();
-    const before = fs.readFileSync(dbFile), file = backupFixture(f, 'sqlite', populate); f.clear();
-    const r = f.run(['restore', file, '--yes'], { MOCK_RESTORE_DATA: live });
-    assert.notEqual(r.status, 0, r.stdout);
-    assert.deepEqual(fs.readFileSync(dbFile), before);
-    assert.equal(f.calls().some(x => x.a.includes('stop') || x.a.includes('up') || x.a.includes('migrate') && x.a.includes('run')), false);
+  test(`restore rejects ${name} before stopping services`, t => {
+    const f = fixture(t); f.ok(f.run(['install', '--local']));
+    const before = fs.readFileSync(path.join(f.dir, '.env'));
+    const file = backupFixture(f, provider, dump); f.clear();
+    assert.notEqual(f.run(['restore', file, '--yes']).status, 0);
+    assert.deepEqual(fs.readFileSync(path.join(f.dir, '.env')), before);
+    assert.equal(f.calls().some(x => x.a.includes('stop') || x.a.includes('up') || x.a.includes('pg_restore')), false);
   });
 }
-for (const wal of [false, true]) {
-  test(`restore validates and restores actual SQLite data${wal ? ' including uncheckpointed WAL' : ''}`, t => {
-    const f = fixture(t); f.ok(f.run(['install', '--local', '--source', f.source, '--sqlite']));
-    const live = path.join(f.root, 'live-data'); fs.mkdirSync(live);
-    createDatabase(path.join(live, 'dev.db'), 'current').close();
-    fs.writeFileSync(path.join(live, 'dev.db-wal'), 'stale WAL');
-    const file = backupFixture(f, 'sqlite', dir => {
-      const db = createDatabase(path.join(dir, 'dev.db'), 'saved');
-      if (wal) {
-        db.exec('PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0');
-        db.prepare('INSERT INTO marker VALUES (?)').run('only-in-WAL');
-        assert.ok(fs.statSync(path.join(dir, 'dev.db-wal')).size > 0);
-        return () => db.close();
-      }
-      db.close();
+
+for (const [key, value] of [['DATABASE_URL', 'file:./local.db'], ['DATABASE_PROVIDER', 'unsupported']]) {
+  for (const command of ['install', 'update', 'backup', 'restore', 'start', 'restart']) {
+    test(`${command} rejects an incompatible saved ${key} before changing the installation`, t => {
+      const f = fixture(t); f.ok(f.run(['install', '--local']));
+      fs.appendFileSync(path.join(f.dir, '.env'), `${key}="${value}"\n`);
+      const before = fs.readFileSync(path.join(f.dir, '.env'));
+      const file = backupFixture(f); f.clear();
+      const args = [command, '--yes', ...(command === 'restore' ? [file] : []),
+        ...(command === 'install' || command === 'update' ? ['--database-url', 'postgresql://u:p@db/app', '--skip-backup'] : [])];
+      const result = f.run(args);
+      assert.notEqual(result.status, 0); assert.match(result.stderr, /PostgreSQL/);
+      assert.deepEqual(fs.readFileSync(path.join(f.dir, '.env')), before);
+      assert.equal(f.calls().some(x => ['stop', 'start', 'up', 'pg_restore', 'pg_dump', 'build', 'pull'].some(a => x.a.includes(a))), false);
     });
-    f.clear(); f.ok(f.run(['restore', file, '--yes'], { MOCK_RESTORE_DATA: live }));
-    assert.equal(fs.existsSync(path.join(live, 'dev.db-wal')), false);
-    const db = new DatabaseSync(path.join(live, 'dev.db'), { readOnly: true });
-    try { assert.deepEqual(db.prepare('SELECT value FROM marker ORDER BY rowid').all().map(r => r.value), wal ? ['saved', 'only-in-WAL'] : ['saved']); }
-    finally { db.close(); }
-    const calls = f.calls(), check = calls.findIndex(x => x.a.includes('--entrypoint') && x.a.includes('node'));
-    const stop = calls.findIndex(x => x.a.includes('stop'));
-    assert.ok(check >= 0 && stop > check);
-    assert.equal(calls[check].a.includes('--mount') || calls[check].a.includes('-v'), false);
-    assert.ok(calls[check].a.includes('none'));
-  });
+  }
 }
+
+test('existing PostgreSQL provider flag is retired while passwords and project stay unchanged', t => {
+  const f = fixture(t); f.ok(f.run(['install', '--local']));
+  const password = f.value('POSTGRES_PASSWORD'), project = f.value('COMPOSE_PROJECT_NAME');
+  fs.appendFileSync(path.join(f.dir, '.env'), 'DATABASE_PROVIDER=postgresql\n');
+  f.ok(f.run(['update', '--yes']));
+  assert.equal(f.value('DATABASE_PROVIDER'), '');
+  assert.equal(f.value('POSTGRES_PASSWORD'), password);
+  assert.equal(f.value('COMPOSE_PROJECT_NAME'), project);
+});
 
 test('external backup and restore use a libpq URL via env and preflight before stopping', t => {
   const f = fixture(t), url = 'postgresql://u:p%24word@external:5432/db?schema=public&sslmode=require';
@@ -411,21 +383,4 @@ test('historical 0.6.0 updater retains PostgreSQL without learning new overlay f
   assert.equal(f.value('COMPOSE_PROJECT_NAME'), 'evacal');
   assert.equal(f.value('POSTGRES_PASSWORD'), 'keep-me');
   assert.equal(f.value('SESSION_SECRET'), 'keep-session');
-});
-
-test('SQLite verification streams a large database and preserves rowid gaps', t => {
-  const f = fixture(t), dir = path.join(f.root, 'large-db'); fs.mkdirSync(dir);
-  const db = new DatabaseSync(path.join(dir, 'dev.db'));
-  db.exec("CREATE TABLE payload(value BLOB); INSERT INTO payload(rowid,value) VALUES (42,zeroblob(2097152));");
-  db.close();
-  const file = path.join(f.root, 'large.tgz'); tar(f, file, dir, ['dev.db']);
-  const code = shell(f, 'sqlite_snapshot_code'); f.ok(code);
-  const result = spawnSync(process.execPath, ['-e', code.stdout], { input: fs.readFileSync(file), maxBuffer: 4 * 1024 * 1024 });
-  f.ok(result); assert.ok(result.stdout.length > 2 * 1024 * 1024);
-  const restored = path.join(f.root, 'restored.db'); fs.writeFileSync(restored, result.stdout);
-  const checked = new DatabaseSync(restored, { readOnly: true });
-  try {
-    const row = checked.prepare('SELECT rowid, length(value) AS size FROM payload').get();
-    assert.equal(row.rowid, 42); assert.equal(row.size, 2097152);
-  } finally { checked.close(); }
 });

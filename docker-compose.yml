@@ -1,14 +1,11 @@
-# Legacy source-development stack. For user installs use deploy/install.sh.
-# PostgreSQL is the default; external DB / SQLite without an idle PostgreSQL
-# container are supported by the separate overlays in deploy/.
-# Prisma code stays in the image; db-data contains DATA, not /app/prisma code.
+# Source-development stack with PostgreSQL. For external PostgreSQL use deploy overlays.
+# Schemas/migrations are immutable image content; only artifacts have an app volume.
 x-logging: &logging
   driver: json-file
   options:
     max-size: '20m'
     max-file: '5'
 x-database: &database
-  DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}
   DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-evacal}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-evacal}?schema=public}
 services:
   postgres:
@@ -30,8 +27,6 @@ services:
     build:
       context: .
       target: migrate
-      args:
-        DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}
     restart: 'no'
     depends_on:
       postgres:
@@ -40,13 +35,10 @@ services:
       <<: *database
       SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD:-}
     volumes:
-      - db-data:/app/data
       - storage-data:/app/storage
   app:
     build:
       context: .
-      args:
-        DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}
     init: true
     restart: unless-stopped
     depends_on:
@@ -69,7 +61,6 @@ services:
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-}
       S3_PREFIX: ${S3_PREFIX:-}
     volumes:
-      - db-data:/app/data
       - storage-data:/app/storage
     expose: ['3000']
     deploy:
@@ -111,7 +102,6 @@ services:
       - ./nginx/certs:/etc/nginx/certs:ro
     logging: *logging
 volumes:
-  db-data:
   pg-data:
   storage-data:
   minio-data:

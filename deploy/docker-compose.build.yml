@@ -6,13 +6,9 @@ services:
     build:
       context: ${EVACAL_SOURCE:?EVACAL_SOURCE is required}
       target: migrate
-      args:
-        DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}
   app:
     image: ${COMPOSE_PROJECT_NAME:-evacal}-app:local
     pull_policy: never
     build:
       context: ${EVACAL_SOURCE:?EVACAL_SOURCE is required}
       target: runner
-      args:
-        DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}

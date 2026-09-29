@@ -21,12 +21,12 @@ test('publication rejects shell metacharacters', () => {
 });
 test('both stacks isolate mutable data from schemas and migrations', () => {
   for (const file of ['docker-compose.yml', 'deploy/docker-compose.yml', 'deploy/docker-compose.base.yml']) {
-    assert.doesNotMatch(text(file), /- db-data:\/app\/prisma/);
-    assert.equal((text(file).match(/- db-data:\/app\/data/g) || []).length, 2);
+    assert.doesNotMatch(text(file), /db-data|\/app\/data/);
+    assert.doesNotMatch(text(file), /^\s+- .*:\/app\/prisma/m);
     assert.equal((text(file).match(/- storage-data:\/app\/storage/g) || []).length, 2);
   }
   assert.doesNotMatch(text('docker-migrate-entrypoint.sh'), /chown -R.*\/app\s/);
-  assert.match(text('docker-entrypoint.sh'), /file:\/app\/data\/dev\.db/);
+  assert.match(text('docker-entrypoint.sh'), /DATABASE_URL must be a PostgreSQL/);
   const publish = text('scripts/docker-publish.sh');
   assert.ok(publish.indexOf('bash scripts/smoke-docker.sh') < publish.indexOf('docker buildx imagetools create'));
   assert.match(publish, /for target in runner migrate/);
@@ -50,7 +50,7 @@ test('deployment bundle contains matching manifest/config and verifiable checksu
 });
 
 const hasCompose = run('docker', ['compose', 'version', '--short']).status === 0;
-for (const mode of ['postgresql', 'external', 'sqlite', 'tls', 'root', 'legacy']) {
+for (const mode of ['postgresql', 'external', 'source', 'tls', 'root', 'legacy']) {
   test(`real Compose config: ${mode}`, { skip: !hasCompose && 'Docker Compose CLI is not installed' }, () => {
     const dir = mkdtempSync(join(tmpdir(), 'evacal-compose-'));
     try {
@@ -59,8 +59,7 @@ for (const mode of ['postgresql', 'external', 'sqlite', 'tls', 'root', 'legacy']
       const entries = {
         SESSION_SECRET: secret, POSTGRES_PASSWORD: 'test-only',
         EVACAL_SOURCE: root, EVACAL_BIND_ADDRESS: '127.0.0.1', EVACAL_HTTP_PORT: '8080', EVACAL_HTTPS_PORT: '8443',
-        DATABASE_PROVIDER: mode === 'sqlite' ? 'sqlite' : 'postgresql',
-        DATABASE_URL: mode === 'external' ? 'postgresql://u:p@external:5432/db' : mode === 'sqlite' ? 'file:/app/data/dev.db' : '',
+        DATABASE_URL: mode === 'external' ? 'postgresql://u:p@external:5432/db' : '',
       };
       for (const [key, value] of Object.entries(entries)) {
         const r = run('bash', ['-c', 'source deploy/install.sh; INSTALL_DIR="$1"; env_set "$2" "$3"', 'bash', dir, key, value]);
@@ -68,8 +67,8 @@ for (const mode of ['postgresql', 'external', 'sqlite', 'tls', 'root', 'legacy']
       }
       const args = ['compose', '--project-name', 'evacal-config-test', '--env-file', join(dir, '.env')];
       const files = mode === 'root' ? ['docker-compose.yml'] : [mode === 'legacy' ? 'deploy/docker-compose.yml' : 'deploy/docker-compose.base.yml'];
-      if (mode === 'postgresql' || mode === 'tls') files.push('deploy/docker-compose.postgres.yml');
-      if (mode === 'sqlite') files.push('deploy/docker-compose.build.yml');
+      if (mode === 'postgresql' || mode === 'tls' || mode === 'source') files.push('deploy/docker-compose.postgres.yml');
+      if (mode === 'source') files.push('deploy/docker-compose.build.yml');
       if (mode === 'tls') files.push('deploy/docker-compose.tls.yml');
       for (const file of files) args.push('-f', join(root, file));
       args.push('config', '--format', 'json');
@@ -82,8 +81,8 @@ for (const mode of ['postgresql', 'external', 'sqlite', 'tls', 'root', 'legacy']
       // Compose escapes literal dollars when serializing a reusable config.
       assert.equal(config.services.app.environment.SESSION_SECRET.replace(/\$\$/g, '$'), secret);
       const destinations = config.services.app.volumes.map((v) => v.target);
-      assert.ok(destinations.includes('/app/data')); assert.ok(!destinations.includes('/app/prisma'));
-      assert.equal(Boolean(config.services.postgres), ['postgresql', 'tls', 'root', 'legacy'].includes(mode));
+      assert.ok(destinations.includes('/app/storage')); assert.ok(!destinations.includes('/app/data')); assert.ok(!destinations.includes('/app/prisma'));
+      assert.equal(Boolean(config.services.postgres), ['postgresql', 'source', 'tls', 'root', 'legacy'].includes(mode));
       if (mode === 'legacy') {
         const modernArgs = [...args];
         const index = modernArgs.indexOf(join(root, 'deploy/docker-compose.yml'));
@@ -92,7 +91,7 @@ for (const mode of ['postgresql', 'external', 'sqlite', 'tls', 'root', 'legacy']
         assert.deepEqual(config, JSON.parse(modern.stdout), 'legacy stack must match base + PostgreSQL overlay');
       }
       if (mode === 'external') assert.equal(config.services.app.environment.DATABASE_URL, entries.DATABASE_URL);
-      if (mode === 'sqlite') assert.equal(config.services.app.pull_policy, 'never');
+      if (mode === 'source') assert.equal(config.services.app.pull_policy, 'never');
       if (mode === 'tls') assert.deepEqual(config.services.web.ports.map((p) => p.host_ip), ['127.0.0.1', '127.0.0.1']);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
@@ -118,3 +117,17 @@ test('manager refresh uses the selected source rather than the running script', 
     assert.match(readFileSync(join(destination, 'evacal'), 'utf8'), /# updated-manager-fixture/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+for (const url of ['', 'file:./local.db', 'mysql://db/evacal']) {
+  test(`container rejects unsupported database configuration before its command: ${url}`, () => {
+    const r = run('sh', ['docker-entrypoint.sh', 'printf', 'COMMAND_EXECUTED'], {env: {...process.env, DATABASE_URL: url}});
+    assert.notEqual(r.status, 0); assert.doesNotMatch(r.stdout, /COMMAND_EXECUTED/);
+    assert.match(r.stderr, /PostgreSQL/);
+  });
+}
+for (const url of ['postgresql://u:p@db/evacal', 'postgres://u:p@db/evacal']) {
+  test(`container accepts PostgreSQL URL: ${url}`, () => {
+    const r = run('sh', ['docker-entrypoint.sh', 'printf', 'ok'], {env: {...process.env, DATABASE_URL: url}});
+    assert.equal(r.status, 0, r.stderr); assert.equal(r.stdout, 'ok');
+  });
+}

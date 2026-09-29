@@ -9,7 +9,7 @@ export function buildRA34Sections(payload: Gost34InputPayload): Gost34Section[] 
     ctx?.architecture?.style || 'Контейнеризированная микросервисная архитектура (Docker / Nginx)';
   const platforms =
     ctx?.infrastructure?.platforms?.join(', ') ||
-    'Astra Linux / Alt Linux / Ubuntu Server, Docker, PostgreSQL / SQLite';
+    'Astra Linux / Alt Linux / Ubuntu Server, Docker, PostgreSQL';
 
   return [
     {
@@ -56,7 +56,7 @@ export function buildRA34Sections(payload: Gost34InputPayload): Gost34Section[] 
       numStr: '5',
       title: 'РЕЗЕРВНОЕ КОПИРОВАНИЕ, МОНИТОРИНГ И ВОССТАНОВЛЕНИЕ',
       paragraphs: [
-        '5.1 Резервному копированию подлежат каталог БД (том db-data:/app/prisma) и конфигурационные файлы (.env, nginx.conf).',
+        '5.1 Резервному копированию подлежат согласованный дамп PostgreSQL (pg_dump), артефакты комплектов (локальное хранилище или S3) и конфигурационные файлы (.env, nginx.conf).',
         '5.2 Регламент резервного копирования: ежедневный полный бэкап (Full Backup) с глубиной хранения 30 дней.',
         '5.3 Мониторинг состояния сервиса выполняется через эндпоинт /api/health (HTTP 200) и журналы контейнеров docker compose logs.',
       ],

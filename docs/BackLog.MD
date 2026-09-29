@@ -104,7 +104,7 @@
 
 ### Horizon C — Платформа данных и Multi-Tenant (P1)
 
-- [x] Dual-mode SQLite → PostgreSQL адаптер с миграциями Prisma для высоконагруженных развёртываний (провайдер по `DATABASE_URL`/`DATABASE_PROVIDER`, `lib/prisma.ts` выбирает адаптер, `prisma/postgresql/` — порождаемая схема и миграции, `npm run db:sync`, сервис `postgres` в docker-compose по умолчанию; CI (Jenkins) гоняет тесты, сборку и e2e против PostgreSQL, поднимаемого внутри агента `scripts/ci-postgres.sh`).
+- [x] PostgreSQL — единственная СУБД: один `PrismaPg`, каноническая схема `prisma/schema.prisma`, неизменяемая история `prisma/migrations`, `npm run db:sync` через `migrate deploy`. Встроенный сервис или внешний сервер; одинаковая модель в dev, CI и production. Подробности: [архитектура данных](DATABASE_ARCHITECTURE.md).
 - [ ] Multi-tenant изоляция (`tenantId` / организация на сущностях проекта, пользователей и расчётов).
 - [ ] Очередь фоновых задач генерации тяжелых комплектов (BullMQ / Redis / pg-boss) для предотвращения таймаутов.
 - [x] Внешнее объектное хранилище артефактов (S3 / MinIO) для неизменяемых ZIP-пакетов (`lib/gost34/storage.ts`: бэкенды `fs` и `s3` за одним интерфейсом, выбор по `S3_BUCKET`/`GOST_PACKAGE_STORAGE`, профиль `minio` и том `storage-data` в docker-compose).

@@ -1,19 +1,12 @@
 import 'dotenv/config';
-import path from 'node:path';
 import { defineConfig } from 'prisma/config';
-import { resolveDatabaseProvider, resolveDatabaseUrl } from './lib/databaseUrl';
+import { resolveDatabaseUrl } from './lib/databaseUrl';
 
-// Схема Prisma 7 фиксирует провайдера, поэтому под каждую СУБД своя копия схемы
-// и свой каталог миграций. Копия для PostgreSQL порождается из основной командой
-// `npm run db:schema:sync`; тест lib/__tests__/prismaSchemas.test.ts следит,
-// чтобы они не разъехались.
-const provider = resolveDatabaseProvider();
-const schemaDir = provider === 'postgresql' ? path.join('prisma', 'postgresql') : 'prisma';
-
+// One authoritative schema and one immutable migration history for all environments.
 export default defineConfig({
-  schema: path.join(schemaDir, 'schema.prisma'),
+  schema: 'prisma/schema.prisma',
   migrations: {
-    path: path.join(schemaDir, 'migrations'),
+    path: 'prisma/migrations',
     seed: 'tsx prisma/seed.ts',
   },
   datasource: {

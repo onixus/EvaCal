@@ -11,11 +11,8 @@ FROM node:22.14-alpine3.21 AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ENV DATABASE_URL="file:./prisma/dev.db"
 ENV NEXT_TELEMETRY_DISABLED=1
-ARG DATABASE_PROVIDER=postgresql
-ENV DATABASE_PROVIDER=$DATABASE_PROVIDER
-RUN npm run build
+RUN DATABASE_URL="postgresql://build:build@127.0.0.1:5432/evacal" npm run build
 
 # --- migrate: one-off schema sync + seed ---
 FROM node:22.14-alpine3.21 AS migrate
@@ -32,11 +29,8 @@ COPY prisma ./prisma
 COPY lib ./lib
 COPY scripts ./scripts
 COPY reset-all.ts ./
-ARG DATABASE_PROVIDER=postgresql
-ENV DATABASE_PROVIDER=$DATABASE_PROVIDER
-ENV DATABASE_URL="file:./prisma/dev.db"
 # Клиент готов в образе: запуск/обновление не требует npm или Prisma из сети.
-RUN npx --no-install prisma generate
+RUN DATABASE_URL="postgresql://build:build@127.0.0.1:5432/evacal" npx --no-install prisma generate
 COPY docker-entrypoint.sh docker-migrate-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/docker-migrate-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker-migrate-entrypoint.sh"]
@@ -56,8 +50,8 @@ ENV HOSTNAME=0.0.0.0
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs \
-  && mkdir -p /app/data /app/storage \
-  && chown nextjs:nodejs /app/data /app/storage
+  && mkdir -p /app/storage \
+  && chown nextjs:nodejs /app/storage
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
