@@ -223,6 +223,9 @@ configure() {
   [ "$tls" != yes ] || files="$files:docker-compose.tls.yml"
   [ -z "$source" ] || files="$files:docker-compose.build.yml"
   env_set COMPOSE_FILE "$files"
+  # Explicit opt-in for standalone's internal 0.0.0.0 URL behind local nginx.
+  env_set EVACAL_LOCAL_HTTP false
+  if [ "$bind" = 127.0.0.1 ] && [ "$tls" != yes ]; then env_set EVACAL_LOCAL_HTTP true; fi
   if [ -n "$OPT_SECURE" ]; then env_set FORCE_SECURE_COOKIES true
   elif [ -n "$OPT_TLS" ] || [ -z "$(env_get FORCE_SECURE_COOKIES)" ]; then
     if [ "$tls" = yes ]; then env_set FORCE_SECURE_COOKIES true; else env_set FORCE_SECURE_COOKIES false; fi
@@ -346,7 +349,8 @@ print_credentials() {
 cmd_install() (
   check_docker
   local target="$INSTALL_DIR" stage source tag fresh=yes file rollback='' owner_dir project
-  local resume_old=no old_running=''
+  local resume_old=no old_running='' backup_image='' old_app=''
+  local EVACAL_BACKUP_IMAGE=''
   [ ! -f "$target/.env" ] || fresh=no
   mkdir -p "$target"; target="$(cd -P "$target" && pwd)"; INSTALL_DIR="$target"
   source="${OPT_SOURCE:-$(env_get EVACAL_SOURCE)}"
@@ -361,13 +365,24 @@ cmd_install() (
   fi
   tag="$(normalize_tag "${tag:-latest}")"
   stage="$(mktemp -d "$target/.prepare.XXXXXX")"
-  trap 'code=$?; rm -rf "$stage"; if [ "$resume_old" = yes ] && [ -n "$old_running" ]; then docker start $old_running || code=1; fi; exit "$code"' EXIT
+  trap 'code=$?; rm -rf "$stage"; [ -z "$backup_image" ] || docker image rm "$backup_image" >/dev/null 2>&1 || true; if [ "$resume_old" = yes ] && [ -n "$old_running" ]; then docker start $old_running || code=1; fi; exit "$code"' EXIT
   if [ "$fresh" = no ]; then cp "$target/.env" "$stage/.env"; fi
   if [ -d "$target/certs" ]; then cp -R "$target/certs" "$stage/certs"; fi
   INSTALL_DIR="$stage"; configure "$tag" "$source"
   project="$(env_get COMPOSE_PROJECT_NAME)"
   owner_dir="$(docker ps -a --filter "label=com.docker.compose.project=$project" --format '{{.Label "com.docker.compose.project.working_dir"}}' | head -n 1)"
   [ -z "$owner_dir" ] || [ "$owner_dir" = "$target" ] || die "Проект $project уже используется в $owner_dir. Выберите другой --project и --dir."
+  # Keep the old runtime image addressable while build/pull replaces its tag.
+  # Preparation still happens before stopping writers; failures leave them running.
+  if [ "$fresh" = no ] && [ "$COMMAND" = update ] && [ -z "$OPT_SKIP_BACKUP" ]; then
+    INSTALL_DIR="$target"
+    old_app="$(compose ps -a -q app | head -n 1)"
+    [ -n "$old_app" ] || die 'Для backup нужен существующий контейнер app.'
+    backup_image="evacal-backup:${project}-$(basename "$stage" | tr '[:upper:]' '[:lower:]')-$$"
+    docker image tag "$(docker inspect -f '{{.Image}}' "$old_app")" "$backup_image"
+    EVACAL_BACKUP_IMAGE="$backup_image"
+    INSTALL_DIR="$stage"
+  fi
   if [ -n "$source" ]; then
     CONFIG_REF=source
   else
@@ -492,7 +507,7 @@ cmd_backup() (
   provider="$(env_get DATABASE_PROVIDER)"; provider="${provider:-postgresql}"
   APP_CONTAINER="$(compose ps -a -q app | head -n 1)"
   [ -n "$APP_CONTAINER" ] || die 'Для backup нужен существующий контейнер app (может быть остановлен).'
-  image="$(docker inspect -f '{{.Image}}' "$APP_CONTAINER")"
+  image="${EVACAL_BACKUP_IMAGE:-$(docker inspect -f '{{.Image}}' "$APP_CONTAINER")}"
   storage_volume="$(app_volume /app/storage)"
   if [ "$provider" = postgresql ] && [ -n "$(env_get DATABASE_URL)" ]; then pg_preflight; fi
   mkdir -p "$INSTALL_DIR/backups"

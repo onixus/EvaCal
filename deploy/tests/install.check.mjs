@@ -33,7 +33,11 @@ fs.appendFileSync(process.env.MOCK_LOG, JSON.stringify({a, cwd:process.cwd(), da
 if (a[0] === 'stop') { state.running=false; save(); }
 if (a[0] === 'start') { state.running=true; save(); }
 
-if (a[0] === 'pull') {
+if (a[0] === 'image' && a[1] === 'tag') {
+  state.pins = {...state.pins, [a[3]]: a[2]}; save();
+} else if (a[0] === 'image' && a[1] === 'rm') {
+  delete state.pins?.[a[2]]; save();
+} else if (a[0] === 'pull') {
   if (process.env.MOCK_FAIL_PULL && a.join(' ').includes(process.env.MOCK_FAIL_PULL)) process.exit(1);
 } else if (a[0] === 'ps') console.log(process.env.MOCK_OWNER_DIR || '');
 else if (a[0] === 'image' && a[1] === 'inspect') {
@@ -41,6 +45,9 @@ else if (a[0] === 'image' && a[1] === 'inspect') {
   if (a.some(x => x.includes('.RepoDigests'))) console.log(image.slice(0,image.lastIndexOf(':')) + '@sha256:' + (migrate?'b':'a').repeat(64));
   else console.log(migrate ? (process.env.MOCK_MIGRATE_REV || '${revision}') : '${revision}');
 } else if (a[0] === 'run') {
+  // Rebuilding a mutable tag can make the old container image ID unresolvable.
+  if (process.env.MOCK_IMAGE_GC && state.image !== state.tag &&
+      a.includes('--entrypoint') && !a.some(x => state.pins?.[x] === state.image)) process.exit(125);
   if (a.includes('--entrypoint') && a.includes('tar')) process.stdout.write(require('zlib').gzipSync(Buffer.alloc(1024)));
   if (a.includes('--entrypoint') && a.includes('node') && a.includes('-e')) {
     const r=require('child_process').spawnSync(process.execPath,['-e',a[a.indexOf('-e')+1]],{stdio:'inherit'});
@@ -122,7 +129,7 @@ test('dotenv literals round-trip without execution and are mode 600', t=>{
 test('local install pins digests, preserves secrets and resolves its symlink', t=>{
   const f=fixture(t); f.ok(f.run(['install','--local','--version','v1.2.3','--yes'],{MOCK_BANNER:'1'}));
   assert.equal(f.value('EVACAL_TAG'),'1.2.3'); assert.equal(f.value('EVACAL_BIND_ADDRESS'),'127.0.0.1');
-  assert.equal(f.value('EVACAL_HTTP_PORT'),'8080'); assert.equal(f.value('FORCE_SECURE_COOKIES'),'false');
+  assert.equal(f.value('EVACAL_HTTP_PORT'),'8080'); assert.equal(f.value('FORCE_SECURE_COOKIES'),'false'); assert.equal(f.value('EVACAL_LOCAL_HTTP'),'true');
   assert.match(f.value('EVACAL_APP_REF'),/@sha256:a{64}$/); assert.match(f.value('EVACAL_MIGRATE_REF'),/@sha256:b{64}$/);
   assert.equal(f.value('EVACAL_CONFIG_REF'),revision); assert.match(f.value('COMPOSE_FILE'),/postgres/); assert.doesNotMatch(f.value('COMPOSE_FILE'),/tls/);
   assert.equal(fs.statSync(path.join(f.dir,'credentials.txt')).mode&0o777,0o600);
@@ -139,7 +146,7 @@ for (const [label,extra] of [['pull',{MOCK_FAIL_PULL:'evacal-migrate:1.2.4'}],['
     const before=fs.readFileSync(path.join(f.dir,'.env'),'utf8'), script=fs.readFileSync(path.join(f.dir,'evacal'),'utf8'); f.clear();
     assert.notEqual(f.run(['update','--version','1.2.4','--yes'],extra).status,0);
     assert.equal(fs.readFileSync(path.join(f.dir,'.env'),'utf8'),before); assert.equal(fs.readFileSync(path.join(f.dir,'evacal'),'utf8'),script);
-    assert.equal(f.calls().some(x=>x.a.includes('stop')||x.a.includes('up')||x.a.includes('rm')),false);
+    assert.equal(f.calls().some(x=>x.a.includes('stop')||x.a.includes('up')||(x.a[0]==='compose'&&x.a.includes('rm'))),false);
     assert.equal(fs.readdirSync(f.dir).some(x=>x.startsWith('.prepare.')),false);
   });
 }
@@ -248,7 +255,8 @@ test('failed source-update backup resumes original IDs, never the newly built im
 
 test('successful update keeps writers stopped between snapshot and migration', t => {
   const f = fixture(t); f.ok(f.run(['install', '--source', f.source, '--local'])); f.clear();
-  f.ok(f.run(['update'], { MOCK_BUILD_IMAGE: 'sha256:new-source' }));
+  f.ok(f.run(['update'], { MOCK_BUILD_IMAGE: 'sha256:new-source', MOCK_IMAGE_GC: '1' }));
+  assert.deepEqual(f.state().pins, {}, 'temporary image pin must be removed');
   const calls = f.calls(), dump = calls.findIndex(x => x.a.includes('pg_dump'));
   const migrate = calls.findIndex(x => x.a.includes('rm') && x.a.includes('migrate'));
   assert.ok(dump > 0 && migrate > dump);

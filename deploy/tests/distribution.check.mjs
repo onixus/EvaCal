@@ -79,7 +79,8 @@ for (const mode of ['postgresql', 'external', 'sqlite', 'tls', 'root', 'legacy']
       }
       const r = run('docker', args, { env }); assert.equal(r.status, 0, r.stderr);
       const config = JSON.parse(r.stdout);
-      assert.equal(config.services.app.environment.SESSION_SECRET, secret);
+      // Compose escapes literal dollars when serializing a reusable config.
+      assert.equal(config.services.app.environment.SESSION_SECRET.replace(/\$\$/g, '$'), secret);
       const destinations = config.services.app.volumes.map((v) => v.target);
       assert.ok(destinations.includes('/app/data')); assert.ok(!destinations.includes('/app/prisma'));
       assert.equal(Boolean(config.services.postgres), ['postgresql', 'tls', 'root', 'legacy'].includes(mode));

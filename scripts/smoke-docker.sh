@@ -7,6 +7,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIR="$(mktemp -d)"
 PROJECT="evacal-smoke-$(date +%s)-$$"
 compose() (
+  cd "$DIR"
   local key
   local args=(-u COMPOSE_FILE -u COMPOSE_PROFILES -u COMPOSE_PROJECT_NAME)
   while IFS= read -r key; do args+=(-u "$key"); done < <(

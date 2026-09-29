@@ -257,8 +257,14 @@ export function isPlainLocalRequest(req: CookieRequestLike): boolean {
     return false;
   }
   if (url.protocol === 'https:') return false;
-  const host = url.hostname;
-  return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+  const local = (host: string) => ['localhost', '127.0.0.1', '::1', '[::1]'].includes(host);
+  if (local(url.hostname)) return true;
+  // Standalone uses its listen address in req.url. Only an explicitly configured
+  // loopback-only deployment may use nginx's Host; public deployments ignore it.
+  if (process.env.EVACAL_LOCAL_HTTP !== 'true' || url.hostname !== '0.0.0.0' || forwardedProto !== 'http') return false;
+  const authority = req.headers.get('host');
+  if (!authority || !/^(localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?$/.test(authority)) return false;
+  return true;
 }
 
 /** Cookie options for session tokens (login / logout / password change). */
