@@ -90,7 +90,7 @@ export function buildTZ34LegacySections(payload: Gost34InputPayload): Gost34Sect
           numStr: '4.3',
           title: 'Требования к видам обеспечения',
           paragraphs: [
-            '4.3.1 Информационное обеспечение: Реляционная СУБД (PostgreSQL/SQLite) под управлением Prisma ORM.',
+            '4.3.1 Информационное обеспечение: Реляционная СУБД (PostgreSQL) под управлением Prisma ORM.',
             '4.3.2 Программное обеспечение: Node.js 20+, Next.js 15 App Router, TypeScript, Tailwind CSS.',
             '4.3.3 Техническое обеспечение: Вычислительный сервер (2+ vCPU, 4+ GB RAM) с поддержкой Docker.',
           ],

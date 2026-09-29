@@ -10,8 +10,6 @@ test-results
 !.env.example
 **/*.db
 **/*.db-*
-**/*.sqlite
-**/*.sqlite-*
 storage
 backups
 **/credentials.txt

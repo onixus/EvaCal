@@ -5,9 +5,12 @@ dist
 *.log
 .env
 .env.local
-prisma/dev.db
-prisma/dev.db-journal
 credentials.local.txt
+# Local data and backups must never enter version control.
+*.db
+*.db-*
+*.dump
+backups/
 .DS_Store
 *.tsbuildinfo
 nginx/certs/*.pem

@@ -18,7 +18,6 @@ pipeline {
         // Основная СУБД — PostgreSQL: клиент генерируется под неё, тесты и сборка
         // идут против неё. Сервер поднимается внутри агента (scripts/ci-postgres.sh),
         // DATABASE_URL выставляется после его старта в стадии Install Dependencies.
-        DATABASE_PROVIDER = 'postgresql'
 
         // Сборка идёт НЕ в воркспейсе, а в файловой системе контейнера.
         //
@@ -112,7 +111,7 @@ pipeline {
                         sh 'cd "$BUILD_DIR" && npx prisma generate'
                         // Миграции PostgreSQL применяются к живой базе: сломанная
                         // миграция падает здесь, а не у пользователя при деплое.
-                        sh 'cd "$BUILD_DIR" && npm run db:sync'
+                        sh 'cd "$BUILD_DIR" && npm run db:sync && npm run test:postgres'
                     }
                 }
 
@@ -307,7 +306,6 @@ pipeline {
                     cd /e2e
 
                     # Сквозной сценарий идёт против той же СУБД, что и прод.
-                    export DATABASE_PROVIDER=postgresql
                     export DATABASE_URL=$(sh scripts/ci-postgres.sh)
 
                     npm ci

@@ -15,19 +15,18 @@
     "test:watch": "vitest",
     "test:gost34:verify": "tsx scripts/verify-gost34.cjs",
     "test:golden:update": "tsx lib/gost34/__tests__/golden/update.ts",
-    "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:backfill-projects": "tsx scripts/backfill-projects.ts",
     "format": "prettier --write .",
     "prepare": "if [ -z \"$CI\" ]; then npm run format && npm run typecheck; fi",
     "test:e2e": "playwright test",
     "db:sync": "tsx scripts/db-sync.ts",
-    "db:schema:sync": "tsx scripts/sync-prisma-schemas.ts",
-    "db:migrate:pg": "DATABASE_PROVIDER=postgresql prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "db:status": "prisma migrate status",
+    "test:postgres": "tsx scripts/verify-postgres.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1131.0",
-    "@prisma/adapter-better-sqlite3": "^7.9.1",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.9.1",
     "@types/jszip": "^3.4.0",

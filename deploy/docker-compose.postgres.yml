@@ -1,4 +1,4 @@
-# Только встроенный PostgreSQL. Для внешней БД / SQLite этот файл не подключается.
+# Только встроенный PostgreSQL. Для внешней БД этот overlay не подключается.
 services:
   postgres:
     image: postgres:16-alpine

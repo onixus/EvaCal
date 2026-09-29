@@ -2,38 +2,44 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { resolveDatabaseUrl } from '../databaseUrl';
 
 describe('resolveDatabaseUrl', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each([
+    'postgresql://user:secret@localhost:5432/evacal?schema=public',
+    'postgres://user:p%40ss@[::1]:5432/evacal?sslmode=require',
+    'postgresql://user:pass@db/evacal?schema=custom&sslmode=verify-full&sslrootcert=%2Fcert.pem',
+    'postgresql:///evacal?host=/var/run/postgresql',
+  ])('preserves PostgreSQL connection parameters: %s', (url) => {
+    expect(resolveDatabaseUrl(url)).toBe(url);
+    expect(resolveDatabaseUrl(`  ${url}  `)).toBe(url);
   });
 
-  it('переписывает унаследованный от Prisma 5 путь на актуальный', () => {
-    expect(resolveDatabaseUrl('file:./dev.db')).toBe('file:./prisma/dev.db');
-    expect(resolveDatabaseUrl('file:dev.db')).toBe('file:./prisma/dev.db');
+  it.each(['', '   ', '\t\n'])('rejects empty configuration', (url) => {
+    expect(() => resolveDatabaseUrl(url)).toThrow('DATABASE_URL не задан');
   });
 
-  it('не трогает пробелы вокруг значения из .env', () => {
-    expect(resolveDatabaseUrl('  file:./dev.db  ')).toBe('file:./prisma/dev.db');
+  it.each([
+    'file:./local.db', 'file::memory:', 'mysql://user:secret@db/name',
+    'https://db/name', 'not-a-url', 'postgresql:dbname', 'postgresql://',
+    'postgresql://db', 'postgresql://db/', 'postgresql:///evacal',
+    'postgresql://db:invalid/evacal', 'postgresql://db/evacal#fragment',
+  ])('rejects unsupported or malformed connections: %s', (url) => {
+    expect(() => resolveDatabaseUrl(url)).toThrow('требуется postgresql:// или postgres://');
   });
 
-  it('оставляет актуальный путь как есть', () => {
-    expect(resolveDatabaseUrl('file:./prisma/dev.db')).toBe('file:./prisma/dev.db');
-  });
-
-  it('не трогает пути, заданные явно', () => {
-    expect(resolveDatabaseUrl('file:/var/lib/evacal/prod.db')).toBe('file:/var/lib/evacal/prod.db');
-    expect(resolveDatabaseUrl('file:./prisma/test.db')).toBe('file:./prisma/test.db');
-  });
-
-  it('падает, если переменная не задана', () => {
-    // Значение по умолчанию берётся из process.env, поэтому окружение задаётся явно:
-    // иначе тест зелёный там, где DATABASE_URL просто не выставлен, и красный в CI.
+  it('reads the environment without an implicit database', () => {
     vi.stubEnv('DATABASE_URL', '');
     expect(() => resolveDatabaseUrl()).toThrow('DATABASE_URL не задан');
-    expect(() => resolveDatabaseUrl('')).toThrow('DATABASE_URL не задан');
+    vi.stubEnv('DATABASE_URL', ' postgres://user:pass@db/evacal ');
+    expect(resolveDatabaseUrl()).toBe('postgres://user:pass@db/evacal');
   });
 
-  it('без аргумента берёт значение из окружения и нормализует его', () => {
-    vi.stubEnv('DATABASE_URL', 'file:./dev.db');
-    expect(resolveDatabaseUrl()).toBe('file:./prisma/dev.db');
+  it('does not expose credentials in validation errors', () => {
+    try {
+      resolveDatabaseUrl('mysql://user:TOP_SECRET@db/evacal');
+      expect.fail('must reject the connection');
+    } catch (error) {
+      expect(String(error)).not.toContain('TOP_SECRET');
+    }
   });
 });

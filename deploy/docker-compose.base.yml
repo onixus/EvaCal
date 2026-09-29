@@ -2,7 +2,6 @@
 name: ${COMPOSE_PROJECT_NAME:-evacal}
 
 x-database: &database
-  DATABASE_PROVIDER: ${DATABASE_PROVIDER:-postgresql}
   DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-evacal}:${POSTGRES_PASSWORD:-}@postgres:5432/${POSTGRES_DB:-evacal}?schema=public}
 
 x-logging: &logging
@@ -20,7 +19,6 @@ services:
       SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD:-}
     # Нельзя монтировать /app/prisma: старый том скрывает новые миграции и seed.
     volumes:
-      - db-data:/app/data
       - storage-data:/app/storage
     logging: *logging
 
@@ -53,7 +51,6 @@ services:
       EVACAL_LLM_ALLOW_LOOPBACK: ${EVACAL_LLM_ALLOW_LOOPBACK:-}
       EVACAL_LLM_ALLOW_PRIVATE_NETWORK: ${EVACAL_LLM_ALLOW_PRIVATE_NETWORK:-}
     volumes:
-      - db-data:/app/data
       - storage-data:/app/storage
     expose:
       - '3000'
@@ -92,6 +89,5 @@ services:
       <<: *database
 
 volumes:
-  db-data:
   pg-data:
   storage-data:

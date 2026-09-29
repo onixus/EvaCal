@@ -1,5 +1,5 @@
 // EvaCal: labor-cost calculator
-// Lightweight embedded DB (SQLite) via Prisma.
+// PostgreSQL is the only database in development, tests and production.
 
 // Prisma 7: Rust-free клиент, генерируется в репозиторий, а не в node_modules
 generator client {
@@ -8,7 +8,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 // RBAC: роли платформы перечислены в lib/appRoles.ts (AppRole).
@@ -90,7 +90,7 @@ model FormField {
   required   Boolean      @default(false)
   order      Int          @default(0)
 
-  // SQLite does not index foreign keys automatically; every read of this table
+  // Index the foreign key and ordering used by every read of this table:
   // is "all rows for one template, in display order".
   @@index([templateId, order])
 }
