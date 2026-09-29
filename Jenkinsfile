@@ -97,7 +97,7 @@ pipeline {
                         // ради --exclude (busybox tar 1.37 его поддерживает).
                         sh '''
                             set -eu
-                            apk add --no-cache bash tar docker-cli docker-cli-compose
+                            apk add --no-cache bash tar openssl docker-cli docker-cli-compose
                             rm -rf "$BUILD_DIR"
                             mkdir -p "$BUILD_DIR"
                             tar -cf - --exclude=node_modules --exclude=.next . | (cd "$BUILD_DIR" && tar -xf -)
