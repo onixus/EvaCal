@@ -20,7 +20,7 @@ test('publication rejects shell metacharacters', () => {
   assert.notEqual(run('bash', ['-c', 'source scripts/docker-publish.sh; publication_tag "$1"', 'bash', 'v1;echo bad']).status, 0);
 });
 test('both stacks isolate mutable data from schemas and migrations', () => {
-  for (const file of ['docker-compose.yml', 'deploy/docker-compose.yml']) {
+  for (const file of ['docker-compose.yml', 'deploy/docker-compose.yml', 'deploy/docker-compose.base.yml']) {
     assert.doesNotMatch(text(file), /- db-data:\/app\/prisma/);
     assert.equal((text(file).match(/- db-data:\/app\/data/g) || []).length, 2);
     assert.equal((text(file).match(/- storage-data:\/app\/storage/g) || []).length, 2);
@@ -41,7 +41,7 @@ test('deployment bundle contains matching manifest/config and verifiable checksu
     const digest = createHash('sha256').update(readFileSync(file)).digest('hex');
     assert.equal(readFileSync(`${file}.sha256`, 'utf8').split(/\s/)[0], digest);
     const entries = run('tar', ['-tzf', file]).stdout.split('\n');
-    for (const name of ['install.sh', 'README.md', 'RELEASE', 'docker-compose.yml', 'docker-compose.postgres.yml', 'nginx/http.conf', 'nginx/https.conf']) {
+    for (const name of ['install.sh', 'README.md', 'RELEASE', 'docker-compose.yml', 'docker-compose.base.yml', 'docker-compose.postgres.yml', 'nginx/http.conf', 'nginx/https.conf']) {
       assert.ok(entries.includes(`evacal-1.2.3-deploy/${name}`), name);
     }
     assert.ok(!entries.some((f) => /(^|\/)\.env$|credentials|\.pem$|node_modules/.test(f)));
@@ -50,7 +50,7 @@ test('deployment bundle contains matching manifest/config and verifiable checksu
 });
 
 const hasCompose = run('docker', ['compose', 'version', '--short']).status === 0;
-for (const mode of ['postgresql', 'external', 'sqlite', 'tls', 'root']) {
+for (const mode of ['postgresql', 'external', 'sqlite', 'tls', 'root', 'legacy']) {
   test(`real Compose config: ${mode}`, { skip: !hasCompose && 'Docker Compose CLI is not installed' }, () => {
     const dir = mkdtempSync(join(tmpdir(), 'evacal-compose-'));
     try {
@@ -67,7 +67,7 @@ for (const mode of ['postgresql', 'external', 'sqlite', 'tls', 'root']) {
         assert.equal(r.status, 0, r.stderr);
       }
       const args = ['compose', '--project-name', 'evacal-config-test', '--env-file', join(dir, '.env')];
-      const files = mode === 'root' ? ['docker-compose.yml'] : ['deploy/docker-compose.yml'];
+      const files = mode === 'root' ? ['docker-compose.yml'] : [mode === 'legacy' ? 'deploy/docker-compose.yml' : 'deploy/docker-compose.base.yml'];
       if (mode === 'postgresql' || mode === 'tls') files.push('deploy/docker-compose.postgres.yml');
       if (mode === 'sqlite') files.push('deploy/docker-compose.build.yml');
       if (mode === 'tls') files.push('deploy/docker-compose.tls.yml');
@@ -82,7 +82,14 @@ for (const mode of ['postgresql', 'external', 'sqlite', 'tls', 'root']) {
       assert.equal(config.services.app.environment.SESSION_SECRET, secret);
       const destinations = config.services.app.volumes.map((v) => v.target);
       assert.ok(destinations.includes('/app/data')); assert.ok(!destinations.includes('/app/prisma'));
-      assert.equal(Boolean(config.services.postgres), ['postgresql', 'tls', 'root'].includes(mode));
+      assert.equal(Boolean(config.services.postgres), ['postgresql', 'tls', 'root', 'legacy'].includes(mode));
+      if (mode === 'legacy') {
+        const modernArgs = [...args];
+        const index = modernArgs.indexOf(join(root, 'deploy/docker-compose.yml'));
+        modernArgs.splice(index, 1, join(root, 'deploy/docker-compose.base.yml'), '-f', join(root, 'deploy/docker-compose.postgres.yml'));
+        const modern = run('docker', modernArgs, { env }); assert.equal(modern.status, 0, modern.stderr);
+        assert.deepEqual(config, JSON.parse(modern.stdout), 'legacy stack must match base + PostgreSQL overlay');
+      }
       if (mode === 'external') assert.equal(config.services.app.environment.DATABASE_URL, entries.DATABASE_URL);
       if (mode === 'sqlite') assert.equal(config.services.app.pull_policy, 'never');
       if (mode === 'tls') assert.deepEqual(config.services.web.ports.map((p) => p.host_ip), ['127.0.0.1', '127.0.0.1']);
@@ -91,7 +98,7 @@ for (const mode of ['postgresql', 'external', 'sqlite', 'tls', 'root']) {
 }
 
 test('branch names cannot overwrite reserved release/candidate tags', () => {
-  for (const ref of ['latest', 'sha-' + 'a'.repeat(40)]) {
+  for (const ref of ['latest', 'sha-' + 'a'.repeat(40), 'sha/' + 'a'.repeat(40), 'refs/heads/sha/' + 'b'.repeat(40), 'refs/tags/sha/' + 'c'.repeat(40)]) {
     assert.notEqual(run('bash', ['-c', 'source scripts/docker-publish.sh; publication_tag "$1"', 'bash', ref]).status, 0);
   }
 });

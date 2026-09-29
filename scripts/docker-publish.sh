@@ -3,13 +3,17 @@
 set -euo pipefail
 
 publication_tag() {
-  local ref="${1#refs/tags/}"
+  local ref="${1#refs/tags/}" tag
   ref="${ref#refs/heads/}"
-  case "$ref" in latest|sha-*) echo 'Reserved publication tag' >&2; return 1 ;; esac
   [[ "$ref" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_./-]*$ ]] || { echo 'Invalid REF' >&2; return 1; }
   if [[ "$ref" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9][a-zA-Z0-9.-]*)?$ ]]; then
-    printf '%s' "${ref#v}"
-  else printf '%s' "${ref//\//-}"; fi
+    tag="${ref#v}"
+  else tag="${ref//\//-}"; fi
+  # Validate the final registry name, not the pre-normalized Git ref.
+  # In particular sha/<revision> must not become a reserved sha-<revision>.
+  case "$tag" in latest|sha-*) echo 'Reserved publication tag' >&2; return 1 ;; esac
+  [[ "$tag" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]] || { echo 'Invalid Docker tag' >&2; return 1; }
+  printf '%s' "$tag"
 }
 
 publish() {

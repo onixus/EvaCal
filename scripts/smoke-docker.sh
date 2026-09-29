@@ -26,7 +26,7 @@ mkdir -p "$DIR/nginx" "$DIR/certs"
 cp "$ROOT"/deploy/docker-compose*.yml "$DIR/"
 cp "$ROOT/deploy/nginx/http.conf" "$DIR/nginx/nginx.conf"
 cat > "$DIR/.env" <<ENV
-COMPOSE_FILE=docker-compose.yml:docker-compose.postgres.yml
+COMPOSE_FILE=docker-compose.base.yml:docker-compose.postgres.yml
 EVACAL_APP_REF=$APP
 EVACAL_MIGRATE_REF=$MIGRATE
 EVACAL_BIND_ADDRESS=127.0.0.1
@@ -55,7 +55,7 @@ openssl req -x509 -nodes -newkey rsa:2048 -days 1 -subj /CN=localhost \
   -keyout "$DIR/certs/privkey.pem" -out "$DIR/certs/fullchain.pem" >/dev/null 2>&1
 chmod 600 "$DIR/certs/privkey.pem"
 sed 's/__HTTPS_PORT_SUFFIX__//g' "$ROOT/deploy/nginx/https.conf" > "$DIR/nginx/nginx.conf"
-printf '\nCOMPOSE_FILE=docker-compose.yml:docker-compose.postgres.yml:docker-compose.tls.yml\nEVACAL_HTTPS_PORT=0\n' >> "$DIR/.env"
+printf '\nCOMPOSE_FILE=docker-compose.base.yml:docker-compose.postgres.yml:docker-compose.tls.yml\nEVACAL_HTTPS_PORT=0\n' >> "$DIR/.env"
 compose up -d --no-deps --force-recreate --wait --wait-timeout 120 web
 compose exec -T web wget -qO- http://127.0.0.1/api/health
 printf '\nDocker smoke passed: migration rerun, non-root app, writable storage, HTTP/TLS nginx.\n'

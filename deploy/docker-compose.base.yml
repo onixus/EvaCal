@@ -1,6 +1,4 @@
-# Compatibility stack for pre-overlay managers (through 0.6.0). Keep postgres
-# inline: old evacal update downloads this file but cannot add new COMPOSE_FILE entries.
-# New installations use docker-compose.base.yml + the postgres overlay instead.
+# Готовые образы. Установщик добавляет postgres/tls/build overlays по необходимости.
 name: ${COMPOSE_PROJECT_NAME:-evacal}
 
 x-database: &database
@@ -14,32 +12,9 @@ x-logging: &logging
     max-file: '5'
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-evacal}
-      POSTGRES_USER: ${POSTGRES_USER:-evacal}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-    volumes:
-      - pg-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
-      interval: 5s
-      timeout: 3s
-      retries: 12
-    logging:
-      driver: json-file
-      options:
-        max-size: '20m'
-        max-file: '5'
-
   migrate:
     image: ${EVACAL_MIGRATE_REF:-${EVACAL_MIGRATE_IMAGE:-ghcr.io/onixus/evacal-migrate}:${EVACAL_TAG:-latest}}
     restart: 'no'
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       <<: *database
       SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD:-}
@@ -54,8 +29,6 @@ services:
     restart: unless-stopped
     init: true
     depends_on:
-      postgres:
-        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     environment:

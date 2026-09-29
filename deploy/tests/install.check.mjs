@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { DatabaseSync } from 'node:sqlite';
 
 const deploy = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const installer = path.join(deploy, 'install.sh');
@@ -22,9 +23,16 @@ function fixture(t) {
   fs.writeFileSync(path.join(source, 'Dockerfile'), 'FROM scratch\n');
   for (const name of ['http.conf', 'https.conf']) fs.writeFileSync(path.join(source, 'deploy', 'nginx', name), '# test template __HTTPS_PORT_SUFFIX__\n');
   const log = path.join(root, 'calls.jsonl'); fs.writeFileSync(log, '');
+  const stateFile = path.join(root, 'docker-state.json');
+  fs.writeFileSync(stateFile, JSON.stringify({image: 'sha256:old', tag: 'sha256:old', running: true}));
   fs.writeFileSync(path.join(bin, 'docker'), `#!/usr/bin/env node
 const fs = require('fs'), a = process.argv.slice(2);
-fs.appendFileSync(process.env.MOCK_LOG, JSON.stringify({a, cwd:process.cwd(), database:process.env.DATABASE_URL})+'\\n');
+const state = JSON.parse(fs.readFileSync(process.env.MOCK_STATE));
+const save = () => fs.writeFileSync(process.env.MOCK_STATE, JSON.stringify(state));
+fs.appendFileSync(process.env.MOCK_LOG, JSON.stringify({a, cwd:process.cwd(), database:process.env.DATABASE_URL, pgUrl:process.env.EVACAL_PG_URL, image:state.image})+'\\n');
+if (a[0] === 'stop') { state.running=false; save(); }
+if (a[0] === 'start') { state.running=true; save(); }
+
 if (a[0] === 'pull') {
   if (process.env.MOCK_FAIL_PULL && a.join(' ').includes(process.env.MOCK_FAIL_PULL)) process.exit(1);
 } else if (a[0] === 'ps') console.log(process.env.MOCK_OWNER_DIR || '');
@@ -34,10 +42,22 @@ else if (a[0] === 'image' && a[1] === 'inspect') {
   else console.log(migrate ? (process.env.MOCK_MIGRATE_REV || '${revision}') : '${revision}');
 } else if (a[0] === 'run') {
   if (a.includes('--entrypoint') && a.includes('tar')) process.stdout.write(require('zlib').gzipSync(Buffer.alloc(1024)));
+  if (a.includes('--entrypoint') && a.includes('node') && a.includes('-e')) {
+    const r=require('child_process').spawnSync(process.execPath,['-e',a[a.indexOf('-e')+1]],{stdio:'inherit'});
+    process.exit(r.status ?? 1);
+  }
+  if (a.includes('psql') && process.env.MOCK_FAIL_PG_PREFLIGHT) process.exit(1);
+  if (a.includes('pg_dump')) { if(process.env.MOCK_FAIL_BACKUP) process.exit(1); process.stdout.write('external database dump'); }
+  if (a.includes('pg_restore') && process.env.MOCK_FAIL_RESTORE) process.exit(1);
+
 } else if (a[0] === 'inspect') {
   const template = a[2] || '';
   if (template.includes('.Mounts')) console.log(template.includes('/app/storage') ? 'custom_storage-data' : 'custom_db-data');
-  else if (template.includes('.Image')) console.log('sha256:local-image');
+  else if (template.includes('.Image')) console.log(state.image);
+  else if (template.includes('.State.Running')) console.log(state.running ? 'true' : 'false');
+  else if (template.includes('.NetworkSettings.Networks')) console.log('fixture_default');
+  else if (template.includes('.State.ExitCode')) console.log('0');
+  else if (template.includes('.State.Health.Status') && !template.includes('.State.Status')) console.log('healthy');
   else console.log(a.at(-1)==='web-id' ? (process.env.MOCK_WEB_STATE || 'running healthy') : 'running healthy');
 } else if (a[0] === 'compose') {
   const args = a.slice(1);
@@ -48,7 +68,19 @@ else if (a[0] === 'image' && a[1] === 'inspect') {
   else if (args[0] === 'config' && process.env.MOCK_BAD_CONFIG) process.exit(1);
   else if (args[0] === 'exec' && args.includes('pg_dump')) { if(process.env.MOCK_FAIL_BACKUP) process.exit(1); process.stdout.write('fake database dump'); }
   else if (args[0] === 'logs' && process.env.MOCK_BANNER) console.log('migrate-1 | ======================================================================\\nmigrate-1 | test-only credentials\\nmigrate-1 | ======================================================================');
-  else if (args[0] === 'up' && process.env.MOCK_FAIL_UP) process.exit(1);
+  else if (args[0] === 'build') { state.tag=process.env.MOCK_BUILD_IMAGE || state.tag; save(); }
+  else if (args[0] === 'up') {
+    if (process.env.MOCK_FAIL_UP) process.exit(1);
+    if (!args.includes('--no-deps') || args.includes('app')) state.image=state.tag;
+    state.running=true; save();
+  }
+  else if (args[0] === 'run' && process.env.MOCK_RESTORE_DATA && args.includes('migrate')) {
+    const flag=args.includes('-ec')?'-ec':'-c', command=args[args.indexOf(flag)+1];
+    if(command.includes('/app/data/')) {
+      const r=require('child_process').spawnSync('sh',[flag,command.replaceAll('/app/data',process.env.MOCK_RESTORE_DATA)],{stdio:'inherit'});
+      process.exit(r.status ?? 1);
+    }
+  }
 }
 `, { mode: 0o755 });
   fs.writeFileSync(path.join(bin, 'curl'), `#!/usr/bin/env node
@@ -57,7 +89,7 @@ const url=a.find(x=>x.startsWith('https://')), out=a[a.indexOf('-o')+1];
 if (process.env.MOCK_FAIL_DOWNLOAD && url.includes(process.env.MOCK_FAIL_DOWNLOAD)) process.exit(22);
 fs.copyFileSync(path.join(process.env.MOCK_SOURCE, 'deploy', url.split('/deploy/')[1]), out);
 `, { mode: 0o755 });
-  const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, MOCK_LOG: log, MOCK_SOURCE: source,
+  const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, MOCK_LOG: log, MOCK_SOURCE: source, MOCK_STATE: stateFile,
     EVACAL_BIN_DIR: path.join(root, 'commands'), EVACAL_HEALTH_TIMEOUT: '1', EVACAL_DIR: '', EVACAL_TAG: '', EVACAL_DOMAIN: '' };
   const run=(args, extra={}, script=installer, withDir=true) => spawnSync('bash',[script,...args,...(withDir?['--dir',dir]:[])],
     {env:{...env,...extra},encoding:'utf8',timeout:20000,cwd:root});
@@ -67,7 +99,7 @@ fs.copyFileSync(path.join(process.env.MOCK_SOURCE, 'deploy', url.split('/deploy/
     const r=spawnSync('bash',['-c','source "$1"; INSTALL_DIR="$2"; env_get "$3"','test',installer,dir,key],{env,encoding:'utf8'});
     ok(r); return r.stdout;
   }
-  return {root,dir,source,env,run,calls,value,ok,clear:()=>fs.writeFileSync(log,'')};
+  return {root,dir,source,env,run,calls,value,ok,state:()=>JSON.parse(fs.readFileSync(stateFile)),clear:()=>fs.writeFileSync(log,'')};
 }
 
 test('help needs no Docker and creates no installation', t=>{
@@ -169,4 +201,223 @@ test('failed backup aborts update before replacing live configuration', t=>{
   assert.notEqual(f.run(['update','--version','1.2.4'],{MOCK_FAIL_BACKUP:'1'}).status,0);
   assert.equal(fs.readFileSync(path.join(f.dir,'.env'),'utf8'),before);
   assert.equal(f.calls().some(x=>x.a.includes('rm')&&x.a.includes('migrate')),false);
+});
+
+// Review regressions: lifecycle is mocked, but tar and SQLite validation execute
+// the actual implementation against isolated files, not canned success output.
+function shell(f, code, args = [], extra = {}) {
+  return spawnSync('bash', ['-c', 'source "$1"; INSTALL_DIR="$2"; shift 2; ' + code,
+    'test', installer, f.dir, ...args], { env: { ...f.env, ...extra }, encoding: 'utf8', cwd: f.root });
+}
+
+for (const [input, expected] of [
+  ['postgresql://u:p@db/app', 'postgresql://u:p@db/app'],
+  ['postgres://u:p@db/app?schema=public', 'postgres://u:p@db/app'],
+  ['postgresql://u:p%26%23$word@[::1]:5432/app?schema=custom&sslmode=verify-full&sslrootcert=%2Fcerts%2Fca.pem&connect_timeout=8',
+    'postgresql://u:p%26%23$word@[::1]:5432/app?sslmode=verify-full&sslrootcert=%2Fcerts%2Fca.pem&connect_timeout=8'],
+  ['postgresql://u:p@db/app?connection_limit=5&pool_timeout=10&pgbouncer=true&statement_cache_size=0&socket_timeout=20&application_name=evacal',
+    'postgresql://u:p@db/app?application_name=evacal'],
+  ['postgresql://u:p@db/app?sslmode=require&schema=a&options=-c%20search_path%3Da',
+    'postgresql://u:p@db/app?sslmode=require&options=-c%20search_path%3Da'],
+  ['postgresql://u:p@db/app?schema=public&sslaccept=strict', 'postgresql://u:p@db/app?sslaccept=strict'],
+]) {
+  test(`PostgreSQL CLI normalization preserves connection/TLS options: ${input.split('?')[1] || 'plain'}`, t => {
+    const f = fixture(t), r = shell(f, 'postgres_cli_url "$1"', [input]);
+    f.ok(r); assert.equal(r.stdout, expected);
+  });
+}
+for (const input of ['file:dev.db', 'postgresql://db/a?schema', 'postgresql://db/a?%73chema=public']) {
+  test(`PostgreSQL CLI rejects malformed/ambiguous input: ${input}`, t => {
+    const f = fixture(t); assert.notEqual(shell(f, 'postgres_cli_url "$1"', [input]).status, 0);
+  });
+}
+
+test('failed source-update backup resumes original IDs, never the newly built image', t => {
+  const f = fixture(t);
+  f.ok(f.run(['install', '--source', f.source, '--local'], { MOCK_BUILD_IMAGE: 'sha256:old-source' }));
+  const before = fs.readFileSync(path.join(f.dir, '.env'), 'utf8'); f.clear();
+  const r = f.run(['update'], { MOCK_BUILD_IMAGE: 'sha256:new-source', MOCK_FAIL_BACKUP: '1' });
+  assert.notEqual(r.status, 0);
+  assert.equal(f.state().tag, 'sha256:new-source');
+  assert.equal(f.state().image, 'sha256:old-source');
+  assert.equal(f.state().running, true);
+  assert.equal(fs.readFileSync(path.join(f.dir, '.env'), 'utf8'), before);
+  assert.deepEqual(f.calls().filter(x => x.a[0] === 'start').map(x => x.a), [['start', 'app-id', 'web-id']]);
+  assert.equal(f.calls().some(x => x.a.includes('up')), false);
+});
+
+test('successful update keeps writers stopped between snapshot and migration', t => {
+  const f = fixture(t); f.ok(f.run(['install', '--source', f.source, '--local'])); f.clear();
+  f.ok(f.run(['update'], { MOCK_BUILD_IMAGE: 'sha256:new-source' }));
+  const calls = f.calls(), dump = calls.findIndex(x => x.a.includes('pg_dump'));
+  const migrate = calls.findIndex(x => x.a.includes('rm') && x.a.includes('migrate'));
+  assert.ok(dump > 0 && migrate > dump);
+  assert.equal(calls.slice(dump, migrate).some(x => x.a.includes('start') || x.a.includes('up')), false);
+  assert.equal(f.state().image, 'sha256:new-source');
+});
+
+test('standalone backup resumes existing containers even when the local tag changes', t => {
+  const f = fixture(t); f.ok(f.run(['install', '--source', f.source, '--local'])); f.clear();
+  f.ok(shell(f, 'compose build app migrate', [], { MOCK_BUILD_IMAGE: 'sha256:unmigrated' }));
+  f.ok(f.run(['backup']));
+  assert.equal(f.state().image, 'sha256:old');
+  assert.equal(f.state().running, true);
+  assert.equal(f.calls().some(x => x.a.includes('up')), false);
+  assert.ok(f.calls().some(x => x.a[0] === 'start'));
+});
+
+function tar(f, file, dir, entries) {
+  f.ok(spawnSync('tar', ['-czf', file, '-C', dir, ...(entries.length ? entries : ['-T', '/dev/null'])], { encoding: 'utf8' }));
+}
+function backupFixture(f, provider, populate) {
+  const dir = fs.mkdtempSync(path.join(f.root, 'backup-'));
+  fs.writeFileSync(path.join(dir, 'PROVIDER'), provider + '\n');
+  tar(f, path.join(dir, 'storage.tgz'), dir, []);
+  if (provider === 'sqlite') {
+    const database = path.join(dir, 'database'); fs.mkdirSync(database);
+    const cleanup = populate(database);
+    tar(f, path.join(dir, 'sqlite.tgz'), database, fs.readdirSync(database));
+    cleanup?.();
+  } else fs.writeFileSync(path.join(dir, 'db.dump'), 'fixture custom dump');
+  const file = path.join(dir, 'backup.tar.gz');
+  tar(f, file, dir, ['PROVIDER', 'storage.tgz', provider === 'sqlite' ? 'sqlite.tgz' : 'db.dump']);
+  return file;
+}
+function createDatabase(file, value) {
+  const db = new DatabaseSync(file);
+  db.exec('CREATE TABLE marker(value TEXT NOT NULL)');
+  db.prepare('INSERT INTO marker VALUES (?)').run(value);
+  return db;
+}
+for (const [name, populate] of [
+  ['empty archive', () => {}],
+  ['missing dev.db', dir => { fs.writeFileSync(path.join(dir, 'dev.db-wal'), 'not a database'); }],
+  ['zero-byte dev.db', dir => { fs.writeFileSync(path.join(dir, 'dev.db'), ''); }],
+  ['non-SQLite dev.db', dir => { fs.writeFileSync(path.join(dir, 'dev.db'), 'invalid'.repeat(100)); }],
+  ['corrupt SQLite page with valid header', dir => {
+    const file = path.join(dir, 'dev.db'); createDatabase(file, 'saved').close();
+    const bytes = fs.readFileSync(file); bytes[100] = 255; fs.writeFileSync(file, bytes);
+  }],
+]) {
+  test(`restore rejects ${name} before stopping or touching the current database`, t => {
+    const f = fixture(t); f.ok(f.run(['install', '--local', '--source', f.source, '--sqlite']));
+    const live = path.join(f.root, 'live-data'); fs.mkdirSync(live);
+    const dbFile = path.join(live, 'dev.db'); createDatabase(dbFile, 'current').close();
+    const before = fs.readFileSync(dbFile), file = backupFixture(f, 'sqlite', populate); f.clear();
+    const r = f.run(['restore', file, '--yes'], { MOCK_RESTORE_DATA: live });
+    assert.notEqual(r.status, 0, r.stdout);
+    assert.deepEqual(fs.readFileSync(dbFile), before);
+    assert.equal(f.calls().some(x => x.a.includes('stop') || x.a.includes('up') || x.a.includes('migrate') && x.a.includes('run')), false);
+  });
+}
+for (const wal of [false, true]) {
+  test(`restore validates and restores actual SQLite data${wal ? ' including uncheckpointed WAL' : ''}`, t => {
+    const f = fixture(t); f.ok(f.run(['install', '--local', '--source', f.source, '--sqlite']));
+    const live = path.join(f.root, 'live-data'); fs.mkdirSync(live);
+    createDatabase(path.join(live, 'dev.db'), 'current').close();
+    fs.writeFileSync(path.join(live, 'dev.db-wal'), 'stale WAL');
+    const file = backupFixture(f, 'sqlite', dir => {
+      const db = createDatabase(path.join(dir, 'dev.db'), 'saved');
+      if (wal) {
+        db.exec('PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0');
+        db.prepare('INSERT INTO marker VALUES (?)').run('only-in-WAL');
+        assert.ok(fs.statSync(path.join(dir, 'dev.db-wal')).size > 0);
+        return () => db.close();
+      }
+      db.close();
+    });
+    f.clear(); f.ok(f.run(['restore', file, '--yes'], { MOCK_RESTORE_DATA: live }));
+    assert.equal(fs.existsSync(path.join(live, 'dev.db-wal')), false);
+    const db = new DatabaseSync(path.join(live, 'dev.db'), { readOnly: true });
+    try { assert.deepEqual(db.prepare('SELECT value FROM marker ORDER BY rowid').all().map(r => r.value), wal ? ['saved', 'only-in-WAL'] : ['saved']); }
+    finally { db.close(); }
+    const calls = f.calls(), check = calls.findIndex(x => x.a.includes('--entrypoint') && x.a.includes('node'));
+    const stop = calls.findIndex(x => x.a.includes('stop'));
+    assert.ok(check >= 0 && stop > check);
+    assert.equal(calls[check].a.includes('--mount') || calls[check].a.includes('-v'), false);
+    assert.ok(calls[check].a.includes('none'));
+  });
+}
+
+test('external backup and restore use a libpq URL via env and preflight before stopping', t => {
+  const f = fixture(t), url = 'postgresql://u:p%24word@external:5432/db?schema=public&sslmode=require';
+  f.ok(f.run(['install', '--local', '--database-url', url]));
+  const file = backupFixture(f, 'postgresql');
+  for (const args of [['backup'], ['restore', file, '--yes']]) {
+    f.clear(); f.ok(f.run(args));
+    const calls = f.calls(), preflight = calls.findIndex(x => x.a.includes('psql'));
+    const stop = calls.findIndex(x => x.a.includes('stop'));
+    assert.ok(preflight >= 0 && stop > preflight);
+    const clients = calls.filter(x => x.a.includes('psql') || x.a.includes('pg_dump') || x.a.includes('pg_restore'));
+    assert.ok(clients.length >= 2);
+    for (const call of clients) {
+      assert.equal(call.pgUrl, 'postgresql://u:p%24word@external:5432/db?sslmode=require');
+      assert.equal(call.a.some(a => a.includes('p%24word')), false);
+      assert.ok(call.a.includes('fixture_default'));
+    }
+    assert.equal(f.value('DATABASE_URL'), url);
+  }
+});
+for (const command of ['backup', 'restore']) {
+  test(`failed external ${command} preflight does not stop the application`, t => {
+    const f = fixture(t); f.ok(f.run(['install', '--local', '--database-url', 'postgresql://u:p@db/app?schema=public&sslaccept=strict']));
+    const file = backupFixture(f, 'postgresql'); f.clear();
+    const r = f.run([command, ...(command === 'restore' ? [file, '--yes'] : [])], { MOCK_FAIL_PG_PREFLIGHT: '1' });
+    assert.notEqual(r.status, 0);
+    assert.equal(f.calls().some(x => x.a.includes('stop') || x.a.includes('up') || x.a.includes('pg_restore') || x.a.includes('pg_dump')), false);
+  });
+}
+
+test('historical 0.6.0 updater retains PostgreSQL without learning new overlay filenames', t => {
+  const f = fixture(t);
+  fs.mkdirSync(path.join(f.dir, 'nginx'), { recursive: true });
+  const legacyEnv = 'COMPOSE_PROJECT_NAME=evacal\nCOMPOSE_FILE=docker-compose.yml:docker-compose.tls.yml\nEVACAL_TAG=0.6.0\nEVACAL_TLS=yes\nDATABASE_PROVIDER=postgresql\nPOSTGRES_DB=evacal\nPOSTGRES_USER=evacal\nPOSTGRES_PASSWORD=keep-me\nSESSION_SECRET=keep-session\n';
+  fs.writeFileSync(path.join(f.dir, '.env'), legacyEnv);
+  fs.writeFileSync(path.join(f.dir, 'docker-compose.yml'), 'services:\n  postgres:\n    image: postgres:16-alpine\n');
+  const r = spawnSync('bash', ['-c', `
+    set -euo pipefail
+    source "$1"
+    INSTALL_DIR="$2"; REPO_ROOT=''; OPT_TAG=1.2.3
+    EVACAL_RAW_BASE=https://raw.githubusercontent.com/onixus/EvaCal
+    info() { :; }; warn() { :; }; step() { :; }; die() { echo "$*" >&2; exit 1; }
+    require_installed() { test -f "$INSTALL_DIR/.env"; }
+    compose() { (cd "$INSTALL_DIR" && docker compose "$@"); }
+    render_nginx() { cp "$INSTALL_DIR/nginx/http.conf" "$INSTALL_DIR/nginx/nginx.conf"; }
+    wait_healthy() { :; }; reload_nginx() { :; }; print_address() { :; }
+    ln() { :; } # Never write the historical global /usr/local/bin symlink in a test.
+    cmd_update
+  `, 'legacy-test', path.join(deploy, 'tests/fixtures/legacy-updater.sh'), f.dir], { env: f.env, encoding: 'utf8', cwd: f.root });
+  f.ok(r);
+  assert.equal(f.value('COMPOSE_FILE'), 'docker-compose.yml:docker-compose.tls.yml');
+  assert.equal(f.value('POSTGRES_PASSWORD'), 'keep-me');
+  assert.equal(fs.existsSync(path.join(f.dir, 'docker-compose.postgres.yml')), false);
+  assert.equal(fs.existsSync(path.join(f.dir, 'docker-compose.base.yml')), false);
+  const config = fs.readFileSync(path.join(f.dir, 'docker-compose.yml'), 'utf8');
+  assert.match(config, /^  postgres:\n    image: postgres:16-alpine/m);
+  assert.match(config, /- pg-data:\/var\/lib\/postgresql\/data/);
+  assert.ok(f.calls().some(x => x.a.includes('up') && x.a.includes('--remove-orphans')));
+  // The following invocation uses the newly downloaded manager and migrates the
+  // saved COMPOSE_FILE, while keeping the same project, secrets and volume names.
+  f.ok(f.run(['update', '--skip-backup'], {}, path.join(f.dir, 'evacal')));
+  assert.equal(f.value('COMPOSE_FILE'), 'docker-compose.base.yml:docker-compose.postgres.yml:docker-compose.tls.yml');
+  assert.equal(f.value('COMPOSE_PROJECT_NAME'), 'evacal');
+  assert.equal(f.value('POSTGRES_PASSWORD'), 'keep-me');
+  assert.equal(f.value('SESSION_SECRET'), 'keep-session');
+});
+
+test('SQLite verification streams a large database and preserves rowid gaps', t => {
+  const f = fixture(t), dir = path.join(f.root, 'large-db'); fs.mkdirSync(dir);
+  const db = new DatabaseSync(path.join(dir, 'dev.db'));
+  db.exec("CREATE TABLE payload(value BLOB); INSERT INTO payload(rowid,value) VALUES (42,zeroblob(2097152));");
+  db.close();
+  const file = path.join(f.root, 'large.tgz'); tar(f, file, dir, ['dev.db']);
+  const code = shell(f, 'sqlite_snapshot_code'); f.ok(code);
+  const result = spawnSync(process.execPath, ['-e', code.stdout], { input: fs.readFileSync(file), maxBuffer: 4 * 1024 * 1024 });
+  f.ok(result); assert.ok(result.stdout.length > 2 * 1024 * 1024);
+  const restored = path.join(f.root, 'restored.db'); fs.writeFileSync(restored, result.stdout);
+  const checked = new DatabaseSync(restored, { readOnly: true });
+  try {
+    const row = checked.prepare('SELECT rowid, length(value) AS size FROM payload').get();
+    assert.equal(row.rowid, 42); assert.equal(row.size, 2097152);
+  } finally { checked.close(); }
 });

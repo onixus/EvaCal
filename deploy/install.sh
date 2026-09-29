@@ -5,7 +5,7 @@ set -euo pipefail
 umask 077
 
 EVACAL_RAW_BASE="${EVACAL_RAW_BASE:-https://raw.githubusercontent.com/onixus/EvaCal}"
-CONF_FILES='docker-compose.yml docker-compose.postgres.yml docker-compose.tls.yml docker-compose.build.yml nginx/http.conf nginx/https.conf'
+CONF_FILES='docker-compose.yml docker-compose.base.yml docker-compose.postgres.yml docker-compose.tls.yml docker-compose.build.yml nginx/http.conf nginx/https.conf'
 HEALTH_TIMEOUT="${EVACAL_HEALTH_TIMEOUT:-300}"
 info() { printf '==> %s\n' "$*"; }
 warn() { printf '[!] %s\n' "$*" >&2; }
@@ -215,7 +215,7 @@ configure() {
   else
     env_set DATABASE_PROVIDER postgresql
   fi
-  files=docker-compose.yml
+  files=docker-compose.base.yml
   if [ "$(env_get DATABASE_PROVIDER)" = postgresql ] && [ -z "$(env_get DATABASE_URL)" ]; then
     env_default POSTGRES_DB evacal; env_default POSTGRES_USER evacal; env_default POSTGRES_PASSWORD "$(random_hex 24)"
     files="$files:docker-compose.postgres.yml"
@@ -346,6 +346,7 @@ print_credentials() {
 cmd_install() (
   check_docker
   local target="$INSTALL_DIR" stage source tag fresh=yes file rollback='' owner_dir project
+  local resume_old=no old_running=''
   [ ! -f "$target/.env" ] || fresh=no
   mkdir -p "$target"; target="$(cd -P "$target" && pwd)"; INSTALL_DIR="$target"
   source="${OPT_SOURCE:-$(env_get EVACAL_SOURCE)}"
@@ -360,7 +361,7 @@ cmd_install() (
   fi
   tag="$(normalize_tag "${tag:-latest}")"
   stage="$(mktemp -d "$target/.prepare.XXXXXX")"
-  trap 'rm -rf "$stage"' EXIT
+  trap 'code=$?; rm -rf "$stage"; if [ "$resume_old" = yes ] && [ -n "$old_running" ]; then docker start $old_running || code=1; fi; exit "$code"' EXIT
   if [ "$fresh" = no ]; then cp "$target/.env" "$stage/.env"; fi
   if [ -d "$target/certs" ]; then cp -R "$target/certs" "$stage/certs"; fi
   INSTALL_DIR="$stage"; configure "$tag" "$source"
@@ -383,7 +384,6 @@ cmd_install() (
   fi
   # Run backup against the OLD config, before replacing it or applying migrations.
   INSTALL_DIR="$target"
-  if [ "$fresh" = no ] && [ "$COMMAND" = update ] && [ -z "$OPT_SKIP_BACKUP" ]; then cmd_backup; fi
   if [ "$fresh" = no ]; then
     rollback="$(mktemp -d "$target/.rollback.XXXXXX")"
     cp "$target/.env" "$rollback/.env"
@@ -391,10 +391,19 @@ cmd_install() (
       if [ -f "$target/$file" ]; then mkdir -p "$rollback/$(dirname "$file")"; cp "$target/$file" "$rollback/$file"; fi
     done
     [ ! -f "$target/nginx/nginx.conf" ] || cp "$target/nginx/nginx.conf" "$rollback/nginx/nginx.conf"
-    compose stop app web
+    if [ "$COMMAND" = update ] && [ -z "$OPT_SKIP_BACKUP" ]; then
+      old_running="$(running_container_ids)"
+      cmd_backup keep-stopped
+      resume_old=yes
+    else
+      compose stop app web
+    fi
     info "Предыдущая конфигурация: $rollback. Откат схемы БД автоматически НЕ выполняется."
   fi
   mkdir -p "$target/nginx" "$target/certs"
+  # After the first live file changes, do not restart an old app automatically:
+  # migration/config errors require operator recovery with the saved backup.
+  resume_old=no
   for file in $CONF_FILES nginx/nginx.conf evacal .env; do mv -f "$stage/$file" "$target/$file"; done
   if [ -f "$stage/certs/privkey.pem" ]; then
     mv -f "$stage/certs/privkey.pem" "$target/certs/privkey.pem"
@@ -424,22 +433,75 @@ app_volume() {
   printf '%s' "$volume"
 }
 
+# Start/stop exactly these containers, never resolve a mutable image tag via up.
+running_container_ids() {
+  local service id
+  for service in app web; do
+    id="$(compose ps -a -q "$service" | head -n 1)"
+    [ -n "$id" ] || continue
+    if [ "$(docker inspect -f '{{.State.Running}}' "$id")" = true ]; then printf '%s\n' "$id"; fi
+  done
+}
+
+# Strip only Prisma's application/pool options, retaining libpq options byte for
+# byte (notably sslmode, certificates, options and percent-encoded credentials).
+# Unknown/TLS-specific options are NOT silently discarded: psql preflight must
+# accept them before any running service is stopped. The application URL is kept.
+postgres_cli_url() {
+  local url="$1" base query part key kept=''
+  case "$url" in postgresql://*|postgres://*) ;; *) die 'Для PostgreSQL CLI нужен postgresql:// URL.' ;; esac
+  [[ "$url" != *$'\n'* && "$url" != *$'\r'* ]] || die 'Перенос строки в URL недопустим.'
+  if [[ "$url" != *'?'* ]]; then printf '%s' "$url"; return; fi
+  base="${url%%\?*}"; query="${url#*\?}"
+  while [ -n "$query" ]; do
+    part="${query%%&*}"
+    if [[ "$query" == *'&'* ]]; then query="${query#*&}"; else query=''; fi
+    key="${part%%=*}"
+    [[ "$key" =~ ^[a-z_][a-z0-9_]*$ && "$part" == *'='* ]] || die 'Некорректный query-параметр PostgreSQL URL.'
+    case "$key" in
+      schema|connection_limit|pool_timeout|pgbouncer|statement_cache_size|socket_timeout) ;;
+      *) kept="${kept}${kept:+&}${part}" ;;
+    esac
+  done
+  printf '%s%s' "$base" "${kept:+?$kept}"
+}
+
+# A fresh client container in the application's network also supports legacy
+# stacks without db-tools. Pass the URL through the environment, not host argv.
+pg_tools() (
+  local container network
+  container="$(compose ps -a -q app | head -n 1)"
+  [ -n "$container" ] || die 'Для внешней БД нужен существующий контейнер app и его сеть.'
+  network="$(docker inspect -f '{{range $name, $value := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$container" | head -n 1)"
+  [ -n "$network" ] || die 'Не удалось определить Docker-сеть внешней БД.'
+  export EVACAL_PG_URL
+  EVACAL_PG_URL="$(postgres_cli_url "$(env_get DATABASE_URL)")" || return 1
+  docker run --rm -i --network "$network" --env EVACAL_PG_URL --env PGCONNECT_TIMEOUT=10 \
+    postgres:16-alpine sh -c 'exec "$@" --dbname="$EVACAL_PG_URL"' pg-tools "$@"
+)
+pg_preflight() {
+  pg_tools psql -X --no-password --set=ON_ERROR_STOP=1 -Atc 'SELECT 1' >/dev/null \
+    || die 'PostgreSQL CLI не смог подключиться. Проверьте URL/TLS/права; сервисы ещё не остановлены.'
+}
+
 cmd_backup() (
   require_installed
   [ -z "$(env_get S3_BUCKET)" ] && [ "$(env_get GOST_PACKAGE_STORAGE)" != s3 ] || die 'S3 не входит в локальный backup. Сделайте согласованный бэкап БД и S3 отдельно; для update затем явно задайте --skip-backup.'
-  local tmp out provider running='' service APP_CONTAINER image storage_volume db_volume network
+  local tmp out provider running='' APP_CONTAINER image storage_volume db_volume
+  local resume="${1:-resume}"
   provider="$(env_get DATABASE_PROVIDER)"; provider="${provider:-postgresql}"
   APP_CONTAINER="$(compose ps -a -q app | head -n 1)"
   [ -n "$APP_CONTAINER" ] || die 'Для backup нужен существующий контейнер app (может быть остановлен).'
   image="$(docker inspect -f '{{.Image}}' "$APP_CONTAINER")"
   storage_volume="$(app_volume /app/storage)"
+  if [ "$provider" = postgresql ] && [ -n "$(env_get DATABASE_URL)" ]; then pg_preflight; fi
   mkdir -p "$INSTALL_DIR/backups"
   tmp="$(mktemp -d "$INSTALL_DIR/backups/.partial.XXXXXX")"
   out="$INSTALL_DIR/backups/evacal-$(date +%Y%m%d-%H%M%S)-$$.tar.gz"
   # Quiesce this application's writers so DB and local artifacts belong to one backup.
-  for service in app web; do case "$(service_state "$service")" in running*) running="$running $service" ;; esac; done
-  trap 'code=$?; rm -rf "$tmp"; if [ -n "$running" ]; then compose up -d --no-deps $running || code=1; fi; exit "$code"' EXIT
-  [ -z "$running" ] || compose stop $running
+  running="$(running_container_ids)"
+  trap 'code=$?; rm -rf "$tmp"; if [ -n "$running" ] && { [ "$resume" != keep-stopped ] || [ "$code" -ne 0 ]; }; then docker start $running || code=1; fi; exit "$code"' EXIT
+  [ -z "$running" ] || docker stop $running
   if [ "$provider" = sqlite ]; then
     db_volume="$(volume_info "$APP_CONTAINER" /app/data)"
     [ -n "$db_volume" ] || db_volume="$(app_volume /app/prisma)"
@@ -450,15 +512,7 @@ cmd_backup() (
   elif [ -z "$(env_get DATABASE_URL)" ]; then
     compose exec -T postgres pg_dump -U "$(env_get POSTGRES_USER)" -d "$(env_get POSTGRES_DB)" -Fc > "$tmp/db.dump"
   else
-    if compose config --services | grep -q '^db-tools$'; then
-      compose run --rm --no-deps -T db-tools sh -c 'exec pg_dump -Fc --dbname="$DATABASE_URL"' > "$tmp/db.dump"
-    else
-      # Compatibility with pre-overlay deployments; no credentials in CLI arguments.
-      network="$(docker inspect -f '{{range $name, $value := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$APP_CONTAINER" | head -n 1)"
-      [ -n "$network" ] || die 'Не удалось определить Docker-сеть внешней БД.'
-      DATABASE_URL="$(env_get DATABASE_URL)" docker run --rm --network "$network" --env DATABASE_URL postgres:16-alpine \
-        sh -c 'exec pg_dump -Fc --dbname="$DATABASE_URL"' > "$tmp/db.dump"
-    fi
+    pg_tools pg_dump --no-password -Fc > "$tmp/db.dump"
   fi
   docker run --rm --entrypoint tar --mount "type=volume,source=$storage_volume,target=/data,readonly" "$image" -czf - -C /data . > "$tmp/storage.tgz"
   cp "$INSTALL_DIR/.env" "$tmp/env"; printf '%s\n' "$provider" > "$tmp/PROVIDER"
@@ -472,6 +526,70 @@ validate_archive() {
   tar -tzf "$1" | awk '/^\// || /(^|\/)\.\.(\/|$)/ {bad=1} END {exit bad}' || die 'Небезопасные пути в архиве.'
   tar -tvzf "$1" | awk 'substr($0,1,1)!="-" && substr($0,1,1)!="d" {bad=1} END {exit bad}' || die 'Ссылки/специальные файлы в архиве запрещены.'
 }
+validate_sqlite_archive() {
+  validate_archive "$1"
+  # Consume the whole listing (no grep -q/SIGPIPE); reject duplicates as well as
+  # missing dev.db. Size, format, recovery and integrity are checked next.
+  tar -tzf "$1" | awk '
+    !/^dev\.db(-wal|-shm|-journal)?$/ {bad=1}
+    {if (++seen[$0] != 1) bad=1}
+    END {exit (bad || seen["dev.db"] != 1)}' || die 'SQLite-архив должен содержать ровно один dev.db и только его журналы.'
+}
+
+sqlite_snapshot_code() {
+  cat <<'JS'
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const { pipeline } = require('node:stream/promises');
+const { DatabaseSync } = require('node:sqlite');
+async function validate() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'evacal-sqlite-'));
+  let db;
+  try {
+    const result = spawnSync('tar', ['-xzf', '-', '-C', dir], { stdio: ['inherit', 'pipe', 'pipe'] });
+    if (result.status !== 0) throw new Error('Cannot unpack SQLite backup');
+    const filename = path.join(dir, 'dev.db');
+    const stat = fs.lstatSync(filename);
+    if (!stat.isFile() || stat.size < 100) throw new Error('SQLite dev.db is missing or empty');
+    const fd = fs.openSync(filename, 'r');
+    const header = Buffer.alloc(16);
+    try { fs.readSync(fd, header, 0, 16, 0); } finally { fs.closeSync(fd); }
+    if (!header.equals(Buffer.from('SQLite format 3\0'))) throw new Error('Invalid SQLite header');
+    // Only the temporary copy is opened writable to recover WAL/hot journals.
+    // No live volume is mounted. Checkpoint rather than VACUUM to preserve rowids.
+    db = new DatabaseSync(filename);
+    const rows = db.prepare('PRAGMA integrity_check').all();
+    if (rows.length !== 1 || rows[0].integrity_check !== 'ok') throw new Error('SQLite integrity_check failed');
+    const checkpoint = db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get();
+    if (checkpoint.busy !== 0) throw new Error('SQLite WAL checkpoint failed');
+    db.close(); db = undefined;
+    // Backpressure-aware streaming, without buffering an entire database in RAM.
+    await pipeline(fs.createReadStream(filename), process.stdout);
+  } catch (error) {
+    console.error('SQLite backup validation failed:', error.message);
+    process.exitCode = 1;
+  } finally {
+    if (db) db.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+validate();
+JS
+}
+prepare_sqlite_snapshot() {
+  local archive="$1" destination="$2" container image
+  validate_sqlite_archive "$archive"
+  container="$(compose ps -a -q migrate | head -n 1)"
+  [ -n "$container" ] || die 'Для проверки SQLite нужен существующий контейнер migrate (может быть завершён).'
+  image="$(docker inspect -f '{{.Image}}' "$container")"
+  mkdir -p "$destination"
+  docker run --rm -i --network none --entrypoint node "$image" -e "$(sqlite_snapshot_code)" \
+    < "$archive" > "$destination/dev.db" || die 'SQLite-архив не прошёл проверку; текущая БД и сервисы не изменены.'
+  [ -s "$destination/dev.db" ] || die 'Проверка не вернула SQLite-базу; восстановление отменено.'
+}
+
 cmd_restore() (
   require_installed
   local file="${ARGS[0]:-}" tmp provider current
@@ -489,18 +607,25 @@ cmd_restore() (
       tar -czf "$tmp/sqlite.tgz" -C "$tmp" dev.db
     fi
     [ -f "$tmp/sqlite.tgz" ] || die 'SQLite-архив отсутствует.'
-    validate_archive "$tmp/sqlite.tgz"
-    if tar -tzf "$tmp/sqlite.tgz" | grep -Ev '^dev\.db(-wal|-shm|-journal)?$' | grep -q .; then die 'Неверный состав SQLite-архива.'; fi
+    prepare_sqlite_snapshot "$tmp/sqlite.tgz" "$tmp/verified"
+    tar -czf "$tmp/verified.tgz" -C "$tmp/verified" dev.db
   else [ -s "$tmp/db.dump" ] || die 'Дамп базы отсутствует.'; fi
+  if [ "$provider" = postgresql ] && [ -n "$(env_get DATABASE_URL)" ]; then pg_preflight; fi
   confirm 'Текущая БД и локальные артефакты будут ЗАМЕНЕНЫ. Продолжить?' || exit 1
   compose stop app web
   if [ "$provider" = sqlite ]; then
-    compose run --rm --no-deps -T migrate sh -c 'rm -f /app/data/dev.db /app/data/dev.db-wal /app/data/dev.db-shm /app/data/dev.db-journal; exec tar -xzf - -C /app/data' < "$tmp/sqlite.tgz"
+    compose run --rm --no-deps -T migrate sh -ec '
+      stage=$(mktemp -d /app/data/.restore.XXXXXX)
+      trap "rm -rf \"$stage\"" EXIT
+      tar -xzf - -C "$stage"
+      [ -s "$stage/dev.db" ]
+      mv -f "$stage/dev.db" /app/data/dev.db
+      rm -f /app/data/dev.db-wal /app/data/dev.db-shm /app/data/dev.db-journal' < "$tmp/verified.tgz"
   elif [ -z "$(env_get DATABASE_URL)" ]; then
     compose up -d --wait --wait-timeout "$HEALTH_TIMEOUT" postgres
     compose exec -T postgres pg_restore -U "$(env_get POSTGRES_USER)" -d "$(env_get POSTGRES_DB)" --clean --if-exists --no-owner --exit-on-error --single-transaction < "$tmp/db.dump"
   else
-    compose run --rm --no-deps -T db-tools sh -c 'exec pg_restore --dbname="$DATABASE_URL" --clean --if-exists --no-owner --exit-on-error --single-transaction' < "$tmp/db.dump"
+    pg_tools pg_restore --no-password --clean --if-exists --no-owner --exit-on-error --single-transaction < "$tmp/db.dump"
   fi
   compose run --rm --no-deps -T migrate sh -c 'find /app/storage -mindepth 1 -maxdepth 1 -exec rm -rf {} +; exec tar -xzf - -C /app/storage' < "$tmp/storage.tgz"
   start_stack
