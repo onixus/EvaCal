@@ -149,7 +149,9 @@ test('embedded PostgreSQL authenticates with saved credentials before migration'
   const calls=f.calls(), auth=calls.findIndex(x=>x.a[0]==='compose'&&x.a.includes('exec')&&x.a.includes('psql'));
   const fullUp=calls.findIndex((x,i)=>i>auth&&x.a[0]==='compose'&&x.a.includes('up')&&x.a.includes('--remove-orphans'));
   assert.ok(auth>=0 && fullUp>auth);
-  assert.ok(calls[auth].a.includes('-h') && calls[auth].a.includes('127.0.0.1'));
+  const host=calls[auth].a[calls[auth].a.indexOf('-h')+1];
+  assert.equal(host,'postgres');
+  assert.ok(calls[auth].a.includes('PGPASSWORD')); assert.equal(calls[auth].a.some(x=>x.startsWith('PGPASSWORD=')),false);
 });
 test('embedded PostgreSQL auth failure aborts before migration/app startup', t=>{
   const f=fixture(t), r=f.run(['install','--local'],{MOCK_FAIL_LOCAL_PG_AUTH:'1'});

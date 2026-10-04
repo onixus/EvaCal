@@ -341,8 +341,15 @@ local_postgres_preflight() {
   # validate the password stored in .env, which may differ from an existing
   # pg-data volume after reinstall/upgrade.
   [ -z "$(env_get DATABASE_URL)" ] || return 0
-  compose up -d --wait --wait-timeout "$HEALTH_TIMEOUT" postgres     || { diagnostics; die 'Встроенный PostgreSQL не перешёл в состояние healthy.'; }
-  if ! compose exec -T       -e "PGPASSWORD=$(env_get POSTGRES_PASSWORD)"       postgres psql -X --no-password       -U "$(env_get POSTGRES_USER)"       -d "$(env_get POSTGRES_DB)"       -h 127.0.0.1       --set=ON_ERROR_STOP=1 -Atc 'SELECT 1' >/dev/null; then
+  compose up -d --wait --wait-timeout "$HEALTH_TIMEOUT" postgres \
+    || { diagnostics; die 'Встроенный PostgreSQL не перешёл в состояние healthy.'; }
+  # Loopback (127.0.0.1/::1) is "trust" in the official image's pg_hba.conf,
+  # so connect via the service name to hit the scram-sha-256 rule migrate uses.
+  # The password goes through the environment, not argv (visible in ps).
+  if ! PGPASSWORD="$(env_get POSTGRES_PASSWORD)" compose exec -T -e PGPASSWORD \
+      postgres psql -X --no-password \
+      -U "$(env_get POSTGRES_USER)" -d "$(env_get POSTGRES_DB)" -h postgres \
+      --set=ON_ERROR_STOP=1 -Atc 'SELECT 1' >/dev/null; then
     compose logs --no-color --tail=40 postgres >&2 || true
     die 'PostgreSQL запущен, но текущие POSTGRES_USER/POSTGRES_PASSWORD не проходят аутентификацию. Проверьте .env и существующий pg-data; данные автоматически не удалялись.'
   fi
