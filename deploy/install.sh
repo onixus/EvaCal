@@ -336,7 +336,20 @@ wait_healthy() {
   diagnostics
   die "Нет готовности app и web. Проверьте: $INSTALL_DIR/evacal doctor и logs."
 }
+local_postgres_preflight() {
+  # pg_isready only proves that the server accepts connections. It does not
+  # validate the password stored in .env, which may differ from an existing
+  # pg-data volume after reinstall/upgrade.
+  [ -z "$(env_get DATABASE_URL)" ] || return 0
+  compose up -d --wait --wait-timeout "$HEALTH_TIMEOUT" postgres     || { diagnostics; die 'Встроенный PostgreSQL не перешёл в состояние healthy.'; }
+  if ! compose exec -T       -e "PGPASSWORD=$(env_get POSTGRES_PASSWORD)"       postgres psql -X --no-password       -U "$(env_get POSTGRES_USER)"       -d "$(env_get POSTGRES_DB)"       -h 127.0.0.1       --set=ON_ERROR_STOP=1 -Atc 'SELECT 1' >/dev/null; then
+    compose logs --no-color --tail=40 postgres >&2 || true
+    die 'PostgreSQL запущен, но текущие POSTGRES_USER/POSTGRES_PASSWORD не проходят аутентификацию. Проверьте .env и существующий pg-data; данные автоматически не удалялись.'
+  fi
+}
+
 start_stack() {
+  local_postgres_preflight
   if ! compose up -d --remove-orphans; then diagnostics; die 'Запуск не завершён. Данные не удалялись; проверьте логи миграции.'; fi
   # nginx resolves app at startup; recreate it after app gets a new IP.
   compose up -d --no-deps --force-recreate web
