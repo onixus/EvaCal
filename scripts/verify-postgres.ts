@@ -17,11 +17,20 @@ async function main() {
         where: { id: template.id, name: containsInsensitive(`банк-${marker}`) },
       });
       assert.equal(found?.id, template.id, 'case-insensitive Cyrillic search must find the row');
-      await tx.formField.create({ data: {
-        templateId: template.id, label: 'integration probe', key: marker, type: 'text',
-      } });
+      await tx.formField.create({
+        data: {
+          templateId: template.id,
+          label: 'integration probe',
+          key: marker,
+          type: 'text',
+        },
+      });
       await tx.formTemplate.delete({ where: { id: template.id } });
-      assert.equal(await tx.formField.count({ where: { templateId: template.id } }), 0, 'FK cascade');
+      assert.equal(
+        await tx.formField.count({ where: { templateId: template.id } }),
+        0,
+        'FK cascade',
+      );
       await tx.formTemplate.create({ data: { name: `rollback-${marker}` } });
       throw rollback;
     });
@@ -29,8 +38,14 @@ async function main() {
     if (error !== rollback) throw error;
   }
   assert.equal(await prisma.formTemplate.count({ where: { name: `rollback-${marker}` } }), 0);
-  console.log('PostgreSQL integration passed: CRUD, Cyrillic ILIKE, FK cascade, transaction rollback.');
+  console.log(
+    'PostgreSQL integration passed: CRUD, Cyrillic ILIKE, FK cascade, transaction rollback.',
+  );
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; })
+main()
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
   .finally(() => prisma.$disconnect());

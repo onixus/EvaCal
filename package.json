@@ -18,6 +18,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:backfill-projects": "tsx scripts/backfill-projects.ts",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "prepare": "if [ -z \"$CI\" ]; then npm run format && npm run typecheck; fi",
     "test:e2e": "playwright test",
     "db:sync": "tsx scripts/db-sync.ts",

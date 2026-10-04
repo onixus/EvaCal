@@ -59,7 +59,10 @@ describe('standalone behind local nginx', () => {
   it('permits HTTP only for an explicitly configured local installation', () => {
     env.NODE_ENV = 'production';
     delete env.FORCE_SECURE_COOKIES;
-    const request = req('http://0.0.0.0:3000/api/auth/login', { host: '127.0.0.1:8080', 'x-forwarded-proto': 'http' });
+    const request = req('http://0.0.0.0:3000/api/auth/login', {
+      host: '127.0.0.1:8080',
+      'x-forwarded-proto': 'http',
+    });
     delete env.EVACAL_LOCAL_HTTP;
     expect(sessionCookieOptions(10, request).secure).toBe(true);
     env.EVACAL_LOCAL_HTTP = 'true';
@@ -70,12 +73,26 @@ describe('standalone behind local nginx', () => {
   it('does not downgrade TLS, remote hosts, or malformed authorities', () => {
     env.EVACAL_LOCAL_HTTP = 'true';
     for (const host of ['example.com', 'localhost.evil', 'localhost@evil', '127.0.0.1,evil', '']) {
-      expect(isPlainLocalRequest(req('http://0.0.0.0:3000/api', { host, 'x-forwarded-proto': 'http' }))).toBe(false);
+      expect(
+        isPlainLocalRequest(req('http://0.0.0.0:3000/api', { host, 'x-forwarded-proto': 'http' })),
+      ).toBe(false);
     }
     for (const proto of ['https', 'https,http', '']) {
-      expect(isPlainLocalRequest(req('http://0.0.0.0:3000/api', { host: 'localhost', 'x-forwarded-proto': proto }))).toBe(false);
+      expect(
+        isPlainLocalRequest(
+          req('http://0.0.0.0:3000/api', { host: 'localhost', 'x-forwarded-proto': proto }),
+        ),
+      ).toBe(false);
     }
-    expect(isPlainLocalRequest(req('https://0.0.0.0/api', { host: 'localhost', 'x-forwarded-proto': 'http' }))).toBe(false);
-    expect(isPlainLocalRequest(req('http://public.example/api', { host: 'localhost', 'x-forwarded-proto': 'http' }))).toBe(false);
+    expect(
+      isPlainLocalRequest(
+        req('https://0.0.0.0/api', { host: 'localhost', 'x-forwarded-proto': 'http' }),
+      ),
+    ).toBe(false);
+    expect(
+      isPlainLocalRequest(
+        req('http://public.example/api', { host: 'localhost', 'x-forwarded-proto': 'http' }),
+      ),
+    ).toBe(false);
   });
 });

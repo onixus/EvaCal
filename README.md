@@ -446,6 +446,6 @@ npm run build
 | [docs/CRITICAL_ASSESSMENT_AND_ROADMAP.md](docs/CRITICAL_ASSESSMENT_AND_ROADMAP.md) | Критическая оценка продукта, архитектурные горизонты A–E и дорожная карта развития                                             |
 | [docs/BUSINESS_FEATURES_DESIGN.md](docs/BUSINESS_FEATURES_DESIGN.md)               | **Horizon E:** факт и исход сделки, ресурсный план по портфелю, контроль сроков и конструктор срезов по отклонениям            |
 | [docs/GOST34_MODERNIZATION_PLAN.md](docs/GOST34_MODERNIZATION_PLAN.md)             | План модернизации модуля ГОСТ 34 (структура разделов, нормативная база, профили)                                               |
-| [docs/DATABASE_ARCHITECTURE.md](docs/DATABASE_ARCHITECTURE.md) | Архитектура PostgreSQL, единая схема, миграции, эксплуатация и проверки |
+| [docs/DATABASE_ARCHITECTURE.md](docs/DATABASE_ARCHITECTURE.md)                     | Архитектура PostgreSQL, единая схема, миграции, эксплуатация и проверки                                                        |
 | [docs/SECURITY_PERIMETER.md](docs/SECURITY_PERIMETER.md)                           | Периметр безопасности: модель доступа ACL, серверная аннуляция сессий, share-токены, аудит                                     |
 | [docs/BackLog.MD](docs/BackLog.MD)                                                 | Статус вех разработки, закрытые задачи и бэклог функциональности                                                               |

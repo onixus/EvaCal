@@ -76,7 +76,10 @@ services:
     # Validate at container startup, not Compose interpolation: an inactive
     # optional profile must not require S3 credentials or fall back to defaults.
     entrypoint: ['/bin/sh', '-ec']
-    command: [': "$${MINIO_ROOT_PASSWORD:?S3_SECRET_ACCESS_KEY is required for MinIO}"; exec minio server /data --console-address :9001']
+    command:
+      [
+        ': "$${MINIO_ROOT_PASSWORD:?S3_SECRET_ACCESS_KEY is required for MinIO}"; exec minio server /data --console-address :9001',
+      ]
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-evacal}
       MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-}

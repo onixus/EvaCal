@@ -2,7 +2,7 @@ name: CI
 
 # ОТКЛЮЧЕНО: заменено локальным Jenkins (Jenkinsfile, джоба «Ева»).
 # Причина — лимиты минут GitHub Actions. Локальный пайплайн повторяет job
-# verify шаг в шаг: npm ci, prisma generate, npm audit, lint, typecheck,
+# verify шаг в шаг: npm ci, prisma generate, npm audit, lint, format, typecheck,
 # test (через test:ci), build.
 # Вернуть: раскомментировать push/pull_request ниже.
 on:
@@ -68,6 +68,10 @@ jobs:
       - name: Lint
         id: lint
         run: npm run lint
+
+      - name: Format
+        if: ${{ !cancelled() }}
+        run: npm run format:check
 
       - name: Typecheck
         if: ${{ !cancelled() }}
