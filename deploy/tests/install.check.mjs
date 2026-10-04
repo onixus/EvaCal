@@ -82,6 +82,7 @@ else if (a[0] === 'image' && a[1] === 'inspect') {
   else if (args[0] === 'ps' && args.includes('-q')) console.log(args.at(-1)+'-id');
   else if (args[0] === 'config' && args.includes('--services')) console.log('app\\nweb\\nmigrate\\npostgres\\ndb-tools');
   else if (args[0] === 'config' && process.env.MOCK_BAD_CONFIG) process.exit(1);
+  else if (args[0] === 'exec' && args.includes('psql')) { if(process.env.MOCK_FAIL_LOCAL_PG_AUTH) process.exit(1); else console.log('1'); }
   else if (args[0] === 'exec' && args.includes('pg_dump')) { if(process.env.MOCK_FAIL_BACKUP) process.exit(1); process.stdout.write('fake database dump'); }
   else if (args[0] === 'logs' && process.env.MOCK_BANNER) console.log('migrate-1 | ======================================================================\\nmigrate-1 | test-only credentials\\nmigrate-1 | ======================================================================');
   else if (args[0] === 'build') { state.tag=process.env.MOCK_BUILD_IMAGE || state.tag; save(); }
@@ -253,6 +254,41 @@ test('external PostgreSQL needs no local database and preserves dollars', (t) =>
   f.ok(f.run(['install', '--local', '--database-url', url, '--yes']));
   assert.equal(f.value('DATABASE_URL'), url);
   assert.doesNotMatch(f.value('COMPOSE_FILE'), /postgres/);
+});
+test('embedded PostgreSQL authenticates with saved credentials before migration', (t) => {
+  const f = fixture(t);
+  f.ok(f.run(['install', '--local']));
+  const calls = f.calls(),
+    auth = calls.findIndex(
+      (x) => x.a[0] === 'compose' && x.a.includes('exec') && x.a.includes('psql'),
+    );
+  const fullUp = calls.findIndex(
+    (x, i) =>
+      i > auth && x.a[0] === 'compose' && x.a.includes('up') && x.a.includes('--remove-orphans'),
+  );
+  assert.ok(auth >= 0 && fullUp > auth);
+  const host = calls[auth].a[calls[auth].a.indexOf('-h') + 1];
+  assert.equal(host, 'postgres');
+  assert.ok(calls[auth].a.includes('PGPASSWORD'));
+  assert.equal(
+    calls[auth].a.some((x) => x.startsWith('PGPASSWORD=')),
+    false,
+  );
+});
+test('embedded PostgreSQL auth failure aborts before migration/app startup', (t) => {
+  const f = fixture(t),
+    r = f.run(['install', '--local'], { MOCK_FAIL_LOCAL_PG_AUTH: '1' });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /POSTGRES_USER\/POSTGRES_PASSWORD/);
+  const calls = f.calls(),
+    auth = calls.findIndex((x) => x.a.includes('psql'));
+  assert.ok(auth >= 0);
+  assert.equal(
+    calls
+      .slice(auth + 1)
+      .some((x) => x.a[0] === 'compose' && x.a.includes('up') && x.a.includes('--remove-orphans')),
+    false,
+  );
 });
 test('PostgreSQL source install uses local app images and retains its database service', (t) => {
   const f = fixture(t);
