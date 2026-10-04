@@ -4,9 +4,10 @@
 export function resolveDatabaseUrl(raw: string | undefined = process.env.DATABASE_URL): string {
   const value = raw?.trim();
   if (!value) throw new Error('DATABASE_URL не задан: укажите URL PostgreSQL.');
-  const invalid = () => new Error(
-    'Некорректный DATABASE_URL: требуется postgresql:// или postgres:// с адресом сервера и именем базы.',
-  );
+  const invalid = () =>
+    new Error(
+      'Некорректный DATABASE_URL: требуется postgresql:// или postgres:// с адресом сервера и именем базы.',
+    );
   if (!/^(postgresql|postgres):\/\//.test(value)) throw invalid();
   let url: URL;
   try {

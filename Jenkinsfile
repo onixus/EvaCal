@@ -135,6 +135,14 @@ pipeline {
                     }
                 }
 
+                stage('Format') {
+                    steps {
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            sh 'cd "$BUILD_DIR" && npm run format:check'
+                        }
+                    }
+                }
+
                 stage('Typecheck') {
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {

@@ -6,8 +6,7 @@ import { createHash } from 'node:crypto';
 const text = (file: string) => fs.readFileSync(path.resolve(file), 'utf8');
 
 // Match actual adapter package entries, not helper packages nested beneath them.
-const isAdapterPackage = (key: string) =>
-  /(?:^|\/)node_modules\/@prisma\/adapter-[^/]+$/.test(key);
+const isAdapterPackage = (key: string) => /(?:^|\/)node_modules\/@prisma\/adapter-[^/]+$/.test(key);
 
 describe('PostgreSQL architecture contract', () => {
   it('uses one authoritative schema and only the PostgreSQL runtime adapter', () => {
@@ -21,7 +20,8 @@ describe('PostgreSQL architecture contract', () => {
     expect(text('prisma/migrations/migration_lock.toml')).toContain('provider = "postgresql"');
     expect(pkg.scripts['db:migrate']).toBe('prisma migrate dev');
     expect(pkg.scripts['db:push']).toBeUndefined();
-    const schemas = fs.readdirSync('prisma', { recursive: true })
+    const schemas = fs
+      .readdirSync('prisma', { recursive: true })
       .filter((file) => String(file).endsWith('.prisma'));
     expect(schemas).toEqual(['schema.prisma']);
     // Upstream CLI optional peer declarations are metadata, not installed drivers.
@@ -33,8 +33,12 @@ describe('PostgreSQL architecture contract', () => {
   it('detects nested adapters without counting their transitive helper packages', () => {
     expect(isAdapterPackage('node_modules/@prisma/adapter-pg')).toBe(true);
     expect(isAdapterPackage('node_modules/tool/node_modules/@prisma/adapter-other')).toBe(true);
-    expect(isAdapterPackage('node_modules/@prisma/adapter-pg/node_modules/@prisma/debug')).toBe(false);
-    expect(isAdapterPackage('node_modules/@prisma/adapter-pg/node_modules/@prisma/driver-adapter-utils')).toBe(false);
+    expect(isAdapterPackage('node_modules/@prisma/adapter-pg/node_modules/@prisma/debug')).toBe(
+      false,
+    );
+    expect(
+      isAdapterPackage('node_modules/@prisma/adapter-pg/node_modules/@prisma/driver-adapter-utils'),
+    ).toBe(false);
   });
 
   it('preserves the checksums of already published migrations', () => {
@@ -51,7 +55,11 @@ describe('PostgreSQL architecture contract', () => {
         '0f062cd1ca5f739c6b99022da61da097d1dcd2fd5159055e325ac4572aa95697',
     };
     for (const [file, hash] of Object.entries(expected)) {
-      expect(createHash('sha256').update(text(`prisma/migrations/${file}`)).digest('hex')).toBe(hash);
+      expect(
+        createHash('sha256')
+          .update(text(`prisma/migrations/${file}`))
+          .digest('hex'),
+      ).toBe(hash);
     }
   });
 });

@@ -19,10 +19,18 @@ describe('resolveDatabaseUrl', () => {
   });
 
   it.each([
-    'file:./local.db', 'file::memory:', 'mysql://user:secret@db/name',
-    'https://db/name', 'not-a-url', 'postgresql:dbname', 'postgresql://',
-    'postgresql://db', 'postgresql://db/', 'postgresql:///evacal',
-    'postgresql://db:invalid/evacal', 'postgresql://db/evacal#fragment',
+    'file:./local.db',
+    'file::memory:',
+    'mysql://user:secret@db/name',
+    'https://db/name',
+    'not-a-url',
+    'postgresql:dbname',
+    'postgresql://',
+    'postgresql://db',
+    'postgresql://db/',
+    'postgresql:///evacal',
+    'postgresql://db:invalid/evacal',
+    'postgresql://db/evacal#fragment',
   ])('rejects unsupported or malformed connections: %s', (url) => {
     expect(() => resolveDatabaseUrl(url)).toThrow('требуется postgresql:// или postgres://');
   });
