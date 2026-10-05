@@ -50,7 +50,17 @@ pipeline {
             agent {
                 docker {
                     image 'node:22.14-alpine3.21'
-                    args '-u root:root'
+                    // Общий кэш npm в именованном томе. Сеть Docker Desktop рвёт
+                    // соединения, когда несколько контейнеров качают одновременно
+                    // (2026-10-05: два и три параллельных `npm ci` падали с
+                    // ECONNRESET все до одного, по одному — проходили). С тёплым
+                    // кэшем `npm ci` берёт tarball'ы из тома и в сеть почти не
+                    // ходит; неудачная попытка тоже докладывает скачанное, так что
+                    // scripts/ci-retry.sh добирает остаток. Том именованный, а не
+                    // путь: демон хостовый, bind-mount из контейнера Jenkins тут
+                    // не годится. cacache адресуется по содержимому — общий доступ
+                    // из параллельных билдов безопасен.
+                    args '-u root:root -v evacal-npm-cache:/root/.npm'
                 }
             }
             // Автоматический checkout отключён по той же причине, что и в E2E:
@@ -96,7 +106,8 @@ pipeline {
                         // ради --exclude (busybox tar 1.37 его поддерживает).
                         sh '''
                             set -eu
-                            apk add --no-cache bash tar openssl docker-cli docker-cli-compose
+                            # Сеть агента рвётся посреди загрузки — см. scripts/ci-retry.sh.
+                            sh scripts/ci-retry.sh apk add --no-cache bash tar openssl docker-cli docker-cli-compose
                             rm -rf "$BUILD_DIR"
                             mkdir -p "$BUILD_DIR"
                             tar -cf - --exclude=node_modules --exclude=.next . | (cd "$BUILD_DIR" && tar -xf -)
@@ -107,7 +118,7 @@ pipeline {
                                 script: 'cd "$BUILD_DIR" && sh scripts/ci-postgres.sh',
                             ).trim()
                         }
-                        sh 'cd "$BUILD_DIR" && npm ci'
+                        sh 'cd "$BUILD_DIR" && sh scripts/ci-retry.sh npm ci'
                         sh 'cd "$BUILD_DIR" && npx prisma generate'
                         // Миграции PostgreSQL применяются к живой базе: сломанная
                         // миграция падает здесь, а не у пользователя при деплое.
@@ -118,9 +129,19 @@ pipeline {
                 stage('Security Audit') {
                     steps {
                         catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-                            // Fail on high/critical advisories. Force public registry
-                            sh 'cd "$BUILD_DIR" && npm audit --audit-level=high --registry=https://registry.npmjs.org/'
+                            // Гейт — только то, что едет в образ (--omit=dev).
+                            //
+                            // dev-цепочка tailwindcss / eslint-config-next тянет braces,
+                            // а у GHSA-vfj7-8cjw-p6xm (2026-09-18) патча нет вовсе:
+                            // уязвимы все версии до 3.0.3 включительно, и даже
+                            // eslint-config-next 16.3.8 зависит от неё через fast-glob.
+                            // Полный аудит красил каждый билд в UNSTABLE без
+                            // возможности это исправить. Вектор — вложенные
+                            // glob-паттерны из конфигов сборки, не пользовательский ввод.
+                            sh 'cd "$BUILD_DIR" && npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org/'
                         }
+                        // Полный аудит (с dev) — для сведения, билд не роняет.
+                        sh 'cd "$BUILD_DIR" && npm audit --audit-level=high --registry=https://registry.npmjs.org/ || true'
                     }
                 }
 
@@ -240,7 +261,8 @@ pipeline {
                 // откажется работать с чужой сборкой браузера.
                 docker {
                     image 'mcr.microsoft.com/playwright:v1.63.0-noble'
-                    args '-u root:root'
+                    // Тот же кэш npm, что у «Проверок», — см. комментарий там.
+                    args '-u root:root -v evacal-npm-cache:/root/.npm'
                 }
             }
 
@@ -316,7 +338,7 @@ pipeline {
                     # Сквозной сценарий идёт против той же СУБД, что и прод.
                     export DATABASE_URL=$(sh scripts/ci-postgres.sh)
 
-                    npm ci
+                    sh scripts/ci-retry.sh npm ci
                     npx prisma generate
                     npm run db:sync
                     npm run db:seed
