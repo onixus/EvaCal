@@ -96,7 +96,8 @@ pipeline {
                         // ради --exclude (busybox tar 1.37 его поддерживает).
                         sh '''
                             set -eu
-                            apk add --no-cache bash tar openssl docker-cli docker-cli-compose
+                            # Сеть агента рвётся посреди загрузки — см. scripts/ci-retry.sh.
+                            sh scripts/ci-retry.sh apk add --no-cache bash tar openssl docker-cli docker-cli-compose
                             rm -rf "$BUILD_DIR"
                             mkdir -p "$BUILD_DIR"
                             tar -cf - --exclude=node_modules --exclude=.next . | (cd "$BUILD_DIR" && tar -xf -)
@@ -107,7 +108,7 @@ pipeline {
                                 script: 'cd "$BUILD_DIR" && sh scripts/ci-postgres.sh',
                             ).trim()
                         }
-                        sh 'cd "$BUILD_DIR" && npm ci'
+                        sh 'cd "$BUILD_DIR" && sh scripts/ci-retry.sh npm ci'
                         sh 'cd "$BUILD_DIR" && npx prisma generate'
                         // Миграции PostgreSQL применяются к живой базе: сломанная
                         // миграция падает здесь, а не у пользователя при деплое.
@@ -326,7 +327,7 @@ pipeline {
                     # Сквозной сценарий идёт против той же СУБД, что и прод.
                     export DATABASE_URL=$(sh scripts/ci-postgres.sh)
 
-                    npm ci
+                    sh scripts/ci-retry.sh npm ci
                     npx prisma generate
                     npm run db:sync
                     npm run db:seed

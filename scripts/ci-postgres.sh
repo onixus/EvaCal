@@ -20,16 +20,19 @@ PASS=evacal
 
 log() { echo "[ci-postgres] $*" >&2; }
 
+# Установка пакетов ходит в сеть, а она у агентов рвётся — см. ci-retry.sh.
+RETRY="$(dirname "$0")/ci-retry.sh"
+
 if command -v apk >/dev/null 2>&1; then
   # alpine 3.21: postgresql16 и 17; берём 16 — как в docker-compose.
-  apk add --no-cache postgresql16 postgresql16-contrib su-exec >/dev/null
+  sh "$RETRY" apk add --no-cache postgresql16 postgresql16-contrib su-exec >/dev/null
   BIN=/usr/libexec/postgresql16
   [ -d "$BIN" ] || BIN=$(dirname "$(command -v initdb)")
   RUNAS="su-exec postgres"
 elif command -v apt-get >/dev/null 2>&1; then
   export DEBIAN_FRONTEND=noninteractive
-  apt-get update -qq >/dev/null
-  apt-get install -y -qq postgresql postgresql-contrib >/dev/null
+  sh "$RETRY" apt-get update -qq >/dev/null
+  sh "$RETRY" apt-get install -y -qq postgresql postgresql-contrib >/dev/null
   BIN=$(ls -d /usr/lib/postgresql/*/bin | tail -1)
   # setpriv из util-linux передаёт аргументы как есть; `su -c` склеивал бы их
   # в одну строку и терял кавычки вокруг опций pg_ctl -o.
