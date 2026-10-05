@@ -32,29 +32,15 @@ export default async function PresalePage(props: {
     : null;
 
   // Все активные шаблоны — это продукты/отрасли, из которых пресейл выбирает
-  // опросник. Без активных — последние шаблоны, чтобы пустая настройка не
-  // блокировала работу.
-  const activeTemplates = shareTemplate
-    ? []
+  // опросник. Запасного варианта «последние шаблоны» нет: иначе шаблоны,
+  // которые админ скрыл, возвращались бы пресейлу, как только скрыты все.
+  const availableTemplates = shareTemplate
+    ? [shareTemplate]
     : await prisma.formTemplate.findMany({
         where: { isActive: true },
         include: templateInclude,
         orderBy: { name: 'asc' },
       });
-  const fallbackTemplates =
-    !shareTemplate && activeTemplates.length === 0
-      ? await prisma.formTemplate.findMany({
-          take: 10,
-          include: templateInclude,
-          orderBy: { createdAt: 'desc' },
-        })
-      : [];
-
-  const availableTemplates = shareTemplate
-    ? [shareTemplate]
-    : activeTemplates.length > 0
-      ? activeTemplates
-      : fallbackTemplates;
   // Предвыбор только явный (?templateId=, привязка share) — первого попавшегося
   // шаблона по умолчанию нет, иначе расчёт молча заводится не по тому продукту.
   const initialTemplateId =
@@ -93,7 +79,8 @@ export default async function PresalePage(props: {
 
       {availableTemplates.length === 0 ? (
         <div className="card p-6 text-slate-600">
-          Нет активного шаблона опросника. Создайте или импортируйте отраслевые шаблоны в{' '}
+          Нет активных шаблонов опросника. Включите нужные продукты, создайте или импортируйте
+          отраслевые шаблоны в{' '}
           <Link href="/admin" className="text-brand-700 underline">
             интерфейсе администратора
           </Link>

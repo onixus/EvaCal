@@ -16,10 +16,18 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const body = await req.json().catch(() => ({}));
   const active = body?.active !== false;
 
-  const updated = await prisma.formTemplate
-    .update({ where: { id: params.id }, data: { isActive: active } })
-    .catch(() => null);
-  if (!updated) return NextResponse.json({ error: 'template not found' }, { status: 404 });
+  // Отдельная проверка вместо catch на update: иначе любая ошибка БД
+  // маскировалась бы под 404.
+  const exists = await prisma.formTemplate.findUnique({
+    where: { id: params.id },
+    select: { id: true },
+  });
+  if (!exists) return NextResponse.json({ error: 'template not found' }, { status: 404 });
+
+  const updated = await prisma.formTemplate.update({
+    where: { id: params.id },
+    data: { isActive: active },
+  });
 
   return NextResponse.json({ ok: true, isActive: updated.isActive });
 }
