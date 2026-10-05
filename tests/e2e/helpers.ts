@@ -90,6 +90,14 @@ export async function createCalculationViaWizard(page: Page): Promise<string> {
     .click();
 
   await expect(page.locator('label').filter({ hasText: 'Название проекта' })).toBeVisible();
+  // При нескольких активных шаблонах пресейл выбирает продукт сам — дефолта нет.
+  const templateChoices = page.locator('button[aria-pressed]');
+  if (
+    (await templateChoices.count()) > 0 &&
+    (await page.locator('button[aria-pressed="true"]').count()) === 0
+  ) {
+    await templateChoices.first().click();
+  }
   await page.getByRole('button', { name: /Далее/ }).click();
   await expect(page.getByText(/Опросник/).first()).toBeVisible();
 

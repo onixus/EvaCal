@@ -31,13 +31,8 @@ export async function seedAllIndustryPresets() {
 }
 
 async function importPresetData(preset: IndustryPreset, setAsActive: boolean) {
-  if (setAsActive) {
-    // If activating, deactivate others or allow multiple active if desired
-    await prisma.formTemplate.updateMany({
-      data: { isActive: false },
-    });
-  }
-
+  // Активных шаблонов может быть несколько: пресейл выбирает нужный сам,
+  // поэтому импорт активного пресета другие шаблоны не выключает.
   return prisma.formTemplate.create({
     data: {
       name: preset.name,

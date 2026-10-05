@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import NewCalculationForm from './NewCalculationForm';
-import { getInternalSession, isAnonymousPresaleAllowed } from '@/lib/access';
+import { getInternalSession, isAnonymousPresaleAllowed, verifyShareToken } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,26 +19,32 @@ export default async function PresalePage(props: {
       })
     : null;
 
-  const allTemplates = await prisma.formTemplate.findMany({
-    where: { isActive: true },
-    include: { fields: { orderBy: { order: 'asc' } } },
-    orderBy: { name: 'asc' },
-  });
+  const templateInclude = { fields: { orderBy: { order: 'asc' as const } } };
 
-  // Fallback: if no templates are marked isActive, get the latest available template
-  const fallbackTemplates =
-    allTemplates.length === 0
-      ? await prisma.formTemplate.findMany({
-          take: 10,
-          include: { fields: { orderBy: { order: 'asc' } } },
-          orderBy: { createdAt: 'desc' },
-        })
-      : [];
+  // Share-токен, выданный на конкретный шаблон, API всё равно не пустит
+  // в другой (см. POST /api/calculations) — поэтому и выбирать тут нечего.
+  const shareTemplateId = verifyShareToken(searchParams.share)?.templateId ?? null;
+  const shareTemplate = shareTemplateId
+    ? await prisma.formTemplate.findUnique({
+        where: { id: shareTemplateId },
+        include: templateInclude,
+      })
+    : null;
 
-  const availableTemplates = allTemplates.length > 0 ? allTemplates : fallbackTemplates;
-  const selectedTemplate =
-    availableTemplates.find((t) => t.id === searchParams.templateId) ||
-    availableTemplates[0] ||
+  // Все активные шаблоны — это продукты/отрасли, из которых пресейл выбирает
+  // опросник. Запасного варианта «последние шаблоны» нет: иначе шаблоны,
+  // которые админ скрыл, возвращались бы пресейлу, как только скрыты все.
+  const availableTemplates = shareTemplate
+    ? [shareTemplate]
+    : await prisma.formTemplate.findMany({
+        where: { isActive: true },
+        include: templateInclude,
+        orderBy: { name: 'asc' },
+      });
+  // Предвыбор только явный (?templateId=, привязка share) — первого попавшегося
+  // шаблона по умолчанию нет, иначе расчёт молча заводится не по тому продукту.
+  const initialTemplateId =
+    availableTemplates.find((t) => t.id === (shareTemplateId ?? searchParams.templateId))?.id ??
     null;
 
   // Draft list is staff-only — no cross-tenant leak of other presale work.
@@ -71,9 +77,10 @@ export default async function PresalePage(props: {
         </div>
       )}
 
-      {!selectedTemplate ? (
+      {availableTemplates.length === 0 ? (
         <div className="card p-6 text-slate-600">
-          Нет активного шаблона опросника. Создайте или импортируйте отраслевые шаблоны в{' '}
+          Нет активных шаблонов опросника. Включите нужные продукты, создайте или импортируйте
+          отраслевые шаблоны в{' '}
           <Link href="/admin" className="text-brand-700 underline">
             интерфейсе администратора
           </Link>
@@ -81,8 +88,8 @@ export default async function PresalePage(props: {
         </div>
       ) : canCreate ? (
         <NewCalculationForm
-          template={JSON.parse(JSON.stringify(selectedTemplate))}
           availableTemplates={JSON.parse(JSON.stringify(availableTemplates))}
+          initialTemplateId={initialTemplateId}
           createShareToken={searchParams.share ?? null}
           initialProjectId={linkedProject?.id ?? null}
           initialProjectName={linkedProject?.name ?? ''}

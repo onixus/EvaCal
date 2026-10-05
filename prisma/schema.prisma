@@ -48,8 +48,9 @@ model HarnessAgent {
 }
 
 // A questionnaire template built in the admin's visual form constructor.
-// Only one template is "active" at a time and used by the presale interface,
-// but old templates are kept so old calculations remain readable.
+// Every "active" template is offered to presale, who picks the product/industry
+// template for each new calculation. Inactive templates are kept so old
+// calculations remain readable.
 model FormTemplate {
   id                   String          @id @default(cuid())
   name                 String
@@ -72,7 +73,7 @@ model FormTemplate {
   riskTemplates        RiskTemplate[]
   calculations         Calculation[]
 
-  // Presale looks up the single active template on every page load.
+  // Presale looks up the active templates on every page load.
   @@index([isActive])
   // The admin template list pages through this ordering; id breaks createdAt ties.
   @@index([createdAt, id])
