@@ -118,9 +118,19 @@ pipeline {
                 stage('Security Audit') {
                     steps {
                         catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-                            // Fail on high/critical advisories. Force public registry
-                            sh 'cd "$BUILD_DIR" && npm audit --audit-level=high --registry=https://registry.npmjs.org/'
+                            // Гейт — только то, что едет в образ (--omit=dev).
+                            //
+                            // dev-цепочка tailwindcss / eslint-config-next тянет braces,
+                            // а у GHSA-vfj7-8cjw-p6xm (2026-09-18) патча нет вовсе:
+                            // уязвимы все версии до 3.0.3 включительно, и даже
+                            // eslint-config-next 16.3.8 зависит от неё через fast-glob.
+                            // Полный аудит красил каждый билд в UNSTABLE без
+                            // возможности это исправить. Вектор — вложенные
+                            // glob-паттерны из конфигов сборки, не пользовательский ввод.
+                            sh 'cd "$BUILD_DIR" && npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org/'
                         }
+                        // Полный аудит (с dev) — для сведения, билд не роняет.
+                        sh 'cd "$BUILD_DIR" && npm audit --audit-level=high --registry=https://registry.npmjs.org/ || true'
                     }
                 }
 
