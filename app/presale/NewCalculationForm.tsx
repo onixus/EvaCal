@@ -64,15 +64,21 @@ function formatMoney(value: number, symbol: string): string {
  * как создаст расчёт.
  */
 export default function NewCalculationForm({
-  template,
-  availableTemplates = [],
+  availableTemplates,
+  initialTemplateId = null,
   createShareToken = null,
   initialProjectId = null,
   initialProjectName = '',
   initialCustomer = '',
 }: {
-  template: TemplateDef;
-  availableTemplates?: TemplateDef[];
+  /** Шаблоны (продукты/отрасли), из которых пресейл выбирает опросник. */
+  availableTemplates: TemplateDef[];
+  /**
+   * Предвыбранный шаблон: из `?templateId=`, из привязки share-токена или
+   * единственный доступный. Если шаблонов несколько и ничего не задано —
+   * `null`: пресейл обязан выбрать сам, «дефолтного» шаблона нет.
+   */
+  initialTemplateId?: string | null;
   /** Optional create-scoped share from `?share=` on /presale. */
   createShareToken?: string | null;
   initialProjectId?: string | null;
@@ -81,13 +87,15 @@ export default function NewCalculationForm({
 }) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [selectedTemplateId, setSelectedTemplateId] = useState(template.id);
-  const currentTemplate = availableTemplates.find((t) => t.id === selectedTemplateId) || template;
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+    initialTemplateId ?? (availableTemplates.length === 1 ? availableTemplates[0].id : null),
+  );
+  const currentTemplate = availableTemplates.find((t) => t.id === selectedTemplateId) ?? null;
 
   const [name, setName] = useState(initialProjectName);
   const [customer, setCustomer] = useState(initialCustomer);
   const [startDate, setStartDate] = useState(
-    currentTemplate.defaultStartDate?.slice(0, 10) ?? todayIso(),
+    currentTemplate?.defaultStartDate?.slice(0, 10) ?? todayIso(),
   );
   const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -96,7 +104,8 @@ export default function NewCalculationForm({
   const [estimate, setEstimate] = useState<EstimatePreview | null>(null);
   const [isEstimating, setIsEstimating] = useState(false);
 
-  const startDateLocked = !!currentTemplate.defaultStartDate;
+  const startDateLocked = !!currentTemplate?.defaultStartDate;
+  const templateId = currentTemplate?.id ?? null;
   const answersKey = JSON.stringify(answers);
 
   /**
@@ -104,6 +113,10 @@ export default function NewCalculationForm({
    * Debounce в 400 мс — чтобы набор числа в поле не порождал запрос на символ.
    */
   useEffect(() => {
+    if (!templateId) {
+      setEstimate(null);
+      return;
+    }
     let cancelled = false;
     setIsEstimating(true);
 
@@ -116,7 +129,7 @@ export default function NewCalculationForm({
           method: 'POST',
           headers,
           body: JSON.stringify({
-            templateId: currentTemplate.id,
+            templateId,
             answers: JSON.parse(answersKey),
             startDate,
           }),
@@ -135,11 +148,20 @@ export default function NewCalculationForm({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [currentTemplate.id, answersKey, startDate, createShareToken]);
+  }, [templateId, answersKey, startDate, createShareToken]);
 
   function handleTemplateChange(newId: string) {
+    if (newId === selectedTemplateId) return;
     setSelectedTemplateId(newId);
+    // Ответы привязаны к ключам полей конкретного опросника — у другого
+    // шаблона они чужие.
     setAnswers({});
+    setEstimate(null);
+    // Зафиксированная дата старта — свойство шаблона: при смене шаблона
+    // подтягиваем его дату (или сегодняшнюю, если её сняли с прежнего).
+    const next = availableTemplates.find((t) => t.id === newId);
+    if (next?.defaultStartDate) setStartDate(next.defaultStartDate.slice(0, 10));
+    else if (startDateLocked) setStartDate(todayIso());
   }
 
   const progress = useMemo(() => {
@@ -147,11 +169,12 @@ export default function NewCalculationForm({
     return Math.round((estimate.answeredCount / estimate.fieldCount) * 100);
   }, [estimate]);
 
-  const canLeaveStep1 = name.trim().length > 0 && customer.trim().length > 0;
+  const canLeaveStep1 = !!currentTemplate && name.trim().length > 0 && customer.trim().length > 0;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     // На шагах 1-2 та же кнопка ведёт вперёд, а не создаёт расчёт.
+    if (!currentTemplate) return;
     if (step < 3) {
       if (step === 1 && !canLeaveStep1) return;
       setStep((s) => (s + 1) as 1 | 2 | 3);
@@ -242,14 +265,23 @@ export default function NewCalculationForm({
           <div className="card-flat space-y-4 p-5">
             {availableTemplates.length > 1 && (
               <div className="space-y-2">
-                <span className="label">Отраслевой шаблон</span>
+                <span className="label">
+                  Продукт / шаблон расчёта <span className="text-rose-500">*</span>
+                </span>
+                {!currentTemplate && (
+                  <p className="text-[11px] text-slate-500 dark:text-nord-muted">
+                    Выберите, по какому продукту заводится расчёт — от шаблона зависят опросник,
+                    этапы и ставки.
+                  </p>
+                )}
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {availableTemplates.map((tmpl) => {
-                    const isSelected = tmpl.id === currentTemplate.id;
+                    const isSelected = tmpl.id === currentTemplate?.id;
                     return (
                       <button
                         key={tmpl.id}
                         type="button"
+                        aria-pressed={isSelected}
                         onClick={() => handleTemplateChange(tmpl.id)}
                         className={`flex flex-col rounded-[10px] border p-3 text-left text-xs transition-colors ${
                           isSelected
@@ -328,7 +360,7 @@ export default function NewCalculationForm({
         )}
 
         {/* ---------- Шаг 2: опросник ---------- */}
-        {step === 2 && (
+        {step === 2 && currentTemplate && (
           <div className="card-flat space-y-4 p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-bold text-slate-900 dark:text-nord-6">
@@ -447,7 +479,11 @@ export default function NewCalculationForm({
             className="btn-primary !text-xs"
             disabled={submitting || (step === 1 && !canLeaveStep1)}
             title={
-              step === 1 && !canLeaveStep1 ? 'Заполните название проекта и заказчика' : undefined
+              step === 1 && !canLeaveStep1
+                ? currentTemplate
+                  ? 'Заполните название проекта и заказчика'
+                  : 'Выберите шаблон расчёта'
+                : undefined
             }
           >
             {submitting ? 'Создание расчёта…' : step === 3 ? 'Создать расчёт' : 'Далее →'}

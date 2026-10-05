@@ -17,10 +17,14 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
 
-  async function activate(id: string) {
+  async function setActive(id: string, active: boolean) {
     setBusy(id);
     try {
-      await fetch(`/api/templates/${id}/activate`, { method: 'POST' });
+      await fetch(`/api/templates/${id}/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active }),
+      });
       router.refresh();
     } finally {
       setBusy(null);
@@ -72,7 +76,7 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
           <th>Вопросов</th>
           <th>Этапов</th>
           <th>Расчётов</th>
-          <th>Активен</th>
+          <th>Доступен пресейлу</th>
           <th />
         </tr>
       </thead>
@@ -115,17 +119,20 @@ export default function TemplateList({ templates }: { templates: Template[] }) {
             <td>{t._count.stageTemplates}</td>
             <td>{t._count.calculations}</td>
             <td>
-              {t.isActive ? (
-                <span className="badge bg-emerald-100 text-emerald-700">Активен</span>
-              ) : (
+              {/* Активных шаблонов может быть несколько: пресейл выбирает нужный
+                  продукт/отрасль при создании расчёта. */}
+              <div className="flex items-center gap-2">
+                {t.isActive && (
+                  <span className="badge bg-emerald-100 text-emerald-700">Активен</span>
+                )}
                 <button
                   className="btn-secondary btn-sm"
                   disabled={busy === t.id}
-                  onClick={() => activate(t.id)}
+                  onClick={() => setActive(t.id, !t.isActive)}
                 >
-                  Сделать активным
+                  {t.isActive ? 'Скрыть' : 'Сделать активным'}
                 </button>
-              )}
+              </div>
             </td>
             <td>
               <div className="flex items-center gap-2">
