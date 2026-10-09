@@ -20,8 +20,10 @@ export async function GET(req: NextRequest, props: Params) {
     ) {
       throw new SpecificationError('Некорректная версия');
     }
+    const specification = await loadSpecification(id, raw === null ? undefined : Number(raw));
+    if (raw !== null && !specification) throw new SpecificationError('Редакция не найдена', 404);
     return NextResponse.json({
-      specification: await loadSpecification(id, raw === null ? undefined : Number(raw)),
+      specification,
       canWrite:
         access.kind === 'anonymous' ||
         (access.kind === 'staff' &&

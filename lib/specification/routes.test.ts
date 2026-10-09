@@ -89,6 +89,13 @@ describe('Маршруты спецификации и выпуска с реа�
       (await exportDoc(request({ docType: 'SPEC' }, token(['export'], 'other')), props)).status,
     ).toBe(403);
   });
+  it('несуществующая историческая редакция не выглядит новой пустой спецификацией', async () => {
+    vi.mocked(loadSpecification).mockResolvedValue(null);
+    expect(
+      (await GET(request(undefined, token(['read']), 'http://localhost/x?version=9'), props))
+        .status,
+    ).toBe(404);
+  });
   it('write share сохраняет с аудируемым актором', async () => {
     vi.mocked(saveSpecification).mockResolvedValue({ snapshot } as never);
     expect((await POST(request(snapshot, token(['write'])), props)).status).toBe(201);
