@@ -79,6 +79,25 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
       '4',
     );
 
+    // A second editor creates a revision while this editor keeps unsaved changes.
+    const savedResponse = await page.request.get(
+      `/api/calculations/${calculationId}/specification`,
+    );
+    expect(savedResponse.ok()).toBeTruthy();
+    const savedSnapshot = (await savedResponse.json()).specification.snapshot;
+    const concurrent = await page.request.post(`/api/calculations/${calculationId}/specification`, {
+      data: { ...savedSnapshot, status: 'draft' },
+    });
+    expect(concurrent.status()).toBe(201);
+    await page.getByLabel('Вендор', { exact: true }).fill('Несохраненные изменения');
+    await page.getByRole('button', { name: 'Сохранить новую редакцию' }).click();
+    await expect(page.getByRole('alert')).toContainText('изменена другим пользователем');
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: 'Загрузить последнюю' }).click();
+    await expect(page.getByLabel('Вендор', { exact: true })).toHaveValue('Вендор банка');
+    await page.getByRole('button', { name: 'Подтвердить и сохранить' }).click();
+    await expect(page.getByRole('button', { name: 'Выпустить DOCX' })).toBeEnabled();
+
     // 6. Из расчёта — в Студию ГОСТ 34.
     const studioLink = page.locator('a[title*="профиль, требования"]');
     await expect(studioLink).toBeVisible({ timeout: 15000 });

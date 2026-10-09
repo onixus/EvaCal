@@ -220,8 +220,14 @@ export default function SpecificationPanel({
           </label>
           <button
             className="btn-secondary"
-            disabled={busy || dirty}
+            disabled={busy}
             onClick={() => {
+              if (
+                dirty &&
+                !window.confirm('Загрузить последнюю редакцию и отменить несохраненные изменения?')
+              )
+                return;
+              setDirty(false);
               setSelectedVersion('');
               setReload((n) => n + 1);
             }}
