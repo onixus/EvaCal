@@ -50,7 +50,8 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     await expect(page.getByRole('list', { name: 'Этапы проекта' })).toBeVisible();
 
     // 4–5. Расчёт через пресейл-мастер.
-    await createCalculationViaWizard(page);
+    const calculationId = await createCalculationViaWizard(page);
+    await page.goto(`/calculations/${calculationId}`);
 
     // SPEC has no inferred supply: create and confirm a real project snapshot.
     await page.getByRole('button', { name: 'Спецификация ПАК и ПО' }).click();
