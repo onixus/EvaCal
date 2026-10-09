@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import JSZip from 'jszip';
 import { test, expect, type Page } from '@playwright/test';
 import { createCalculationViaWizard, createProject, E2E_PASSWORD, loginAs } from './helpers';
 
@@ -49,6 +51,31 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
 
     // 4–5. Расчёт через пресейл-мастер.
     await createCalculationViaWizard(page);
+
+    // SPEC has no inferred supply: create and confirm a real project snapshot.
+    await page.getByRole('button', { name: 'Спецификация ПАК и ПО' }).click();
+    await expect(page.getByRole('button', { name: 'Выпустить DOCX' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Добавить позицию' }).click();
+    await page.getByLabel('Тип', { exact: true }).selectOption('hardware');
+    await page.getByLabel('Наименование', { exact: true }).fill('Платформа банка (E2E)');
+    await page.getByLabel('Вендор', { exact: true }).fill('Вендор банка');
+    await page.getByLabel('Артикул / редакция', { exact: true }).fill('BANK-MANUAL-42');
+    await page.getByLabel('Количество (пусто — неизвестно)', { exact: true }).fill('4');
+    await page.getByLabel('Источник', { exact: true }).fill('КП поставщика (E2E)');
+    await page
+      .getByLabel('Основание количества / выбора', { exact: true })
+      .fill('Ручная оценка архитектора (E2E)');
+    await page.getByLabel('Подтверждаю сведения и количество этой позиции').check();
+    await page.getByRole('button', { name: 'Подтвердить и сохранить' }).click();
+    await expect(page.getByRole('button', { name: 'Выпустить DOCX' })).toBeEnabled();
+    await page.reload();
+    await page.getByRole('button', { name: 'Спецификация ПАК и ПО' }).click();
+    await expect(page.getByLabel('Наименование', { exact: true })).toHaveValue(
+      'Платформа банка (E2E)',
+    );
+    await expect(page.getByLabel('Количество (пусто — неизвестно)', { exact: true })).toHaveValue(
+      '4',
+    );
 
     // 6. Из расчёта — в Студию ГОСТ 34.
     const studioLink = page.locator('a[title*="профиль, требования"]');
@@ -114,6 +141,15 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     ]);
 
     expect(download.suggestedFilename()).toMatch(/\.zip$/);
+    const zipPath = await download.path();
+    expect(zipPath).toBeTruthy();
+    const zip = await JSZip.loadAsync(await readFile(zipPath!));
+    const specFile = Object.keys(zip.files).find((name) => name.includes('SPEC'));
+    expect(specFile).toBeTruthy();
+    const specDocx = await JSZip.loadAsync(await zip.file(specFile!)!.async('nodebuffer'));
+    const specXml = await specDocx.file('word/document.xml')!.async('string');
+    expect(specXml).toContain('BANK-MANUAL-42');
+    expect(specXml).toContain('4 шт.');
 
     // 9. Карточка проекта: конвейер показывает нормоконтроль, комплект — в реестре.
     await page.goto('/projects');

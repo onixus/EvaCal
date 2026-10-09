@@ -173,6 +173,7 @@ export interface Gost34DocumentAST {
 }
 
 export interface Gost34CalculationInput {
+  specification?: import('@/lib/specification/types').SpecificationSnapshot;
   id?: string;
   name: string;
   customer: string;
@@ -206,6 +207,7 @@ export interface Gost34CalculationInput {
  * Raw input payload for GOST 34 document generation
  */
 export interface Gost34InputPayload {
+  specification?: import('@/lib/specification/types').SpecificationSnapshot;
   metadata: Gost34DocMetadata;
   standardProfile: StandardProfile;
   systemName: string;

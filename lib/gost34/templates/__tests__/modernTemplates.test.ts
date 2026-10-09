@@ -121,22 +121,11 @@ describe('Modern Document Generators (PZ, AF, PMI, SPEC, RP, RA)', () => {
     expect(sec1?.paragraphs[1]).toContain('ГОСТ Р 59792-2021');
   });
 
-  it('buildSPEC34Sections formats software & hardware specs from projectContext', () => {
+  it('buildSPEC34Sections never treats inferred context as confirmed supply', () => {
     const sections = buildSPEC34Sections(mockPayload);
     expect(sections).toHaveLength(5);
-
-    const swTable = sections[1].tables?.[0];
-    expect(swTable?.rows[0][1]).toContain('Astra Linux');
-    expect(swTable?.rows[1][1]).toContain('Postgres');
-    // Реквизиты берутся из базы знаний вендоров, сверенной с реестрами.
-    expect(swTable?.rows[0][3]).toContain('№ 369');
-    expect(swTable?.rows[0][4]).toContain('№ 2557');
-    expect(swTable?.rows[1][3]).toContain('№ 104');
-    expect(swTable?.rows[1][4]).toContain('№ 4063');
-
-    const hwTable = sections[2].tables?.[0];
-    expect(hwTable?.rows[0][4]).toContain('8 vCPU');
-    expect(hwTable?.rows[1][4]).toContain('500 ГБ');
+    for (const section of sections.slice(1, 4)) expect(section.tables?.[0].rows).toEqual([]);
+    expect(sections[0].paragraphs.join(' ')).toContain('ЧЕРНОВИК');
   });
 
   it('buildRP34Sections generates User Manual according to GOST 34.201 / RD 50-34.698', () => {

@@ -2,16 +2,59 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Gost34Section } from '@/lib/gost34/types';
+import { withShareHeaders } from '@/lib/shareClient';
+import type {
+  SpecificationSnapshot,
+  SpecificationItem,
+  SavedSpecification,
+} from '@/lib/specification/types';
+import { ITEM_KINDS, ITEM_DISPOSITIONS } from '@/lib/specification/types';
+import { specificationBlockers } from '@/lib/specification/validation';
 
 interface SpecificationPanelProps {
   calculationId: string;
   calculationName: string;
   customerName: string;
   answers: Record<string, unknown>;
-  /** Ссылка на студию ГОСТ 34; не передана — кнопка не показывается. */
   studioHref?: string;
 }
+const kindLabels = {
+  hardware: 'Оборудование',
+  software: 'ПО',
+  license: 'Лицензия',
+  support: 'Поддержка',
+  service: 'Услуга',
+  other: 'Другое',
+};
+const dispositionLabels = {
+  supply: 'Поставляем',
+  existing: 'Используем имеющееся',
+  alternative: 'Предлагаем альтернативу',
+};
+const empty = (): SpecificationSnapshot => ({
+  version: 0,
+  status: 'draft',
+  emptySupplyReason: '',
+  items: [],
+});
+const newItem = (): SpecificationItem => ({
+  id: crypto.randomUUID(),
+  kind: 'other',
+  disposition: 'supply',
+  name: '',
+  vendor: '',
+  sku: '',
+  quantity: null,
+  unit: 'шт.',
+  configuration: '',
+  licensing: '',
+  term: '',
+  source: '',
+  rationale: '',
+  confirmed: false,
+  unitPrice: null,
+  currency: 'RUB',
+});
 
 export default function SpecificationPanel({
   calculationId,
@@ -20,327 +63,348 @@ export default function SpecificationPanel({
   answers,
   studioHref,
 }: SpecificationPanelProps) {
-  const [sections, setSections] = useState<Gost34Section[]>([]);
+  const [spec, setSpec] = useState<SpecificationSnapshot>(empty);
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [downloadingDocx, setDownloadingDocx] = useState(false);
+  const [error, setError] = useState('');
+  const [canWrite, setCanWrite] = useState(false);
+  const [canExport, setCanExport] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState('');
+  const [reload, setReload] = useState(0);
+  const answersKey = JSON.stringify(answers);
 
   useEffect(() => {
-    let isCancelled = false;
-    async function loadSpec() {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch('/api/gost34/preview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            calculationId,
-            docType: 'SPEC',
-          }),
-        });
-
-        if (!res.ok) {
-          throw new Error('Не удалось сформировать спецификацию оборудования и ПО');
-        }
-
+    const controller = new AbortController();
+    setLoading(true);
+    setError('');
+    setDirty(false);
+    setSpec(empty());
+    const suffix = selectedVersion ? `?version=${selectedVersion}` : '';
+    fetch(`/api/calculations/${calculationId}/specification${suffix}`, {
+      headers: withShareHeaders(calculationId),
+      signal: controller.signal,
+    })
+      .then(async (res) => {
         const data = await res.json();
-        if (!isCancelled && data.ast?.sections) {
-          setSections(data.ast.sections);
+        if (!res.ok) throw new Error(data.error || 'Не удалось загрузить спецификацию');
+        if (!controller.signal.aborted) {
+          setSpec(data.specification?.snapshot || empty());
+          setCanWrite(data.canWrite);
+          setCanExport(data.canExport);
         }
-      } catch (err: unknown) {
-        if (!isCancelled) {
-          setError(err instanceof Error ? err.message : 'Ошибка загрузки спецификации');
-        }
-      } finally {
-        if (!isCancelled) {
-          setLoading(false);
-        }
-      }
+      })
+      .catch((err) => {
+        if (!controller.signal.aborted)
+          setError(err instanceof Error ? err.message : 'Ошибка загрузки');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [calculationId, customerName, answersKey, selectedVersion, reload]);
+
+  const change = (next: SpecificationSnapshot) => {
+    setSpec({ ...next, status: 'draft' });
+    setDirty(true);
+    setError('');
+  };
+  const edit = (id: string, field: keyof SpecificationItem, value: unknown) =>
+    change({
+      ...spec,
+      items: spec.items.map((i) =>
+        i.id === id
+          ? { ...i, [field]: value, confirmed: field === 'confirmed' ? Boolean(value) : false }
+          : i,
+      ),
+    });
+  const reorder = (index: number, offset: number) => {
+    const items = [...spec.items];
+    const target = index + offset;
+    if (target < 0 || target >= items.length) return;
+    [items[index], items[target]] = [items[target], items[index]];
+    change({ ...spec, items });
+  };
+  const save = async (status: SpecificationSnapshot['status']) => {
+    setBusy(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/calculations/${calculationId}/specification`, {
+        method: 'POST',
+        headers: withShareHeaders(calculationId, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ ...spec, status }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Не удалось сохранить');
+      setSpec((data as SavedSpecification).snapshot);
+      setDirty(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка сохранения');
+    } finally {
+      setBusy(false);
     }
-
-    loadSpec();
-    return () => {
-      isCancelled = true;
-    };
-  }, [calculationId]);
-
-  const handleDownloadDocx = async () => {
-    setDownloadingDocx(true);
+  };
+  const download = async (draft: boolean) => {
+    setBusy(true);
+    setError('');
     try {
       const res = await fetch(`/api/calculations/${calculationId}/gost34`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: withShareHeaders(calculationId, { 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           docType: 'SPEC',
+          draft,
+          specificationVersion: spec.version || undefined,
         }),
       });
-
       if (!res.ok) {
-        throw new Error('Ошибка скачивания спецификации DOCX');
+        const data = await res.json();
+        throw new Error(data.message || data.error || 'Ошибка экспорта');
       }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
+      const url = URL.createObjectURL(await res.blob());
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Спецификация_${calculationName.replace(/\s+/g, '_')}.docx`;
-      document.body.appendChild(a);
+      a.download = `${draft ? 'Черновик_' : ''}Спецификация_${calculationName.replace(/\s+/g, '_')}_v${spec.version}.docx`;
       a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Не удалось скачать DOCX');
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка экспорта');
     } finally {
-      setDownloadingDocx(false);
+      setBusy(false);
     }
   };
-
-  const swTable = sections[1]?.tables?.[0];
-  const hwTable = sections[2]?.tables?.[0];
-  const passiveTable = sections[3]?.tables?.[0];
+  const blockers = specificationBlockers(spec);
+  const historical = Boolean(selectedVersion);
+  const disabled = loading || busy || !canWrite || historical;
+  const fields: Array<[keyof SpecificationItem, string]> = [
+    ['name', 'Наименование'],
+    ['vendor', 'Вендор'],
+    ['sku', 'Артикул / редакция'],
+    ['quantity', 'Количество (пусто — неизвестно)'],
+    ['unit', 'Единица'],
+    ['configuration', 'Характеристики'],
+    ['licensing', 'Лицензирование / право использования'],
+    ['term', 'Срок / условия гарантии и поддержки'],
+    ['source', 'Источник'],
+    ['rationale', 'Основание количества / выбора'],
+    ['unitPrice', 'Цена за единицу (пусто — неизвестно; 0 — бесплатно)'],
+    ['currency', 'Валюта'],
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="card border border-slate-200/80 bg-white p-6 shadow-sm dark:border-nord-3 dark:bg-nord-2">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl">📦</span>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-nord-6">
-                Спецификация оборудования и программного обеспечения
-              </h2>
-              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-nord-frost3/20 dark:text-nord-frost3">
-                188-ФЗ / ПП РФ № 878
-              </span>
-            </div>
-            <p className="mt-1 text-sm text-slate-500 dark:text-nord-muted">
-              Ведомость лицензий, реестровых номеров ПО, серверных платформ YADRO/Aquarius, СХД и
-              комплектов ЗИП
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              onClick={handleDownloadDocx}
-              disabled={downloadingDocx || loading}
-              className="btn-primary flex items-center gap-1.5 text-xs font-semibold"
-            >
-              <span>{downloadingDocx ? '⏳ Генерация...' : '📄 Скачать DOCX (Спецификация)'}</span>
-            </button>
-            {studioHref && (
-              <Link
-                href={studioHref}
-                className="btn-secondary flex items-center gap-1.5 text-xs font-semibold"
-              >
-                <span>🚀 Выпустить в студии ГОСТ 34</span>
-              </Link>
-            )}
-          </div>
+    <div className="space-y-4">
+      <div className="card space-y-3 p-5">
+        <h2 className="text-lg font-bold">Спецификация — {customerName}</h2>
+        <p className="text-sm text-slate-500">
+          Версия {spec.version || 'не сохранена'} ·{' '}
+          {dirty
+            ? 'Есть несохраненные изменения'
+            : spec.status === 'confirmed'
+              ? 'Подтверждена'
+              : 'Черновик'}
+          . Состав вводится вручную. Ответы опросника не добавляют товары. Реестры автоматически не
+          проверяются.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <label>
+            Историческая версия{' '}
+            <input
+              aria-label="Историческая версия"
+              type="number"
+              min="1"
+              className="input w-24"
+              value={selectedVersion}
+              disabled={busy || dirty}
+              onChange={(e) => setSelectedVersion(e.target.value)}
+            />
+          </label>
+          <button
+            className="btn-secondary"
+            disabled={busy || dirty}
+            onClick={() => {
+              setSelectedVersion('');
+              setReload((n) => n + 1);
+            }}
+          >
+            Загрузить последнюю
+          </button>
+          <button
+            className="btn-secondary"
+            disabled={loading || busy || dirty || !canExport}
+            onClick={() => download(true)}
+          >
+            Черновой DOCX
+          </button>
+          <button
+            className="btn-primary"
+            disabled={loading || busy || dirty || blockers.length > 0 || !canExport}
+            onClick={() => download(false)}
+          >
+            Выпустить DOCX
+          </button>
+          {studioHref && (
+            <Link className="btn-secondary" href={studioHref}>
+              Студия ГОСТ 34
+            </Link>
+          )}
         </div>
-
-        {/* Metric Cards */}
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-slate-200/70 bg-slate-50/50 p-4 dark:border-nord-3 dark:bg-nord-1/50">
-            <div className="text-xs font-medium text-slate-500 dark:text-nord-muted">
-              Программные продукты и СЗИ
+        {error && (
+          <p role="alert" className="whitespace-pre-line text-red-600">
+            {error}
+          </p>
+        )}
+        {loading ? (
+          <p>Загрузка…</p>
+        ) : (
+          blockers.length > 0 && (
+            <div className="rounded border border-amber-300 p-3 text-sm">
+              <p>Для выпуска требуется:</p>
+              <ul className="list-inside list-disc">
+                {blockers.map((b, i) => (
+                  <li key={i}>{b}</li>
+                ))}
+              </ul>
             </div>
-            <div className="mt-1 text-xl font-bold text-slate-900 dark:text-nord-6">
-              {swTable?.rows.length || 0} поз.
-            </div>
-            <div className="mt-1 text-[11px] text-emerald-600 dark:text-nord-frost3">
-              Реестр Минцифры (188-ФЗ)
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-slate-200/70 bg-slate-50/50 p-4 dark:border-nord-3 dark:bg-nord-1/50">
-            <div className="text-xs font-medium text-slate-500 dark:text-nord-muted">
-              Серверы, СХД и ПАК
-            </div>
-            <div className="mt-1 text-xl font-bold text-slate-900 dark:text-nord-6">
-              {hwTable?.rows.length || 0} поз.
-            </div>
-            <div className="mt-1 text-[11px] text-blue-600 dark:text-nord-frost2">
-              Реестр Минпромторга РФ
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-slate-200/70 bg-slate-50/50 p-4 dark:border-nord-3 dark:bg-nord-1/50">
-            <div className="text-xs font-medium text-slate-500 dark:text-nord-muted">
-              Сертификация СЗИ/СКЗИ
-            </div>
-            <div className="mt-1 text-xl font-bold text-slate-900 dark:text-nord-6">
-              ФСТЭК / ФСБ
-            </div>
-            <div className="mt-1 text-[11px] text-slate-500 dark:text-nord-muted">
-              Формуляры и знаки соответствия
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-slate-200/70 bg-slate-50/50 p-4 dark:border-nord-3 dark:bg-nord-1/50">
-            <div className="text-xs font-medium text-slate-500 dark:text-nord-muted">
-              Гарантия и техподдержка
-            </div>
-            <div className="mt-1 text-xl font-bold text-slate-900 dark:text-nord-6">36 мес.</div>
-            <div className="mt-1 text-[11px] text-slate-500 dark:text-nord-muted">
-              SLA 8x5 / 24x7 NBD
-            </div>
-          </div>
-        </div>
+          )
+        )}
       </div>
-
-      {loading ? (
-        <div className="card p-12 text-center text-slate-500 dark:text-nord-muted">
-          <div className="animate-pulse text-sm">
-            Формирование спецификации по базам реестров РФ...
-          </div>
-        </div>
-      ) : error ? (
-        <div className="card border-red-200 bg-red-50 p-6 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
-          <div className="font-semibold">Ошибка загрузки спецификации:</div>
-          <div className="mt-1 text-sm">{error}</div>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {/* Table 1: Software & Licenses */}
-          {swTable && (
-            <div className="card overflow-hidden border border-slate-200/80 bg-white shadow-sm dark:border-nord-3 dark:bg-nord-2">
-              <div className="border-b border-slate-100 bg-slate-50/80 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/40">
-                <h3 className="font-semibold text-slate-900 dark:text-nord-6">{swTable.caption}</h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b border-slate-200 bg-slate-100/70 font-semibold text-slate-700 dark:border-nord-3 dark:bg-nord-1 dark:text-nord-4">
-                    <tr>
-                      {swTable.headers.map((h, i) => (
-                        <th key={i} className="px-4 py-3">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700 dark:divide-nord-3 dark:text-nord-4">
-                    {swTable.rows.map((row, rIdx) => (
-                      <tr key={rIdx} className="hover:bg-slate-50/60 dark:hover:bg-nord-1/30">
-                        <td className="px-4 py-3 font-medium">{row[0]}</td>
-                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-nord-6">
-                          {row[1]}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 dark:text-nord-muted">{row[2]}</td>
-                        <td className="px-4 py-3 font-mono font-medium text-emerald-700 dark:text-nord-frost3">
-                          {row[3]}
-                        </td>
-                        <td className="px-4 py-3 text-[11px] text-slate-600 dark:text-nord-muted">
-                          {row[4]}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 dark:text-nord-muted">{row[5]}</td>
-                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-nord-6">
-                          {row[6]}
-                        </td>
-                      </tr>
+      {!loading && (
+        <>
+          {spec.items.map((item, index) => (
+            <fieldset key={item.id} disabled={disabled} className="card space-y-3 p-5">
+              <legend className="font-semibold">Позиция {index + 1}</legend>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <label>
+                  Тип
+                  <select
+                    className="input w-full"
+                    value={item.kind}
+                    onChange={(e) => edit(item.id, 'kind', e.target.value)}
+                  >
+                    {ITEM_KINDS.map((k) => (
+                      <option key={k} value={k}>
+                        {kindLabels[k]}
+                      </option>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Table 2: Hardware & PAC */}
-          {hwTable && (
-            <div className="card overflow-hidden border border-slate-200/80 bg-white shadow-sm dark:border-nord-3 dark:bg-nord-2">
-              <div className="border-b border-slate-100 bg-slate-50/80 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/40">
-                <h3 className="font-semibold text-slate-900 dark:text-nord-6">{hwTable.caption}</h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b border-slate-200 bg-slate-100/70 font-semibold text-slate-700 dark:border-nord-3 dark:bg-nord-1 dark:text-nord-4">
-                    <tr>
-                      {hwTable.headers.map((h, i) => (
-                        <th key={i} className="px-4 py-3">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700 dark:divide-nord-3 dark:text-nord-4">
-                    {hwTable.rows.map((row, rIdx) => (
-                      <tr key={rIdx} className="hover:bg-slate-50/60 dark:hover:bg-nord-1/30">
-                        <td className="px-4 py-3 font-medium">{row[0]}</td>
-                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-nord-6">
-                          {row[1]}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-slate-600 dark:text-nord-muted">
-                          {row[2]}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 dark:text-nord-muted">{row[3]}</td>
-                        <td className="px-4 py-3 text-[11px] text-slate-600 dark:text-nord-muted">
-                          {row[4]}
-                        </td>
-                        <td className="px-4 py-3 font-medium text-slate-700 dark:text-nord-4">
-                          {row[5]}
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-nord-6">
-                          {row[6]}
-                        </td>
-                      </tr>
+                  </select>
+                </label>
+                <label>
+                  Назначение
+                  <select
+                    className="input w-full"
+                    value={item.disposition}
+                    onChange={(e) => edit(item.id, 'disposition', e.target.value)}
+                  >
+                    {ITEM_DISPOSITIONS.map((k) => (
+                      <option key={k} value={k}>
+                        {dispositionLabels[k]}
+                      </option>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Table 3: Passive Equipment & Racks */}
-          {passiveTable && (
-            <div className="card overflow-hidden border border-slate-200/80 bg-white shadow-sm dark:border-nord-3 dark:bg-nord-2">
-              <div className="border-b border-slate-100 bg-slate-50/80 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/40">
-                <h3 className="font-semibold text-slate-900 dark:text-nord-6">
-                  {passiveTable.caption}
-                </h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b border-slate-200 bg-slate-100/70 font-semibold text-slate-700 dark:border-nord-3 dark:bg-nord-1 dark:text-nord-4">
-                    <tr>
-                      {passiveTable.headers.map((h, i) => (
-                        <th key={i} className="px-4 py-3">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700 dark:divide-nord-3 dark:text-nord-4">
-                    {passiveTable.rows.map((row, rIdx) => (
-                      <tr key={rIdx} className="hover:bg-slate-50/60 dark:hover:bg-nord-1/30">
-                        <td className="px-4 py-3 font-medium">{row[0]}</td>
-                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-nord-6">
-                          {row[1]}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 dark:text-nord-muted">{row[2]}</td>
-                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-nord-6">
-                          {row[3]}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Delivery & Documentation Requirements */}
-          {sections[4] && (
-            <div className="card border border-slate-200/80 bg-slate-50/60 p-6 dark:border-nord-3 dark:bg-nord-1/40">
-              <h3 className="font-semibold text-slate-900 dark:text-nord-6">{sections[4].title}</h3>
-              <div className="mt-3 space-y-2 text-xs text-slate-600 dark:text-nord-muted">
-                {sections[4].paragraphs.map((p, pIdx) => (
-                  <p key={pIdx}>{p}</p>
+                  </select>
+                </label>
+                {fields.map(([key, label]) => (
+                  <label key={key} className="text-sm">
+                    {label}
+                    <input
+                      className="input w-full"
+                      value={String(item[key] ?? '')}
+                      onChange={(e) =>
+                        edit(
+                          item.id,
+                          key,
+                          (key === 'quantity' || key === 'unitPrice') && e.target.value === ''
+                            ? null
+                            : e.target.value,
+                        )
+                      }
+                    />
+                  </label>
                 ))}
               </div>
+              <label className="flex gap-2">
+                <input
+                  type="checkbox"
+                  checked={item.confirmed}
+                  onChange={(e) => edit(item.id, 'confirmed', e.target.checked)}
+                />
+                Подтверждаю сведения и количество этой позиции
+              </label>
+              <div className="flex gap-2">
+                <button
+                  className="btn-secondary"
+                  onClick={() =>
+                    change({ ...spec, items: spec.items.filter((i) => i.id !== item.id) })
+                  }
+                >
+                  Удалить
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() =>
+                    change({
+                      ...spec,
+                      items: [
+                        ...spec.items,
+                        { ...item, id: crypto.randomUUID(), confirmed: false },
+                      ],
+                    })
+                  }
+                >
+                  Копировать
+                </button>
+                <button
+                  aria-label="Переместить выше"
+                  className="btn-secondary"
+                  disabled={disabled || index === 0}
+                  onClick={() => reorder(index, -1)}
+                >
+                  ↑
+                </button>
+                <button
+                  aria-label="Переместить ниже"
+                  className="btn-secondary"
+                  disabled={disabled || index === spec.items.length - 1}
+                  onClick={() => reorder(index, 1)}
+                >
+                  ↓
+                </button>
+              </div>
+            </fieldset>
+          ))}
+          <div className="card space-y-3 p-5">
+            {spec.items.length === 0 && (
+              <label className="block">
+                Если поставка не предусмотрена, укажите причину
+                <textarea
+                  className="input w-full"
+                  disabled={disabled}
+                  value={spec.emptySupplyReason}
+                  onChange={(e) => change({ ...spec, emptySupplyReason: e.target.value })}
+                />
+              </label>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="btn-secondary"
+                disabled={disabled}
+                onClick={() => change({ ...spec, items: [...spec.items, newItem()] })}
+              >
+                Добавить позицию
+              </button>
+              <button className="btn-secondary" disabled={disabled} onClick={() => save('draft')}>
+                Сохранить новую редакцию
+              </button>
+              <button className="btn-primary" disabled={disabled} onClick={() => save('confirmed')}>
+                Подтвердить и сохранить
+              </button>
             </div>
-          )}
-        </div>
+            <p className="text-sm text-slate-500">
+              Сохранение создает новую неизменяемую редакцию. Изменение строки снимает ее
+              подтверждение. Цены сохраняются в спецификации; связь с расчетом стоимости КП
+              выполняется отдельно.
+            </p>
+          </div>
+        </>
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+import { specificationBlockers } from '../specification/validation';
 import { UnsupportedGostDocumentTypeError } from './generation/errors';
 import { Gost34InputPayload, Gost34DocumentAST, Gost34Section } from './types';
 import { ContextGap } from './context/types';
@@ -29,7 +30,15 @@ const BUILDERS: Record<string, DocumentBuilder> = {
   PZ: (payload) => ({ sections: buildPZ34Sections(payload) }),
   AF: (payload) => ({ sections: buildAF34Sections(payload) }),
   PMI: (payload) => ({ sections: buildPMI34Sections(payload) }),
-  SPEC: (payload) => ({ sections: buildSPEC34Sections(payload) }),
+  SPEC: (payload) => ({
+    sections: buildSPEC34Sections(payload),
+    issues: specificationBlockers(payload.specification).map((message) => ({
+      nodeId: 'specification',
+      title: 'Состав поставки',
+      kind: 'empty' as const,
+      message,
+    })),
+  }),
   RP: (payload) => ({ sections: buildRP34Sections(payload) }),
   RA: (payload) => ({ sections: buildRA34Sections(payload) }),
   PSI: (payload) => ({ sections: buildPSI34Sections(payload) }),
