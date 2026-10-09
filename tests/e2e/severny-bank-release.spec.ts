@@ -91,7 +91,9 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     expect(concurrent.status()).toBe(201);
     await page.getByLabel('Вендор', { exact: true }).fill('Несохраненные изменения');
     await page.getByRole('button', { name: 'Сохранить новую редакцию' }).click();
-    await expect(page.getByRole('alert')).toContainText('изменена другим пользователем');
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'изменена другим пользователем' }),
+    ).toBeVisible();
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Загрузить последнюю' }).click();
     await expect(page.getByLabel('Вендор', { exact: true })).toHaveValue('Вендор банка');
