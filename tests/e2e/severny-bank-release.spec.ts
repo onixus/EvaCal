@@ -28,6 +28,7 @@ async function signReview(
 }
 
 test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
+  test.use({ actionTimeout: 15000 });
   test.setTimeout(240000);
   const PROJECT_NAME = 'Северный банк (e2e)';
   const CUSTOMER_NAME = 'ПАО Северный банк';

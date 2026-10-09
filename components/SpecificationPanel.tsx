@@ -278,6 +278,7 @@ export default function SpecificationPanel({
                   Тип
                   <select
                     className="input w-full"
+                    aria-label="Тип"
                     value={item.kind}
                     onChange={(e) => edit(item.id, 'kind', e.target.value)}
                   >
@@ -292,6 +293,7 @@ export default function SpecificationPanel({
                   Назначение
                   <select
                     className="input w-full"
+                    aria-label="Назначение"
                     value={item.disposition}
                     onChange={(e) => edit(item.id, 'disposition', e.target.value)}
                   >
