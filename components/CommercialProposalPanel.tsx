@@ -1,9 +1,13 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   calculateCommercialSummary,
-  formatCurrency,
+  PRICING_MODE_LABELS,
+  resolvePricingMode,
+  type PricingMode,
+  formatCurrency as formatCurrencyBase,
   resolveRoleRates,
   SUPPORTED_CURRENCIES,
   DEFAULT_ROLE_RATES,
@@ -20,6 +24,7 @@ interface Props {
   initialCurrency?: string;
   initialRoleRates?: string | null;
   initialOverheadPercent?: number;
+  initialPricingMode?: string;
   initialMarginPercent?: number;
   initialDiscountPercent?: number;
   initialVatPercent?: number;
@@ -35,18 +40,28 @@ export default function CommercialProposalPanel({
   initialCurrency = 'RUB',
   initialRoleRates,
   initialOverheadPercent = 0,
+  initialPricingMode = 'legacy_markup',
   initialMarginPercent = 20,
   initialDiscountPercent = 0,
   initialVatPercent = 20,
   initialIncludeVat = true,
   canEdit = true,
 }: Props) {
+  const router = useRouter();
   const [currency, setCurrency] = useState(initialCurrency);
   const [roleRates, setRoleRates] = useState<Record<string, number>>(() =>
     resolveRoleRates(initialRoleRates),
   );
   const [overheadPercent, setOverheadPercent] = useState<number>(initialOverheadPercent);
+  const [pricingMode, setPricingMode] = useState<PricingMode>(() =>
+    resolvePricingMode(initialPricingMode),
+  );
   const [marginPercent, setMarginPercent] = useState<number>(initialMarginPercent);
+  const formatCurrency = (amount: number, code: string, options: { decimals?: number } = {}) =>
+    formatCurrencyBase(amount, code, {
+      decimals: pricingMode === 'legacy_markup' ? 0 : 2,
+      ...options,
+    });
   const [discountPercent, setDiscountPercent] = useState<number>(initialDiscountPercent);
   const [vatPercent, setVatPercent] = useState<number>(initialVatPercent);
   const [includeVat, setIncludeVat] = useState<boolean>(initialIncludeVat);
@@ -60,6 +75,7 @@ export default function CommercialProposalPanel({
       currency,
       roleRates,
       overheadPercent,
+      pricingMode,
       marginPercent,
       discountPercent,
       vatPercent,
@@ -72,6 +88,7 @@ export default function CommercialProposalPanel({
     currency,
     roleRates,
     overheadPercent,
+    pricingMode,
     marginPercent,
     discountPercent,
     vatPercent,
@@ -99,6 +116,7 @@ export default function CommercialProposalPanel({
           currency,
           roleRates,
           overheadPercent,
+          pricingMode,
           marginPercent,
           discountPercent,
           vatPercent,
@@ -112,6 +130,7 @@ export default function CommercialProposalPanel({
       }
 
       setSaveSuccess(true);
+      router.refresh();
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
       setSaveError(err?.message || 'Не удалось сохранить смету');
@@ -164,21 +183,26 @@ export default function CommercialProposalPanel({
           </div>
         </div>
 
-        {/* 3. Маржа / Прибыль */}
+        {/* 3. Прибыль после скидки */}
         <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4 shadow-sm dark:border-nord-frost3/40 dark:bg-nord-1/60">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800 dark:text-nord-frost3">
-              Маржа / Прибыль
+              Прибыль после скидки
             </span>
             <span className="rounded-md bg-emerald-200/80 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900 dark:bg-nord-frost3/20 dark:text-nord-frost3">
-              {summary.marginPercent}%
+              {summary.effectiveMarginPercent === null
+                ? '—'
+                : `${summary.effectiveMarginPercent.toFixed(2)}%`}
             </span>
           </div>
           <div className="mt-2 text-xl font-bold text-emerald-950 dark:text-nord-frost3 sm:text-2xl">
-            +{formatCurrency(summary.marginAmount, summary.currency)}
+            {formatCurrency(summary.profitAfterDiscount, summary.currency, {
+              decimals: pricingMode === 'legacy_markup' ? 0 : 2,
+            })}
           </div>
           <div className="mt-1 text-xs text-emerald-700/80 dark:text-nord-muted">
-            Эффект. ставка: {formatCurrency(summary.blendedHourlyRate, summary.currency)}/ч
+            Маржа после скидки, без НДС. Эффект. ставка:{' '}
+            {formatCurrency(summary.blendedHourlyRate, summary.currency)}/ч
           </div>
         </div>
 
@@ -397,28 +421,67 @@ export default function CommercialProposalPanel({
                 </div>
               </div>
 
+              <label className="block text-xs font-semibold">
+                Режим расчета цены
+                <select
+                  aria-label="Режим расчета цены"
+                  className="input mt-1 w-full"
+                  value={pricingMode}
+                  disabled={!canEdit}
+                  onChange={(e) => {
+                    const mode = resolvePricingMode(e.target.value);
+                    setPricingMode(mode);
+                    if (mode === 'target_margin' && marginPercent >= 100) setMarginPercent(20);
+                  }}
+                >
+                  {Object.entries(PRICING_MODE_LABELS).map(([mode, label]) => (
+                    <option key={mode} value={mode}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="text-xs text-slate-500 dark:text-nord-muted">
+                {pricingMode === 'target_margin'
+                  ? 'Цена до скидки = себестоимость / (1 − маржа / 100). Целевая маржа относится к выручке без НДС до скидки.'
+                  : 'Цена до скидки = себестоимость + себестоимость × наценка / 100.'}{' '}
+                {pricingMode === 'legacy_markup'
+                  ? 'Сохранены прежние правила округления до целой единицы валюты.'
+                  : 'Денежные суммы округляются до двух знаков после запятой.'}
+              </p>
               {/* Margin percentage */}
               <div>
                 <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-nord-4">
-                  <span>Плановая норма маржи (Прибыль)</span>
+                  <span>
+                    {pricingMode === 'target_margin'
+                      ? 'Целевая маржа от выручки'
+                      : 'Наценка на себестоимость'}
+                  </span>
                   <span className="font-bold text-emerald-600 dark:text-nord-frost3">
                     {marginPercent}%
                   </span>
                 </div>
                 <input
-                  type="range"
+                  type="number"
                   min="0"
-                  max="60"
-                  step="1"
+                  max={pricingMode === 'target_margin' ? 99.99 : undefined}
+                  step="0.01"
                   disabled={!canEdit}
+                  aria-label="Процент цены"
                   value={marginPercent}
-                  onChange={(e) => setMarginPercent(Number(e.target.value))}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    if (!Number.isFinite(value)) return;
+                    setMarginPercent(
+                      Math.max(0, pricingMode === 'target_margin' ? Math.min(99.99, value) : value),
+                    );
+                  }}
                   className="mt-1.5 w-full accent-emerald-600"
                 />
                 <div className="flex justify-between text-[10px] text-slate-400 dark:text-nord-muted">
                   <span>0%</span>
                   <span>+{formatCurrency(summary.marginAmount, summary.currency)}</span>
-                  <span>60%</span>
+                  <span>{pricingMode === 'target_margin' ? '< 100%' : 'от себестоимости'}</span>
                 </div>
               </div>
 
@@ -436,6 +499,7 @@ export default function CommercialProposalPanel({
                   max="30"
                   step="1"
                   disabled={!canEdit}
+                  aria-label="Скидка заказчику"
                   value={discountPercent}
                   onChange={(e) => setDiscountPercent(Number(e.target.value))}
                   className="mt-1.5 w-full accent-rose-500"

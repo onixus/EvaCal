@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateCommercialUpdate } from '@/lib/commercial';
 import {
   primaryStagesFromTemplate,
   rebuildStages,
@@ -64,6 +65,12 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   const primary = primaryStagesFromTemplate(existing.template.stageTemplates, answers);
   const pmHours = pmHoursFor(existing.template.fields, answers, primary);
 
+  try {
+    validateCommercialUpdate(body, existing);
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+  }
+
   const roleRatesJson =
     body.roleRates !== undefined
       ? typeof body.roleRates === 'object'
@@ -81,6 +88,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
       pmHours,
       status: existing.status === 'pending_approval' ? 'draft' : existing.status,
       stageEnteredAt: existing.status === 'pending_approval' ? new Date() : undefined,
+      pricingMode: body.pricingMode ?? existing.pricingMode,
       currency: body.currency ?? existing.currency,
       roleRates: roleRatesJson,
       overheadPercent:
@@ -140,6 +148,12 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     );
   }
 
+  try {
+    validateCommercialUpdate(body, existing);
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+  }
+
   const roleRatesJson =
     body.roleRates !== undefined
       ? typeof body.roleRates === 'object'
@@ -153,6 +167,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     where: { id: params.id },
     data: {
       startDate,
+      pricingMode: body.pricingMode ?? existing.pricingMode,
       currency: body.currency ?? existing.currency,
       roleRates: roleRatesJson,
       overheadPercent:

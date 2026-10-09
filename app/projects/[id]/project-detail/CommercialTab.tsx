@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { calculateCommercialSummary, formatCurrency } from '@/lib/commercial';
+import { calculateCommercialSummary, formatCurrency, PRICING_MODE_LABELS } from '@/lib/commercial';
 import type { SerializedCalculation } from './types';
 
 export default function CommercialTab({
@@ -12,6 +12,7 @@ export default function CommercialTab({
         currency: calculation.currency,
         roleRates: calculation.roleRates,
         overheadPercent: calculation.overheadPercent,
+        pricingMode: calculation.pricingMode,
         marginPercent: calculation.marginPercent,
         discountPercent: calculation.discountPercent,
         vatPercent: calculation.vatPercent,
@@ -73,7 +74,9 @@ export default function CommercialTab({
               <div className="flex justify-between py-2">
                 <span className="text-slate-600 dark:text-nord-4">Себестоимость труда</span>
                 <span className="font-bold font-mono">
-                  {formatCurrency(commercial.directLaborCost, commercial.currency)}
+                  {formatCurrency(commercial.directLaborCost, commercial.currency, {
+                    decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2,
+                  })}
                 </span>
               </div>
               <div className="flex justify-between py-2">
@@ -81,22 +84,42 @@ export default function CommercialTab({
                   Накладные расходы ({commercial.overheadPercent}%)
                 </span>
                 <span className="font-mono">
-                  {formatCurrency(commercial.overheadAmount, commercial.currency)}
+                  {formatCurrency(commercial.overheadAmount, commercial.currency, {
+                    decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2,
+                  })}
                 </span>
               </div>
               <div className="flex justify-between py-2">
                 <span className="text-slate-600 dark:text-nord-4">
-                  Плановая маржа ({commercial.marginPercent}%)
+                  {PRICING_MODE_LABELS[commercial.pricingMode]} ({commercial.marginPercent}%)
                 </span>
                 <span className="font-mono text-emerald-600 dark:text-nord-green">
-                  +{formatCurrency(commercial.marginAmount, commercial.currency)}
+                  +
+                  {formatCurrency(commercial.marginAmount, commercial.currency, {
+                    decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2,
+                  })}
+                </span>
+              </div>
+              <div className="flex justify-between py-2">
+                <span>Прибыль после скидки / маржа без НДС</span>
+                <span>
+                  {formatCurrency(commercial.profitAfterDiscount, commercial.currency, {
+                    decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2,
+                  })}{' '}
+                  /{' '}
+                  {commercial.effectiveMarginPercent === null
+                    ? '—'
+                    : `${commercial.effectiveMarginPercent.toFixed(2)}%`}
                 </span>
               </div>
               {commercial.discountPercent > 0 && (
                 <div className="flex justify-between py-2 text-rose-600 dark:text-nord-redText">
                   <span>Скидка ({commercial.discountPercent}%)</span>
                   <span className="font-mono">
-                    -{formatCurrency(commercial.discountAmount, commercial.currency)}
+                    -
+                    {formatCurrency(commercial.discountAmount, commercial.currency, {
+                      decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2,
+                    })}
                   </span>
                 </div>
               )}
@@ -106,14 +129,18 @@ export default function CommercialTab({
                     НДС ({commercial.vatPercent}%)
                   </span>
                   <span className="font-mono">
-                    {formatCurrency(commercial.vatAmount, commercial.currency)}
+                    {formatCurrency(commercial.vatAmount, commercial.currency, {
+                      decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2,
+                    })}
                   </span>
                 </div>
               )}
               <div className="flex justify-between py-3 font-extrabold text-lg bg-emerald-50 px-3 rounded text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
                 <span>Итоговое КП для заказчика</span>
                 <span className="font-mono">
-                  {formatCurrency(commercial.grandTotal, commercial.currency)}
+                  {formatCurrency(commercial.grandTotal, commercial.currency, {
+                    decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2,
+                  })}
                 </span>
               </div>
             </div>

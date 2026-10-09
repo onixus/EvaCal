@@ -4,7 +4,7 @@ import { roleLabel, STATUS_LABELS } from './roles';
 import { totalLaborHours } from './scheduling';
 import { risksTotalHours } from './totals';
 import { CalculationForExport as CalculationForPdf } from './export';
-import { calculateCommercialSummary, formatCurrency } from './commercial';
+import { calculateCommercialSummary, formatCurrency, PRICING_MODE_LABELS } from './commercial';
 
 // pdfkit's built-in fonts only support WinAnsi (no Cyrillic), so a Cyrillic-capable
 // TTF is bundled via the dejavu-fonts-ttf package instead of relying on the host's fonts.
@@ -146,6 +146,7 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
     currency: calc.currency,
     roleRates: calc.roleRates,
     overheadPercent: calc.overheadPercent,
+    pricingMode: calc.pricingMode,
     marginPercent: calc.marginPercent,
     discountPercent: calc.discountPercent,
     vatPercent: calc.vatPercent,
@@ -171,37 +172,42 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
   doc
     .font('body')
     .text(
-      `Прямая себестоимость: ${formatCurrency(commercial.directLaborCost, commercial.currency)}`,
+      `Прямая себестоимость: ${formatCurrency(commercial.directLaborCost, commercial.currency, { decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2 })}`,
       40,
       doc.y,
     );
   if (commercial.overheadAmount > 0) {
     doc.text(
-      `Накладные расходы (${commercial.overheadPercent}%): ${formatCurrency(commercial.overheadAmount, commercial.currency)}`,
+      `Накладные расходы (${commercial.overheadPercent}%): ${formatCurrency(commercial.overheadAmount, commercial.currency, { decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2 })}`,
       40,
       doc.y,
     );
   }
   doc.text(
-    `Плановая маржа (${commercial.marginPercent}%): ${formatCurrency(commercial.marginAmount, commercial.currency)}`,
+    `${PRICING_MODE_LABELS[commercial.pricingMode]} (${commercial.marginPercent}%): ${formatCurrency(commercial.marginAmount, commercial.currency, { decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2 })}`,
+    40,
+    doc.y,
+  );
+  doc.text(
+    `Прибыль после скидки: ${formatCurrency(commercial.profitAfterDiscount, commercial.currency, { decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2 })}. Маржа без НДС: ${commercial.effectiveMarginPercent === null ? 'не определена (нулевая выручка)' : `${commercial.effectiveMarginPercent.toFixed(2)}%`}`,
     40,
     doc.y,
   );
   if (commercial.discountAmount > 0) {
     doc.text(
-      `Скидка (${commercial.discountPercent}%): -${formatCurrency(commercial.discountAmount, commercial.currency)}`,
+      `Скидка (${commercial.discountPercent}%): -${formatCurrency(commercial.discountAmount, commercial.currency, { decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2 })}`,
       40,
       doc.y,
     );
   }
   doc.text(
-    `Сумма без НДС: ${formatCurrency(commercial.subtotalExVat, commercial.currency)} (ставка: ${formatCurrency(commercial.blendedHourlyRate, commercial.currency)}/ч)`,
+    `Сумма без НДС: ${formatCurrency(commercial.subtotalExVat, commercial.currency, { decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2 })} (ставка: ${formatCurrency(commercial.blendedHourlyRate, commercial.currency, { decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2 })}/ч)`,
     40,
     doc.y,
   );
   if (calc.includeVat) {
     doc.text(
-      `НДС (${commercial.vatPercent}%): ${formatCurrency(commercial.vatAmount, commercial.currency)}`,
+      `НДС (${commercial.vatPercent}%): ${formatCurrency(commercial.vatAmount, commercial.currency, { decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2 })}`,
       40,
       doc.y,
     );
@@ -210,7 +216,7 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
     .font('bold')
     .fontSize(11)
     .text(
-      `ИТОГО К ОПЛАТЕ: ${formatCurrency(commercial.grandTotal, commercial.currency)}`,
+      `ИТОГО К ОПЛАТЕ: ${formatCurrency(commercial.grandTotal, commercial.currency, { decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2 })}`,
       40,
       doc.y,
     );

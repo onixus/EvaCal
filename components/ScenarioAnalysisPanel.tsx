@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { calculateScenarioVariations, ScenarioResult, ScenarioType } from '@/lib/scenarios';
-import { formatCurrency } from '@/lib/commercial';
+import { formatCurrency as formatCurrencyBase } from '@/lib/commercial';
 import { StageRow } from './StageTable';
 import { RiskRow } from './TotalsSummary';
 
@@ -16,6 +16,7 @@ interface Props {
   currency?: string;
   roleRates?: string | null;
   overheadPercent?: number;
+  pricingMode?: string;
   marginPercent?: number;
   discountPercent?: number;
   vatPercent?: number;
@@ -31,11 +32,14 @@ export default function ScenarioAnalysisPanel({
   currency = 'RUB',
   roleRates,
   overheadPercent = 0,
+  pricingMode = 'legacy_markup',
   marginPercent = 20,
   discountPercent = 0,
   vatPercent = 20,
   includeVat = true,
 }: Props) {
+  const formatCurrency = (amount: number, code: string) =>
+    formatCurrencyBase(amount, code, { decimals: pricingMode === 'legacy_markup' ? 0 : 2 });
   const router = useRouter();
   const [selectedScenario, setSelectedScenario] = useState<ScenarioType>('base');
   const [isCreatingVersion, setIsCreatingVersion] = useState(false);
@@ -47,6 +51,7 @@ export default function ScenarioAnalysisPanel({
       currency,
       roleRates,
       overheadPercent,
+      pricingMode,
       marginPercent,
       discountPercent,
       vatPercent,
@@ -59,6 +64,7 @@ export default function ScenarioAnalysisPanel({
     currency,
     roleRates,
     overheadPercent,
+    pricingMode,
     marginPercent,
     discountPercent,
     vatPercent,

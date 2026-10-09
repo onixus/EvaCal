@@ -25,7 +25,8 @@
     "db:migrate": "prisma migrate dev",
     "db:status": "prisma migrate status",
     "test:postgres": "tsx scripts/verify-postgres.ts",
-    "test:specification:postgres": "tsx scripts/verify-specification.ts"
+    "test:specification:postgres": "tsx scripts/verify-specification.ts",
+    "test:commercial:postgres": "tsx scripts/verify-commercial-pricing.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1131.0",

@@ -42,6 +42,7 @@ interface CalculationData {
   currency?: string;
   roleRates?: string | null;
   overheadPercent?: number;
+  pricingMode?: string;
   marginPercent?: number;
   discountPercent?: number;
   vatPercent?: number;
@@ -193,6 +194,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
             <span>Смета и КП</span>
             {calculation.marginPercent !== undefined && (
               <span className="rounded-full bg-emerald-100 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-700 dark:bg-nord-frost3/20 dark:text-nord-frost3">
+                {calculation.pricingMode === 'target_margin' ? 'Маржа' : 'Наценка'}{' '}
                 {calculation.marginPercent}%
               </span>
             )}
@@ -243,6 +245,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
           initialCurrency={calculation.currency}
           initialRoleRates={calculation.roleRates}
           initialOverheadPercent={calculation.overheadPercent}
+          initialPricingMode={calculation.pricingMode}
           initialMarginPercent={calculation.marginPercent}
           initialDiscountPercent={calculation.discountPercent}
           initialVatPercent={calculation.vatPercent}
@@ -261,6 +264,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
           currency={calculation.currency}
           roleRates={calculation.roleRates}
           overheadPercent={calculation.overheadPercent}
+          pricingMode={calculation.pricingMode}
           marginPercent={calculation.marginPercent}
           discountPercent={calculation.discountPercent}
           vatPercent={calculation.vatPercent}

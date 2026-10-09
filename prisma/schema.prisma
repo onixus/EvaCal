@@ -204,7 +204,8 @@ model Calculation {
   currency        String  @default("RUB") // RUB | USD | EUR | CNY | KZT | BYN
   roleRates       String? // JSON-encoded { [role]: hourlyRate }
   overheadPercent Float   @default(0) // Overhead allowance (%)
-  marginPercent   Float   @default(20) // Target margin (%)
+  pricingMode     String  @default("legacy_markup") // legacy_markup | markup | target_margin
+  marginPercent   Float   @default(20) // Percent in the explicitly selected pricing mode
   discountPercent Float   @default(0) // Negotiated discount (%)
   vatPercent      Float   @default(20) // VAT rate (%)
   includeVat      Boolean @default(true) // Whether price inc VAT is quoted
