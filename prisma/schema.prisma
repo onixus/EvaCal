@@ -216,6 +216,10 @@ model Calculation {
   risks           Risk[]
   gostPackages    GostPackage[]
   internalChanges InternalChange[]
+  // #103 WP-6a: журнал факта
+  actualEntries   ActualEntry[]
+  actualSyncRuns  ActualSyncRun[]
+  taskMappings    ExternalTaskMapping[]
 
   // The calculation list is always sorted newest-first. `id` is part of the index
   // because it is the tie-breaker in the paged ordering: without it, rows sharing a
@@ -315,6 +319,9 @@ model Stage {
   actualStartDate    DateTime?
   actualEndDate      DateTime?
   actualNote         String?
+  // #103 WP-6a: actualHours/даты факта — агрегат этих записей
+  actualEntries      ActualEntry[]
+  taskMappings       ExternalTaskMapping[]
   createdAt          DateTime    @default(now())
 
   // Stages are only ever read as "all rows for one calculation, in Gantt order".
@@ -633,4 +640,74 @@ model ReviewCommentReply {
   createdAt DateTime      @default(now())
 
   @@index([commentId, createdAt])
+}
+
+// ==== #103 WP-6a: actuals ledger ====
+// Журнал факта: каждая запись — часы из одного источника (csv, manual, трекер).
+// Stage.actualHours и даты факта — агрегат неудалённых записей (lib/actualsLedger.ts).
+// source — TEXT с CHECK: 'csv' | 'manual' | идентификатор трекера ([a-z][a-z0-9_-]*).
+model ActualEntry {
+  id                String      @id @default(cuid())
+  calculationId     String
+  calculation       Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  stageId           String?
+  stage             Stage?      @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  source            String
+  externalId        String
+  externalTaskKey   String?
+  author            String?
+  /// null — запись несёт только даты (ручная правка дат без часов).
+  hours             Float?
+  startDate         DateTime?
+  endDate           DateTime?
+  externalUpdatedAt DateTime?
+  /// Для ручной поправки (externalId adj:<stageId>): источники через запятую,
+  /// относительно которых она посчитана.
+  basis             String?
+  syncedAt          DateTime    @default(now())
+  /// Мягкое удаление: запись пропала из полной синхронизации или факт очищен вручную.
+  deletedAt         DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@unique([calculationId, source, externalId])
+  @@index([stageId])
+}
+
+// Журнал прогонов синхронизации (CSV или трекер): кто, когда, сколько и с какими ошибками.
+model ActualSyncRun {
+  id            String      @id @default(cuid())
+  calculationId String
+  calculation   Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  source        String
+  mode          String      @default("incremental") // incremental | full
+  startedBy     String?
+  cursor        String?
+  /// Режим ручных часов импорта: auto | replace | add (null — не применялся).
+  manualHours   String?
+  created       Int         @default(0)
+  updated       Int         @default(0)
+  unchanged     Int         @default(0)
+  deleted       Int         @default(0)
+  skipped       Int         @default(0)
+  errors        Json        @default("[]")
+  createdAt     DateTime    @default(now())
+
+  @@index([calculationId, source, createdAt])
+}
+
+// Сопоставление внешней задачи (ключ трекера или задачи в CSV) с этапом расчёта.
+model ExternalTaskMapping {
+  id              String      @id @default(cuid())
+  calculationId   String
+  calculation     Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  source          String
+  externalTaskKey String
+  stageId         String
+  stage           Stage       @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  createdBy       String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([calculationId, source, externalTaskKey])
 }
