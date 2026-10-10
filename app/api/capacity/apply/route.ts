@@ -3,10 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { handleApiError } from '@/lib/apiHelpers';
+import { shiftCalculation } from '@/lib/planningData';
 
 export const dynamic = 'force-dynamic';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Применить сдвиги what-if к датам старта (E2). Отдельный маршрут, а не PATCH
@@ -15,8 +14,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * Каждый сдвиг применяется независимо; ответ говорит, что применилось, а что
  * нет, чтобы клиент не повторял уже записанные сдвиги.
  *
- * Даты этапов переносятся на то же число дней с сохранением id: перестройка
- * этапов (rebuildStages) пересоздала бы строки и стёрла бы внесённый факт.
+ * Новый старт = старый + shiftDays календарных дней; Гант перестраивается на
+ * месте по производственному календарю шаблона и явным зависимостям этапов
+ * (#103 WP-5e) — праздник в новом окне удлиняет этап так же, как в what-if.
+ * id строк сохраняются: перестройка этапов (rebuildStages) пересоздала бы
+ * строки и стёрла бы внесённый факт.
  */
 export async function POST(req: NextRequest) {
   const auth = await requireApiRole(['architect', 'admin']);
@@ -43,7 +45,6 @@ export async function POST(req: NextRequest) {
       const calc = await prisma.calculation.findUnique({
         where: { id: s.calculationId },
         include: {
-          stages: { select: { id: true, startDate: true, endDate: true, dueDate: true } },
           project: { select: { dealStatus: true, status: true, actualsClosedAt: true } },
         },
       });
@@ -71,22 +72,10 @@ export async function POST(req: NextRequest) {
         });
         continue;
       }
-      const startDate = new Date(calc.startDate.getTime() + s.shiftDays * DAY_MS);
-      const move = (d: Date | null) => (d ? new Date(d.getTime() + s.shiftDays * DAY_MS) : null);
       try {
-        await prisma.$transaction([
-          prisma.calculation.update({ where: { id: calc.id }, data: { startDate } }),
-          ...calc.stages.map((st) =>
-            prisma.stage.update({
-              where: { id: st.id },
-              data: {
-                startDate: move(st.startDate) as Date,
-                endDate: move(st.endDate) as Date,
-                dueDate: move(st.dueDate),
-              },
-            }),
-          ),
-        ]);
+        // Старт, план и даты читаются и считаются под блокировкой расчёта.
+        const startDate = await shiftCalculation(calc.id, s.shiftDays);
+        if (!startDate) throw new Error('расчёт не найден');
         await writeAudit({
           actorType: 'user',
           actorId: auth.userId,

@@ -69,6 +69,12 @@ export interface CapacityContext {
   /** Календарь, по которому считается ёмкость ролей (по умолчанию — сб/вс без исключений). */
   calendar?: WorkCalendar;
   reservations?: RoleReservationRow[];
+  /**
+   * Временные изменения ёмкости для сравнения вариантов (#103 WP-5e): часы в
+   * неделю со знаком на интервале, масштабируются календарём как резерв. Только
+   * what-if — в БД не хранятся.
+   */
+  adjustments?: RoleReservationRow[];
 }
 
 /** Сдвиг расчёта для what-if: положительное — позже. */
@@ -91,6 +97,8 @@ export interface CapacityOptions {
   /** Календарь по умолчанию: ёмкость ролей и расчёты без своего календаря. */
   calendar?: WorkCalendar;
   reservations?: RoleReservationRow[];
+  /** См. CapacityContext.adjustments. */
+  adjustments?: RoleReservationRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -296,12 +304,27 @@ export function reservedHoursFor(
   reservations: RoleReservationRow[] = [],
   calendar: WorkCalendar = STANDARD_CALENDAR,
 ): number {
+  return periodHoursFor(
+    role,
+    week,
+    reservations.filter((r) => r.hoursPerWeek > 0),
+    calendar,
+  );
+}
+
+/** Часы интервалов роли (резервов или временных изменений) в неделе, со знаком. */
+function periodHoursFor(
+  role: string,
+  week: Date,
+  rows: RoleReservationRow[],
+  calendar: WorkCalendar,
+): number {
   if (nominalWorkDaysPerWeek(calendar) <= 0) return 0;
   const monday = weekStart(week);
   const sunday = addDays(monday, 6);
   let total = 0;
-  for (const r of reservations) {
-    if (r.role !== role || r.hoursPerWeek <= 0) continue;
+  for (const r of rows) {
+    if (r.role !== role || r.hoursPerWeek === 0) continue;
     const from = utcDay(r.from);
     const to = utcDay(r.to);
     if (to.getTime() < monday.getTime() || from.getTime() > sunday.getTime()) continue;
@@ -327,11 +350,17 @@ export function capacityFor(
     if (utcDay(r.effectiveFrom).getTime() > week.getTime()) continue;
     if (!best || r.effectiveFrom.getTime() > best.effectiveFrom.getTime()) best = r;
   }
-  if (!best) return null;
   const calendar = ctx.calendar ?? STANDARD_CALENDAR;
-  const base = best.headcount * best.hoursPerWeek * weekCapacityFactor(weekStart(week), calendar);
+  const adjusted = ctx.adjustments?.length
+    ? periodHoursFor(role, week, ctx.adjustments, calendar)
+    : 0;
+  // Временное усиление роли без заданной ёмкости даёт ёмкость с нуля.
+  if (!best && adjusted <= 0) return null;
+  const base = best
+    ? best.headcount * best.hoursPerWeek * weekCapacityFactor(weekStart(week), calendar)
+    : 0;
   const reserved = reservedHoursFor(role, week, ctx.reservations, calendar);
-  return Math.round(Math.max(0, base - reserved) * 10) / 10;
+  return Math.round(Math.max(0, base - reserved + adjusted) * 10) / 10;
 }
 
 export function signalFor(util: number | null): CapacitySignal {
@@ -427,7 +456,7 @@ export function buildCapacityMatrix(opts: CapacityOptions): CapacityMatrix {
 
   const roleNames = new Set<string>([
     ...acc.keys(),
-    ...opts.capacities
+    ...[...opts.capacities, ...(opts.adjustments ?? [])]
       .map((c) => c.role)
       .filter((r) => !opts.roles || opts.roles.length === 0 || opts.roles.includes(r)),
   ]);
@@ -435,6 +464,7 @@ export function buildCapacityMatrix(opts: CapacityOptions): CapacityMatrix {
   const capacityCtx: CapacityContext = {
     calendar: opts.calendar,
     reservations: opts.reservations,
+    adjustments: opts.adjustments,
   };
   const roles: RoleRow[] = [...roleNames]
     .sort((a, b) => a.localeCompare(b))

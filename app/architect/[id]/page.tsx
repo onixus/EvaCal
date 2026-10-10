@@ -14,6 +14,10 @@ export default async function ArchitectCalculationPage(props: { params: Promise<
       project: { select: { id: true, name: true } },
       stages: { orderBy: { order: 'asc' } },
       risks: { orderBy: { order: 'asc' } },
+      stageDependencies: {
+        select: { fromStageId: true, toStageId: true, lagDays: true },
+        orderBy: { createdAt: 'asc' },
+      },
     },
   });
   if (!calculation) notFound();

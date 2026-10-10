@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { roleLabel } from '@/lib/roles';
 import type { CapacityCell, CapacityMatrix, CapacitySignal } from '@/lib/capacity';
+import VariantComparison from './VariantComparison';
 
 const SIGNAL_CLS: Record<CapacitySignal, string> = {
   over: 'bg-rose-200 text-rose-900 dark:bg-rose-900/60 dark:text-rose-100',
@@ -36,6 +37,7 @@ export default function CapacityClient({
   const [roleFilter, setRoleFilter] = useState<string[]>([]);
   const [selected, setSelected] = useState<{ role: string; cell: CapacityCell } | null>(null);
   const [shifts, setShifts] = useState<Record<string, number>>({});
+  const [variantLabel, setVariantLabel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -171,6 +173,22 @@ export default function CapacityClient({
           </div>
         )}
       </div>
+
+      {variantLabel && (
+        <div className="flex items-center justify-between rounded-lg bg-sky-50 p-2 text-xs text-sky-800 dark:bg-nord-frost2/10 dark:text-nord-4">
+          <span>На карте — вариант «{variantLabel}» (без записи в план).</span>
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            onClick={() => {
+              setMatrix(initial);
+              setVariantLabel(null);
+            }}
+          >
+            Показать текущий план
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg bg-rose-50 p-2 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
@@ -355,6 +373,21 @@ export default function CapacityClient({
             </button>
           </div>
         </div>
+      )}
+
+      {canWhatIf && (
+        <VariantComparison
+          calcs={initial.included}
+          roles={initial.roles.map((r) => r.role)}
+          weeks={weeks}
+          includeDrafts={includeDrafts}
+          onShowMatrix={(m, label) => {
+            setMatrix(m ?? initial);
+            setVariantLabel(label);
+            setSelected(null);
+          }}
+          onApplied={() => router.refresh()}
+        />
       )}
 
       <details className="text-xs text-slate-500 dark:text-nord-muted">
