@@ -4,6 +4,9 @@
 
 - Production calendars, calendar exceptions and role reservations shared by the Gantt and the capacity plan (#103, see [docs/work-calendars.md](docs/work-calendars.md)).
 - **Behaviour change:** Gantt dates are now computed in UTC with a 09:00 UTC working window. On servers with `TZ` ≠ UTC, Gantts rebuilt after the upgrade (stage edit or start-date change) shift relative to dates stored earlier; existing stage dates are not rewritten.
+- Explicit stage dependencies (FS + lag in working days), nearest available start date by role capacity, and side-by-side what-if variants (start shift / contractor / team change) on the capacity plan (#103, see [docs/stage-dependencies.md](docs/stage-dependencies.md)).
+- **Behaviour change:** applying what-if shifts (`POST /api/capacity/apply`) no longer moves stage dates by the same number of calendar days. The Gantt is rescheduled in place from the new start date using the template's production calendar and stage dependencies, so a holiday or weekend in the new window lengthens stages and the end date may move by more or fewer days than the shift. Stage ids and recorded actuals are kept.
+- **Behaviour change:** editing stages or the start date updates stage rows in place instead of recreating them: stage actuals, actuals-ledger entries, tracker task mappings and dependencies are kept; ledger entries of a removed stage stay unassigned (`stageId` null). Custom customer-approval durations are kept across reload/save.
 
 ## 0.7.0 - 2026-09-30
 

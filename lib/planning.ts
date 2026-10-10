@@ -94,9 +94,14 @@ export function loadByRoleWeek(
 
 /** Спрос остальных расчётов по роли и неделе (взвешенный — как сигналы плана). */
 export function demandFromMatrix(matrix: CapacityMatrix): Map<string, Map<string, number>> {
+  // Невзвешенные часы вошедших в план расчётов: подбор даты сравнивает их с
+  // невзвешенными часами самого расчёта — «поместится, если всё состоится».
   const out = new Map<string, Map<string, number>>();
   for (const row of matrix.roles) {
-    out.set(row.role, new Map(row.cells.map((c) => [c.week, c.weightedHours])));
+    out.set(
+      row.role,
+      new Map(row.cells.map((c) => [c.week, c.items.reduce((s, i) => s + i.hours, 0)])),
+    );
   }
   return out;
 }
@@ -111,6 +116,8 @@ export interface CapacityConflict {
   /** Спрос недели вместе с этим расчётом. */
   demand: number;
   capacity: number;
+  /** over — не помещается; unknown — неделя за горизонтом известного спроса. */
+  kind: 'over' | 'unknown';
 }
 
 export interface EarliestStartInput {
@@ -123,8 +130,14 @@ export interface EarliestStartInput {
   /** Календарь ёмкости ролей (основной). */
   capacityCalendar?: WorkCalendar;
   reservations?: RoleReservationRow[];
-  /** Спрос остальных расчётов: роль → неделя → часы. */
+  /** Спрос остальных расчётов (невзвешенные часы): роль → неделя → часы. */
   otherDemand: Map<string, Map<string, number>>;
+  /**
+   * Недели, по которым спрос остальных известен (горизонт плана). Неделя вне
+   * их — «неизвестно», а не «свободно»: дата с нагрузкой там не подтверждается.
+   * Не задано — спрос известен везде.
+   */
+  knownWeeks?: ReadonlySet<string>;
 }
 
 export interface EarliestStartResult {
@@ -137,28 +150,38 @@ export interface EarliestStartResult {
   checkedDays: number;
   /** Почему не подходит дата `from`: первая перегруженная роль/неделя; null — подходит. */
   conflictAtFrom: CapacityConflict | null;
+  /** Поиск упёрся в неделю за горизонтом известного спроса — дальше дату не подтвердить. */
+  beyondHorizon: boolean;
 }
 
-/** Первая роль/неделя, где расчёт со своей нагрузкой не помещается в ёмкость. */
+/**
+ * Первая роль/неделя, где расчёт со своей нагрузкой не помещается в ёмкость
+ * (`kind: 'over'`) или где спрос остальных неизвестен (`kind: 'unknown'`).
+ */
 export function firstConflict(
   own: Map<string, Map<string, number>>,
   input: Pick<
     EarliestStartInput,
-    'capacities' | 'capacityCalendar' | 'reservations' | 'otherDemand'
+    'capacities' | 'capacityCalendar' | 'reservations' | 'otherDemand' | 'knownWeeks'
   >,
 ): CapacityConflict | null {
   const conflicts: CapacityConflict[] = [];
   for (const [role, byWeek] of own) {
     for (const [week, hours] of byWeek) {
+      if (hours <= 0) continue;
       const cap = capacityFor(role, new Date(week), input.capacities, {
         calendar: input.capacityCalendar,
         reservations: input.reservations,
       });
       // Ёмкость роли не задана — подбор её не ограничивает (как «белая» ячейка плана).
       if (cap === null) continue;
+      if (input.knownWeeks && !input.knownWeeks.has(week)) {
+        conflicts.push({ role, week, demand: round1(hours), capacity: cap, kind: 'unknown' });
+        continue;
+      }
       const demand = (input.otherDemand.get(role)?.get(week) ?? 0) + hours;
       if (demand > cap + FIT_EPSILON) {
-        conflicts.push({ role, week, demand: round1(demand), capacity: cap });
+        conflicts.push({ role, week, demand: round1(demand), capacity: cap, kind: 'over' });
       }
     }
   }
@@ -189,6 +212,17 @@ export function findEarliestStart(input: EarliestStartInput): EarliestStartResul
     );
     const conflict = firstConflict(own, input);
     if (checked === 1) conflictAtFrom = conflict;
+    // Более поздние даты уходят за горизонт ещё дальше — подтвердить их нечем.
+    if (conflict?.kind === 'unknown') {
+      return {
+        startDate: null,
+        endDate: null,
+        shiftDays: null,
+        checkedDays: checked,
+        conflictAtFrom,
+        beyondHorizon: true,
+      };
+    }
     if (!conflict) {
       const start = stages.length ? stages[0].startDate : day;
       return {
@@ -199,10 +233,18 @@ export function findEarliestStart(input: EarliestStartInput): EarliestStartResul
         ),
         checkedDays: checked,
         conflictAtFrom,
+        beyondHorizon: false,
       };
     }
   }
-  return { startDate: null, endDate: null, shiftDays: null, checkedDays: checked, conflictAtFrom };
+  return {
+    startDate: null,
+    endDate: null,
+    shiftDays: null,
+    checkedDays: checked,
+    conflictAtFrom,
+    beyondHorizon: false,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -393,11 +435,17 @@ export function variantCalculationIds(variants: PlanVariant[]): string[] {
 }
 
 /** Часов в неделю на человека для роли: из последней строки ёмкости, иначе 30. */
-function headHoursFor(role: string, capacities: RoleCapacityRow[]): number {
+/**
+ * Часов в неделю на человека роли на дату `at`: строка ёмкости, действующая на
+ * эту дату (последняя с effectiveFrom ≤ at), иначе самая ранняя будущая, иначе 30.
+ */
+export function headHoursFor(role: string, capacities: RoleCapacityRow[], at: Date): number {
   const rows = capacities
     .filter((r) => r.role === role)
-    .sort((a, b) => b.effectiveFrom.getTime() - a.effectiveFrom.getTime());
-  return rows[0]?.hoursPerWeek ?? 30;
+    .sort((a, b) => a.effectiveFrom.getTime() - b.effectiveFrom.getTime());
+  const day = utcDay(at).getTime();
+  const effective = rows.filter((r) => utcDay(r.effectiveFrom).getTime() <= day).at(-1);
+  return (effective ?? rows[0])?.hoursPerWeek ?? 30;
 }
 
 function summarize(
@@ -491,12 +539,20 @@ export function compareVariants(input: {
     const ordered = [...variant.changes].sort(
       (a, b) => Number(a.type !== 'shift') - Number(b.type !== 'shift'),
     );
+    const shifted = new Set<string>();
     for (const change of ordered) {
       if (change.type === 'shift') {
+        // Несколько сдвигов одного расчёта в варианте складываются (как при
+        // последовательном применении через apply); Гант строится один раз.
+        if (shifted.has(change.calculationId)) continue;
+        shifted.add(change.calculationId);
         const plan = plans.get(change.calculationId);
         const calc = calcs.find((c) => c.id === change.calculationId);
         if (!plan || !calc) continue;
-        const stages = reschedulePlan(plan, addDays(plan.startDate, change.shiftDays));
+        const total = ordered
+          .filter((c): c is ShiftChange => c.type === 'shift' && c.calculationId === calc.id)
+          .reduce((s, c) => s + c.shiftDays, 0);
+        const stages = reschedulePlan(plan, addDays(plan.startDate, total));
         calcs = calcs.map((c) =>
           c.id === calc.id ? { ...c, stages: toCapacityStages(stages) } : c,
         );
@@ -517,27 +573,35 @@ export function compareVariants(input: {
           addCost(moved * (change.ratePerHour - internal));
         }
       } else {
-        const perHead = change.hoursPerWeek ?? headHoursFor(change.role, base.capacities);
+        const perHead =
+          change.hoursPerWeek ?? headHoursFor(change.role, base.capacities, change.from);
         const row: RoleReservationRow = {
           role: change.role,
           from: change.from,
           to: change.to,
           hoursPerWeek: change.headcountDelta * perHead,
         };
-        adjustments.push(row);
         if (change.costPerHour !== null && change.costPerHour !== undefined) {
+          // Часы, на которые реально меняется ёмкость: сокращение не уводит её
+          // ниже нуля, поэтому экономия считается по фактически снятым часам.
           let hours = 0;
           for (
             let monday = weekStart(change.from);
             monday.getTime() <= change.to.getTime();
             monday = addDays(monday, 7)
           ) {
-            hours +=
-              row.hoursPerWeek *
-              weekCapacityFactor(monday, base.calendar, { from: change.from, to: change.to });
+            const ctx = { calendar: base.calendar, reservations: base.reservations, adjustments };
+            const before = capacityFor(change.role, monday, base.capacities, ctx) ?? 0;
+            const after =
+              capacityFor(change.role, monday, base.capacities, {
+                ...ctx,
+                adjustments: [...adjustments, row],
+              }) ?? 0;
+            hours += after - before;
           }
           addCost(hours * change.costPerHour);
         }
+        adjustments.push(row);
       }
     }
 

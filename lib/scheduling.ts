@@ -440,6 +440,15 @@ export function validateDependencies(
     if (d.from === d.to) {
       return { code: 'self', message: `Этап «${to.name}» не может зависеть от самого себя` };
     }
+    // Явное правило вместо косвенного «цикла с неявной цепочкой»: у
+    // параллельных этапов такой цикл не возникает, но перестройка этапов всё
+    // равно сняла бы обратную зависимость (carryDependencies) — отклоняем сразу.
+    if (d.from > d.to) {
+      return {
+        code: 'cycle',
+        message: `Зависимость «${from.name}» → «${to.name}» образует цикл с порядком этапов: «${from.name}» ниже по списку. Этап может зависеть только от этапов выше по списку.`,
+      };
+    }
     if ((d.type ?? 'FS') !== 'FS') {
       return { code: 'bad_type', message: 'Поддерживается только тип FS (окончание → начало)' };
     }
@@ -482,8 +491,9 @@ export interface ExistingStageRow {
  * строки на месте и не теряла факт, журнал факта и зависимости.
  *
  * Основной этап: по `sourceStageId` (id прежней строки из редактора), иначе по
- * названию и роли — при нескольких кандидатах предпочтение тому, что стоял на
- * той же позиции среди основных этапов, затем первому по порядку. Согласование:
+ * названию и роли — жадно в относительном порядке: одноимённые этапы
+ * сопоставляются по очереди, поэтому вставка этапа выше их не меняет местами
+ * (старые [X «Dev», Y «Dev»], новые [Новый, «Dev», «Dev»] → X, Y). Согласование:
  * строка согласования, шедшая сразу за сопоставленным основным этапом.
  * Результат — id прежней строки для каждого элемента или null (новая строка).
  */
@@ -508,12 +518,9 @@ export function matchStageRows(
   });
   primary.forEach((p, k) => {
     if (result[itemIndexOfPrimary[k]] !== null) return;
-    const candidates = oldPrimary.filter(
-      (s) => !used.has(s.id) && s.name === p.name && s.role === p.role,
-    );
-    if (candidates.length === 0) return;
-    const pick =
-      (oldPrimary[k] && candidates.includes(oldPrimary[k]) ? oldPrimary[k] : null) ?? candidates[0];
+    // Первый ещё не занятый кандидат в исходном порядке.
+    const pick = oldPrimary.find((s) => !used.has(s.id) && s.name === p.name && s.role === p.role);
+    if (!pick) return;
     used.add(pick.id);
     result[itemIndexOfPrimary[k]] = pick.id;
   });

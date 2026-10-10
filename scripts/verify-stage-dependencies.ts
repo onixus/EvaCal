@@ -19,8 +19,9 @@ import {
   loadEarliestStart,
   loadVariantComparison,
   replaceDependencies,
-  rescheduleOps,
+  shiftCalculation,
 } from '../lib/planningData';
+import { reschedulePlan } from '../lib/planning';
 
 async function rejects(label: string, action: () => Promise<unknown>) {
   await assert.rejects(action, `${label}: database must reject`);
@@ -253,8 +254,8 @@ async function main() {
     );
 
     // 6. Применение сдвига по календарю: старт попадает на праздник 17.03 → вт 18.03.
-    const plan = (await loadCalcPlans([calculation.id])).get(calculation.id)!;
-    await prisma.$transaction(rescheduleOps(plan, new Date(monday.getTime() + 14 * DAY)));
+    const newStart = await shiftCalculation(calculation.id, 14);
+    assert.equal(newStart?.getTime(), monday.getTime() + 14 * DAY, 'start moved by 14 days');
     const shifted = await prisma.stage.findMany({
       where: { calculationId: calculation.id },
       orderBy: { order: 'asc' },
@@ -264,6 +265,60 @@ async function main() {
       comparison.variants[0].ends[0].endDate,
       new Date(Math.max(...shifted.map((s) => s.endDate.getTime()))).toISOString(),
       'what-if end equals applied end',
+    );
+
+    // 6a. Конкурентные правки под одной блокировкой расчёта: перестройка этапов,
+    //     замена зависимостей и apply не смешиваются — итог согласован.
+    const before = await prisma.stage.findMany({
+      where: { calculationId: calculation.id },
+      orderBy: { order: 'asc' },
+    });
+    const config2 = await scheduleConfigFromTemplate(template);
+    const results = await Promise.allSettled([
+      rebuildStages(
+        calculation.id,
+        before
+          .filter((s) => !s.isApprovalTask)
+          .map((s) => ({ name: s.name, role: s.role, hours: s.hours + 1, sourceStageId: s.id })),
+        new Date(monday.getTime() + 14 * DAY),
+        config2,
+      ),
+      replaceDependencies(calculation.id, [
+        { fromStageId: before[0].id, toStageId: before[2].id, type: 'FS', lagDays: 3 },
+      ]),
+      shiftCalculation(calculation.id, 0),
+    ]);
+    for (const r of results) {
+      assert.equal(
+        r.status,
+        'fulfilled',
+        `concurrent edit failed: ${String((r as PromiseRejectedResult).reason)}`,
+      );
+    }
+    const settled = (await loadCalcPlans([calculation.id])).get(calculation.id)!;
+    const rows = await prisma.stage.findMany({
+      where: { calculationId: calculation.id },
+      orderBy: { order: 'asc' },
+    });
+    assert.deepEqual(
+      rows.map((s) => s.id),
+      before.map((s) => s.id),
+      'concurrent edits keep stage ids',
+    );
+    const expected = reschedulePlan(settled, settled.startDate);
+    assert.deepEqual(
+      rows.map((s) => s.endDate.toISOString()),
+      expected.map((s) => s.endDate.toISOString()),
+      'stored dates match the final hours and dependencies (no lost update)',
+    );
+    const finalDeps = await prisma.stageDependency.findMany({
+      where: { calculationId: calculation.id },
+    });
+    assert(
+      finalDeps.every(
+        (d) => rows.some((s) => s.id === d.fromStageId) && rows.some((s) => s.id === d.toStageId),
+      ),
+      'dependencies point at existing stages',
     );
 
     // 7. PlanScenario.

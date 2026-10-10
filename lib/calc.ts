@@ -33,29 +33,29 @@ export async function rebuildStages(
   startDate: Date,
   config: ScheduleConfig = DEFAULT_SCHEDULE_CONFIG,
 ) {
-  const [oldStages, oldDeps] = await Promise.all([
-    prisma.stage.findMany({
-      where: { calculationId },
-      orderBy: { order: 'asc' },
-      select: { id: true, name: true, role: true, isApprovalTask: true },
-    }),
-    prisma.stageDependency.findMany({
-      where: { calculationId },
-      select: { fromStageId: true, toStageId: true, lagDays: true },
-    }),
-  ]);
   const items = expandWithApprovals(primary);
-  const matched = matchStageRows(primary, items, oldStages);
-  const dependencies = carryDependencies(items, matched, oldDeps);
-  const scheduled = scheduleItems(items, startDate, config, dependencies);
-  const kept = new Set(matched.filter((id): id is string => Boolean(id)));
-  const removed = oldStages.filter((s) => !kept.has(s.id)).map((s) => s.id);
-
   await prisma.$transaction(
     async (tx) => {
-      // Та же блокировка, что у записей журнала факта: синхронизация не
-      // привяжет запись к этапу, который удаляется в этой транзакции.
+      // Блокировка расчёта (та же, что у журнала факта, правки зависимостей и
+      // apply) берётся до чтения: этапы и зависимости читаются и пишутся под
+      // ней, параллельная правка не увидит промежуточного состояния и не
+      // затрёт эту.
       await lockCalculationLedger(tx, calculationId);
+      const oldStages = await tx.stage.findMany({
+        where: { calculationId },
+        orderBy: { order: 'asc' },
+        select: { id: true, name: true, role: true, isApprovalTask: true },
+      });
+      const oldDeps = await tx.stageDependency.findMany({
+        where: { calculationId },
+        select: { fromStageId: true, toStageId: true, lagDays: true },
+      });
+      const matched = matchStageRows(primary, items, oldStages);
+      const dependencies = carryDependencies(items, matched, oldDeps);
+      const scheduled = scheduleItems(items, startDate, config, dependencies);
+      const kept = new Set(matched.filter((id): id is string => Boolean(id)));
+      const removed = oldStages.filter((s) => !kept.has(s.id)).map((s) => s.id);
+
       await tx.stageDependency.deleteMany({ where: { calculationId } });
       if (removed.length > 0) {
         await tx.stage.deleteMany({ where: { calculationId, id: { in: removed } } });

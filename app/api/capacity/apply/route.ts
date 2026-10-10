@@ -3,11 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { handleApiError } from '@/lib/apiHelpers';
-import { loadCalcPlans, rescheduleOps } from '@/lib/planningData';
+import { shiftCalculation } from '@/lib/planningData';
 
 export const dynamic = 'force-dynamic';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Применить сдвиги what-if к датам старта (E2). Отдельный маршрут, а не PATCH
@@ -74,11 +72,10 @@ export async function POST(req: NextRequest) {
         });
         continue;
       }
-      const startDate = new Date(calc.startDate.getTime() + s.shiftDays * DAY_MS);
       try {
-        const plan = (await loadCalcPlans([calc.id])).get(calc.id);
-        if (!plan) throw new Error('расчёт не найден');
-        await prisma.$transaction(rescheduleOps(plan, startDate));
+        // Старт, план и даты читаются и считаются под блокировкой расчёта.
+        const startDate = await shiftCalculation(calc.id, s.shiftDays);
+        if (!startDate) throw new Error('расчёт не найден');
         await writeAudit({
           actorType: 'user',
           actorId: auth.userId,

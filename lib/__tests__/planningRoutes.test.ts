@@ -4,12 +4,19 @@ import { NextRequest, NextResponse } from 'next/server';
 vi.mock('@/lib/auth', () => ({ requireApiRole: vi.fn() }));
 vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn(), clientIp: vi.fn(() => '127.0.0.1') }));
 
-// Каждая запись Prisma — шпион, возвращающий описание операции (для $transaction).
-const { op } = vi.hoisted(() => ({
-  op: (name: string) => vi.fn((args: unknown) => ({ op: name, args })),
-}));
-vi.mock('@/lib/prisma', () => ({
-  prisma: {
+// Каждая запись Prisma — шпион, который пишет операцию в общий журнал `log`.
+const { op, log } = vi.hoisted(() => {
+  const log: { op: string; args: { where: { id: string }; data: Record<string, Date> } }[] = [];
+  const op = (name: string) =>
+    vi.fn((args: unknown) => {
+      const entry = { op: name, args: args as (typeof log)[number]['args'] };
+      log.push(entry);
+      return entry;
+    });
+  return { op, log };
+});
+vi.mock('@/lib/prisma', () => {
+  const p: Record<string, unknown> = {
     calculation: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
@@ -34,11 +41,15 @@ vi.mock('@/lib/prisma', () => ({
     roleReservation: { findMany: vi.fn() },
     workCalendar: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
     planScenario: { create: op('planScenario.create'), findMany: vi.fn() },
-    $transaction: vi.fn(async (ops: unknown) => ops),
-    $executeRaw: vi.fn(),
+    $executeRaw: vi.fn(() => log.push({ op: 'lock', args: {} as never })),
     $executeRawUnsafe: vi.fn(),
-  },
-}));
+  };
+  // Интерактивная транзакция получает тот же клиент: записи видны в `log`.
+  p.$transaction = vi.fn(async (arg: unknown) =>
+    typeof arg === 'function' ? (arg as (tx: unknown) => unknown)(p) : arg,
+  );
+  return { prisma: p };
+});
 
 import { requireApiRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -129,6 +140,7 @@ const writeSpies = () => [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  log.length = 0;
   calcRow.stageDependencies = [];
   vi.mocked(requireApiRole).mockResolvedValue(session('architect'));
   vi.mocked(prisma.calculation.findMany).mockResolvedValue([calcRow] as never);
@@ -210,10 +222,7 @@ describe('применение сдвига учитывает календар�
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.applied).toHaveLength(1);
-    const ops = vi.mocked(prisma.$transaction).mock.calls[0][0] as unknown as {
-      op: string;
-      args: { where: { id: string }; data: Record<string, Date> };
-    }[];
+    const ops = log;
     const byId = Object.fromEntries(
       ops.filter((o) => o.op === 'stage.update').map((o) => [o.args.where.id, o.args.data]),
     );
@@ -233,10 +242,7 @@ describe('применение сдвига учитывает календар�
         shifts: [{ calculationId: 'c1', shiftDays: 14 }],
       }),
     );
-    const ops = vi.mocked(prisma.$transaction).mock.calls[0][0] as unknown as {
-      op: string;
-      args: { where: { id: string }; data: Record<string, Date> };
-    }[];
+    const ops = log;
     const b = ops.find((o) => o.op === 'stage.update' && o.args.where.id === 'sB')!;
     // A кончается в ср 18.03 15:00, пауза чт 19.03 → B в пт 20.03.
     expect(b.args.data.startDate.toISOString()).toBe('2026-03-20T09:00:00.000Z');
@@ -264,7 +270,15 @@ describe('зависимости этапов: маршрут', () => {
     ]);
     expect(res.status).toBe(409);
     expect((await res.json()).error).toMatch(/цикл/);
-    for (const spy of writeSpies()) expect(spy).not.toHaveBeenCalled();
+    // Проверка — под блокировкой расчёта, но до любой записи.
+    expect(log.map((o) => o.op)).toEqual(['lock']);
+  });
+
+  it('зависимость от этапа ниже по списку — 409', async () => {
+    const res = await put([{ fromStageId: 'sB', toStageId: 'sA' }]);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/выше по списку/);
+    expect(log.map((o) => o.op)).toEqual(['lock']);
   });
 
   it('петля, чужой этап, неверная пауза — 400', async () => {
@@ -272,7 +286,7 @@ describe('зависимости этапов: маршрут', () => {
     expect((await put([{ fromStageId: 'zz', toStageId: 'sB' }])).status).toBe(400);
     expect((await put([{ fromStageId: 'sA', toStageId: 'sB', lagDays: -2 }])).status).toBe(400);
     expect((await put([{ fromStageId: 'sA', toStageId: 'sB', type: 'SS' }])).status).toBe(400);
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(log.every((o) => o.op === 'lock')).toBe(true);
   });
 
   it('утверждённый расчёт — 409', async () => {
@@ -283,8 +297,8 @@ describe('зависимости этапов: маршрут', () => {
   it('сохранение заменяет набор и перестраивает даты одной транзакцией', async () => {
     const res = await put([{ fromStageId: 'sA', toStageId: 'sB', lagDays: 2 }]);
     expect(res.status).toBe(200);
-    const ops = vi.mocked(prisma.$transaction).mock.calls[0][0] as unknown as { op: string }[];
-    expect(ops.map((o) => o.op)).toEqual([
+    expect(log.map((o) => o.op)).toEqual([
+      'lock',
       'stageDependency.deleteMany',
       'stageDependency.create',
       'calculation.update',

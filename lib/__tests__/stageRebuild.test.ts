@@ -8,19 +8,28 @@ import {
   type PrimaryStageInput,
 } from '../scheduling';
 
-const { op, tx } = vi.hoisted(() => {
+const { op, tx, order } = vi.hoisted(() => {
   const op = (name: string) =>
     vi.fn(async (args: unknown) => ({ op: name, args, id: `new-${name}` }));
+  const order: string[] = [];
   const tx = {
-    $executeRaw: vi.fn(async () => 0),
+    $executeRaw: vi.fn(async () => {
+      order.push('lock');
+      return 0;
+    }),
     stage: {
+      findMany: vi.fn(),
       update: op('stage.update'),
       create: vi.fn(async () => ({ id: `created-${Math.random().toString(36).slice(2, 8)}` })),
       deleteMany: op('stage.deleteMany'),
     },
-    stageDependency: { deleteMany: op('dep.deleteMany'), createMany: op('dep.createMany') },
+    stageDependency: {
+      findMany: vi.fn(),
+      deleteMany: op('dep.deleteMany'),
+      createMany: op('dep.createMany'),
+    },
   };
-  return { op, tx };
+  return { op, tx, order };
 });
 
 vi.mock('@/lib/prisma', () => ({
@@ -59,13 +68,24 @@ describe('перестройка этапов: сопоставление стр
     expect(matchStageRows(primary, expandWithApprovals(primary), old)).toEqual(['s1', null, 's3']);
   });
 
-  it('одинаковые названия: предпочтение той же позиции', () => {
-    const dup = [row('d1', 'X'), row('d2', 'X')];
+  it('одноимённые этапы сопоставляются в относительном порядке и после вставки выше', () => {
+    // Старые [X «Dev», Y «Dev»], новые [Новый, «Dev», «Dev»] → X, Y (а не Y, X).
+    const dup = [row('X', 'Dev', 'developer'), row('Y', 'Dev', 'developer')];
     const primary: PrimaryStageInput[] = [
-      { name: 'Y', role: 'architect', hours: 1 },
-      { name: 'X', role: 'architect', hours: 1 },
+      { name: 'Новый', role: 'developer', hours: 1 },
+      { name: 'Dev', role: 'developer', hours: 1 },
+      { name: 'Dev', role: 'developer', hours: 1 },
     ];
-    expect(matchStageRows(primary, expandWithApprovals(primary), dup)).toEqual([null, 'd2']);
+    const items = expandWithApprovals(primary);
+    // developer требует согласования: [0] Новый, [1] согл., [2] Dev, [3] согл., [4] Dev, [5] согл.
+    const matched = matchStageRows(primary, items, dup);
+    expect(matched.filter((_, i) => !items[i].isApprovalTask)).toEqual([null, 'X', 'Y']);
+    // Без вставки — тоже по порядку.
+    const two = primary.slice(1);
+    const twoItems = expandWithApprovals(two);
+    expect(
+      matchStageRows(two, twoItems, dup).filter((_, i) => !twoItems[i].isApprovalTask),
+    ).toEqual(['X', 'Y']);
   });
 
   it('строка согласования идёт за своим основным этапом', () => {
@@ -132,11 +152,16 @@ describe('rebuildStages обновляет строки на месте', () => 
   beforeEach(() => vi.clearAllMocks());
 
   it('совпавшие этапы обновляются (факт и журнал не трогаются), удаляются только убранные', async () => {
-    vi.mocked(prisma.stage.findMany).mockImplementation((async (args: { select?: unknown }) =>
-      args?.select ? [row('s1', 'A'), row('s2', 'B'), row('s3', 'C')] : []) as never);
-    vi.mocked(prisma.stageDependency.findMany).mockResolvedValue([
-      { fromStageId: 's1', toStageId: 's3', lagDays: 1 },
-    ] as never);
+    order.length = 0;
+    vi.mocked(prisma.stage.findMany).mockResolvedValue([] as never);
+    tx.stage.findMany.mockImplementation(async () => {
+      order.push('read stages');
+      return [row('s1', 'A'), row('s2', 'B'), row('s3', 'C')];
+    });
+    tx.stageDependency.findMany.mockImplementation(async () => {
+      order.push('read deps');
+      return [{ fromStageId: 's1', toStageId: 's3', lagDays: 1 }];
+    });
 
     await rebuildStages(
       'c1',
@@ -148,8 +173,9 @@ describe('rebuildStages обновляет строки на месте', () => 
       new Date('2026-03-02T00:00:00Z'),
     );
 
-    // Блокировка журнала факта в той же транзакции.
-    expect(tx.$executeRaw).toHaveBeenCalled();
+    // Блокировка расчёта — до чтения этапов и зависимостей, в той же транзакции.
+    expect(order).toEqual(['lock', 'read stages', 'read deps']);
+    expect(prisma.stageDependency.findMany).not.toHaveBeenCalled();
     // Ни одного «удалить всё»: снаружи транзакции этапы не удаляются.
     expect(prisma.stage.deleteMany).not.toHaveBeenCalled();
     expect(tx.stage.deleteMany).toHaveBeenCalledWith({

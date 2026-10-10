@@ -9,7 +9,14 @@ interface Result {
   endDate: string | null;
   shiftDays: number | null;
   checkedDays: number;
-  conflictAtFrom: { role: string; week: string; demand: number; capacity: number } | null;
+  conflictAtFrom: {
+    role: string;
+    week: string;
+    demand: number;
+    capacity: number;
+    kind: 'over' | 'unknown';
+  } | null;
+  beyondHorizon: boolean;
 }
 
 const fmt = (iso: string) => new Date(iso).toLocaleDateString('ru-RU', { timeZone: 'UTC' });
@@ -93,9 +100,13 @@ export default function EarliestStart({
               .
             </>
           ) : (
-            <>В горизонте ({result.checkedDays} раб. дн.) нагрузка не помещается в ёмкость.</>
+            <>
+              {result.beyondHorizon
+                ? `Дату не подтвердить: Гант выходит за горизонт ресурсного плана (спрос дальше неизвестен), проверено ${result.checkedDays} раб. дн.`
+                : `В горизонте (${result.checkedDays} раб. дн.) нагрузка не помещается в ёмкость.`}
+            </>
           )}
-          {result.conflictAtFrom && (
+          {result.conflictAtFrom?.kind === 'over' && (
             <>
               {' '}
               На выбранную дату мешает: {roleLabel(result.conflictAtFrom.role)}, неделя с{' '}

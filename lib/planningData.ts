@@ -3,6 +3,8 @@
  * плана (#103 WP-5e). Логика — в `lib/scheduling.ts` и `lib/planning.ts`.
  */
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@/lib/generated/prisma/client';
+import { lockCalculationLedger } from '@/lib/actualsLedgerData';
 import { buildCapacityMatrix, weekStart } from '@/lib/capacity';
 import { calendarFor, loadCalendarSet, type CalendarSet } from '@/lib/calendarData';
 import { DEFAULT_WEEKS, loadCapacityRows, MAX_WEEKS, type CapacityQuery } from '@/lib/capacityData';
@@ -23,6 +25,9 @@ import {
   type ScheduledItem,
   type StagePlanItem,
 } from '@/lib/scheduling';
+
+type Tx = Prisma.TransactionClient;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const planSelect = {
   id: true,
@@ -101,31 +106,60 @@ export function toPlan(row: PlanRow, calendars: CalendarSet): CalcPlan {
   };
 }
 
-export async function loadCalcPlans(ids: string[]): Promise<Map<string, CalcPlan>> {
+/**
+ * Планы расчётов. `db` — клиент транзакции, если план читается под блокировкой
+ * расчёта (`lockCalculationLedger`); календари читаются вне её — блокировка их
+ * не защищает.
+ */
+export async function loadCalcPlans(
+  ids: string[],
+  db: Pick<Tx, 'calculation'> = prisma,
+): Promise<Map<string, CalcPlan>> {
   if (ids.length === 0) return new Map();
   const [rows, calendars] = await Promise.all([
-    prisma.calculation.findMany({ where: { id: { in: ids } }, select: planSelect }),
+    db.calculation.findMany({ where: { id: { in: ids } }, select: planSelect }),
     loadCalendarSet(),
   ]);
   return new Map(rows.map((r) => [r.id, toPlan(r, calendars)]));
 }
 
 /**
- * Записи, которые перестраивают Гант расчёта на месте (id этапов и внесённый
- * факт сохраняются), по календарю шаблона и зависимостям. Возвращает операции
- * для `prisma.$transaction`, чтобы вызывающий мог добавить свои.
+ * Перестраивает Гант расчёта на месте (id этапов и внесённый факт
+ * сохраняются) по календарю шаблона и зависимостям. Вызывать внутри
+ * транзакции после `lockCalculationLedger` и чтения плана тем же `tx`.
  */
-export function rescheduleOps(plan: CalcPlan, startDate: Date) {
+export async function applyReschedule(tx: Tx, plan: CalcPlan, startDate: Date): Promise<void> {
   const scheduled: ScheduledItem[] = reschedulePlan(plan, startDate);
-  return [
-    prisma.calculation.update({ where: { id: plan.calculationId }, data: { startDate } }),
-    ...scheduled.map((item, i) =>
-      prisma.stage.update({
-        where: { id: plan.stageIds[i] },
-        data: { startDate: item.startDate, endDate: item.endDate, dueDate: item.dueDate },
-      }),
-    ),
-  ];
+  await tx.calculation.update({ where: { id: plan.calculationId }, data: { startDate } });
+  for (const [i, item] of scheduled.entries()) {
+    await tx.stage.update({
+      where: { id: plan.stageIds[i] },
+      data: { startDate: item.startDate, endDate: item.endDate, dueDate: item.dueDate },
+    });
+  }
+}
+
+/**
+ * Перенос старта на `shiftDays` календарных дней с перестройкой Ганта — под
+ * блокировкой расчёта: план читается и даты считаются внутри неё, поэтому
+ * параллельная правка этапов или зависимостей не смешается с переносом.
+ * Возвращает новую дату старта или null, если расчёта нет.
+ */
+export async function shiftCalculation(
+  calculationId: string,
+  shiftDays: number,
+): Promise<Date | null> {
+  return prisma.$transaction(
+    async (tx) => {
+      await lockCalculationLedger(tx, calculationId);
+      const plan = (await loadCalcPlans([calculationId], tx)).get(calculationId);
+      if (!plan) return null;
+      const startDate = new Date(plan.startDate.getTime() + shiftDays * DAY_MS);
+      await applyReschedule(tx, plan, startDate);
+      return startDate;
+    },
+    { timeout: 30_000 },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -189,32 +223,36 @@ export function indexDependencies(plan: CalcPlan, deps: DependencyInput[]): Inde
  * транзакцией. Циклы и чужие этапы отклоняются до записи.
  */
 export async function replaceDependencies(calculationId: string, deps: DependencyInput[]) {
-  const plans = await loadCalcPlans([calculationId]);
-  const plan = plans.get(calculationId);
-  if (!plan) throw new DependencyError('not found', 404);
-  const indexed = indexDependencies(plan, deps);
-  const next: CalcPlan = { ...plan, dependencies: indexed };
-  await prisma.$transaction([
-    prisma.stageDependency.deleteMany({ where: { calculationId } }),
-    ...indexed.map((d) =>
-      prisma.stageDependency.create({
-        data: {
-          calculationId,
-          fromStageId: plan.stageIds[d.from],
-          toStageId: plan.stageIds[d.to],
-          type: 'FS',
-          lagDays: d.lagDays,
-        },
-      }),
-    ),
-    ...rescheduleOps(next, plan.startDate),
-  ]);
-  return indexed.map((d) => ({
-    fromStageId: plan.stageIds[d.from],
-    toStageId: plan.stageIds[d.to],
-    type: 'FS',
-    lagDays: d.lagDays,
-  }));
+  return prisma.$transaction(
+    async (tx) => {
+      // Под той же блокировкой, что перестройка этапов и apply: id этапов,
+      // которые проверяются здесь, не исчезнут до записи.
+      await lockCalculationLedger(tx, calculationId);
+      const plan = (await loadCalcPlans([calculationId], tx)).get(calculationId);
+      if (!plan) throw new DependencyError('not found', 404);
+      const indexed = indexDependencies(plan, deps);
+      await tx.stageDependency.deleteMany({ where: { calculationId } });
+      for (const d of indexed) {
+        await tx.stageDependency.create({
+          data: {
+            calculationId,
+            fromStageId: plan.stageIds[d.from],
+            toStageId: plan.stageIds[d.to],
+            type: 'FS',
+            lagDays: d.lagDays,
+          },
+        });
+      }
+      await applyReschedule(tx, { ...plan, dependencies: indexed }, plan.startDate);
+      return indexed.map((d) => ({
+        fromStageId: plan.stageIds[d.from],
+        toStageId: plan.stageIds[d.to],
+        type: 'FS',
+        lagDays: d.lagDays,
+      }));
+    },
+    { timeout: 30_000 },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +304,7 @@ export async function loadEarliestStart(
     capacityCalendar: rows.calendar,
     reservations: rows.reservations,
     otherDemand: demandFromMatrix(matrix),
+    knownWeeks: new Set(matrix.weeks),
   });
   return { ...result, currentStartDate: row.startDate.toISOString() };
 }
