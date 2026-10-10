@@ -172,6 +172,23 @@ async function main() {
       true,
       'ordinary saves cannot drop an existing manual price decision',
     );
+    const clonedManual = await saveSpecification(
+      guestCalculation.id,
+      {
+        ...retainedManual.snapshot,
+        items: [
+          ...retainedManual.snapshot.items,
+          { ...retainedManual.snapshot.items[0], id: 'copy-manual-flag', priceOverride: false },
+        ],
+      },
+      actor,
+      { allowNewCatalogOrigins: false },
+    );
+    assert.equal(
+      clonedManual.snapshot.items.find((item) => item.id === 'copy-manual-flag')!.priceOverride,
+      true,
+      'changing a copied row ID cannot erase manual-price consent',
+    );
     const after = await upload(
       'after.csv',
       'Name;SKU;Unit;Price;Currency;Terms\nExact;A;шт;123456789012.123457;EUR;Annual\nManual price;B;шт;20;RUB;Annual\nUnknown;U;шт;0;RUB;Annual\nFree;F;шт;;RUB;Annual\nAdded;NEW;шт;1;RUB;Annual\n',

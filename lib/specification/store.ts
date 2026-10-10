@@ -65,10 +65,15 @@ export async function saveSpecification(
           continue;
         }
         if (!item.origin) continue;
-        if (
-          previous?.items.some((row) => JSON.stringify(row.origin) === JSON.stringify(item.origin))
-        )
-          continue; // Explicit copies of existing project rows retain their verified provenance.
+        const projectSources =
+          previous?.items.filter(
+            (row) => JSON.stringify(row.origin) === JSON.stringify(item.origin),
+          ) ?? [];
+        if (projectSources.length) {
+          // A copied row must not erase a manual decision by changing its ID.
+          if (projectSources.some((row) => row.priceOverride === true)) item.priceOverride = true;
+          continue;
+        }
         if (options.allowNewCatalogOrigins === false)
           throw new SpecificationError(
             'Для добавления каталожного происхождения нужен доступ к каталогу.',
