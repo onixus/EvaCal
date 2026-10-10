@@ -126,6 +126,12 @@ export interface Gost34RequirementItem {
   originalText?: string;
   /** Who produced `description` if it is not the original text (e.g. an LLM). */
   normalizedBy?: string;
+  /**
+   * Неподтверждённые исходные данные (допущения пресейл-расчёта). Печатается
+   * рядом с требованием, но не входит в его текст и не участвует в проверке
+   * качества формулировки.
+   */
+  assumptions?: string;
   stageName?: string;
   stageRole?: string;
   mappedStageId?: string;

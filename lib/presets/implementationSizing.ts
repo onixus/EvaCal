@@ -1,4 +1,5 @@
 import type { Gost34RequirementItem, RequirementCategory } from '../gost34/types';
+import { parseAnswerBoolean, parseAnswerNumber } from './answerValues';
 
 export type ImplementationSizingProfile = 'siem' | 'idm' | 'ngfw';
 
@@ -95,25 +96,6 @@ const PARAM_LABELS: Record<string, string> = {
   cutover_window: 'окно переключения',
 };
 
-function parseNumber(raw: unknown): number | undefined {
-  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
-  if (typeof raw === 'string' && raw.trim() !== '') {
-    const parsed = Number(raw.replace(',', '.').trim());
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return undefined;
-}
-
-function parseBoolean(raw: unknown): boolean | undefined {
-  if (typeof raw === 'boolean') return raw;
-  if (typeof raw === 'number') return raw !== 0;
-  if (typeof raw === 'string') {
-    if (/^(true|1|да|yes|требуется)$/i.test(raw.trim())) return true;
-    if (/^(false|0|нет|no|не требуется)$/i.test(raw.trim())) return false;
-  }
-  return undefined;
-}
-
 /**
  * Читает ответы опросника и запоминает, какие значения взяты из умолчаний.
  * Пресейл-интерфейс продолжает показывать расчёт по умолчаниям, а требования
@@ -130,14 +112,14 @@ class AnswerReader {
   }
 
   num(key: string, fallback?: number): number {
-    const value = parseNumber(this.answers[key]);
+    const value = parseAnswerNumber(this.answers[key]);
     if (value !== undefined) return value;
     this.mark(key, fallback === undefined ? undefined : String(fallback));
     return fallback ?? 0;
   }
 
   bool(key: string, fallback = false): boolean {
-    const value = parseBoolean(this.answers[key]);
+    const value = parseAnswerBoolean(this.answers[key]);
     if (value !== undefined) return value;
     this.mark(key, fallback ? 'да' : 'нет');
     return fallback;
@@ -166,7 +148,7 @@ class AnswerReader {
           : `${item.label} — принято «${item.assumed}» по умолчанию`,
       );
     return items.length > 0
-      ? ` Допущения пресейл-расчёта, требуют подтверждения Заказчиком: ${items.join('; ')}.`
+      ? `Допущения пресейл-расчёта, требуют подтверждения Заказчиком: ${items.join('; ')}.`
       : '';
   }
 }
@@ -206,17 +188,16 @@ function requirement(
   };
 }
 
-/** Помечает в тексте требований ТЗ значения, взятые из умолчаний пресейла. */
+/** Прикладывает к требованиям ТЗ перечень значений, взятых из умолчаний пресейла. */
 function annotate(
   requirements: Gost34RequirementItem[],
   reader: AnswerReader,
   keysById: Record<string, string[]>,
 ): Gost34RequirementItem[] {
   return requirements.map((item) => {
-    const note = reader.note(...(keysById[item.id] || []));
-    if (!note) return item;
-    const description = `${item.description}${note}`;
-    return { ...item, description, originalText: description };
+    const assumptions = reader.note(...(keysById[item.id] || []));
+    // Отдельное поле: текст требования (и его проверка качества) не меняется.
+    return assumptions ? { ...item, assumptions } : item;
   });
 }
 

@@ -57,13 +57,15 @@ export const sectionRequirements: SchemaNode = {
       id: 'tz2020-req-functions',
       title: 'Требования к функциям (задачам), выполняемым АС',
       required: true,
-      build: ({ payload }): SectionContent => {
+      build: ({ payload, context }): SectionContent => {
         const reqs = payload.customRequirements || [];
+        const gaps = gapsFor(context, ['sizingAssumptions']);
         if (reqs.length === 0) {
           return {
             paragraphs: [
               'Перечень требований к функциям системы формируется из согласованных требований проекта. На момент выпуска документа согласованные требования отсутствуют.',
             ],
+            gaps,
           };
         }
         return {
@@ -82,11 +84,12 @@ export const sectionRequirements: SchemaNode = {
                 r.code,
                 requirementCategoryLabel(r.category),
                 r.title,
-                r.description,
+                r.assumptions ? `${r.description} ${r.assumptions}` : r.description,
                 r.sourceFile || 'Проектное требование',
               ]),
             },
           ],
+          gaps,
         };
       },
     },

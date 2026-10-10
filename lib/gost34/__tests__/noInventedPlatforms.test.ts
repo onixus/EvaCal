@@ -100,7 +100,7 @@ describe('ПЗ и ТЗ не выдумывают платформы и пост�
     const text = documentText(result);
     expect(text).toContain('целевая доступность — принято «99.99» по умолчанию');
     expect(text).toContain('запас производительности — принято «30» по умолчанию');
-    const gap = result.diagnostics.gaps.find((g) => g.path === 'infrastructure.sizingAssumptions');
+    const gap = result.diagnostics.gaps.find((g) => g.path === 'sizingAssumptions');
     expect(gap?.hint).toContain('пропускная способность East-West — не задано');
   });
 

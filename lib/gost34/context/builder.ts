@@ -29,6 +29,7 @@ import {
   buildImplementationSizing,
   detectImplementationSizingProfileFromKeys,
 } from '../../presets/implementationSizing';
+import { parseAnswerBoolean, parseAnswerNumber } from '../../presets/answerValues';
 
 export interface ProjectContextInput {
   systemName?: string;
@@ -43,28 +44,8 @@ export interface ProjectContextInput {
   override?: Partial<ProjectContext>;
 }
 
-const TRUE_WORDS = /^(да|yes|true|1|есть|требуется)$/i;
-const FALSE_WORDS = /^(нет|no|false|0|не требуется|отсутствует)$/i;
-
-function toBool(value: unknown): boolean | undefined {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value !== 0;
-  if (typeof value === 'string') {
-    const v = value.trim();
-    if (TRUE_WORDS.test(v)) return true;
-    if (FALSE_WORDS.test(v)) return false;
-  }
-  return undefined;
-}
-
-function toNumber(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const match = value.replace(',', '.').match(/-?\d+(\.\d+)?/);
-    if (match) return Number(match[0]);
-  }
-  return undefined;
-}
+const toBool = parseAnswerBoolean;
+const toNumber = parseAnswerNumber;
 
 /**
  * Служебные значения опросника сложности печатаются в документе словами:
@@ -593,13 +574,15 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
 
   // Требования ТЗ из пресейл-sizing помечают значения по умолчанию как допущения;
   // диагностика документа фиксирует их как пробел, а не как подтверждённые данные.
+  // Корень пути не совпадает с полями ProjectContext: ручная правка инфраструктуры
+  // не подтверждает ответы пресейл-опросника и не должна снимать этот пробел.
   const sizingAssumptions = implementationProfile
     ? buildImplementationSizing(answers)?.assumptions || []
     : [];
   if (sizingAssumptions.length > 0) {
     gap(
       state,
-      'infrastructure.sizingAssumptions',
+      'sizingAssumptions',
       'Исходные данные пресейл-sizing, не подтверждённые Заказчиком',
       'major',
       sizingAssumptions

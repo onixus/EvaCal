@@ -54,6 +54,7 @@ export function toGost34RequirementItem(
     item.criterion = requirement.acceptanceCriteria.join('; ');
   }
 
+  if (requirement.assumptions) item.assumptions = requirement.assumptions;
   if (requirement.source?.filename !== undefined) item.sourceFile = requirement.source.filename;
   if (requirement.legacy?.normalizedBy !== undefined)
     item.normalizedBy = requirement.legacy.normalizedBy;
@@ -92,6 +93,8 @@ export function fromGost34RequirementItem(
   // testability по нему решает, проверяемо ли требование.
   const criterion = item.criterion?.trim();
   if (criterion) requirement.acceptanceCriteria = [criterion];
+
+  if (item.assumptions) requirement.assumptions = item.assumptions;
 
   const filename = item.sourceFile ?? opts.sourceFilename;
   if (filename !== undefined || opts.sourceSection !== undefined) {

@@ -283,6 +283,34 @@ describe('buildProjectContext: автоматическое обогащение
     expect(infraGaps).toContain('availability');
   });
 
+  it('ручная правка инфраструктуры не снимает пробел допущений пресейл-sizing', () => {
+    const ctx = buildProjectContext({
+      answers: { ngfw_clusters_count: 1, rules_count: 10 },
+      stages: [],
+      override: { infrastructure: { platforms: ['Выбранная Заказчиком NGFW'] } },
+    });
+    expect(ctx.infrastructure?.platforms).toEqual(['Выбранная Заказчиком NGFW']);
+    expect(ctx.gaps?.some((g) => g.path.startsWith('infrastructure.'))).toBe(false);
+    expect(ctx.gaps?.find((g) => g.path === 'sizingAssumptions')?.hint).toContain(
+      'целевая доступность — принято «99.99»',
+    );
+  });
+
+  it('разбирает числа с единицами так же, как пресейл-sizing', () => {
+    const ctx = buildProjectContext({
+      answers: {
+        rules_count: 10,
+        internet_throughput_gbps: '10 Гбит/с',
+        east_west_throughput_gbps: '5',
+        capacity_headroom_percent: '30 %',
+      },
+      stages: [],
+    });
+    expect(ctx.infrastructure?.computeResources).toContain('19.50 Гбит/с');
+    const hint = ctx.gaps?.find((g) => g.path === 'sizingAssumptions')?.hint || '';
+    expect(hint).not.toContain('пропускная способность Internet');
+  });
+
   it('SIEM/IDM sizing не подставляет умолчания и сохраняет явный 0', () => {
     const siem = buildProjectContext({
       answers: { event_sources_count: 0, correlation_rules_count: 10 },
