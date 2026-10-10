@@ -1,4 +1,5 @@
 import { Gost34InputPayload, Gost34Section } from '../types';
+import { CONTEXT_GAP_PLACEHOLDER } from '../context/types';
 
 export function buildRA34Sections(payload: Gost34InputPayload): Gost34Section[] {
   const meta = payload.metadata;
@@ -7,9 +8,8 @@ export function buildRA34Sections(payload: Gost34InputPayload): Gost34Section[] 
 
   const archStyle =
     ctx?.architecture?.style || 'Контейнеризированная микросервисная архитектура (Docker / Nginx)';
-  const platforms =
-    ctx?.infrastructure?.platforms?.join(', ') ||
-    'Astra Linux / Alt Linux / Ubuntu Server, Docker, PostgreSQL';
+  // Платформы печатаются только из проектного контекста; умолчаний с брендами нет.
+  const platforms = ctx?.infrastructure?.platforms?.join(', ') || CONTEXT_GAP_PLACEHOLDER;
 
   return [
     {

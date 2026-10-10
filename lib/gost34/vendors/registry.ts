@@ -7,7 +7,7 @@
  * периодическая ре-верификация входит в регламент сопровождения базы.
  */
 
-import { VendorHardwareProduct, VendorSoftwareProduct } from './types';
+import { VendorSoftwareProduct } from './types';
 
 export const VENDOR_SOFTWARE: VendorSoftwareProduct[] = [
   {
@@ -252,90 +252,5 @@ export const VENDOR_SOFTWARE: VendorSoftwareProduct[] = [
     match: /криптопро|cryptopro/i,
     quantity: { answerKey: 'workstations_count', unit: 'лиц.', fallback: 'По числу рабочих мест' },
     sourceUrl: 'https://www.cryptopro.ru/products/csp',
-  },
-];
-
-export const VENDOR_HARDWARE: VendorHardwareProduct[] = [
-  {
-    id: 'yadro-vegman',
-    kind: 'hardware',
-    category: 'server',
-    name: 'Серверная платформа корпоративного класса YADRO VEGMAN',
-    model: 'YADRO VEGMAN R220 G2 (Rack 2U)',
-    vendor: 'ООО «КНС ГРУПП» (YADRO)',
-    reestrMinpromtorg:
-      'Единый реестр российской радиоэлектронной продукции Минпромторга РФ (ПП РФ № 878 / № 719)',
-    defaultSpecs:
-      '2x Intel Xeon Scalable, до 32x DDR4-3200 ECC, 2x 960 GB NVMe Boot, Hardware RAID, 4x 10/25GbE SFP28, 2x 1200W Redundant PSU, модуль удалённого управления BMC',
-    formFactor: '2U Rackmount',
-    match: /yadro|ядро|vegman|вегман/i,
-    quantity: { answerKey: 'servers_count', unit: 'шт.', fallback: '2 шт.' },
-    sourceUrl: 'https://yadro.com/servers/vegman',
-    verifiedAt: '2026-08-26',
-  },
-  {
-    id: 'aquarius-server',
-    kind: 'hardware',
-    category: 'server',
-    name: 'Серверная платформа Aquarius',
-    model: 'Aquarius T50 D224CF (Rack 2U)',
-    vendor: 'ГК «Аквариус»',
-    reestrMinpromtorg:
-      'Единый реестр российской радиоэлектронной продукции Минпромторга РФ (ПП РФ № 878 / № 719)',
-    defaultSpecs:
-      '2x Intel Xeon Scalable, до 24x DDR4 ECC, Hardware RAID, 2x 10GbE, резервируемые блоки питания, BMC',
-    formFactor: '2U Rackmount',
-    match: /aquarius|аквариус/i,
-    quantity: { answerKey: 'servers_count', unit: 'шт.', fallback: '2 шт.' },
-    sourceUrl: 'https://www.aq.ru',
-  },
-  {
-    id: 'yadro-tatlin',
-    kind: 'hardware',
-    category: 'storage',
-    name: 'Система хранения данных (СХД All-Flash NVMe)',
-    model: 'YADRO TATLIN.UNIFIED / Скала^р СХД',
-    vendor: 'ООО «КНС ГРУПП» (YADRO)',
-    reestrMinpromtorg:
-      'Единый реестр российской радиоэлектронной продукции Минпромторга РФ (ПП РФ № 878)',
-    defaultSpecs:
-      'Двухконтроллерная архитектура (Active-Active), кэш-память 128 GB, полезная ёмкость от 20 TB NVMe TLC, 8x 16/32Gb FC / 25GbE iSCSI, снапшоты, репликация',
-    formFactor: '2U/4U Rackmount',
-    match: /tatlin|татлин|схд|storage|скала/i,
-    quantity: { answerKey: 'storage_systems_count', unit: 'компл.', fallback: '1 компл.' },
-    sourceUrl: 'https://yadro.com/tatlin/unified',
-    verifiedAt: '2026-08-26',
-  },
-  {
-    id: 'usergate-appliance',
-    kind: 'hardware',
-    category: 'appliance',
-    name: 'Аппаратная платформа межсетевого экрана UserGate Hardware Appliance',
-    model: 'UserGate C150 / D200 / F8000',
-    vendor: 'ООО «Юзергейт»',
-    reestrMinpromtorg: 'Единый реестр российской радиоэлектронной продукции Минпромторга РФ',
-    defaultSpecs:
-      'Отказоустойчивая пара HA (Active-Passive), пропускная способность NGFW от 10 Гбит/с, bypass-порты, резервированные блоки питания',
-    formFactor: '1U Rackmount',
-    match: /usergate|ngfw|юзергейт/i,
-    quantity: { answerKey: 'ngfw_clusters_count', multiplier: 2, unit: 'шт.', fallback: '2 шт.' },
-    sourceUrl: 'https://www.usergate.com/ru/products/hardware-platforms',
-    verifiedAt: '2026-08-26',
-  },
-  {
-    id: 'vipnet-coordinator-hw',
-    kind: 'hardware',
-    category: 'crypto',
-    name: 'Криптошлюз ViPNet Coordinator HW 4 (аппаратная платформа)',
-    model: 'ViPNet Coordinator HW 1000 / HW 5000',
-    vendor: 'АО «ИнфоТеКС»',
-    reestrMinpromtorg: 'Единый реестр российской радиоэлектронной продукции Минпромторга РФ',
-    defaultSpecs:
-      'Аппаратный шлюз ГОСТ-VPN, класс защиты КС3, шифрование каналов по ГОСТ 28147-89 / ГОСТ Р 34.12-2015, кластеризация Active-Passive',
-    formFactor: '1U Rackmount',
-    match: /vipnet|випнет|гост-?vpn/i,
-    quantity: { answerKey: 'vpn_tunnels_count', unit: 'шт.', fallback: '2 шт.' },
-    sourceUrl: 'https://infotecs.ru/products/vipnet-coordinator-hw/',
-    verifiedAt: '2026-08-26',
   },
 ];

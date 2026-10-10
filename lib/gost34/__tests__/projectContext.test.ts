@@ -153,7 +153,7 @@ describe('analyzeAndNormalizeInput', () => {
 });
 
 describe('buildProjectContext: автоматическое обогащение из отраслевых пресетов', () => {
-  it('обогащает контекст ГОСТ 34 спецификацией NGFW / СЗИ (UserGate, Kaspersky, Cyberpeak, ViPNet)', () => {
+  it('не подставляет бренды NGFW / СЗИ по количественным ответам опросника', () => {
     const ctx = buildProjectContext({
       answers: {
         ngfw_clusters_count: 2,
@@ -164,19 +164,11 @@ describe('buildProjectContext: автоматическое обогащение
       stages: [{ id: 's1', order: 1, name: 'Внедрение NGFW', role: 'engineer', hours: 80 }],
     });
 
-    expect(ctx.infrastructure?.platforms).toContain(
-      'Межсетевые экраны NGFW UserGate в отказоустойчивом кластере HA',
-    );
-    expect(ctx.infrastructure?.platforms).toContain(
-      'СЗИ от вредоносного ПО Kaspersky Endpoint Security',
-    );
-    expect(ctx.infrastructure?.platforms).toContain(
-      'Система аудита доступа к неструктурированным данным Cyberpeak',
-    );
-    expect(ctx.infrastructure?.platforms).toContain('СКЗИ ViPNet Coordinator HW (ГОСТ-VPN)');
-    expect(ctx.infrastructure?.computeResources).toContain(
-      '2 кластеров аппаратных платформ UserGate NGFW',
-    );
+    expect(ctx.infrastructure?.platforms).toBeUndefined();
+    expect(ctx.infrastructure?.importSubstitution).toBeUndefined();
+    expect(ctx.gaps?.some((g) => g.path === 'infrastructure.platforms')).toBe(true);
+    expect(ctx.infrastructure?.computeResources).toBe('количество кластеров NGFW по опроснику — 2');
+    expect(ctx.infrastructure?.computeResources).not.toMatch(/UserGate|Kaspersky|Cyberpeak/);
     expect(ctx.security?.personalDataProcessed).toBeUndefined();
     expect(ctx.security?.regulatoryScope).toBeUndefined();
     expect(ctx.security?.securityClass).toBeUndefined();
@@ -204,6 +196,7 @@ describe('buildProjectContext: автоматическое обогащение
     expect(ctx.infrastructure?.platforms?.join(' ')).not.toContain('Kaspersky');
     expect(ctx.infrastructure?.platforms?.join(' ')).not.toContain('Cyberpeak');
     expect(ctx.infrastructure?.computeResources).toContain('4 узлов NGFW');
+    expect(ctx.infrastructure?.computeResources).toContain('целевая производительность');
     expect(ctx.security?.personalDataProcessed).toBeUndefined();
     expect(ctx.security?.regulatoryScope).toBeUndefined();
     expect(ctx.availability?.availabilityTargetPercent).toBe(99.99);
@@ -237,10 +230,9 @@ describe('buildProjectContext: автоматическое обогащение
     expect(full.infrastructure?.computeResources).toContain('проектный пик 10000 EPS');
     expect(full.infrastructure?.importSubstitution).toBeUndefined();
 
-    expect(legacy.infrastructure?.platforms).toEqual([
-      'SIEM-платформа (MaxPatrol SIEM / Kaspersky KUMA)',
-    ]);
-    expect(legacy.infrastructure?.importSubstitution).toBe(true);
+    expect(legacy.infrastructure?.platforms).toBeUndefined();
+    expect(legacy.infrastructure?.importSubstitution).toBeUndefined();
+    expect(legacy.gaps?.some((g) => g.path === 'infrastructure.platforms')).toBe(true);
   });
 
   it('строит IDM-контекст из нового пресейл-опросника', () => {
@@ -266,7 +258,7 @@ describe('buildProjectContext: автоматическое обогащение
     expect(ctx.performance?.dataVolume).toContain('120000 идентичностей');
   });
 
-  it('обогащает контекст ГОСТ 34 спецификацией ПАК и СУБД (YADRO, Astra Linux, Postgres Pro)', () => {
+  it('не подставляет бренды ПАК и СУБД по количеству серверов', () => {
     const ctx = buildProjectContext({
       answers: {
         servers_count: 6,
@@ -277,19 +269,41 @@ describe('buildProjectContext: автоматическое обогащение
       stages: [{ id: 's1', order: 1, name: 'ПНР ПАК', role: 'engineer', hours: 100 }],
     });
 
-    expect(ctx.infrastructure?.platforms).toContain(
-      'Серверные платформы отечественного производства YADRO Vegman / Аквариус',
-    );
-    expect(ctx.infrastructure?.platforms).toContain('Защищенная ОС Astra Linux Special Edition');
-    expect(ctx.infrastructure?.platforms).toContain(
-      'СУБД Postgres Pro Enterprise (отказоустойчивый кластер)',
-    );
+    expect(ctx.infrastructure?.platforms).toBeUndefined();
+    expect(ctx.infrastructure?.importSubstitution).toBeUndefined();
     expect(ctx.infrastructure?.computeResources).toBe(
-      '6 серверных платформ в 2 стойках 42U с резервированием по питанию и подключением к SAN/LAN',
+      'количество серверов по опроснику — 6, количество стоек — 2',
     );
+    const infraGaps = (ctx.gaps || []).map((g) => g.path);
+    expect(infraGaps).toContain('infrastructure.platforms');
+    expect(infraGaps).toContain('infrastructure.computeResources');
     expect(ctx.availability?.availabilityTargetPercent).toBe(99.9);
     expect(ctx.availability?.rtoMinutes).toBe(15);
     expect(ctx.availability?.rpoMinutes).toBe(5);
+  });
+
+  it('не выдумывает количество стоек и сохраняет нулевое количество', () => {
+    const missing = buildProjectContext({ answers: { servers_count: 4 }, stages: [] });
+    expect(missing.infrastructure?.computeResources).toBe('количество серверов по опроснику — 4');
+    expect(missing.infrastructure?.computeResources).not.toContain('стойк');
+
+    const zero = buildProjectContext({ answers: { servers_count: 0 }, stages: [] });
+    expect(zero.infrastructure?.computeResources).toBe('количество серверов по опроснику — 0');
+  });
+
+  it('для NGFW без HA и с неполным sizing фиксирует пробел вместо умолчаний', () => {
+    const ctx = buildProjectContext({
+      answers: {
+        ngfw_clusters_count: 1,
+        ngfw_ha_required: false,
+        internet_throughput_gbps: 1,
+      },
+      stages: [],
+    });
+    expect(ctx.infrastructure?.computeResources).toContain('1 узлов NGFW');
+    expect(ctx.infrastructure?.computeResources).not.toContain('целевая производительность');
+    const sizingGap = ctx.gaps?.find((g) => g.label === 'Параметры sizing NGFW');
+    expect(sizingGap?.hint).toContain('East-West');
   });
 });
 

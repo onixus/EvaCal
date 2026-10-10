@@ -14,7 +14,7 @@ import { evaluateApplicability, toEnrichmentOptions, type OverrideInput } from '
  * - FSB Order No. 282 (GosSOPKA / NKCKI)
  * - Federal Law No. 187-FZ (Critical Information Infrastructure)
  * - Federal Law No. 152-FZ / 242-FZ (Personal Data Localization in RF)
- * - Federal Law No. 188-FZ (Russian Software Registry, Astra Linux/PostgreSQL)
+ * - Federal Law No. 188-FZ (Russian Software Registry, vendor-neutral)
  * - SLA 99.9% Reliability (RTO ≤ 15 min, RPO ≤ 5 min)
  * - GOST Р 52872-2019 / WCAG 2.1 AA (Web Accessibility)
  */
@@ -131,7 +131,7 @@ const ENRICHMENT_RULES: EnrichmentRule[] = [
     category: 'technical',
     title: 'Совместимость с Единым реестром российского ПО (188-ФЗ)',
     description:
-      'Компоненты системы должны гарантированно функционировать на базе отечественного системного ПО (ОС Astra Linux / Alt Linux, СУБД PostgreSQL / Postgres Pro) для соответствия критериям Единого реестра российских программ по 188-ФЗ.',
+      'Компоненты системы должны функционировать на общесистемном программном обеспечении (операционные системы, СУБД), включённом в единый реестр российских программ для ЭВМ и баз данных (188-ФЗ). Конкретные продукты и редакции определяются Заказчиком и подтверждаются спецификацией проекта; наличие реестровых записей проверяется на дату поставки.',
   },
   {
     key: 'sla_999',

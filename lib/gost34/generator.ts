@@ -4,7 +4,7 @@ import { Gost34InputPayload, Gost34DocumentAST, Gost34Section } from './types';
 import { ContextGap } from './context/types';
 import { SchemaValidationIssue } from './schema/types';
 import { buildTZ34Document } from './templates/tz34';
-import { buildPZ34Sections } from './templates/pz34';
+import { buildPZ34Document } from './templates/pz34';
 import { buildAF34Sections } from './templates/af34';
 import { buildPMI34Sections } from './templates/pmi34';
 import { buildSPEC34Sections } from './templates/spec34';
@@ -27,7 +27,7 @@ type DocumentBuilder = (payload: Gost34InputPayload) => {
 };
 
 const BUILDERS: Record<string, DocumentBuilder> = {
-  PZ: (payload) => ({ sections: buildPZ34Sections(payload) }),
+  PZ: buildPZ34Document,
   AF: (payload) => ({ sections: buildAF34Sections(payload) }),
   PMI: (payload) => ({ sections: buildPMI34Sections(payload) }),
   SPEC: (payload) => ({

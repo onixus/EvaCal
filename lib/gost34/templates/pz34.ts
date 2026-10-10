@@ -8,13 +8,40 @@
  *
  * Содержимое строится из ProjectContext; отсутствие данных фиксируется
  * формулировкой «Требует уточнения у Заказчика» — раздел не заполняется
- * выдуманными значениями. Обоснование выбора программных средств опирается
- * на базу знаний вендоров РФ (lib/gost34/vendors).
+ * выдуманными значениями. Обоснование выбора программных средств строится
+ * только из подтверждённых позиций сохранённой спецификации проекта; реестровые
+ * записи и сертификаты из статических справочников не печатаются.
  */
 
 import { Gost34InputPayload, Gost34Section, Gost34TableData } from '../types';
-import { formatGap } from '../context/types';
-import { findVendorSoftware, registryLine } from '../vendors';
+import { ContextGap, formatGap } from '../context/types';
+import { parseSpecification } from '../../specification/validation';
+import type { SpecificationItem } from '../../specification/types';
+
+const SPEC_GAP: ContextGap = {
+  path: 'specification',
+  label: 'Подтверждённый состав программных средств (спецификация проекта)',
+  severity: 'major',
+  hint: 'Сохраните и подтвердите спецификацию; платформы и продукты не выбираются автоматически',
+};
+
+/** Подтверждённые программные позиции спецификации или undefined, если спецификация не утверждена. */
+function confirmedSoftware(payload: Gost34InputPayload): SpecificationItem[] | undefined {
+  if (!payload.specification) return undefined;
+  let spec;
+  try {
+    spec = parseSpecification(payload.specification);
+  } catch {
+    return undefined;
+  }
+  if (spec.status !== 'confirmed') return undefined;
+  return spec.items.filter(
+    (item) =>
+      item.confirmed &&
+      item.disposition !== 'alternative' &&
+      (item.kind === 'software' || item.kind === 'license'),
+  );
+}
 
 const DIRECTION_LABELS: Record<string, string> = {
   inbound: 'входящий',
@@ -24,6 +51,14 @@ const DIRECTION_LABELS: Record<string, string> = {
 };
 
 export function buildPZ34Sections(payload: Gost34InputPayload): Gost34Section[] {
+  return buildPZ34Document(payload).sections;
+}
+
+export function buildPZ34Document(payload: Gost34InputPayload): {
+  sections: Gost34Section[];
+  gaps: ContextGap[];
+} {
+  const gaps: ContextGap[] = [...(payload.projectContext?.gaps || [])];
   const meta = payload.metadata;
   const stages = payload.stages;
   const ctx = payload.projectContext;
@@ -108,7 +143,6 @@ export function buildPZ34Sections(payload: Gost34InputPayload): Gost34Section[] 
     ctx?.architecture?.style || 'Трехзвенная веб-архитектура (Client-Server-Database)';
   const componentsText = ctx?.architecture?.components?.join(', ') || 'Модули системы';
   const platforms = ctx?.infrastructure?.platforms || [];
-  const platformsText = platforms.join(', ') || 'Стандартные общесистемные платформы';
 
   const techParagraphs: string[] = [
     `3.1 Решения по структуре системы. Архитектурная модель: ${archStyle}.`,
@@ -153,28 +187,49 @@ export function buildPZ34Sections(payload: Gost34InputPayload): Gost34Section[] 
   }
 
   techParagraphs.push(
-    `3.5 Решения по комплексу технических средств: ${
-      ctx?.infrastructure?.computeResources ||
-      'состав и характеристики технических средств определяются на стадии технического проектирования'
-    }.`,
-    `3.6 Решения по составу программных средств. Общесистемное программное окружение: ${platformsText}.`,
+    `3.5 Решения по комплексу технических средств. ${
+      ctx?.infrastructure?.computeResources
+        ? `Исходные данные: ${ctx.infrastructure.computeResources}.`
+        : formatGap('Состав и характеристики технических средств')
+    }`,
+    `3.6 Решения по составу программных средств. ${
+      platforms.length > 0
+        ? `Общесистемное программное окружение: ${platforms.join(', ')}.`
+        : formatGap('Общесистемное программное окружение')
+    }`,
   );
 
-  // Обоснование выбора ПО — реквизиты из базы знаний вендоров РФ.
-  const matchedVendors = findVendorSoftware(platforms.join(' ').toLowerCase());
-  if (matchedVendors.length > 0) {
+  // Обоснование выбора ПО — только подтверждённые позиции спецификации проекта.
+  const software = confirmedSoftware(payload);
+  if (!software) {
     techParagraphs.push(
-      '3.7 Обоснование выбора программных средств (реестровые записи и сертификация) приведено в Таблице 3.',
+      `3.7 ${formatGap('Обоснование выбора программных средств')} Состав программных средств не подтверждён спецификацией проекта.`,
+    );
+    gaps.push(SPEC_GAP);
+  } else if (software.length === 0) {
+    techParagraphs.push(
+      '3.7 Подтверждённая спецификация проекта не содержит программных средств и лицензий.',
+    );
+  } else {
+    techParagraphs.push(
+      '3.7 Обоснование выбора программных средств приведено в Таблице 3 по подтверждённой спецификации проекта. Сведения о реестровых записях и сертификатах автоматически не проверяются и настоящим документом не подтверждаются.',
     );
     techTables.push({
       caption: 'Таблица 3 — Обоснование выбора программных средств',
       headers: [
         'Программное средство',
-        'Правообладатель',
-        'Реестр российского ПО (188-ФЗ)',
-        'Сертификация ФСТЭК / ФСБ России',
+        'Вендор / SKU',
+        'Назначение',
+        'Источник и основание выбора',
+        'Реестр / сертификация',
       ],
-      rows: matchedVendors.map((p) => [p.name, p.vendor, registryLine(p), p.certification || '—']),
+      rows: software.map((item) => [
+        item.name,
+        [item.vendor, item.sku].filter(Boolean).join(' / ') || 'Не указано',
+        item.disposition === 'existing' ? 'Используется имеющееся' : 'Поставляется',
+        `${item.source}; ${item.rationale}`,
+        'Не подтверждены',
+      ]),
     });
   }
 
@@ -215,7 +270,7 @@ export function buildPZ34Sections(payload: Gost34InputPayload): Gost34Section[] 
     `4.5 Ввод системы в действие выполняется по стадиям, установленным ${citations.lifecycle}: опытная эксплуатация, приёмочные испытания (${citations.testing}), промышленная эксплуатация.`,
   ];
 
-  return [
+  const sections: Gost34Section[] = [
     {
       id: 'sec-1',
       numStr: '1',
@@ -243,4 +298,6 @@ export function buildPZ34Sections(payload: Gost34InputPayload): Gost34Section[] 
       paragraphs: preparationParagraphs,
     },
   ];
+
+  return { sections, gaps };
 }

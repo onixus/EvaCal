@@ -121,6 +121,17 @@ function gap(
   state.gaps.push({ path, label, severity, hint });
 }
 
+/** Класс продукта известен из профиля опросника, конкретный продукт — нет. */
+function productGap(state: BuildState, label: string) {
+  gap(
+    state,
+    'infrastructure.platforms',
+    `${label}: производитель и редакция`,
+    'major',
+    'Продукт не выбран в опроснике; выбор подтверждается Заказчиком',
+  );
+}
+
 /** Ищет первый ответ опросника, ключ которого соответствует шаблону. */
 function findAnswer(
   answers: Record<string, unknown>,
@@ -369,6 +380,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
       'Подсистема централизованного управления и журналирования NGFW',
     ];
     record(state, 'infrastructure.platforms', 'questionnaire', 'ngfw_implementation_preset');
+    productGap(state, 'NGFW-платформа');
   } else if (implementationProfile === 'idm') {
     const directory = toText(answers.directory_platform);
     infrastructure.platforms = [
@@ -378,6 +390,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
         : 'Корпоративная служба каталога (уточняется на обследовании)',
     ];
     record(state, 'infrastructure.platforms', 'questionnaire', 'idm_preset');
+    productGap(state, 'IDM / IGA-платформа');
   } else if (implementationProfile === 'siem') {
     const siemPlatform = toText(answers.siem_platform);
     infrastructure.platforms = [
@@ -386,67 +399,22 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
         : 'SIEM-платформа (выбор подтверждается по результатам пилота/обследования)',
     ];
     record(state, 'infrastructure.platforms', 'questionnaire', 'siem_full_preset');
+    if (!siemPlatform || /определить/i.test(siemPlatform)) productGap(state, 'SIEM-платформа');
   } else if (answers.event_sources_count || answers.siem_platform) {
-    // Legacy SIEM сохраняет прежнее обогащение для воспроизводимости.
+    // Legacy SIEM: продукт печатается только если он явно выбран в опроснике.
     const siemPlatform = toText(answers.siem_platform);
-    infrastructure.platforms = [
-      siemPlatform && !/определить/i.test(siemPlatform)
-        ? `SIEM-платформа ${siemPlatform}`
-        : 'SIEM-платформа (MaxPatrol SIEM / Kaspersky KUMA)',
-    ];
-    infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'siem_preset');
+    if (siemPlatform && !/определить/i.test(siemPlatform)) {
+      infrastructure.platforms = [`SIEM-платформа ${siemPlatform}`];
+      record(state, 'infrastructure.platforms', 'questionnaire', 'siem_platform');
+    } else {
+      productGap(state, 'SIEM-платформа');
+    }
   } else if (platformsList) {
     infrastructure.platforms = platformsList;
     record(state, 'infrastructure.platforms', 'questionnaire', platformsAnswer!.key);
-  } else if (
-    answers.ngfw_clusters_count ||
-    answers.storage_audits_count ||
-    answers.vpn_tunnels_count
-  ) {
-    // Старый комбинированный NGFW/SZI-пресет сохраняет прежнее обогащение.
-    infrastructure.platforms = [
-      'Межсетевые экраны NGFW UserGate в отказоустойчивом кластере HA',
-      'СЗИ от вредоносного ПО Kaspersky Endpoint Security',
-      'Система аудита доступа к неструктурированным данным Cyberpeak',
-      'СКЗИ ViPNet Coordinator HW (ГОСТ-VPN)',
-    ];
-    infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'ngfw_szi_preset');
-  } else if (answers.servers_count || answers.db_clusters_count) {
-    infrastructure.platforms = [
-      'Серверные платформы отечественного производства YADRO Vegman / Аквариус',
-      'СХД корпоративного уровня (All-Flash NVMe)',
-      'Защищенная ОС Astra Linux Special Edition',
-      'СУБД Postgres Pro Enterprise (отказоустойчивый кластер)',
-    ];
-    infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'pac_preset');
-  } else if (answers.kii_objects_count) {
-    infrastructure.platforms = [
-      'СЗИ от несанкционированного доступа Secret Net / Dallas Lock',
-      'Аппаратно-программные модули доверенной загрузки (АПМДЗ) Соболь',
-      'СКЗИ КриптоПро CSP / ViPNet Coordinator',
-    ];
-    infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'kii_preset');
-  } else if (answers.vm_count || answers.hypervisor_hosts_count) {
-    infrastructure.platforms = [
-      'Платформа серверной виртуализации zVirt',
-      'Служба каталога ALD Pro',
-      'Защищенная ОС Astra Linux Special Edition / РЕД ОС',
-      'СУБД Postgres Pro Enterprise',
-    ];
-    infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'migration_preset');
-  } else if (answers.protected_vms_count || answers.backup_volume_tb) {
-    infrastructure.platforms = [
-      'Система резервного копирования «Кибер Бэкап» / RuBackup',
-      'Неизменяемые (immutable) хранилища резервных копий',
-    ];
-    infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'backup_preset');
   } else {
+    // Количественные ответы (серверы, кластеры NGFW, ВМ, объём резервных копий)
+    // не определяют производителя и редакцию продукта: бренды не подставляются.
     gap(
       state,
       'infrastructure.platforms',
@@ -460,20 +428,63 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (resourcesAnswer) {
     infrastructure.computeResources = toText(resourcesAnswer.value);
     record(state, 'infrastructure.computeResources', 'questionnaire', resourcesAnswer.key);
-  } else if (answers.servers_count) {
-    const sCount = toNumber(answers.servers_count) || 1;
-    const rCount = toNumber(answers.racks_count) || 1;
-    infrastructure.computeResources = `${sCount} серверных платформ в ${rCount} стойках 42U с резервированием по питанию и подключением к SAN/LAN`;
+  } else if (toNumber(answers.servers_count) !== undefined) {
+    const sCount = toNumber(answers.servers_count)!;
+    const rCount = toNumber(answers.racks_count);
+    infrastructure.computeResources =
+      rCount === undefined
+        ? `количество серверов по опроснику — ${sCount}`
+        : `количество серверов по опроснику — ${sCount}, количество стоек — ${rCount}`;
     record(state, 'infrastructure.computeResources', 'questionnaire', 'servers_count');
+    gap(
+      state,
+      'infrastructure.computeResources',
+      'Конфигурация и размещение технических средств',
+      'major',
+      rCount === undefined
+        ? 'Известно только количество серверов; модели, характеристики и размещение не подтверждены'
+        : 'Известно только количество серверов и стоек; модели и характеристики не подтверждены',
+    );
   } else if (implementationProfile === 'ngfw') {
-    const ngfwCount = toNumber(answers.ngfw_clusters_count) || 1;
-    const ha = toBool(answers.ngfw_ha_required) ?? true;
-    const internet = toNumber(answers.internet_throughput_gbps) || 0;
-    const eastWest = toNumber(answers.east_west_throughput_gbps) || 0;
-    const headroom = toNumber(answers.capacity_headroom_percent) || 0;
-    const target = (internet + eastWest) * (1 + headroom / 100);
-    infrastructure.computeResources = `${ngfwCount} кластер(а/ов), ${ngfwCount * (ha ? 2 : 1)} узлов NGFW; целевая производительность с запасом — ${target.toFixed(2)} Гбит/с`;
-    record(state, 'infrastructure.computeResources', 'questionnaire', 'ngfw_implementation_sizing');
+    const ngfwCount = toNumber(answers.ngfw_clusters_count);
+    const ha = toBool(answers.ngfw_ha_required);
+    const internet = toNumber(answers.internet_throughput_gbps);
+    const eastWest = toNumber(answers.east_west_throughput_gbps);
+    const headroom = toNumber(answers.capacity_headroom_percent);
+    const parts: string[] = [];
+    const missing: string[] = [];
+    if (ngfwCount !== undefined) parts.push(`${ngfwCount} кластер(а/ов) NGFW`);
+    else missing.push('количество кластеров');
+    if (ha !== undefined) parts.push(ha ? 'с резервированием (HA)' : 'без резервирования (HA)');
+    else missing.push('требование HA');
+    if (ngfwCount !== undefined && ha !== undefined)
+      parts.push(`${ngfwCount * (ha ? 2 : 1)} узлов NGFW`);
+    if (internet !== undefined && eastWest !== undefined && headroom !== undefined) {
+      const target = (internet + eastWest) * (1 + headroom / 100);
+      parts.push(`целевая производительность с запасом — ${target.toFixed(2)} Гбит/с`);
+    } else {
+      if (internet === undefined) missing.push('пропускная способность Internet');
+      if (eastWest === undefined) missing.push('пропускная способность East-West');
+      if (headroom === undefined) missing.push('запас производительности');
+    }
+    if (parts.length > 0) {
+      infrastructure.computeResources = parts.join('; ');
+      record(
+        state,
+        'infrastructure.computeResources',
+        'questionnaire',
+        'ngfw_implementation_sizing',
+      );
+    }
+    if (missing.length > 0) {
+      gap(
+        state,
+        'infrastructure.computeResources',
+        'Параметры sizing NGFW',
+        'major',
+        `Не заданы в опроснике: ${missing.join(', ')}`,
+      );
+    }
   } else if (implementationProfile === 'siem') {
     const eps = toNumber(answers.eps_estimate) || 0;
     const peakFactor = toNumber(answers.eps_peak_factor) || 2;
@@ -487,10 +498,17 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     const appNodes = Math.max(ha ? 2 : 1, Math.ceil(identities / 50000), Math.ceil(targets / 20));
     infrastructure.computeResources = `IDM / IGA: ${identities} идентичностей, ${targets} целевых систем, не менее ${appNodes} логических прикладных узлов по пресейл-sizing`;
     record(state, 'infrastructure.computeResources', 'questionnaire', 'idm_sizing');
-  } else if (answers.ngfw_clusters_count) {
-    const ngfwCount = toNumber(answers.ngfw_clusters_count) || 1;
-    infrastructure.computeResources = `${ngfwCount} кластеров аппаратных платформ UserGate NGFW (HA Active-Passive), серверы управления Kaspersky Security Center и Cyberpeak`;
+  } else if (toNumber(answers.ngfw_clusters_count) !== undefined) {
+    const ngfwCount = toNumber(answers.ngfw_clusters_count)!;
+    infrastructure.computeResources = `количество кластеров NGFW по опроснику — ${ngfwCount}`;
     record(state, 'infrastructure.computeResources', 'questionnaire', 'ngfw_clusters_count');
+    gap(
+      state,
+      'infrastructure.computeResources',
+      'Конфигурация технических средств NGFW',
+      'major',
+      'Известно только количество кластеров; платформа, число узлов и HA не подтверждены',
+    );
   } else {
     gap(
       state,
