@@ -50,6 +50,8 @@ export async function loadCapacityRows(
   from: Date,
   weeks: number,
   withShifts = false,
+  /** Расчёты, которые нужны вариантам what-if, даже если сейчас вне горизонта. */
+  extraIds: string[] = [],
 ): Promise<{
   calcs: CapacityCalcRow[];
   capacities: RoleCapacityRow[];
@@ -65,16 +67,30 @@ export async function loadCapacityRows(
   const [calcs, capacities, calendars, reservations] = await Promise.all([
     prisma.calculation.findMany({
       where: {
-        stages: {
-          some: {
-            startDate: { lte: addDays(rangeEnd, pad) },
-            endDate: { gte: addDays(rangeStart, -pad) },
-          },
-        },
-        OR: [
-          { project: null },
+        AND: [
           {
-            project: { status: { not: 'archived' }, dealStatus: { notIn: ['lost', 'cancelled'] } },
+            OR: [
+              {
+                stages: {
+                  some: {
+                    startDate: { lte: addDays(rangeEnd, pad) },
+                    endDate: { gte: addDays(rangeStart, -pad) },
+                  },
+                },
+              },
+              ...(extraIds.length ? [{ id: { in: extraIds } }] : []),
+            ],
+          },
+          {
+            OR: [
+              { project: null },
+              {
+                project: {
+                  status: { not: 'archived' },
+                  dealStatus: { notIn: ['lost', 'cancelled'] },
+                },
+              },
+            ],
           },
         ],
       },

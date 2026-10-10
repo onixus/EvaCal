@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import {
+  carryDependencies,
   expandWithApprovals,
   scheduleItems,
   PrimaryStageInput,
@@ -9,20 +10,39 @@ import {
 import { computePmHours } from './pm';
 import { loadScheduleConfig } from './calendarData';
 
-/** Wipes and regenerates every Stage row for a calculation from an ordered list of primary stages. */
+/**
+ * Wipes and regenerates every Stage row for a calculation from an ordered list of primary stages.
+ * Явные зависимости этапов (#103 WP-5e) переносятся на пересозданные строки: этап
+ * узнаётся по `sourceStageId`, иначе по совпадению названия и роли. Зависимость,
+ * которая после перестановки этапов смотрит «назад» по списку, снимается.
+ */
 export async function rebuildStages(
   calculationId: string,
   primary: PrimaryStageInput[],
   startDate: Date,
   config: ScheduleConfig = DEFAULT_SCHEDULE_CONFIG,
 ) {
-  const scheduled = scheduleItems(expandWithApprovals(primary), startDate, config);
+  const [oldPrimary, oldDeps] = await Promise.all([
+    prisma.stage.findMany({
+      where: { calculationId, isApprovalTask: false },
+      orderBy: { order: 'asc' },
+      select: { id: true, name: true, role: true },
+    }),
+    prisma.stageDependency.findMany({
+      where: { calculationId },
+      select: { fromStageId: true, toStageId: true, lagDays: true },
+    }),
+  ]);
+  const items = expandWithApprovals(primary);
+  const dependencies = carryDependencies(primary, items, oldPrimary, oldDeps);
+  const scheduled = scheduleItems(items, startDate, config, dependencies);
 
+  // Зависимости удаляются каскадом вместе со строками этапов.
   await prisma.stage.deleteMany({ where: { calculationId } });
 
   if (scheduled.length === 0) return [];
 
-  await prisma.$transaction(
+  const created = await prisma.$transaction(
     scheduled.map((item) =>
       prisma.stage.create({
         data: {
@@ -42,6 +62,18 @@ export async function rebuildStages(
       }),
     ),
   );
+
+  if (dependencies.length > 0) {
+    await prisma.stageDependency.createMany({
+      data: dependencies.map((d) => ({
+        calculationId,
+        fromStageId: created[d.from].id,
+        toStageId: created[d.to].id,
+        type: 'FS',
+        lagDays: d.lagDays,
+      })),
+    });
+  }
 
   return prisma.stage.findMany({
     where: { calculationId },

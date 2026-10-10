@@ -32,7 +32,27 @@ function fmtDate(d: string | Date): string {
   });
 }
 
-export default function GanttChart({ stages }: { stages: GanttStage[] }) {
+export interface GanttDependency {
+  fromStageId: string;
+  toStageId: string;
+  lagDays: number;
+}
+
+export default function GanttChart({
+  stages,
+  dependencies = [],
+}: {
+  stages: GanttStage[];
+  /** Явные зависимости (#103 WP-5e): показываются у зависимого этапа. */
+  dependencies?: GanttDependency[];
+}) {
+  const nameById = new Map(stages.map((s) => [s.id, s.name]));
+  const predecessorsOf = (id: string) =>
+    dependencies
+      .filter((d) => d.toStageId === id)
+      .map(
+        (d) => `«${nameById.get(d.fromStageId) ?? '?'}»${d.lagDays ? ` +${d.lagDays} дн.` : ''}`,
+      );
   if (stages.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-nord-3 dark:text-nord-muted">
@@ -91,15 +111,16 @@ export default function GanttChart({ stages }: { stages: GanttStage[] }) {
             const leftPct = ((start - rangeStart) / rangeMs) * 100;
             const widthPct = Math.max(((end - start) / rangeMs) * 100, 1.2);
             const roleCfg = ROLE_COLORS[stage.role] ?? ROLE_COLORS.other;
+            const preds = predecessorsOf(stage.id);
 
             return (
               <div key={stage.id} className="group flex items-center gap-3 py-0.5">
                 <div
                   className="w-56 shrink-0 truncate text-xs font-medium text-slate-800 dark:text-nord-4"
-                  title={stage.name}
+                  title={preds.length ? `${stage.name}\nпосле ${preds.join(', ')}` : stage.name}
                 >
                   {stage.isApprovalTask ? '⏳ ' : ''}
-                  {stage.parallel ? '∥ ' : ''}
+                  {preds.length ? '↳ ' : stage.parallel ? '∥ ' : ''}
                   {stage.name}
                 </div>
 

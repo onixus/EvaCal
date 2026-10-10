@@ -12,6 +12,8 @@ import TotalsSummary, { RiskRow } from '@/components/TotalsSummary';
 import ExportLinks from '@/components/ExportLinks';
 import ActualsPanel from '@/components/ActualsPanel';
 import CapacityWarnings from '@/components/CapacityWarnings';
+import StageDependencyEditor, { DependencyRow } from '@/components/StageDependencyEditor';
+import EarliestStart from '@/components/EarliestStart';
 
 interface Calculation {
   id: string;
@@ -24,6 +26,7 @@ interface Calculation {
   project?: { id: string; name: string } | null;
   stages: StageRow[];
   risks: RiskRow[];
+  stageDependencies?: DependencyRow[];
 }
 
 interface EditableStage {
@@ -135,6 +138,8 @@ export default function ArchitectEditor({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           stages: stages.map((s) => ({
+            // id прежней строки: сервер переносит по нему зависимости этапа.
+            id: s.key,
             name: s.name,
             role: s.role,
             hours: Number(s.hours) || 0,
@@ -516,7 +521,24 @@ export default function ArchitectEditor({
         <div className="mb-3">
           <CapacityWarnings calculationId={calculation.id} refreshKey={calculation.startDate} />
         </div>
-        <GanttChart stages={calculation.stages} />
+        <GanttChart stages={calculation.stages} dependencies={calculation.stageDependencies} />
+        <div className="mt-4 border-t border-slate-200 pt-3 dark:border-nord-3">
+          <EarliestStart
+            calculationId={calculation.id}
+            canApply={viewerRole === 'architect' || viewerRole === 'admin'}
+          />
+        </div>
+      </div>
+
+      <div className="card p-5">
+        <h2 className="mb-3 font-medium">Зависимости этапов</h2>
+        <StageDependencyEditor
+          key={calculation.stages.map((s) => s.id).join(',')}
+          calculationId={calculation.id}
+          stages={calculation.stages}
+          initial={calculation.stageDependencies ?? []}
+          locked={locked}
+        />
       </div>
     </div>
   );

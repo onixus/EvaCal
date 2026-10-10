@@ -50,7 +50,10 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
       requirements?: string | null;
       parallel?: boolean;
       approvalDays?: number | null;
+      id?: unknown;
     }) => ({
+      // id прежней строки: по нему перестройка переносит явные зависимости этапа.
+      sourceStageId: typeof s.id === 'string' && s.id ? s.id : null,
       name: s.name,
       role: s.role,
       hours: s.hours,

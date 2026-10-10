@@ -195,6 +195,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         requirements: s.requirements,
         parallel: s.parallel,
         approvalDays: s.approvalDays,
+        sourceStageId: s.id,
       }));
     await rebuildStages(
       params.id,

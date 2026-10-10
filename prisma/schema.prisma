@@ -222,6 +222,8 @@ model Calculation {
   actualEntries   ActualEntry[]
   actualSyncRuns  ActualSyncRun[]
   taskMappings    ExternalTaskMapping[]
+  // #103 WP-5e: явные зависимости этапов
+  stageDependencies StageDependency[]
 
   // The calculation list is always sorted newest-first. `id` is part of the index
   // because it is the tie-breaker in the paged ordering: without it, rows sharing a
@@ -302,22 +304,22 @@ model GostPackage {
 // A stage on the Gantt chart. Approval tasks (auto-inserted whenever a stage's
 // executor role requires customer sign-off) are Stage rows with isApprovalTask = true.
 model Stage {
-  id                 String      @id @default(cuid())
+  id                 String            @id @default(cuid())
   calculationId      String
-  calculation        Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  calculation        Calculation       @relation(fields: [calculationId], references: [id], onDelete: Cascade)
   name               String
   role               String
   hours              Float
   order              Int
   startDate          DateTime
   endDate            DateTime
-  isApprovalTask     Boolean     @default(false)
+  isApprovalTask     Boolean           @default(false)
   approvalForStageId String?
-  status             String      @default("planned") // planned | in_progress | done | approved | rejected
+  status             String            @default("planned") // planned | in_progress | done | approved | rejected
   dueDate            DateTime?
   requirements       String? // "Требования и ограничения" for this specific stage
   // Architect-editable Gantt controls (primary stages only, not approval-task rows):
-  parallel           Boolean     @default(false) // starts alongside the preceding non-parallel stage
+  parallel           Boolean           @default(false) // starts alongside the preceding non-parallel stage
   approvalDays       Int? // custom duration (business days) for this stage's own approval task; null = default 3
   // Факт по этапу выигранной версии (Horizon E1); null — факт не вносился.
   actualHours        Float?
@@ -327,7 +329,10 @@ model Stage {
   // #103 WP-6a: actualHours/даты факта — агрегат этих записей
   actualEntries      ActualEntry[]
   taskMappings       ExternalTaskMapping[]
-  createdAt          DateTime    @default(now())
+  // Явные зависимости (#103 WP-5e): исходящие и входящие.
+  dependentsOut      StageDependency[] @relation("StageDependencyFrom")
+  dependenciesIn     StageDependency[] @relation("StageDependencyTo")
+  createdAt          DateTime          @default(now())
 
   // Stages are only ever read as "all rows for one calculation, in Gantt order".
   @@index([calculationId, order])
@@ -954,4 +959,42 @@ model NormProposal {
 
   @@index([formTemplateId, status, createdAt])
   @@index([stageTemplateId, status])
+}
+
+// ==== #103 WP-5e: stage dependencies ====
+// Явная зависимость этапов расчёта: этап toStage начинается после fromStage.
+// Тип — TEXT с CHECK (пока только 'FS' — окончание → начало), чтобы позже
+// добавить SS/FF без смены типа колонки. lagDays — пауза в рабочих днях по
+// производственному календарю. Петли и дубли запрещены в БД, циклы — в API
+// (lib/scheduling.ts validateDependencies). Перестройка этапов (rebuildStages)
+// переносит зависимости на пересозданные строки.
+model StageDependency {
+  id            String      @id @default(cuid())
+  calculationId String
+  calculation   Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  fromStageId   String
+  fromStage     Stage       @relation("StageDependencyFrom", fields: [fromStageId], references: [id], onDelete: Cascade)
+  toStageId     String
+  toStage       Stage       @relation("StageDependencyTo", fields: [toStageId], references: [id], onDelete: Cascade)
+  type          String      @default("FS")
+  lagDays       Int         @default(0)
+  createdAt     DateTime    @default(now())
+
+  @@unique([fromStageId, toStageId])
+  @@index([calculationId])
+  @@index([toStageId])
+}
+
+// Сохранённое сравнение вариантов ресурсного плана (сдвиг старта, подрядчик,
+// изменение команды). Только для истории и обсуждения: никогда не применяется
+// автоматически — даты меняет только /api/capacity/apply.
+model PlanScenario {
+  id        String   @id @default(cuid())
+  name      String
+  createdBy String
+  variants  Json
+  result    Json
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }
