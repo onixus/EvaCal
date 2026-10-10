@@ -28,6 +28,14 @@ export interface SerializedRemark {
   resolvedAt: string | null;
   verifiedBy: string | null;
   verifiedAt: string | null;
+  /** Журнал правок текста: прежний и новый текст, кто и когда. */
+  edits: {
+    id: string;
+    previousText: string;
+    newText: string;
+    editedBy: string;
+    editedAt: string;
+  }[];
 }
 
 export interface SerializedCheck {

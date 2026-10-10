@@ -187,6 +187,7 @@ export function currentStatus(results: ResultLike[]): AcceptanceStatus {
 }
 
 export interface EvidenceRef {
+  id: string;
   key: string;
   name: string;
   size: number;
@@ -377,40 +378,71 @@ export function evidenceKeyPrefix(packageId: string, checkId: string): string {
 }
 
 /**
- * Ссылки на вложения из запроса. Принимаются только ключи этой проверки
- * (префикс) без обходов пути; существование файлов проверяет хранилище.
+ * Вложения, прикрепляемые к результату, — идентификаторы загруженных к этой
+ * проверке файлов. Метаданные (имя, размер, загрузчик, время) клиент не
+ * передаёт: их фиксирует сервер при загрузке.
  */
-export function parseEvidenceRefs(
-  raw: unknown,
-  packageId: string,
-  checkId: string,
-): RuleResult<EvidenceRef[]> {
+export function parseEvidenceIds(raw: unknown): RuleResult<string[]> {
   if (raw === undefined || raw === null) return { ok: true, value: [] };
-  if (!Array.isArray(raw)) return deny(400, 'Вложения передаются списком');
+  if (!Array.isArray(raw) || raw.some((id) => typeof id !== 'string' || !id.trim())) {
+    return deny(400, 'Вложения передаются списком идентификаторов');
+  }
   if (raw.length > EVIDENCE_MAX_FILES) {
     return deny(400, `Не больше ${EVIDENCE_MAX_FILES} вложений на результат`);
   }
-  const prefix = evidenceKeyPrefix(packageId, checkId);
-  const refs: EvidenceRef[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') return deny(400, 'Некорректное вложение');
-    const r = item as Record<string, unknown>;
-    const key = str(r.key);
-    if (!key.startsWith(prefix) || key.includes('..') || key.slice(prefix.length).includes('/')) {
-      return deny(400, 'Вложение не относится к этой проверке');
-    }
-    refs.push({
-      key,
-      name: str(r.name).slice(0, 255) || key.slice(prefix.length),
-      size: Number(r.size) || 0,
-      mime: str(r.mime).slice(0, 100),
-      checksum: str(r.checksum).slice(0, 64),
-      uploadedAt: str(r.uploadedAt),
-      uploadedBy: str(r.uploadedBy).slice(0, 200),
-    });
+  const ids = raw.map((id: string) => id.trim());
+  if (new Set(ids).size !== ids.length) return deny(400, 'Вложение указано дважды');
+  return { ok: true, value: ids };
+}
+
+/**
+ * Имя вложения для показа и Content-Disposition: без пути, управляющих
+ * символов и угловых скобок, не длиннее 200 символов, с исходным расширением.
+ */
+export function sanitizeEvidenceName(raw: string, ext: string): string {
+  const base = (raw.split(/[\\/]/).pop() ?? '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f<>:"|?*]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const stem = base
+    .replace(/\.[^.]*$/, '')
+    .slice(0, 190)
+    .trim();
+  return `${stem || 'evidence'}.${ext}`;
+}
+
+/** Неприкреплённые вложения старше этого срока удаляются (см. docs/acceptance.md). */
+export const ORPHAN_EVIDENCE_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Удалить неприкреплённое вложение вправе загрузивший его или администратор;
+ * прикреплённое к результату — никто: оно часть журнала испытаний.
+ */
+export function canDeleteEvidence(
+  actor: { id: string; role: string | null },
+  evidence: { uploadedById: string; resultId: string | null },
+): RuleResult {
+  if (evidence.resultId) return deny(409, 'Вложение уже прикреплено к результату');
+  if (actor.role !== 'admin' && evidence.uploadedById !== actor.id) {
+    return deny(403, 'Удалить вложение может только загрузивший его или администратор');
   }
-  if (new Set(refs.map((r) => r.key)).size !== refs.length) {
-    return deny(400, 'Вложение указано дважды');
+  return { ok: true };
+}
+
+/**
+ * Править текст замечания вправе только его автор или администратор, и
+ * только пока замечание открыто. Замечание без известного автора правит
+ * только администратор.
+ */
+export function canEditRemark(
+  actor: { id: string; role: string | null },
+  remark: { status: string; createdById: string | null },
+): RuleResult {
+  if (remark.status !== 'open') return deny(409, 'Править можно только открытое замечание');
+  if (actor.role === 'admin') return { ok: true };
+  if (!remark.createdById || remark.createdById !== actor.id) {
+    return deny(403, 'Править замечание может только его автор или администратор');
   }
-  return { ok: true, value: refs };
+  return { ok: true };
 }

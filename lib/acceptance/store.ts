@@ -9,13 +9,16 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import { parsePackageSnapshot } from '@/lib/gost34/diff';
-import { loadStoredFile, storeAcceptanceEvidence } from '@/lib/gost34/storage';
+import { deleteAcceptanceEvidence, storeAcceptanceEvidence } from '@/lib/gost34/storage';
 import {
+  canDeleteEvidence,
+  canEditRemark,
   checkRemarkTransition,
   currentStatus,
   evidenceKeyPrefix,
-  EVIDENCE_TYPES,
   extractCheckSeeds,
+  ORPHAN_EVIDENCE_TTL_MS,
+  sanitizeEvidenceName,
   sortResultsNewestFirst,
   summarizeChecks,
   type AcceptanceStatus,
@@ -56,7 +59,16 @@ interface RemarkRow {
   resolvedAt: Date | null;
   verifiedBy: string | null;
   verifiedAt: Date | null;
+  edits?: {
+    id: string;
+    previousText: string;
+    newText: string;
+    editedBy: string;
+    editedAt: Date;
+  }[];
 }
+
+const REMARK_INCLUDE = { edits: { orderBy: { editedAt: 'asc' as const } } };
 
 interface CheckRow {
   id: string;
@@ -100,6 +112,13 @@ export function serializeRemark(row: RemarkRow): SerializedRemark {
     resolvedAt: iso(row.resolvedAt),
     verifiedBy: row.verifiedBy,
     verifiedAt: iso(row.verifiedAt),
+    edits: (row.edits ?? []).map((e) => ({
+      id: e.id,
+      previousText: e.previousText,
+      newText: e.newText,
+      editedBy: e.editedBy,
+      editedAt: e.editedAt.toISOString(),
+    })),
   };
 }
 
@@ -125,7 +144,7 @@ export function serializeCheck(row: CheckRow): SerializedCheck {
   };
 }
 
-const CHECK_INCLUDE = { results: true, remarks: true } as const;
+const CHECK_INCLUDE = { results: true, remarks: { include: REMARK_INCLUDE } } as const;
 
 /** Проверки редакции комплекта с полной историей результатов и замечаний. */
 export async function listChecks(packageId: string): Promise<SerializedCheck[]> {
@@ -205,9 +224,64 @@ export async function seedChecks(
   };
 }
 
+interface EvidenceRow {
+  id: string;
+  key: string;
+  name: string;
+  size: number;
+  mime: string;
+  checksum: string;
+  uploadedBy: string;
+  uploadedById: string;
+  uploadedAt: Date;
+  resultId: string | null;
+}
+
+export function serializeEvidence(row: EvidenceRow): EvidenceRef {
+  return {
+    id: row.id,
+    key: row.key,
+    name: row.name,
+    size: row.size,
+    mime: row.mime,
+    checksum: row.checksum,
+    uploadedBy: row.uploadedBy,
+    uploadedAt: row.uploadedAt.toISOString(),
+  };
+}
+
 /**
- * Сохраняет вложение проверки и возвращает ссылку на него. Ключ строит
- * сервер: имя файла пользователя в путь не попадает.
+ * Удаляет неприкреплённые вложения проверки старше `ORPHAN_EVIDENCE_TTL_MS`:
+ * загрузку начали, а результат так и не записали. Сбой удаления файла не
+ * мешает основной операции — строка остаётся, попытка повторится.
+ */
+export async function cleanupOrphanEvidence(checkId: string, now = new Date()): Promise<number> {
+  const stale = await prisma.acceptanceEvidence.findMany({
+    where: {
+      checkId,
+      resultId: null,
+      uploadedAt: { lt: new Date(now.getTime() - ORPHAN_EVIDENCE_TTL_MS) },
+    },
+    select: { id: true, key: true },
+  });
+  let removed = 0;
+  for (const row of stale) {
+    try {
+      const res = await prisma.acceptanceEvidence.deleteMany({
+        where: { id: row.id, resultId: null },
+      });
+      if (res.count > 0) await deleteAcceptanceEvidence(row.key);
+      removed += res.count;
+    } catch (err) {
+      console.warn(`[acceptance] не удалось удалить вложение ${row.key}:`, err);
+    }
+  }
+  return removed;
+}
+
+/**
+ * Сохраняет вложение проверки. Ключ, имя, загрузчика и время фиксирует
+ * сервер: клиент потом ссылается на вложение только по идентификатору.
  */
 export async function uploadEvidence(input: {
   packageId: string;
@@ -217,94 +291,137 @@ export async function uploadEvidence(input: {
   mime: string;
   buffer: Buffer;
   uploadedBy: string;
+  uploadedById: string;
 }): Promise<EvidenceRef> {
+  await cleanupOrphanEvidence(input.checkId);
   const key = `${evidenceKeyPrefix(input.packageId, input.checkId)}${randomUUID()}.${input.ext}`;
   const stored = await storeAcceptanceEvidence(key, input.buffer);
-  return {
-    key: stored.artifactPath,
-    name: input.fileName.slice(0, 255),
-    size: stored.sizeBytes,
-    mime: input.mime,
-    checksum: stored.checksum,
-    uploadedAt: new Date().toISOString(),
-    uploadedBy: input.uploadedBy,
-  };
-}
-
-/**
- * Сверяет ссылки на вложения с хранилищем: файл должен существовать, а
- * размер и контрольную сумму сервер берёт из самого файла, а не из запроса.
- */
-export async function resolveEvidence(refs: EvidenceRef[]): Promise<RuleResult<EvidenceRef[]>> {
-  const resolved: EvidenceRef[] = [];
-  for (const ref of refs) {
-    const file = await loadStoredFile(ref.key);
-    if (!file) return { ok: false, status: 400, error: `Вложение «${ref.name}» не найдено` };
-    const ext = ref.key.split('.').pop() ?? '';
-    resolved.push({
-      ...ref,
-      size: file.buffer.length,
-      checksum: file.checksum,
-      mime: EVIDENCE_TYPES[ext]?.[0] ?? 'application/octet-stream',
+  try {
+    const row = await prisma.acceptanceEvidence.create({
+      data: {
+        checkId: input.checkId,
+        key: stored.artifactPath,
+        name: sanitizeEvidenceName(input.fileName, input.ext),
+        size: stored.sizeBytes,
+        mime: input.mime,
+        checksum: stored.checksum,
+        uploadedBy: input.uploadedBy,
+        uploadedById: input.uploadedById,
+      },
     });
+    return serializeEvidence(row);
+  } catch (err) {
+    await deleteAcceptanceEvidence(stored.artifactPath).catch(() => undefined);
+    throw err;
   }
-  return { ok: true, value: resolved };
 }
 
-/** Вложение, на которое ссылается хотя бы один результат проверки. */
-export async function findEvidence(checkId: string, key: string): Promise<EvidenceRef | null> {
-  const results = await prisma.acceptanceResult.findMany({
-    where: { checkId },
-    select: { evidence: true },
+/** Удалить неприкреплённое вложение (загрузчик или администратор). */
+export async function deleteEvidence(input: {
+  checkId: string;
+  evidenceId: string;
+  actor: { id: string; role: string | null };
+}): Promise<RuleResult<EvidenceRef>> {
+  const row = await prisma.acceptanceEvidence.findFirst({
+    where: { id: input.evidenceId, checkId: input.checkId },
   });
-  for (const r of results) {
-    const refs = Array.isArray(r.evidence) ? (r.evidence as unknown as EvidenceRef[]) : [];
-    const hit = refs.find((e) => e && e.key === key);
-    if (hit) return hit;
+  if (!row) return { ok: false, status: 404, error: 'Вложение не найдено' };
+  const rule = canDeleteEvidence(input.actor, row);
+  if (!rule.ok) return rule;
+  // Условие resultId = null защищает от гонки с записью результата.
+  const res = await prisma.acceptanceEvidence.deleteMany({
+    where: { id: row.id, resultId: null },
+  });
+  if (res.count === 0) {
+    return { ok: false, status: 409, error: 'Вложение уже прикреплено к результату' };
   }
-  return null;
+  await deleteAcceptanceEvidence(row.key).catch((err) =>
+    console.warn(`[acceptance] файл вложения ${row.key} не удалён:`, err),
+  );
+  return { ok: true, value: serializeEvidence(row) };
 }
+
+/** Прикреплённое к результату вложение проверки по ключу (для скачивания). */
+export async function findEvidence(checkId: string, key: string): Promise<EvidenceRef | null> {
+  const row = await prisma.acceptanceEvidence.findFirst({
+    where: { checkId, key, resultId: { not: null } },
+  });
+  return row ? serializeEvidence(row) : null;
+}
+
+class EvidenceConflict extends Error {}
 
 /**
- * Записывает результат (новая строка, старые не трогаются). Если передан
- * текст замечания, оно создаётся в той же транзакции и ссылается на результат.
+ * Записывает результат (новая строка, старые не трогаются) и прикрепляет к
+ * нему вложения. Прикрепить можно только неприкреплённые вложения этой
+ * проверки; при гонке транзакция откатывается целиком. Если передан текст
+ * замечания, оно создаётся в той же транзакции и ссылается на результат.
  */
 export async function recordResult(input: {
   checkId: string;
   result: NormalizedResult;
   executorId: string | null;
-  evidence: EvidenceRef[];
+  evidenceIds: string[];
   recordedBy: string;
+  recordedById: string;
   remarkText?: string | null;
-}): Promise<{ result: SerializedResult; remark: SerializedRemark | null }> {
-  return prisma.$transaction(async (tx) => {
-    const row = await tx.acceptanceResult.create({
-      data: {
-        checkId: input.checkId,
-        status: input.result.status,
-        executorName: input.result.executorName,
-        executorId: input.executorId,
-        executedAt: input.result.executedAt,
-        actualResult: input.result.actualResult,
-        evidence: input.evidence as never,
-        recordedBy: input.recordedBy,
-      },
+}): Promise<RuleResult<{ result: SerializedResult; remark: SerializedRemark | null }>> {
+  try {
+    const value = await prisma.$transaction(async (tx) => {
+      const evidence = input.evidenceIds.length
+        ? await tx.acceptanceEvidence.findMany({
+            where: { id: { in: input.evidenceIds }, checkId: input.checkId, resultId: null },
+          })
+        : [];
+      if (evidence.length !== input.evidenceIds.length) throw new EvidenceConflict();
+      const ordered = input.evidenceIds.map((id) => evidence.find((e) => e.id === id)!);
+      const row = await tx.acceptanceResult.create({
+        data: {
+          checkId: input.checkId,
+          status: input.result.status,
+          executorName: input.result.executorName,
+          executorId: input.executorId,
+          executedAt: input.result.executedAt,
+          actualResult: input.result.actualResult,
+          evidence: ordered.map(serializeEvidence) as never,
+          recordedBy: input.recordedBy,
+        },
+      });
+      if (ordered.length) {
+        const attached = await tx.acceptanceEvidence.updateMany({
+          where: { id: { in: input.evidenceIds }, resultId: null },
+          data: { resultId: row.id },
+        });
+        if (attached.count !== ordered.length) throw new EvidenceConflict();
+      }
+      const remark = input.remarkText
+        ? await tx.acceptanceRemark.create({
+            data: {
+              checkId: input.checkId,
+              resultId: row.id,
+              text: input.remarkText,
+              createdBy: input.recordedBy,
+              createdById: input.recordedById,
+            },
+            include: REMARK_INCLUDE,
+          })
+        : null;
+      return {
+        result: serializeResult(row),
+        remark: remark ? serializeRemark(remark) : null,
+      };
     });
-    const remark = input.remarkText
-      ? await tx.acceptanceRemark.create({
-          data: {
-            checkId: input.checkId,
-            resultId: row.id,
-            text: input.remarkText,
-            createdBy: input.recordedBy,
-          },
-        })
-      : null;
-    return {
-      result: serializeResult(row),
-      remark: remark ? serializeRemark(remark) : null,
-    };
-  });
+    return { ok: true, value };
+  } catch (err) {
+    if (err instanceof EvidenceConflict) {
+      return {
+        ok: false,
+        status: 400,
+        error: 'Вложение не найдено, относится к другой проверке или уже прикреплено',
+      };
+    }
+    throw err;
+  }
 }
 
 export async function createRemark(input: {
@@ -312,8 +429,11 @@ export async function createRemark(input: {
   resultId: string | null;
   text: string;
   createdBy: string;
+  createdById: string;
 }): Promise<SerializedRemark> {
-  return serializeRemark(await prisma.acceptanceRemark.create({ data: input }));
+  return serializeRemark(
+    await prisma.acceptanceRemark.create({ data: input, include: REMARK_INCLUDE }),
+  );
 }
 
 /**
@@ -359,27 +479,56 @@ export async function transitionRemark(input: {
   if (updated.count === 0) {
     return { ok: false, status: 409, error: 'Замечание уже изменено другим пользователем' };
   }
-  const row = await prisma.acceptanceRemark.findUniqueOrThrow({ where: { id: remark.id } });
+  const row = await prisma.acceptanceRemark.findUniqueOrThrow({
+    where: { id: remark.id },
+    include: REMARK_INCLUDE,
+  });
   return { ok: true, value: serializeRemark(row) };
 }
 
-/** Правка текста открытого замечания. */
+/**
+ * Правка текста открытого замечания автором или администратором. Прежний
+ * текст сохраняется в журнале правок в той же транзакции; условие на текст и
+ * статус в `updateMany` не даёт одновременной правке потерять историю.
+ */
 export async function editRemarkText(input: {
   checkId: string;
   remarkId: string;
   text: string;
-}): Promise<RuleResult<SerializedRemark>> {
-  const updated = await prisma.acceptanceRemark.updateMany({
-    where: { id: input.remarkId, checkId: input.checkId, status: 'open' },
-    data: { text: input.text },
+  actor: { id: string; name: string; role: string | null };
+}): Promise<RuleResult<{ remark: SerializedRemark; previousText: string }>> {
+  const remark = await prisma.acceptanceRemark.findFirst({
+    where: { id: input.remarkId, checkId: input.checkId },
   });
-  if (updated.count === 0) {
-    return {
-      ok: false,
-      status: 409,
-      error: 'Править можно только открытое замечание этой проверки',
-    };
+  if (!remark) return { ok: false, status: 404, error: 'Замечание не найдено' };
+  const rule = canEditRemark(input.actor, remark);
+  if (!rule.ok) return rule;
+  if (remark.text === input.text) {
+    return { ok: false, status: 400, error: 'Текст замечания не изменился' };
   }
-  const row = await prisma.acceptanceRemark.findUniqueOrThrow({ where: { id: input.remarkId } });
-  return { ok: true, value: serializeRemark(row) };
+  const changed = await prisma.$transaction(async (tx) => {
+    const updated = await tx.acceptanceRemark.updateMany({
+      where: { id: remark.id, status: 'open', text: remark.text },
+      data: { text: input.text },
+    });
+    if (updated.count === 0) return false;
+    await tx.acceptanceRemarkEdit.create({
+      data: {
+        remarkId: remark.id,
+        previousText: remark.text,
+        newText: input.text,
+        editedBy: input.actor.name,
+        editedById: input.actor.id,
+      },
+    });
+    return true;
+  });
+  if (!changed) {
+    return { ok: false, status: 409, error: 'Замечание уже изменено другим пользователем' };
+  }
+  const row = await prisma.acceptanceRemark.findUniqueOrThrow({
+    where: { id: remark.id },
+    include: REMARK_INCLUDE,
+  });
+  return { ok: true, value: { remark: serializeRemark(row), previousText: remark.text } };
 }

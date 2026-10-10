@@ -43,6 +43,7 @@ CREATE TABLE "AcceptanceRemark" (
     "status" TEXT NOT NULL DEFAULT 'open',
     "retestResultId" TEXT,
     "createdBy" TEXT NOT NULL,
+    "createdById" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "resolvedBy" TEXT,
     "resolvedAt" TIMESTAMP(3),
@@ -80,6 +81,54 @@ ALTER TABLE "AcceptanceRemark" ADD CONSTRAINT "AcceptanceRemark_resultId_fkey" F
 ALTER TABLE "AcceptanceRemark" ADD CONSTRAINT "AcceptanceRemark_retestResultId_fkey" FOREIGN KEY ("retestResultId") REFERENCES "AcceptanceResult"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 
+-- CreateTable
+CREATE TABLE "AcceptanceRemarkEdit" (
+    "id" TEXT NOT NULL,
+    "remarkId" TEXT NOT NULL,
+    "previousText" TEXT NOT NULL,
+    "newText" TEXT NOT NULL,
+    "editedBy" TEXT NOT NULL,
+    "editedById" TEXT NOT NULL,
+    "editedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AcceptanceRemarkEdit_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AcceptanceEvidence" (
+    "id" TEXT NOT NULL,
+    "checkId" TEXT NOT NULL,
+    "resultId" TEXT,
+    "key" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "size" INTEGER NOT NULL,
+    "mime" TEXT NOT NULL,
+    "checksum" TEXT NOT NULL,
+    "uploadedBy" TEXT NOT NULL,
+    "uploadedById" TEXT NOT NULL,
+    "uploadedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AcceptanceEvidence_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "AcceptanceRemarkEdit_remarkId_editedAt_idx" ON "AcceptanceRemarkEdit"("remarkId", "editedAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AcceptanceEvidence_key_key" ON "AcceptanceEvidence"("key");
+
+-- CreateIndex
+CREATE INDEX "AcceptanceEvidence_checkId_resultId_idx" ON "AcceptanceEvidence"("checkId", "resultId");
+
+-- AddForeignKey
+ALTER TABLE "AcceptanceRemarkEdit" ADD CONSTRAINT "AcceptanceRemarkEdit_remarkId_fkey" FOREIGN KEY ("remarkId") REFERENCES "AcceptanceRemark"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AcceptanceEvidence" ADD CONSTRAINT "AcceptanceEvidence_checkId_fkey" FOREIGN KEY ("checkId") REFERENCES "AcceptanceCheck"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AcceptanceEvidence" ADD CONSTRAINT "AcceptanceEvidence_resultId_fkey" FOREIGN KEY ("resultId") REFERENCES "AcceptanceResult"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
 ALTER TABLE "AcceptanceCheck" ADD CONSTRAINT "AcceptanceCheck_method_check"
   CHECK ("method" IS NULL OR "method" IN ('INSPECTION', 'ANALYSIS', 'DEMONSTRATION', 'TEST'));
 
@@ -105,6 +154,9 @@ ALTER TABLE "AcceptanceRemark" ADD CONSTRAINT "AcceptanceRemark_resolved_check"
 ALTER TABLE "AcceptanceRemark" ADD CONSTRAINT "AcceptanceRemark_verified_check"
   CHECK ("status" <> 'verified'
     OR ("verifiedBy" IS NOT NULL AND "verifiedAt" IS NOT NULL AND "retestResultId" IS NOT NULL));
+
+ALTER TABLE "AcceptanceEvidence" ADD CONSTRAINT "AcceptanceEvidence_size_check"
+  CHECK ("size" > 0);
 
 -- Журнал результатов неизменяем: повторная проверка — новая строка. Удаление
 -- не запрещается, чтобы работал каскад при удалении комплекта.

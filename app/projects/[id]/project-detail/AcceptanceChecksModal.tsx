@@ -58,55 +58,82 @@ function ResultForm({
   check: SerializedCheck;
   onSaved: () => void;
 }) {
-  const [status, setStatus] = useState<AcceptanceStatus>('passed');
+  // Состояние не выбрано заранее: «пройдена» по умолчанию не назначается
+  // даже в форме — испытатель выбирает его явно.
+  const [status, setStatus] = useState<AcceptanceStatus | ''>('');
   const [executorSelf, setExecutorSelf] = useState(true);
   const [executorName, setExecutorName] = useState('');
   const [executedAt, setExecutedAt] = useState(nowLocalInput);
   const [actualResult, setActualResult] = useState('');
   const [remark, setRemark] = useState('');
   const [evidence, setEvidence] = useState<EvidenceRef[]>([]);
+  const [uploading, setUploading] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
   const base = `/api/gost34/packages/${pkgId}/checks/${check.id}`;
 
   async function upload(files: FileList | null) {
-    if (!files) return;
-    setError(null);
-    for (const file of Array.from(files)) {
-      const form = new FormData();
-      form.append('file', file);
-      const res = await fetch(`${base}/evidence`, { method: 'POST', body: form });
-      if (!res.ok) {
-        setError(`${file.name}: ${await readError(res)}`);
-        continue;
-      }
-      const data = await res.json();
-      setEvidence((prev) => [...prev, data.evidence]);
+    if (!files || files.length === 0) return;
+    const list = Array.from(files);
+    setErrors([]);
+    setUploading((n) => n + list.length);
+    const failures: string[] = [];
+    await Promise.all(
+      list.map(async (file) => {
+        try {
+          const form = new FormData();
+          form.append('file', file);
+          const res = await fetch(`${base}/evidence`, { method: 'POST', body: form });
+          if (!res.ok) {
+            failures.push(`${file.name}: ${await readError(res)}`);
+            return;
+          }
+          const data = await res.json();
+          setEvidence((prev) => [...prev, data.evidence]);
+        } catch (err) {
+          failures.push(`${file.name}: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          setUploading((n) => n - 1);
+        }
+      }),
+    );
+    if (failures.length) setErrors(failures);
+  }
+
+  /** ✕ удаляет неприкреплённую загрузку на сервере, а не только из списка. */
+  async function removeEvidence(ev: EvidenceRef) {
+    const res = await fetch(`${base}/evidence?evidenceId=${encodeURIComponent(ev.id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      setErrors([`${ev.name}: ${await readError(res)}`]);
+      return;
     }
+    setEvidence((prev) => prev.filter((p) => p.id !== ev.id));
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!status || uploading > 0) return;
     setBusy(true);
-    setError(null);
+    setErrors([]);
     try {
       const res = await fetch(`${base}/results`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status,
-          executorSelf,
-          executorName: executorSelf ? undefined : executorName,
+          ...(executorSelf ? { executorSelf: true } : { executorName }),
           executedAt: executedAt ? new Date(executedAt).toISOString() : null,
           actualResult,
-          evidence,
+          evidenceIds: evidence.map((ev) => ev.id),
           remark: status === 'failed' || status === 'blocked' ? remark : undefined,
         }),
       });
       if (!res.ok) throw new Error(await readError(res));
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setErrors([err instanceof Error ? err.message : String(err)]);
     } finally {
       setBusy(false);
     }
@@ -120,12 +147,16 @@ function ResultForm({
     >
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <label className="flex items-center gap-1.5">
-          Состояние:
+          Состояние*:
           <select
             value={status}
-            onChange={(e) => setStatus(e.target.value as AcceptanceStatus)}
+            onChange={(e) => setStatus(e.target.value as AcceptanceStatus | '')}
             className="input py-1 text-xs"
+            required
           >
+            <option value="" disabled>
+              — выберите —
+            </option>
             <option value="passed">Пройдена</option>
             <option value="failed">Не пройдена</option>
             <option value="blocked">Заблокирована</option>
@@ -196,25 +227,39 @@ function ResultForm({
         </label>
         {evidence.map((ev) => (
           <span
-            key={ev.key}
+            key={ev.id}
             className="rounded bg-slate-100 px-2 py-0.5 dark:bg-nord-1"
             title={`SHA-256 ${ev.checksum}`}
           >
             {ev.name}{' '}
             <button
               type="button"
-              aria-label={`Убрать ${ev.name}`}
-              onClick={() => setEvidence((prev) => prev.filter((p) => p.key !== ev.key))}
+              aria-label={`Удалить ${ev.name}`}
+              onClick={() => void removeEvidence(ev)}
             >
               ✕
             </button>
           </span>
         ))}
+        {uploading > 0 && (
+          <span className="text-slate-500 dark:text-nord-muted">Загрузка: {uploading}…</span>
+        )}
         <span className="text-slate-400 dark:text-nord-muted">до 10 МБ</span>
       </div>
-      {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
-      <button type="submit" disabled={busy} className="btn-primary text-xs">
-        {busy ? 'Сохранение…' : 'Записать результат'}
+      {errors.length > 0 && (
+        <ul className="list-disc pl-5 text-xs text-rose-600 dark:text-rose-400">
+          {errors.map((err, i) => (
+            <li key={i}>{err}</li>
+          ))}
+        </ul>
+      )}
+      <button
+        type="submit"
+        disabled={busy || uploading > 0 || !status}
+        className="btn-primary text-xs"
+        title={!status ? 'Выберите состояние проверки' : undefined}
+      >
+        {busy ? 'Сохранение…' : uploading > 0 ? 'Дождитесь загрузки…' : 'Записать результат'}
       </button>
     </form>
   );
@@ -264,6 +309,8 @@ function RemarkRow({
         <span className="text-slate-400 dark:text-nord-muted">
           {remark.createdBy}, {fmtDate(remark.createdAt)}
           {remark.verifiedBy && ` · проверил ${remark.verifiedBy}, ${fmtDate(remark.verifiedAt)}`}
+          {remark.edits.length > 0 &&
+            ` · изменено ${remark.edits.length} раз (последний — ${remark.edits[remark.edits.length - 1].editedBy})`}
         </span>
         {canRecord && remark.status === 'open' && (
           <button type="button" className="underline" onClick={() => void act('resolve')}>

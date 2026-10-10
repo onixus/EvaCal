@@ -825,6 +825,7 @@ model AcceptanceCheck {
   createdAt       DateTime           @default(now())
   results         AcceptanceResult[]
   remarks         AcceptanceRemark[]
+  evidence        AcceptanceEvidence[]
 
   @@unique([packageId, requirementId])
   @@index([calculationId])
@@ -839,13 +840,15 @@ model AcceptanceResult {
   executorId   String?
   executedAt   DateTime?
   actualResult String?
-  /// Ссылки на вложения: [{ key, name, size, mime, checksum, uploadedAt, uploadedBy }].
+  /// Снимок вложений на момент записи: [{ id, key, name, size, mime, checksum, uploadedAt, uploadedBy }].
+  /// Источник истины — AcceptanceEvidence (загрузчик и время фиксируются при загрузке).
   evidence     Json            @default("[]")
   recordedBy   String
   createdAt    DateTime        @default(now())
 
   remarks       AcceptanceRemark[] @relation("AcceptanceRemarkResult")
   retestRemarks AcceptanceRemark[] @relation("AcceptanceRemarkRetest")
+  attachments   AcceptanceEvidence[]
 
   @@index([checkId, createdAt])
 }
@@ -861,11 +864,50 @@ model AcceptanceRemark {
   retestResultId String?
   retestResult   AcceptanceResult? @relation("AcceptanceRemarkRetest", fields: [retestResultId], references: [id], onDelete: SetNull)
   createdBy      String
+  // User.id автора: править текст вправе только автор или администратор.
+  createdById    String?
   createdAt      DateTime          @default(now())
   resolvedBy     String?
   resolvedAt     DateTime?
   verifiedBy     String?
   verifiedAt     DateTime?
+  edits          AcceptanceRemarkEdit[]
 
   @@index([checkId, status])
+}
+
+// Журнал правок текста замечания: прежний и новый текст, кто и когда.
+model AcceptanceRemarkEdit {
+  id           String           @id @default(cuid())
+  remarkId     String
+  remark       AcceptanceRemark @relation(fields: [remarkId], references: [id], onDelete: Cascade)
+  previousText String
+  newText      String
+  editedBy     String
+  editedById   String
+  editedAt     DateTime         @default(now())
+
+  @@index([remarkId, editedAt])
+}
+
+// Вложение проверки. Загрузчик и время фиксирует сервер при загрузке; до
+// записи результата вложение не прикреплено (resultId = null) и может быть
+// удалено загрузчиком. Неприкреплённые вложения старше суток удаляются при
+// следующей загрузке к той же проверке (см. docs/acceptance.md).
+model AcceptanceEvidence {
+  id           String            @id @default(cuid())
+  checkId      String
+  check        AcceptanceCheck   @relation(fields: [checkId], references: [id], onDelete: Cascade)
+  resultId     String?
+  result       AcceptanceResult? @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  key          String            @unique
+  name         String
+  size         Int
+  mime         String
+  checksum     String
+  uploadedBy   String
+  uploadedById String
+  uploadedAt   DateTime          @default(now())
+
+  @@index([checkId, resultId])
 }

@@ -7,6 +7,7 @@ import {
   REVIEW_STAGE_LABELS,
   type ReviewStage,
 } from '@/lib/gost34/review/types';
+import { isPackageEligibleForChecks } from '@/lib/acceptance/rules';
 import { PackageStatusBadge } from './StatusBadges';
 import type { SerializedCalculation, SerializedGostPackage } from './types';
 
@@ -29,7 +30,7 @@ export default function PackagesTab({
   onCompare: () => void;
   onShare: (pkg: SerializedGostPackage) => void;
   onReview: (pkg: SerializedGostPackage, decision: 'approve' | 'reject') => void;
-  /** Испытания и приёмка: только для утверждённой редакции. */
+  /** Испытания и приёмка: по тому же правилу, что и сервер (`isPackageEligibleForChecks`). */
   onAcceptance: (pkg: SerializedGostPackage) => void;
 }) {
   return (
@@ -189,7 +190,7 @@ export default function PackagesTab({
                       >
                         Поделиться
                       </button>
-                      {pkg.status === 'approved' && (
+                      {isPackageEligibleForChecks(pkg) && (
                         <button
                           type="button"
                           onClick={() => onAcceptance(pkg)}

@@ -17,9 +17,12 @@ vi.mock('@/lib/acceptance/store', () => ({
   summarize: vi.fn(() => ({ total: 0, byStatus: {}, openRemarks: 0 })),
   seedChecks: vi.fn(async () => ({ created: 2, total: 2 })),
   loadCheck: vi.fn(),
-  recordResult: vi.fn(async () => ({ result: { id: 'r1', status: 'passed' }, remark: null })),
-  resolveEvidence: vi.fn(async (refs: unknown) => ({ ok: true, value: refs })),
+  recordResult: vi.fn(async () => ({
+    ok: true,
+    value: { result: { id: 'r1', status: 'passed' }, remark: null },
+  })),
   uploadEvidence: vi.fn(),
+  deleteEvidence: vi.fn(),
   findEvidence: vi.fn(),
   createRemark: vi.fn(async () => ({ id: 'm1' })),
   transitionRemark: vi.fn(),
@@ -37,15 +40,19 @@ import { GET as listRoute, POST as seedRoute } from '@/app/api/gost34/packages/[
 import { POST as recordRoute } from '@/app/api/gost34/packages/[id]/checks/[checkId]/results/route';
 import { POST as remarkRoute } from '@/app/api/gost34/packages/[id]/checks/[checkId]/remarks/route';
 import { PATCH as remarkPatch } from '@/app/api/gost34/packages/[id]/checks/[checkId]/remarks/[remarkId]/route';
-import { GET as evidenceGet } from '@/app/api/gost34/packages/[id]/checks/[checkId]/evidence/route';
 import {
+  GET as evidenceGet,
+  POST as evidencePost,
+} from '@/app/api/gost34/packages/[id]/checks/[checkId]/evidence/route';
+import {
+  editRemarkText,
   findEvidence,
   loadCheck,
   recordResult,
   seedChecks,
   transitionRemark,
+  uploadEvidence,
 } from '@/lib/acceptance/store';
-import { evidenceKeyPrefix } from './rules';
 
 const pkgProps = { params: Promise.resolve({ id: 'p1' }) };
 const checkProps = { params: Promise.resolve({ id: 'p1', checkId: 'c1' }) };
@@ -167,7 +174,7 @@ describe('Маршруты проверок приёмки', () => {
   it('executorSelf подставляет вошедшего как исполнителя', async () => {
     asRole('gap');
     const res = await recordRoute(
-      request({ ...passed, executorName: 'подделка', executorSelf: true }),
+      request({ ...passed, executorName: undefined, executorSelf: true }),
       checkProps,
     );
     expect(res.status).toBe(201);
@@ -185,18 +192,85 @@ describe('Маршруты проверок приёмки', () => {
     expect((await recordRoute(request(passed), checkProps)).status).toBe(404);
   });
 
-  it('вложение чужой проверки отклоняется', async () => {
+  it('вложения передаются идентификаторами, а не ключами', async () => {
     asRole('architect');
-    const res = await recordRoute(
-      request({ ...passed, evidence: [{ key: `${evidenceKeyPrefix('p1', 'c2')}a.pdf` }] }),
+    const keys = await recordRoute(
+      request({ ...passed, evidenceIds: [{ key: 'acceptance/p1/c1/a.pdf' }] }),
       checkProps,
     );
-    expect(res.status).toBe(400);
-    const ok = await recordRoute(
-      request({ ...passed, evidence: [{ key: `${evidenceKeyPrefix('p1', 'c1')}a.pdf` }] }),
-      checkProps,
-    );
+    expect(keys.status).toBe(400);
+    const ok = await recordRoute(request({ ...passed, evidenceIds: ['e1'] }), checkProps);
     expect(ok.status).toBe(201);
+    expect(recordResult).toHaveBeenCalledWith(
+      expect.objectContaining({ evidenceIds: ['e1'], recordedById: 'u-architect' }),
+    );
+  });
+
+  it('исполнитель-пользователь получает имя из учётной записи; смешивать способы нельзя', async () => {
+    asRole('architect');
+    const { executorName: _name, ...withoutName } = passed;
+    void _name;
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'u7', username: 'petrov' } as never);
+    const byId = await recordRoute(request({ ...withoutName, executorId: 'u7' }), checkProps);
+    expect(byId.status).toBe(201);
+    expect(recordResult).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        executorId: 'u7',
+        result: expect.objectContaining({ executorName: 'petrov' }),
+      }),
+    );
+    for (const body of [
+      { ...passed, executorId: 'u7' },
+      { ...passed, executorSelf: true },
+      { ...withoutName, executorSelf: true, executorId: 'u7' },
+    ]) {
+      expect((await recordRoute(request(body), checkProps)).status).toBe(400);
+    }
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    expect(
+      (await recordRoute(request({ ...withoutName, executorId: 'ghost' }), checkProps)).status,
+    ).toBe(400);
+  });
+
+  it('загрузка больше лимита отклоняется до разбора multipart', async () => {
+    asRole('architect');
+    const req = new NextRequest('http://localhost/x', {
+      method: 'POST',
+      body: 'x',
+      headers: { 'Content-Type': 'multipart/form-data; boundary=x', 'Content-Length': '20000000' },
+    });
+    expect((await evidencePost(req, checkProps)).status).toBe(413);
+    expect(uploadEvidence).not.toHaveBeenCalled();
+  });
+
+  it('загрузчика вложения фиксирует сервер', async () => {
+    asRole('gap');
+    vi.mocked(uploadEvidence).mockResolvedValue({ id: 'e1', key: 'k' } as never);
+    const form = new FormData();
+    form.append('file', new File(['%PDF'], 'p.pdf', { type: 'application/pdf' }));
+    const req = new NextRequest('http://localhost/x', { method: 'POST', body: form });
+    expect((await evidencePost(req, checkProps)).status).toBe(201);
+    expect(uploadEvidence).toHaveBeenCalledWith(
+      expect.objectContaining({ uploadedBy: 'gap-login', uploadedById: 'u-gap', ext: 'pdf' }),
+    );
+  });
+
+  it('правка текста замечания: автор/админ решает store, аудит получает прежний текст', async () => {
+    asRole('architect');
+    vi.mocked(editRemarkText).mockResolvedValue({
+      ok: false,
+      status: 403,
+      error: 'Править замечание может только его автор или администратор',
+    });
+    expect(
+      (await remarkPatch(request({ text: 'новый' }, undefined, 'PATCH'), remarkProps)).status,
+    ).toBe(403);
+    expect(editRemarkText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: 'новый',
+        actor: expect.objectContaining({ id: 'u-architect', role: 'architect' }),
+      }),
+    );
   });
 
   it('засев: пустой снимок — 422, иначе 201', async () => {

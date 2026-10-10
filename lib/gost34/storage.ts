@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
   PutObjectCommand,
@@ -38,6 +39,11 @@ export interface ArtifactBackend {
   put(key: string, buffer: Buffer | Uint8Array): Promise<void>;
   /** null — объекта нет. */
   get(key: string): Promise<Buffer | null>;
+  /**
+   * Удалить объект; отсутствующий объект — не ошибка. Нужен только для
+   * неприкреплённых вложений испытаний: артефакты комплектов не удаляются.
+   */
+  delete?(key: string): Promise<void>;
 }
 
 export interface StoredArtifactInfo {
@@ -111,6 +117,15 @@ function createFsBackend(): ArtifactBackend {
         throw err;
       }
     },
+    async delete(key) {
+      const baseDir = getPackageStorageDir();
+      const resolvedPath = path.resolve(baseDir, key);
+      const rel = path.relative(baseDir, resolvedPath);
+      if (rel.startsWith('..') || path.isAbsolute(rel)) {
+        throw new Error('Path traversal attempt in artifact path');
+      }
+      await fs.rm(resolvedPath, { force: true });
+    },
   };
 }
 
@@ -182,6 +197,9 @@ export function createS3Backend(client: S3ClientLike, options: S3StorageOptions)
         if (name === 'NoSuchKey' || name === 'NotFound' || status === 404) return null;
         throw err;
       }
+    },
+    async delete(key) {
+      await client.send(new DeleteObjectCommand({ Bucket: options.bucket, Key: fullKey(key) }));
     },
   };
 }
@@ -301,4 +319,17 @@ export async function storeAcceptanceEvidence(
   }
   await getBackend().put(safeKey, buffer);
   return { artifactPath: safeKey, checksum: calculateChecksum(buffer), sizeBytes: buffer.length };
+}
+
+/**
+ * Удаляет неприкреплённое вложение испытаний. Работает только с ключами
+ * `acceptance/…`: артефакты выпусков и версии тех.писателя неизменяемы.
+ */
+export async function deleteAcceptanceEvidence(key: string): Promise<void> {
+  const safeKey = assertSafeKey(key);
+  if (!safeKey.startsWith('acceptance/')) {
+    throw new Error('Only acceptance evidence can be deleted');
+  }
+  const backend = getBackend();
+  if (backend.delete) await backend.delete(safeKey);
 }

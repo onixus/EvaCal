@@ -3,9 +3,9 @@ import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 import { handleApiError } from '@/lib/apiHelpers';
 import { contentDisposition, responseBody, safeFileName } from '@/lib/exportResponse';
 import { loadStoredFile } from '@/lib/gost34/storage';
-import { loadPackageForRead, loadPackageForWrite } from '@/lib/acceptance/http';
+import { evidenceFormData, loadPackageForRead, loadPackageForWrite } from '@/lib/acceptance/http';
 import { validateEvidenceFile } from '@/lib/acceptance/rules';
-import { findEvidence, loadCheck, uploadEvidence } from '@/lib/acceptance/store';
+import { deleteEvidence, findEvidence, loadCheck, uploadEvidence } from '@/lib/acceptance/store';
 
 type Props = { params: Promise<{ id: string; checkId: string }> };
 
@@ -13,6 +13,8 @@ type Props = { params: Promise<{ id: string; checkId: string }> };
  * Загрузка вложения к будущему результату проверки (протокол, скриншот,
  * журнал). Файл сохраняется в хранилище комплектов под ключом проверки и
  * возвращается ссылкой; к результату он привязывается при записи результата.
+ * Загрузчика, время и имя фиксирует сервер; размер ограничивается до разбора
+ * multipart.
  */
 export async function POST(req: NextRequest, props: Props) {
   try {
@@ -24,8 +26,9 @@ export async function POST(req: NextRequest, props: Props) {
     const check = await loadCheck(pkg.id, checkId);
     if (!check) return NextResponse.json({ error: 'Проверка не найдена' }, { status: 404 });
 
-    const form = await req.formData().catch(() => null);
-    const file = form?.get('file');
+    const form = await evidenceFormData(req);
+    if (form instanceof NextResponse) return form;
+    const file = form.get('file');
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'Файл не передан' }, { status: 400 });
     }
@@ -40,6 +43,7 @@ export async function POST(req: NextRequest, props: Props) {
       mime: valid.value.mime,
       buffer: Buffer.from(await file.arrayBuffer()),
       uploadedBy: actor.name,
+      uploadedById: actor.id,
     });
 
     await writeAudit({
@@ -48,7 +52,13 @@ export async function POST(req: NextRequest, props: Props) {
       action: 'acceptance_evidence.upload',
       entityType: 'gost_package',
       entityId: pkg.id,
-      meta: { checkId: check.id, key: ref.key, size: ref.size, checksum: ref.checksum },
+      meta: {
+        checkId: check.id,
+        evidenceId: ref.id,
+        key: ref.key,
+        size: ref.size,
+        checksum: ref.checksum,
+      },
       ip: clientIp(req),
     });
 
@@ -91,5 +101,39 @@ export async function GET(req: NextRequest, props: Props) {
     });
   } catch (err) {
     return handleApiError(err, 'Failed to download acceptance evidence', 500);
+  }
+}
+
+/**
+ * Удалить неприкреплённое вложение (`?evidenceId=`): загрузивший его или
+ * администратор. Вложение, прикреплённое к результату, не удаляется — оно
+ * часть журнала испытаний.
+ */
+export async function DELETE(req: NextRequest, props: Props) {
+  try {
+    const { id, checkId } = await props.params;
+    const loaded = await loadPackageForWrite(req, id);
+    if (loaded instanceof NextResponse) return loaded;
+    const { pkg, access, actor } = loaded;
+    const check = await loadCheck(pkg.id, checkId);
+    if (!check) return NextResponse.json({ error: 'Проверка не найдена' }, { status: 404 });
+
+    const evidenceId = req.nextUrl.searchParams.get('evidenceId') ?? '';
+    if (!evidenceId) return NextResponse.json({ error: 'Укажите evidenceId' }, { status: 400 });
+    const res = await deleteEvidence({ checkId: check.id, evidenceId, actor });
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
+
+    await writeAudit({
+      actorType: actorTypeFromAccess(access.kind),
+      actorId: actor.id,
+      action: 'acceptance_evidence.delete',
+      entityType: 'gost_package',
+      entityId: pkg.id,
+      meta: { checkId: check.id, evidenceId, key: res.value.key },
+      ip: clientIp(req),
+    });
+    return NextResponse.json({ deleted: res.value.id });
+  } catch (err) {
+    return handleApiError(err, 'Failed to delete acceptance evidence', 500);
   }
 }

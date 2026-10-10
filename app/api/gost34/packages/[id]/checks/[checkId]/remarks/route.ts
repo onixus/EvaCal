@@ -54,6 +54,7 @@ export async function POST(req: NextRequest, props: Props) {
       resultId,
       text,
       createdBy: actor.name,
+      createdById: actor.id,
     });
 
     await writeAudit({

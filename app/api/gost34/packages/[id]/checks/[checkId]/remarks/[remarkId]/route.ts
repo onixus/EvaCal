@@ -9,7 +9,8 @@ type Props = { params: Promise<{ id: string; checkId: string; remarkId: string }
 
 /**
  * Смена состояния замечания (`action`: resolve | reopen | verify) или правка
- * текста открытого замечания (`text`). Снять замечание (`verify`) можно только
+ * текста открытого замечания (`text`) — только автором или администратором;
+ * прежний текст сохраняется в журнале правок и в аудите. Снять замечание (`verify`) можно только
  * ссылкой на пройденную повторную проверку — `retestResultId`.
  *
  * Удаления нет намеренно: замечание — часть истории испытаний; ошибочное
@@ -27,6 +28,7 @@ export async function PATCH(req: NextRequest, props: Props) {
     const body = await req.json().catch(() => ({}));
     let result;
     let auditAction: string;
+    let auditMeta: Record<string, unknown> = {};
     if (body?.action !== undefined) {
       if (!isRemarkAction(body.action)) {
         return NextResponse.json(
@@ -45,8 +47,11 @@ export async function PATCH(req: NextRequest, props: Props) {
     } else if (typeof body?.text === 'string') {
       const text = body.text.trim().slice(0, 4000);
       if (!text) return NextResponse.json({ error: 'Укажите текст замечания' }, { status: 400 });
-      result = await editRemarkText({ checkId: check.id, remarkId, text });
+      const edited = await editRemarkText({ checkId: check.id, remarkId, text, actor });
+      if (!edited.ok) return NextResponse.json({ error: edited.error }, { status: edited.status });
+      result = { ok: true as const, value: edited.value.remark };
       auditAction = 'acceptance_remark.edit';
+      auditMeta = { previousText: edited.value.previousText, newText: text };
     } else {
       return NextResponse.json({ error: 'Укажите action или text' }, { status: 400 });
     }
@@ -63,6 +68,7 @@ export async function PATCH(req: NextRequest, props: Props) {
         remarkId,
         status: result.value.status,
         retestResultId: result.value.retestResultId,
+        ...auditMeta,
       },
       ip: clientIp(req),
     });

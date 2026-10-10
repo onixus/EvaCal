@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireCalcAccess, type AccessContext } from '@/lib/access';
-import { canRecordAcceptance, isPackageEligibleForChecks } from './rules';
+import { canRecordAcceptance, EVIDENCE_MAX_BYTES, isPackageEligibleForChecks } from './rules';
 
 export type PackageRow = NonNullable<Awaited<ReturnType<typeof prisma.gostPackage.findUnique>>>;
 
@@ -66,4 +66,51 @@ export async function loadPackageForWrite(
     );
   }
   return loaded;
+}
+
+/** Запас на заголовки multipart поверх размера файла. */
+const MULTIPART_OVERHEAD = 64 * 1024;
+
+/**
+ * Разбор multipart-загрузки вложения с ограничением размера до декодирования:
+ * сначала по Content-Length, затем по фактическому потоку (браузер или прокси
+ * могут не прислать Content-Length). Как `lib/catalog/import-body.ts`.
+ */
+export async function evidenceFormData(req: Request): Promise<FormData | NextResponse> {
+  const limit = EVIDENCE_MAX_BYTES + MULTIPART_OVERHEAD;
+  const tooLarge = () => NextResponse.json({ error: 'Файл больше 10 МБ' }, { status: 413 });
+  if (Number(req.headers.get('content-length')) > limit) return tooLarge();
+  const reader = req.body?.getReader();
+  if (!reader) return NextResponse.json({ error: 'Файл не передан' }, { status: 400 });
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limit) {
+        await reader.cancel();
+        return tooLarge();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return await new Request(req.url, {
+      method: 'POST',
+      headers: req.headers,
+      body: bytes,
+    }).formData();
+  } catch {
+    return NextResponse.json({ error: 'Некорректная multipart-загрузка' }, { status: 400 });
+  }
 }
