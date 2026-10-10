@@ -4,6 +4,7 @@ import GplImportPanel from './catalog/GplImportPanel';
 import { useEffect, useState } from 'react';
 import type { Catalog, Product, ProductInput, OfferInput, Vendor } from '@/lib/catalog/types';
 import { ITEM_KINDS } from '@/lib/specification/types';
+import { parseTaxInput, taxLabel } from '@/lib/catalog/import-values';
 const blankProduct = (): ProductInput => ({
   vendorId: '',
   name: '',
@@ -78,7 +79,7 @@ export default function CatalogPanel() {
     ['unit', 'Единица'],
     ['licensing', 'Лицензирование'],
   ];
-  const offerFields: Array<[keyof OfferInput, string]> = [
+  const offerFields: Array<[Exclude<keyof OfferInput, 'taxExempt'>, string]> = [
     ['source', 'Источник цены'],
     ['unitPrice', 'Цена за единицу: пусто — неизвестно'],
     ['currency', 'Валюта'],
@@ -86,7 +87,7 @@ export default function CatalogPanel() {
     ['terms', 'Условия / срок поставки'],
     ['priceDate', 'Дата цены'],
     ['validUntil', 'Действует до'],
-    ['taxRate', 'НДС, %: пусто — неизвестно'],
+    ['taxRate', 'НДС, % или «Без НДС»: пусто — неизвестно'],
     ['discountCategory', 'Скидочная категория'],
   ];
   return (
@@ -348,17 +349,25 @@ export default function CatalogPanel() {
         <button
           className="btn-primary"
           disabled={!offerProduct || !offer.source.trim()}
-          onClick={() =>
-            mutate(
+          onClick={() => {
+            // Same tax formats as the GPL importer («20», «20%», «Без НДС»).
+            let tax;
+            try {
+              tax = parseTaxInput(offer.taxRate);
+            } catch (e) {
+              setError((e as Error).message);
+              return;
+            }
+            void mutate(
               {
                 action: 'offer.create',
                 id: offerProductId,
                 revision: offerRevision,
-                offer,
+                offer: { ...offer, ...tax },
               },
               () => setOffer(blankOffer()),
-            )
-          }
+            );
+          }}
         >
           Сохранить отдельное предложение
         </button>
@@ -477,7 +486,7 @@ export default function CatalogPanel() {
                     Ред. позиции {o.productRevision} · {o.unitPrice ?? 'Цена неизвестна'}{' '}
                     {o.currency} · {o.source} · {o.region || 'Регион не задан'} · дата цены{' '}
                     {o.priceDate || 'неизвестна'} · действует до {o.validUntil || 'неизвестно'} ·
-                    НДС {o.taxRate == null ? 'неизвестен' : `${o.taxRate}%`}
+                    {taxLabel(o)}
                     {o.discountCategory
                       ? ` · скидочная категория ${o.discountCategory}`
                       : ''} · {o.terms} · добавлено {o.createdAt} · {o.createdBy}

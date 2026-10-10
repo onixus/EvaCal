@@ -492,6 +492,7 @@ model CatalogOffer {
   priceDate          String?
   validUntil         String?
   taxRate            Decimal?       @db.Decimal(7, 4) // Percent; null is unknown, not 0.
+  taxExempt          Boolean        @default(false) // Explicit «Без НДС», distinct from unknown.
   discountCategory   String         @default("")
   // unconfirmed | confirmed. GPL offers are confirmed only by the explicit import confirmation.
   confirmationStatus String         @default("unconfirmed")
@@ -735,5 +736,6 @@ model CatalogImportProfile {
   updatedBy String
   updatedAt DateTime      @default(now())
 
-  @@unique([vendorId, format, name])
+  // Name is unique among non-archived profiles only (partial unique index in the migration).
+  @@index([vendorId, format, name])
 }

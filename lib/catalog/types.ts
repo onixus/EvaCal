@@ -31,6 +31,8 @@ export interface OfferInput {
   validUntil: string | null;
   /** VAT/tax rate in percent as an exact decimal string; null is unknown. Optional for legacy rows. */
   taxRate?: string | null;
+  /** Explicit «Без НДС» (exemption); then taxRate is '0'. Optional for legacy rows. */
+  taxExempt?: boolean;
   /** Vendor discount category/group as given in the source; empty is not set. */
   discountCategory?: string;
 }

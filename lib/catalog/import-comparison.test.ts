@@ -187,6 +187,23 @@ describe('confirmed GPL comparison', () => {
     expect(result.warnings.join()).toMatch(/без даты прайса во втором GPL: 1/);
     expect(result.warnings.join()).toMatch(/срок действия цены истек до подтверждения импорта: 1/);
   });
+  it('judges expiry by the business-time-zone date of the confirmation', () => {
+    const before = row('A', '1'),
+      next = row('A', '2');
+    Object.assign(next.normalized!.offer, { priceDate: '2026-10-01', validUntil: '2026-10-09' });
+    const after = batch('b', [next]);
+    // 22:30 UTC on 9 Oct is already 10 Oct in Moscow: the 9 Oct validity has expired.
+    after.confirmedAt = '2026-10-09T22:30:00Z';
+    vi.stubEnv('BUSINESS_TIME_ZONE', 'Europe/Moscow');
+    expect(compareImportSnapshots(batch('a', [before]), after).warnings.join()).toMatch(
+      /срок действия цены истек/,
+    );
+    vi.stubEnv('BUSINESS_TIME_ZONE', 'UTC');
+    expect(compareImportSnapshots(batch('a', [before]), after).warnings.join()).not.toMatch(
+      /срок действия цены истек/,
+    );
+    vi.unstubAllEnvs();
+  });
   it('ignores source filenames, physical row movement and incidental attribute order without modifying snapshots', () => {
     const a = row(),
       b = clone(a);

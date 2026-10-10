@@ -3,7 +3,9 @@ import { xml2js, type Element } from 'xml-js';
 import { posix } from 'node:path';
 import { inflateRawSync } from 'node:zlib';
 import { SpecificationError, isDecimal } from '../specification/validation';
-import { object, text, productInput, offerInput, isTaxRate } from './validation';
+import { object, text, productInput, offerInput } from './validation';
+import { parseImportDate, parseImportKind, parseImportTaxRate } from './import-values';
+export { parseImportDate, parseImportKind, parseImportTaxRate };
 import { IMPORT_FIELDS, type ImportProfile, type ImportRow } from './import-types';
 import { ITEM_KINDS } from '../specification/types';
 export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
@@ -69,58 +71,6 @@ export function importProfile(input: unknown): ImportProfile {
     mapping,
     attributes,
   };
-}
-const KIND_ALIASES: Record<string, (typeof ITEM_KINDS)[number]> = {
-  оборудование: 'hardware',
-  железо: 'hardware',
-  по: 'software',
-  'программное обеспечение': 'software',
-  лицензия: 'license',
-  поддержка: 'support',
-  'техническая поддержка': 'support',
-  услуга: 'service',
-  услуги: 'service',
-  работы: 'service',
-  другое: 'other',
-  прочее: 'other',
-};
-/** Per-row kind: code (hardware…) or Russian label; empty means the profile default. */
-export function parseImportKind(value: string): (typeof ITEM_KINDS)[number] {
-  const key = value.trim().toLowerCase().replace(/\s+/g, ' ');
-  if ((ITEM_KINDS as readonly string[]).includes(key)) return key as (typeof ITEM_KINDS)[number];
-  const kind = KIND_ALIASES[key];
-  if (!kind)
-    throw new SpecificationError(
-      `Тип позиции: «${value}» не распознан (оборудование, ПО, лицензия, поддержка, услуга, другое)`,
-    );
-  return kind;
-}
-/** Text dates: ГГГГ-ММ-ДД or ДД.ММ.ГГГГ. Empty means unknown — never "today". */
-export function parseImportDate(value: string, label: string): string | null {
-  const v = value.trim();
-  if (!v) return null;
-  let iso = '';
-  const ru = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(v);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) iso = v;
-  else if (ru) iso = `${ru[3]}-${ru[2].padStart(2, '0')}-${ru[1].padStart(2, '0')}`;
-  if (!iso || !Number.isFinite(Date.parse(iso)) || new Date(iso).toISOString().slice(0, 10) !== iso)
-    throw new SpecificationError(
-      `${label}: «${v}» — ожидается дата ГГГГ-ММ-ДД или ДД.ММ.ГГГГ; пусто — неизвестно`,
-    );
-  return iso;
-}
-/** Tax percent: «20», «20%», «20,5 %», «0»; empty means unknown, not zero. */
-export function parseImportTaxRate(value: string, decimalSeparator: '.' | ','): string | null {
-  const v = value.trim();
-  if (!v) return null;
-  const normalized = v.replace(/[\s ]/g, '').replace(/%$/, '').replace(decimalSeparator, '.');
-  const match = /^(\d{1,3})(?:\.(\d{1,4}))?$/.exec(normalized);
-  const result = match
-    ? `${String(Number(match[1]))}${match[2] && /[1-9]/.test(match[2]) ? `.${match[2].replace(/0+$/, '')}` : ''}`
-    : '';
-  if (!isTaxRate(result))
-    throw new SpecificationError(`НДС: «${v}» — ожидается процент 0–100, например 20 или 20%`);
-  return result;
 }
 function csvRows(content: string, delimiter: string): string[][] {
   const rows: string[][] = [];
@@ -246,8 +196,13 @@ export function analyzeImport(bytes: Uint8Array, filename: string, profile: Impo
           row.push(XLSX.utils.format_cell(cell));
         } else if (cell?.t === 'n' && c === profile.mapping.taxRate) {
           // Percent-formatted cells hold fractions (0.2 → 20 %); round to the stored 4 decimals.
-          const value = Number(cell.v) * (String(cell.z ?? '').includes('%') ? 100 : 1);
-          typed.set(`${r}:${c}`, Number.isFinite(value) ? String(Number(value.toFixed(4))) : '');
+          const percent = percentFormat(String(cell.z ?? ''));
+          const value = Number(cell.v) * (percent === 'scaled' ? 100 : 1);
+          // Percent-formatted cells are explicit percents; General numbers keep the ambiguity check.
+          typed.set(
+            `${r}:${c}`,
+            Number.isFinite(value) ? `${Number(value.toFixed(4))}${percent ? '%' : ''}` : '',
+          );
           row.push(XLSX.utils.format_cell(cell));
         } else if (cell?.t === 'n' && c === profile.mapping.unitPrice) {
           if (!numericPrices.has(r))
@@ -307,10 +262,10 @@ export function analyzeImport(bytes: Uint8Array, filename: string, profile: Impo
     );
     const priceDate = field(() => parseImportDate(getTyped('priceDate'), 'Дата цены'), null);
     const validUntil = field(() => parseImportDate(getTyped('validUntil'), 'Действует до'), null);
-    const taxRate = field(
-      () => parseImportTaxRate(getTyped('taxRate'), profile.decimalSeparator),
-      null,
-    );
+    const tax = field(() => parseImportTaxRate(getTyped('taxRate'), profile.decimalSeparator), {
+      taxRate: null,
+      taxExempt: false,
+    });
     const attributes = [
       ...(get('description') ? [{ name: 'Описание', value: get('description'), unit: '' }] : []),
       ...(get('manufacturer')
@@ -370,7 +325,8 @@ export function analyzeImport(bytes: Uint8Array, filename: string, profile: Impo
           terms: get('terms'),
           priceDate,
           validUntil,
-          taxRate,
+          taxRate: tax.taxRate,
+          taxExempt: tax.taxExempt,
           discountCategory: get('discountCategory'),
         });
         normalized = { product, offer };
@@ -390,6 +346,18 @@ export function analyzeImport(bytes: Uint8Array, filename: string, profile: Impo
   return { sheets, headers: cells[profile.headerRow - 1] ?? [], profile: effectiveProfile, rows };
 }
 
+/**
+ * Number-format percent kind: 'scaled' for a real % (value 0.2 shows 20 %),
+ * 'literal' for a quoted/escaped % sign (value 20 shows 20%), null otherwise.
+ */
+export function percentFormat(format: string): 'scaled' | 'literal' | null {
+  const unquoted = format
+    .replace(/"[^"]*"/g, '')
+    .replace(/\\./g, '')
+    .replace(/\[[^\]]*\]/g, '');
+  if (unquoted.includes('%')) return 'scaled';
+  return format.includes('%') ? 'literal' : null;
+}
 type SourceWorkbook = XLSX.WorkBook & {
   Directory?: { workbooks?: string[] };
   files?: Record<string, { content?: Uint8Array | string }>;

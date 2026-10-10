@@ -1,4 +1,5 @@
 import type { ProductInput, OfferInput } from './types';
+import type { TechnicalChange } from './import-values';
 export const IMPORT_FIELDS = [
   'name',
   'sku',
@@ -78,6 +79,15 @@ export interface ImportRow {
   normalized: { product: ProductInput; offer: OfferInput } | null;
   errors: string[];
   status: 'ready' | 'error' | 'accepted' | 'excluded';
+  /**
+   * The row's technical data differs from the existing catalog product. Confirming
+   * it requires an explicit per-row acceptance and creates a new product revision.
+   */
+  technicalChange?: {
+    productId: string;
+    productRevision: number;
+    changes: TechnicalChange[];
+  } | null;
 }
 export interface ImportDraft {
   id: string;
@@ -96,5 +106,7 @@ export interface ImportDraft {
   profile: ImportProfile;
   /** Present when the analysis used a saved reusable profile. */
   profileApplication?: ProfileApplication | null;
+  /** Transient note of the upload response (e.g. an existing package was reopened). */
+  notice?: string;
   rows: ImportRow[];
 }

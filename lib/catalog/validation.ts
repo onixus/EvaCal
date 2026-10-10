@@ -82,6 +82,9 @@ export function offerInput(input: unknown): OfferInput {
   const taxRate = d.taxRate === undefined ? null : d.taxRate;
   if (taxRate !== null && !isTaxRate(taxRate))
     throw new SpecificationError('НДС: процент 0–100 (до 4 знаков после точки) или неизвестно');
+  const taxExempt = d.taxExempt === undefined ? false : d.taxExempt;
+  if (typeof taxExempt !== 'boolean' || (taxExempt && taxRate !== '0'))
+    throw new SpecificationError('«Без НДС» означает ставку 0');
   return {
     source: text(d.source, 'Источник', 500, true),
     unitPrice: d.unitPrice as string | null,
@@ -91,6 +94,7 @@ export function offerInput(input: unknown): OfferInput {
     priceDate,
     validUntil,
     taxRate,
+    taxExempt,
     discountCategory:
       d.discountCategory === undefined ? '' : text(d.discountCategory, 'Скидочная категория', 100),
   };

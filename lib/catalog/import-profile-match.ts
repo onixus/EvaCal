@@ -41,6 +41,8 @@ export interface SavedImportProfile {
   createdAt: string;
   updatedBy: string;
   updatedAt: string;
+  /** Returned on save: mapped columns that cannot be matched by header later. */
+  warnings?: string[];
 }
 export interface ProfileMatchReport {
   mismatches: string[];
@@ -96,8 +98,8 @@ function locate(
   report: ProfileMatchReport,
 ): number | undefined {
   const wanted = normalizeHeader(saved.header);
+  // Columns are never matched by position: an untitled column must be chosen explicitly.
   if (!wanted) {
-    if (saved.index < headers.length && !normalizeHeader(headers[saved.index])) return saved.index;
     report.mismatches.push(
       `${label}: колонка ${saved.index + 1} в профиле без заголовка — сопоставьте вручную`,
     );
@@ -121,6 +123,32 @@ function locate(
   return found[0];
 }
 
+/** Save-time warnings: columns that cannot be found by header name in later files. */
+export function profileHeaderWarnings(settings: SavedImportSettings): string[] {
+  const counts = new Map<string, number>();
+  for (const h of settings.sourceHeaders) {
+    const key = normalizeHeader(h);
+    if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const warnings: string[] = [];
+  const check = (label: string, column: SavedColumn) => {
+    const key = normalizeHeader(column.header);
+    if (!key)
+      warnings.push(
+        `${label}: колонка ${column.index + 1} без заголовка — в следующих файлах ее нужно будет выбрать вручную`,
+      );
+    else if ((counts.get(key) ?? 0) > 1)
+      warnings.push(
+        `${label}: заголовок «${column.header}» повторяется в файле — в следующих файлах потребуется ручной выбор`,
+      );
+  };
+  for (const field of IMPORT_FIELDS) {
+    const column = settings.columns[field];
+    if (column) check(IMPORT_FIELD_LABELS[field], column);
+  }
+  for (const a of settings.attributes) check(`Характеристика «${a.name}»`, a);
+  return warnings;
+}
 /** Resolves a saved profile against the headers of a concrete file. */
 export function applySavedSettings(
   settings: SavedImportSettings,

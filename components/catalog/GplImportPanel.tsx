@@ -10,6 +10,7 @@ import {
   type ImportRow,
 } from '@/lib/catalog/import-types';
 import type { SavedImportProfile } from '@/lib/catalog/import-profile-match';
+import { parseImportKind, parseTaxInput, taxLabel } from '@/lib/catalog/import-values';
 import type { OfferInput, Vendor } from '@/lib/catalog/types';
 
 const fields = IMPORT_FIELDS.map((key) => [key, IMPORT_FIELD_LABELS[key]] as const);
@@ -46,6 +47,12 @@ export default function GplImportPanel({
   const [selected, setSelected] = useState<string[]>([]);
   const [saved, setSaved] = useState<Array<Pick<ImportDraft, 'id' | 'filename' | 'createdAt'>>>([]);
   const [editing, setEditing] = useState<ImportRow | null>(null);
+  // Rows whose differing technical data the user explicitly accepts (new product revision).
+  const [acceptedChanges, setAcceptedChanges] = useState<string[]>([]);
+  const [profileWarnings, setProfileWarnings] = useState<string[]>([]);
+  const pendingChanges = (draft?.rows ?? []).filter(
+    (r) => selected.includes(r.id) && r.technicalChange && !acceptedChanges.includes(r.id),
+  );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -141,6 +148,7 @@ export default function GplImportPanel({
     setDraft(next);
     setSelected([]);
     setEditing(null);
+    setAcceptedChanges([]);
   }
   async function profileRequest(body: unknown): Promise<SavedImportProfile> {
     const res = await fetch('/api/catalog/imports/profiles', {
@@ -434,6 +442,7 @@ export default function GplImportPanel({
                     });
                     await loadProfiles(draft.profile.vendorId);
                     setProfileId(created.id);
+                    setProfileWarnings(created.warnings ?? []);
                   })
                 }
               >
@@ -446,13 +455,14 @@ export default function GplImportPanel({
                     disabled={!profileName.trim() || settingsChanged}
                     onClick={() =>
                       void run(async () => {
-                        await profileRequest({
+                        const updated = await profileRequest({
                           action: 'update',
                           id: activeProfile.id,
                           revision: activeProfile.revision,
                           name: profileName,
                           importId: draft.id,
                         });
+                        setProfileWarnings(updated.warnings ?? []);
                         await loadProfiles(draft.profile.vendorId);
                       })
                     }
@@ -479,6 +489,13 @@ export default function GplImportPanel({
                 </>
               )}
             </div>
+            {profileWarnings.length > 0 && (
+              <ul role="status" className="list-disc pl-5">
+                {profileWarnings.map((w) => (
+                  <li key={w}>Предупреждение профиля: {w}</li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </fieldset>
@@ -530,6 +547,7 @@ export default function GplImportPanel({
             <summary>Контрольная сумма исходного файла</summary>
             <code className="break-all">{draft.checksum}</code>
           </details>
+          {draft.notice && <p role="status">{draft.notice}</p>}
           {draft.profileApplication && (
             <div aria-label="Применение профиля" className="space-y-1" role="group">
               <p>
@@ -717,10 +735,7 @@ export default function GplImportPanel({
                           {KIND_LABELS[ITEM_KINDS.indexOf(row.normalized.product.kind)]}
                           <br />
                           {row.normalized.offer.unitPrice ?? 'Цена неизвестна'}{' '}
-                          {row.normalized.offer.currency} · НДС{' '}
-                          {row.normalized.offer.taxRate == null
-                            ? 'неизвестен'
-                            : `${row.normalized.offer.taxRate}%`}
+                          {row.normalized.offer.currency} · {taxLabel(row.normalized.offer)}
                           <br />
                           Дата цены {row.normalized.offer.priceDate || 'неизвестна'} · действует до{' '}
                           {row.normalized.offer.validUntil || 'неизвестно'} · регион{' '}
@@ -750,6 +765,51 @@ export default function GplImportPanel({
                             excluded: 'Не выбрана',
                             error: 'Ошибка',
                           }[row.status]}
+                      {row.technicalChange && !row.errors.length && (
+                        <div
+                          role="group"
+                          aria-label={`Изменение технических данных строки ${row.rowNumber}`}
+                        >
+                          <p>
+                            Технические данные отличаются от позиции каталога (ред.{' '}
+                            {row.technicalChange.productRevision}). Подтверждение создаст новую
+                            редакцию позиции; прежние цены и проектные копии не изменятся.
+                          </p>
+                          <ul className="list-disc pl-5">
+                            {row.technicalChange.changes.map((c) => (
+                              <li key={c.field}>
+                                {
+                                  {
+                                    name: 'Наименование',
+                                    kind: 'Тип',
+                                    unit: 'Единица',
+                                    licensing: 'Лицензирование',
+                                    attributes: 'Характеристики',
+                                  }[c.field]
+                                }
+                                : {c.before || '(пусто)'} → {c.after || '(пусто)'}
+                              </li>
+                            ))}
+                          </ul>
+                          {draft.status === 'draft' && !historical && (
+                            <label>
+                              <input
+                                type="checkbox"
+                                disabled={busy}
+                                checked={acceptedChanges.includes(row.id)}
+                                onChange={(e) =>
+                                  setAcceptedChanges(
+                                    e.target.checked
+                                      ? [...acceptedChanges, row.id]
+                                      : acceptedChanges.filter((id) => id !== row.id),
+                                  )
+                                }
+                              />{' '}
+                              Принять изменение технических данных строки {row.rowNumber}
+                            </label>
+                          )}
+                        </div>
+                      )}
                       {draft.status === 'draft' && !historical && (
                         <button
                           className="btn-secondary"
@@ -768,7 +828,16 @@ export default function GplImportPanel({
                                     name: value('name'),
                                     sku: value('sku'),
                                     edition: value('edition'),
-                                    kind: draft.profile.kind,
+                                    kind: (() => {
+                                      // Use the row's own kind cell when it is recognizable.
+                                      try {
+                                        return value('kind').trim()
+                                          ? parseImportKind(value('kind'))
+                                          : draft.profile.kind;
+                                      } catch {
+                                        return draft.profile.kind;
+                                      }
+                                    })(),
                                     unit: value('unit') || 'шт.',
                                     licensing: value('licensing'),
                                     attributes: [
@@ -808,11 +877,23 @@ export default function GplImportPanel({
                                     terms: value('terms'),
                                     priceDate: null,
                                     validUntil: null,
-                                    taxRate: null,
+                                    taxRate: value('taxRate').trim() || null,
                                     discountCategory: value('discountCategory'),
                                   },
                                 },
                               }),
+                            );
+                            // Tax is edited as text in the importer's formats («20%», «Без НДС»).
+                            setEditing((current) =>
+                              current?.normalized?.offer.taxExempt
+                                ? {
+                                    ...current,
+                                    normalized: {
+                                      ...current.normalized,
+                                      offer: { ...current.normalized.offer, taxRate: 'Без НДС' },
+                                    },
+                                  }
+                                : current,
                             );
                             setSelected([]);
                           }}
@@ -900,7 +981,7 @@ export default function GplImportPanel({
                 [
                   ['priceDate', 'Исправленная дата цены (пусто — неизвестна)', 'date'],
                   ['validUntil', 'Исправленный срок действия (пусто — неизвестен)', 'date'],
-                  ['taxRate', 'Исправленный НДС, % (пусто — неизвестен)', 'text'],
+                  ['taxRate', 'Исправленный НДС, % или «Без НДС» (пусто — неизвестен)', 'text'],
                   ['region', 'Исправленный регион', 'text'],
                   ['discountCategory', 'Исправленная скидочная категория', 'text'],
                 ] as const
@@ -1001,7 +1082,13 @@ export default function GplImportPanel({
                         action: 'correct',
                         revision: draft.revision,
                         rowId: editing.id,
-                        normalized: editing.normalized,
+                        normalized: {
+                          ...editing.normalized,
+                          offer: {
+                            ...editing.normalized!.offer,
+                            ...parseTaxInput(editing.normalized!.offer.taxRate),
+                          },
+                        },
                       }),
                     ),
                   )
@@ -1014,16 +1101,33 @@ export default function GplImportPanel({
               </button>
             </fieldset>
           )}
+          {pendingChanges.length > 0 && !historical && (
+            <p role="status">
+              Примите изменение технических данных для строк{' '}
+              {pendingChanges.map((r) => r.rowNumber).join(', ')} или снимите их выбор.
+            </p>
+          )}
           {historical ? (
             <p>Историческая редакция: только просмотр.</p>
           ) : draft.status === 'draft' ? (
             <button
               className="btn-primary"
-              disabled={busy || !selected.length || settingsChanged || !!editing}
+              disabled={
+                busy ||
+                !selected.length ||
+                settingsChanged ||
+                !!editing ||
+                pendingChanges.length > 0
+              }
               onClick={() =>
                 void run(async () => {
                   accept(
-                    await mutate({ action: 'confirm', revision: draft.revision, rowIds: selected }),
+                    await mutate({
+                      action: 'confirm',
+                      revision: draft.revision,
+                      rowIds: selected,
+                      acceptTechnicalChanges: acceptedChanges.filter((id) => selected.includes(id)),
+                    }),
                   );
                   await onImported();
                 })

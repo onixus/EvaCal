@@ -5,6 +5,7 @@ import { importProfile } from './import-parser';
 import { loadImport } from './import-store';
 import {
   profileFormat,
+  profileHeaderWarnings,
   settingsFromProfile,
   type SavedImportProfile,
   type SavedImportSettings,
@@ -59,8 +60,9 @@ export async function mutateImportProfile(input: unknown, actorId: string) {
   if (d.action === 'create') {
     const name = text(d.name, 'Название профиля', 100, true);
     const source = await settingsFromImport(d.importId);
+    const warnings = profileHeaderWarnings(source.settings);
     try {
-      return view(
+      const created = view(
         await prisma.$transaction(async (tx) => {
           const vendor = await tx.catalogVendor.findUnique({ where: { id: source.vendorId } });
           if (!vendor || vendor.archived)
@@ -77,6 +79,7 @@ export async function mutateImportProfile(input: unknown, actorId: string) {
           });
         }),
       );
+      return { ...created, warnings };
     } catch (e) {
       throw uniqueConflict(e);
     }
@@ -88,12 +91,14 @@ export async function mutateImportProfile(input: unknown, actorId: string) {
   const current = await prisma.catalogImportProfile.findUnique({ where: { id } });
   if (!current) throw new SpecificationError('Профиль не найден', 404);
   let data: Prisma.CatalogImportProfileUpdateManyMutationInput = { archived: true };
+  let warnings: string[] = [];
   if (d.action === 'update') {
     const source = await settingsFromImport(d.importId);
     if (source.vendorId !== current.vendorId || source.format !== current.format)
       throw new SpecificationError(
         'Профиль можно обновить только по файлу того же вендора и формата',
       );
+    warnings = profileHeaderWarnings(source.settings);
     data = {
       profile: json(source.settings),
       ...(d.name === undefined ? {} : { name: text(d.name, 'Название профиля', 100, true) }),
@@ -109,5 +114,8 @@ export async function mutateImportProfile(input: unknown, actorId: string) {
   } catch (e) {
     throw uniqueConflict(e);
   }
-  return view(await prisma.catalogImportProfile.findUniqueOrThrow({ where: { id } }));
+  return {
+    ...view(await prisma.catalogImportProfile.findUniqueOrThrow({ where: { id } })),
+    warnings,
+  };
 }

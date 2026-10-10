@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { productInput, offerInput } from '@/lib/catalog/validation';
+import { taxLabel } from '@/lib/catalog/import-values';
 import type { Vendor } from '@/lib/catalog/types';
 import type { ImportDraft, ImportRow } from '@/lib/catalog/import-types';
 import type {
@@ -147,8 +148,7 @@ function SourceRows({ rows, source }: { rows: ImportRow[]; source: ComparisonSou
                   Условия: {normalized.offer.terms || 'не заданы'} · регион{' '}
                   {normalized.offer.region || 'не задан'} · дата цены{' '}
                   {normalized.offer.priceDate || 'неизвестна'} · действует до{' '}
-                  {normalized.offer.validUntil || 'неизвестно'} · НДС{' '}
-                  {normalized.offer.taxRate == null ? 'неизвестен' : `${normalized.offer.taxRate}%`}
+                  {normalized.offer.validUntil || 'неизвестно'} · {taxLabel(normalized.offer)}
                   {normalized.offer.discountCategory
                     ? ` · скидочная категория ${normalized.offer.discountCategory}`
                     : ''}

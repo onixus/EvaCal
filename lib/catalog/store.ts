@@ -1,7 +1,7 @@
 import { prisma } from '../prisma';
 import { SpecificationError } from '../specification/validation';
 import { object, text, revision, productInput, offerInput } from './validation';
-import type { Prisma } from '../generated/prisma/client';
+import { Prisma } from '../generated/prisma/client';
 
 async function lockProduct(tx: Prisma.TransactionClient, id: string) {
   const rows = await tx.$queryRaw<
@@ -132,14 +132,29 @@ export async function mutateCatalog(input: unknown, actorId: string) {
       };
     }
     if (d.action === 'offer.confirm') {
-      // Price/terms stay immutable; only the explicit confirmation is recorded once.
+      // Only manual offers: GPL offers are confirmed by the explicit import confirmation.
+      // Lock order Product → Vendor as in every other existing-product write.
       const offerId = text(d.offerId, 'Предложение', 100, true);
+      const product = await lockProduct(tx, id);
+      const vendors = await tx.$queryRaw<
+        Array<{ archived: boolean }>
+      >`SELECT archived FROM "CatalogVendor" WHERE id = ${product.vendorId} FOR UPDATE`;
+      if (product.archived || !vendors.length || vendors[0].archived)
+        throw new SpecificationError('Позиция или вендор архивированы', 409);
       const result = await tx.catalogOffer.updateMany({
-        where: { id: offerId, productId: id, confirmationStatus: 'unconfirmed' },
+        where: {
+          id: offerId,
+          productId: id,
+          confirmationStatus: 'unconfirmed',
+          importProvenance: { equals: Prisma.DbNull },
+        },
         data: { confirmationStatus: 'confirmed', confirmedBy: actorId, confirmedAt: new Date() },
       });
       if (!result.count)
-        throw new SpecificationError('Предложение уже подтверждено или не найдено', 409);
+        throw new SpecificationError(
+          'Предложение не найдено, уже подтверждено или получено из GPL (подтверждается импортом)',
+          409,
+        );
       const offer = await tx.catalogOffer.findUniqueOrThrow({ where: { id: offerId } });
       return {
         ...offer,

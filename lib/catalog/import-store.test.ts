@@ -62,6 +62,95 @@ const batch = {
   ],
 };
 const product = { ...technical, id: 'p', revision: 1, archived: false };
+describe('GPL technical changes of existing products', () => {
+  const changedRow = {
+    ...row,
+    normalized: {
+      product: {
+        ...technical,
+        attributes: [{ name: 'Производитель', value: 'Yadro', unit: '' }],
+      },
+      offer,
+    },
+    technicalChange: {
+      productId: 'p',
+      productRevision: 1,
+      changes: [{ field: 'attributes', before: '', after: 'Производитель: Yadro' }],
+    },
+  };
+  const changedBatch = {
+    ...batch,
+    revisions: [
+      { ...batch.revisions[0], data: { ...batch.revisions[0].data, rows: [changedRow] } },
+    ],
+  };
+  const productUpdate = vi.fn();
+  const productFind = vi.fn();
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.batch.mockResolvedValue(changedBatch);
+    mocks.load.mockResolvedValue(changedBatch);
+    mocks.products.mockResolvedValue([product]);
+    mocks.query.mockResolvedValue([{ id: 'v', name: 'Vendor', revision: 1, archived: false }]);
+    productUpdate.mockResolvedValue({ count: 1 });
+    productFind.mockResolvedValue({ ...product, ...changedRow.normalized.product, revision: 2 });
+    mocks.transaction.mockImplementation(async (fn) =>
+      fn({
+        $queryRaw: mocks.query,
+        catalogImport: { findUnique: mocks.batch, update: mocks.update },
+        catalogProduct: {
+          findMany: mocks.products,
+          updateMany: productUpdate,
+          findUniqueOrThrow: productFind,
+        },
+        catalogOffer: { create: mocks.offer },
+        catalogImportRevision: { create: mocks.revision },
+      }),
+    );
+  });
+  it('a newly mapped attribute is not a hard error but requires explicit acceptance', async () => {
+    await expect(
+      mutateImport('b', { action: 'confirm', revision: 1, rowIds: ['GPL:2'] }, 'u'),
+    ).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/примите их явно/) });
+    expect(productUpdate).not.toHaveBeenCalled();
+    expect(mocks.offer).not.toHaveBeenCalled();
+  });
+  it('accepted change creates a new product revision and prices it', async () => {
+    await mutateImport(
+      'b',
+      { action: 'confirm', revision: 1, rowIds: ['GPL:2'], acceptTechnicalChanges: ['GPL:2'] },
+      'u',
+    );
+    expect(productUpdate).toHaveBeenCalledWith({
+      where: { id: 'p', revision: 1, archived: false },
+      data: expect.objectContaining({ revision: { increment: 1 } }),
+    });
+    expect(mocks.offer.mock.calls[0][0].data).toMatchObject({
+      productRevision: 2,
+      productSnapshot: { revision: 2, attributes: [{ name: 'Производитель', value: 'Yadro' }] },
+    });
+  });
+  it('rejects acceptance reviewed against an older product revision', async () => {
+    mocks.products.mockResolvedValue([{ ...product, revision: 3 }]);
+    await expect(
+      mutateImport(
+        'b',
+        { action: 'confirm', revision: 1, rowIds: ['GPL:2'], acceptTechnicalChanges: ['GPL:2'] },
+        'u',
+      ),
+    ).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/изменилась/) });
+    expect(productUpdate).not.toHaveBeenCalled();
+  });
+  it('acceptance is limited to selected rows', async () => {
+    await expect(
+      mutateImport(
+        'b',
+        { action: 'confirm', revision: 1, rowIds: ['GPL:2'], acceptTechnicalChanges: ['other'] },
+        'u',
+      ),
+    ).rejects.toThrow(/выбранных строк/);
+  });
+});
 describe('GPL confirmation locks', () => {
   beforeEach(() => {
     vi.clearAllMocks();

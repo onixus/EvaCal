@@ -141,6 +141,109 @@ async function verifyProfiles(actor: string, vendorId: string) {
   const after = await prisma.catalogOffer.findUniqueOrThrow({ where: { id: manual.id } });
   assert.equal(after.confirmationStatus, 'confirmed');
   assert.equal(after.unitPrice, null, 'confirmation does not invent a price');
+  // GPL offers are confirmed only by the import; archived products cannot be confirmed.
+  await assert.rejects(
+    mutateCatalog({ action: 'offer.confirm', id: product.id, offerId: offer.id }, actor),
+    (e: { statusCode?: number }) => e.statusCode === 409,
+  );
+  // Archived profiles release their name (partial unique index).
+  const current = (await listImportProfiles(vendorId))[0];
+  await mutateImportProfile(
+    { action: 'archive', id: current.id, revision: current.revision },
+    actor,
+  );
+  const reused = await mutateImportProfile(
+    { action: 'create', name: 'Основной CSV', importId: first.id },
+    actor,
+  );
+  assert.notEqual(reused.id, current.id);
+}
+// Exact review scenario: a product imported without characteristics, then a new GPL
+// mapping manufacturer and characteristic columns. The difference is a reviewable
+// technical change (new product revision on explicit acceptance), not a hard error.
+async function verifyTechnicalChange(actor: string, vendorId: string) {
+  const plain = { vendorId, delimiter: ';', decimalSeparator: ',' };
+  const first = await createImport(
+    Buffer.from('name;sku;unit;price\nСервер;TECH-1;шт;10\n'),
+    'tech-1.csv',
+    { ...plain, mapping: { name: 0, sku: 1, unit: 2, unitPrice: 3 } },
+    actor,
+  );
+  await mutateImport(
+    first.id,
+    { action: 'confirm', revision: 1, rowIds: [first.rows[0].id] },
+    actor,
+  );
+  const before = await prisma.catalogProduct.findFirstOrThrow({
+    where: { vendorId, sku: 'TECH-1' },
+  });
+  const second = await createImport(
+    Buffer.from('name;sku;unit;price;maker;ram\nСервер;TECH-1;шт;12;Yadro;64\n'),
+    'tech-2.csv',
+    {
+      ...plain,
+      mapping: { name: 0, sku: 1, unit: 2, unitPrice: 3, manufacturer: 4 },
+      attributes: [{ column: 5, name: 'Память', unit: 'ГБ' }],
+    },
+    actor,
+  );
+  const row = second.rows[0];
+  assert.deepEqual(row.errors, [], 'newly mapped attributes must not be a row error');
+  assert.equal(row.status, 'ready');
+  assert.equal(row.technicalChange?.productId, before.id);
+  assert.deepEqual(
+    row.technicalChange?.changes.map((c) => c.field),
+    ['attributes'],
+  );
+  await assert.rejects(
+    mutateImport(second.id, { action: 'confirm', revision: 1, rowIds: [row.id] }, actor),
+    (e: { statusCode?: number }) => e.statusCode === 409,
+  );
+  await mutateImport(
+    second.id,
+    { action: 'confirm', revision: 1, rowIds: [row.id], acceptTechnicalChanges: [row.id] },
+    actor,
+  );
+  const after = await prisma.catalogProduct.findUniqueOrThrow({
+    where: { id: before.id },
+    include: { offers: { orderBy: { createdAt: 'asc' } } },
+  });
+  assert.equal(after.revision, before.revision + 1);
+  assert.deepEqual(after.attributes, [
+    { name: 'Производитель', value: 'Yadro', unit: '' },
+    { name: 'Память', value: '64', unit: 'ГБ' },
+  ]);
+  assert.equal(after.offers.length, 2);
+  assert.equal(after.offers[0].productRevision, before.revision, 'old offer keeps its revision');
+  assert.deepEqual(
+    (after.offers[0].productSnapshot as { attributes: unknown[] }).attributes,
+    [],
+    'old offer keeps its technical snapshot',
+  );
+  assert.equal(after.offers[1].productRevision, after.revision);
+  // Archived product: manual offer confirmation is rejected.
+  const manual = await mutateCatalog(
+    {
+      action: 'offer.create',
+      id: after.id,
+      revision: after.revision,
+      offer: {
+        source: 'Ручной ввод',
+        unitPrice: '1',
+        currency: 'RUB',
+        region: '',
+        terms: '',
+        priceDate: null,
+        validUntil: null,
+      },
+    },
+    actor,
+  );
+  await mutateCatalog({ action: 'product.archive', id: after.id, revision: after.revision }, actor);
+  await assert.rejects(
+    mutateCatalog({ action: 'offer.confirm', id: after.id, offerId: manual.id }, actor),
+    (e: { statusCode?: number }) => e.statusCode === 409,
+  );
 }
 // Hold a newly inserted product uncommitted behind Vendor. The import first
 // sees no candidate, queues on Vendor, and only sees the product after release.
@@ -335,8 +438,9 @@ async function main() {
     assert.deepEqual(corrected.rows[0].raw, bad.rows[0].raw);
     await verifyProductAppearance(actor, profile);
     await verifyProfiles(actor, vendor.id);
+    await verifyTechnicalChange(actor, vendor.id);
     console.log(
-      'GPL PostgreSQL passed: persistence, attachment SHA256, concurrent upload idempotency, selected confirmation, raw correction history, null/zero/decimal, immutable old prices, concurrent confirmation conflict, newly appeared product 409 with zero writes and successful retry, saved profile reuse on reordered columns with mismatch report, extended fields and offer confirmation status.',
+      'GPL PostgreSQL passed: persistence, attachment SHA256, concurrent upload idempotency, selected confirmation, raw correction history, null/zero/decimal, immutable old prices, concurrent confirmation conflict, newly appeared product 409 with zero writes and successful retry, saved profile reuse on reordered columns with mismatch report, extended fields and offer confirmation status, reviewed technical change as new product revision, archived profile name reuse.',
     );
   } finally {
     await prisma.catalogOffer.deleteMany({ where: { createdBy: actor } });

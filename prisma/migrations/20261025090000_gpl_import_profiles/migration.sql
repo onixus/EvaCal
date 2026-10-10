@@ -1,6 +1,8 @@
 -- Tax and discount category of an offer; a missing tax rate stays unknown (NULL), never 0.
 ALTER TABLE "CatalogOffer" ADD COLUMN "taxRate" DECIMAL(7,4);
 ALTER TABLE "CatalogOffer" ADD COLUMN "discountCategory" TEXT NOT NULL DEFAULT '';
+-- Explicit «Без НДС»: rate 0 by exemption, distinct from an unknown (NULL) rate.
+ALTER TABLE "CatalogOffer" ADD COLUMN "taxExempt" BOOLEAN NOT NULL DEFAULT false;
 -- Explicit confirmation status of an offer.
 ALTER TABLE "CatalogOffer" ADD COLUMN "confirmationStatus" TEXT NOT NULL DEFAULT 'unconfirmed';
 ALTER TABLE "CatalogOffer" ADD COLUMN "confirmedBy" TEXT;
@@ -21,4 +23,6 @@ CREATE TABLE "CatalogImportProfile" (
  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
  CONSTRAINT "CatalogImportProfile_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "CatalogVendor"("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
-CREATE UNIQUE INDEX "CatalogImportProfile_vendorId_format_name_key" ON "CatalogImportProfile"("vendorId", "format", "name");
+CREATE INDEX "CatalogImportProfile_vendorId_format_name_idx" ON "CatalogImportProfile"("vendorId", "format", "name");
+-- Archived profiles release their name; uniqueness applies only to active ones.
+CREATE UNIQUE INDEX "CatalogImportProfile_active_name_key" ON "CatalogImportProfile"("vendorId", "format", "name") WHERE NOT "archived";

@@ -7,12 +7,13 @@ const mocks = vi.hoisted(() => ({
   upsert: vi.fn(),
   products: vi.fn(),
   vendor: vi.fn(),
+  existing: vi.fn(),
 }));
 vi.mock('../prisma', () => {
   const tx = {
     $queryRaw: vi.fn(async () => []),
     catalogVendor: { findUnique: mocks.vendor },
-    catalogImport: { upsert: mocks.upsert },
+    catalogImport: { upsert: mocks.upsert, findUnique: mocks.existing },
     catalogImportProfile: { create: mocks.profileCreate },
   };
   return {
@@ -31,7 +32,11 @@ vi.mock('../prisma', () => {
 import { createImport } from './import-store';
 import { mutateImportProfile } from './import-profiles';
 import { importProfile } from './import-parser';
-import { applySavedSettings, settingsFromProfile } from './import-profile-match';
+import {
+  applySavedSettings,
+  profileHeaderWarnings,
+  settingsFromProfile,
+} from './import-profile-match';
 
 const original = importProfile({
   vendorId: 'v',
@@ -81,6 +86,32 @@ describe('saved profile header matching', () => {
     expect(report.moved).toContain('Цена: «Цена» — колонка 4 → 2');
     expect(report.added).toEqual(['Регион']);
   });
+  it('never matches an untitled column by position and warns about it on save', () => {
+    const untitled = settingsFromProfile(
+      importProfile({ vendorId: 'v', mapping: { name: 0, sku: 1, unitPrice: 2 } }),
+      ['Название', 'Артикул', ''],
+    );
+    expect(profileHeaderWarnings(untitled)).toEqual([
+      'Цена: колонка 3 без заголовка — в следующих файлах ее нужно будет выбрать вручную',
+    ]);
+    const { profile, report } = applySavedSettings(
+      untitled,
+      'v',
+      ['Название', 'Артикул', ''],
+      'CSV',
+    );
+    expect(profile.mapping.unitPrice).toBeUndefined();
+    expect(report.mismatches).toEqual([
+      'Цена: колонка 3 в профиле без заголовка — сопоставьте вручную',
+    ]);
+    const duplicated = settingsFromProfile(
+      importProfile({ vendorId: 'v', mapping: { name: 0, unitPrice: 1 } }),
+      ['Название', 'Цена', 'Цена'],
+    );
+    expect(profileHeaderWarnings(duplicated)).toEqual([
+      'Цена: заголовок «Цена» повторяется в файле — в следующих файлах потребуется ручной выбор',
+    ]);
+  });
   it('leaves missing and ambiguous headers unmapped and reports them', () => {
     const headers = ['Название', 'Артикул', 'Цена', 'Цена', 'Дата', 'RAM, ГБ'];
     const { profile, report } = applySavedSettings(settings, 'v', headers, 'CSV');
@@ -100,6 +131,7 @@ describe('saved profile application on upload', () => {
     vi.clearAllMocks();
     mocks.products.mockResolvedValue([]);
     mocks.vendor.mockResolvedValue({ id: 'v', archived: false });
+    mocks.existing.mockResolvedValue(null);
     mocks.upsert.mockImplementation(async ({ create }) => {
       mocks.importFind.mockResolvedValue({
         id: 'b2',
@@ -136,6 +168,26 @@ describe('saved profile application on upload', () => {
       product: { name: 'Сервер', sku: 'SKU-1', attributes: [{ name: 'Память', value: '64' }] },
       offer: { unitPrice: '10.5', priceDate: '2026-10-01', taxRate: '20' },
     });
+  });
+  it('rejects a profile of another vendor and reports a reopened package', async () => {
+    mocks.profile.mockResolvedValue(record());
+    await expect(
+      createImport(
+        reordered,
+        'x.csv',
+        { vendorId: 'other', savedProfileId: 'prof-1', savedProfileRevision: 2 },
+        'u',
+      ),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(mocks.upsert).not.toHaveBeenCalled();
+    mocks.existing.mockResolvedValue({ id: 'b2' });
+    const reopened = await createImport(
+      reordered,
+      'x.csv',
+      { vendorId: 'v', savedProfileId: 'prof-1', savedProfileRevision: 2 },
+      'u',
+    );
+    expect(reopened.notice).toMatch(/профиль к нему не применен/);
   });
   it('rejects a stale, foreign-format or archived profile before storing anything', async () => {
     mocks.profile.mockResolvedValue(record());
