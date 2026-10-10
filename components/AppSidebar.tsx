@@ -17,6 +17,7 @@ const BADGE_TITLES: Record<NonNullable<NavItem['badgeKey']>, string> = {
   studioDrafts: 'Требуют внимания: черновики и отклонённые комплекты',
   gapQueue: 'В очереди финального ревью ГАП',
   reviewQueue: 'В очереди нормоконтроля',
+  myQueue: 'Ваши задачи и непрочитанные уведомления',
 };
 
 /**

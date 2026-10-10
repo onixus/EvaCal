@@ -7,6 +7,7 @@ import { parsePackageSnapshot } from '@/lib/gost34/diff';
 import { handleApiError } from '@/lib/apiHelpers';
 import { recordInternalChangeSafe } from '@/lib/changelog';
 import { countOpenBlockers } from '@/lib/review/store';
+import { notifySafe, returnedDrafts } from '@/lib/review/notifications';
 import {
   REVIEW_STAGE_LABELS,
   REVIEW_STAGE_ROLES,
@@ -117,6 +118,24 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       },
       ip: clientIp(req),
     });
+
+    if (decision === 'reject') {
+      // Возврат: автору выпуска и ответственным за этапы комплекта.
+      await notifySafe(async () =>
+        returnedDrafts({
+          pkg,
+          stage: stageBefore === 'gap' ? 'gap' : 'tw',
+          authorIds: [pkg.releasedBy, pkg.createdBy],
+          assignments: await prisma.reviewAssignment.findMany({
+            where: { packageId: pkg.id, active: true },
+            select: { assigneeId: true, deputyId: true },
+          }),
+          actorId: access.kind === 'staff' ? (access.session?.userId ?? null) : access.actorId,
+          actorName: actorDisplayName,
+          comment: comment?.trim() || null,
+        }),
+      );
+    }
 
     return NextResponse.json({
       package: {

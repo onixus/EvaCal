@@ -17,6 +17,7 @@ import {
   isAssignableStage,
   validateAssignment,
 } from '@/lib/review/workflow';
+import { assignmentDrafts, notifySafe } from '@/lib/review/notifications';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -138,6 +139,16 @@ export async function POST(req: NextRequest, props: Props) {
       },
       ip: clientIp(req),
     });
+
+    // Уведомление — только сообщение: права подписи оно не добавляет.
+    await notifySafe(async () =>
+      assignmentDrafts({
+        pkg,
+        assignment,
+        actorId: actor.actorId,
+        actorName: actor.username,
+      }),
+    );
 
     return NextResponse.json({ assignment }, { status: 201 });
   } catch (err) {

@@ -1,5 +1,11 @@
 import { prisma } from './prisma';
-import { resolveLifecycle, type LifecycleInput, type LifecycleState } from './lifecycle';
+import {
+  resolveLifecycle,
+  type LifecycleInput,
+  type LifecycleReviewContext,
+  type LifecycleState,
+} from './lifecycle';
+import { loadActiveAssignments } from './review/store';
 
 /**
  * Поля, которые нужны конвейеру от проекта, последней версии расчёта и
@@ -24,6 +30,9 @@ export const LIFECYCLE_PACKAGE_SELECT = {
   releasedAt: true,
   approvedAt: true,
   stageEnteredAt: true,
+  reviewComment: true,
+  releasedBy: true,
+  createdBy: true,
 } as const;
 
 export interface LifecycleProjectRow {
@@ -49,12 +58,63 @@ export interface LifecycleProjectRow {
     releasedAt: Date | null;
     approvedAt: Date | null;
     stageEnteredAt?: Date | null;
+    reviewComment?: string | null;
+    releasedBy?: string | null;
+    createdBy?: string | null;
   }[];
 }
 
+type ReviewContextPackage = LifecycleProjectRow['packages'][number];
+
+/**
+ * Персональная ответственность для последних комплектов (#103): активное
+ * назначение на текущий этап и логин автора выпуска. Два запроса на любой
+ * список комплектов.
+ */
+export async function loadLifecycleReviewContext(
+  packages: ReviewContextPackage[],
+): Promise<Map<string, LifecycleReviewContext>> {
+  const result = new Map<string, LifecycleReviewContext>();
+  if (packages.length === 0) return result;
+  const authorIds = Array.from(
+    new Set(
+      packages.flatMap((p) => [p.releasedBy, p.createdBy]).filter((v): v is string => Boolean(v)),
+    ),
+  );
+  const [assignments, users] = await Promise.all([
+    loadActiveAssignments(packages.filter((p) => p.status === 'under_review').map((p) => p.id)),
+    authorIds.length
+      ? prisma.user.findMany({
+          where: { id: { in: authorIds } },
+          select: { id: true, username: true },
+        })
+      : Promise.resolve([] as { id: string; username: string }[]),
+  ]);
+  const names = new Map(users.map((u) => [u.id, u.username]));
+  for (const p of packages) {
+    const a = assignments.get(`${p.id}:${p.reviewStage}`);
+    // releasedBy/createdBy хранят User.id; старые строки — логин или «architect»,
+    // их показывать как имя нельзя, тогда ответственным остаётся роль.
+    const author =
+      (p.releasedBy && names.get(p.releasedBy)) || (p.createdBy && names.get(p.createdBy)) || null;
+    result.set(p.id, {
+      assignment: a
+        ? { assigneeName: a.assigneeName, deputyName: a.deputyName, dueAt: a.dueAt }
+        : null,
+      authorName: author,
+    });
+  }
+  return result;
+}
+
 /** Строка Prisma → вход конвейера. Списки должны быть отсортированы по версии вниз. */
-export function lifecycleInputFromRow(row: LifecycleProjectRow): LifecycleInput {
+export function lifecycleInputFromRow(
+  row: LifecycleProjectRow,
+  review?: Map<string, LifecycleReviewContext>,
+): LifecycleInput {
+  const pkg = row.packages[0];
   return {
+    review: pkg && review ? (review.get(pkg.id) ?? null) : null,
     project: {
       id: row.id,
       status: row.status,
@@ -119,11 +179,14 @@ async function loadPortfolioLifecycleUncached(now: Date): Promise<PortfolioProje
       packages: { take: 1, orderBy: { version: 'desc' }, select: LIFECYCLE_PACKAGE_SELECT },
     },
   });
+  const review = await loadLifecycleReviewContext(
+    rows.flatMap((row) => (row.packages[0] ? [row.packages[0]] : [])),
+  );
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
     code: row.code,
     customer: row.customer,
-    lifecycle: resolveLifecycle(lifecycleInputFromRow(row), now),
+    lifecycle: resolveLifecycle(lifecycleInputFromRow(row, review), now),
   }));
 }

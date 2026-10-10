@@ -73,8 +73,29 @@ export default function AppHeader() {
       .catch(() => setSession(null));
   }, [pathname]);
 
+  // Личный счётчик «Требует моего действия» (#103): задачи плюс непрочитанные
+  // уведомления. Ошибка загрузки просто прячет счётчик.
+  const [queue, setQueue] = useState<{ count: number; overdue: number } | null>(null);
+  useEffect(() => {
+    if (!session) {
+      setQueue(null);
+      return;
+    }
+    fetch('/api/nav/badges')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) =>
+        setQueue(
+          typeof data?.badges?.myQueue === 'number'
+            ? { count: data.badges.myQueue, overdue: data.badges.myQueueOverdue ?? 0 }
+            : null,
+        ),
+      )
+      .catch(() => setQueue(null));
+  }, [session, pathname]);
+
   const { root, title } = resolveTitle(pathname, session?.role);
   const navItems = navItemsFor(session?.role);
+  const hasInbox = navItems.some((item) => item.href === '/inbox');
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md dark:border-nord-3 dark:bg-nord-2/95">
@@ -88,6 +109,44 @@ export default function AppHeader() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {hasInbox && (
+            <Link
+              href="/inbox"
+              className="btn-ghost btn-sm relative"
+              data-testid="header-inbox"
+              title={
+                queue?.overdue
+                  ? `Требует моего действия: ${queue.count}, просрочено: ${queue.overdue}`
+                  : 'Требует моего действия'
+              }
+              aria-label={`Требует моего действия${queue?.count ? `: ${queue.count}` : ''}`}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+              </svg>
+              {queue && queue.count > 0 && (
+                <span
+                  className={`ml-1 rounded-full px-1.5 text-[10px] font-bold text-white ${
+                    queue.overdue
+                      ? 'bg-rose-600 dark:bg-nord-red'
+                      : 'bg-brand-600 dark:bg-nord-frost4'
+                  }`}
+                >
+                  {queue.count > 99 ? '99+' : queue.count}
+                </span>
+              )}
+            </Link>
+          )}
           {canCreateCalculation(session?.role) && (
             <Link href="/presale" className="btn-primary">
               + Новый расчёт

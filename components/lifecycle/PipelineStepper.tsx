@@ -68,6 +68,37 @@ export default function PipelineStepper({ state }: { state: LifecycleState }) {
         })}
       </ol>
 
+      {state.reason && (
+        <dl
+          className="grid gap-x-4 gap-y-1 rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-xs sm:grid-cols-[auto_1fr] dark:border-nord-red/40 dark:bg-nord-red/10"
+          data-testid="lifecycle-delay"
+        >
+          <dt className="font-semibold text-slate-500 dark:text-nord-muted">Причина</dt>
+          <dd className="text-slate-900 dark:text-nord-6">{state.reason}</dd>
+          <dt className="font-semibold text-slate-500 dark:text-nord-muted">Ответственный</dt>
+          <dd className="text-slate-900 dark:text-nord-6">
+            {state.responsible.label}
+            {state.dueAt && (
+              <span
+                className={
+                  state.overdue
+                    ? 'ml-1 font-bold text-rose-700 dark:text-nord-redText'
+                    : 'ml-1 text-slate-500 dark:text-nord-muted'
+                }
+              >
+                · срок {new Date(state.dueAt).toLocaleDateString('ru-RU')}
+              </span>
+            )}
+          </dd>
+          {state.next && (
+            <>
+              <dt className="font-semibold text-slate-500 dark:text-nord-muted">Следующий шаг</dt>
+              <dd className="text-slate-900 dark:text-nord-6">{state.next.label}</dd>
+            </>
+          )}
+        </dl>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <p className="text-slate-600 dark:text-nord-4">
           <span className="font-semibold text-slate-900 dark:text-nord-6">{state.note}.</span>{' '}
@@ -79,6 +110,12 @@ export default function PipelineStepper({ state }: { state: LifecycleState }) {
                 month: 'short',
               })}{' '}
               ({formatDays(state.days)}).
+            </span>
+          )}
+          {!state.reason && state.stage !== 'deal_closed' && (
+            <span className="text-slate-500 dark:text-nord-muted">
+              {' '}
+              Ответственный: {state.responsible.label}.
             </span>
           )}
         </p>

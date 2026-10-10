@@ -47,6 +47,20 @@ export function actorFromAccess(access: {
   };
 }
 
+/** Сотрудник по сессии (экраны и маршруты «моей» очереди). */
+export function actorFromSession(session: {
+  userId: string;
+  username: string;
+  role: string;
+}): ReviewActor {
+  return {
+    kind: 'staff',
+    actorId: session.userId,
+    username: session.username,
+    role: session.role,
+  };
+}
+
 export type RuleResult = { ok: true } | { ok: false; status: number; error: string };
 
 const deny = (status: number, error: string): RuleResult => ({ ok: false, status, error });
@@ -143,11 +157,41 @@ export interface LinePackage {
   reviewStage?: string | null;
 }
 
+/**
+ * Канонический состав документов: JSON отсортированного списка без повторов
+ * в нижнем регистре. `["pmi","tz"]` и `["tz","pmi"]` — один состав, поэтому
+ * и одна линия. Принимает массив или сохранённый JSON; нечитаемый JSON
+ * возвращается как есть — такая строка совпадёт только сама с собой.
+ */
+export function normalizeDocumentTypes(value: string[] | string | null | undefined): string {
+  let list: unknown = value;
+  if (typeof value === 'string') {
+    try {
+      list = JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  if (!Array.isArray(list)) return typeof value === 'string' ? value : '[]';
+  const types = Array.from(
+    new Set(
+      list
+        .filter((t): t is string => typeof t === 'string')
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ).sort();
+  return JSON.stringify(types);
+}
+
 export function sameLine(
   a: Pick<LinePackage, 'calculationId' | 'documentTypes'>,
   b: Pick<LinePackage, 'calculationId' | 'documentTypes'>,
 ): boolean {
-  return a.calculationId === b.calculationId && a.documentTypes === b.documentTypes;
+  return (
+    a.calculationId === b.calculationId &&
+    normalizeDocumentTypes(a.documentTypes) === normalizeDocumentTypes(b.documentTypes)
+  );
 }
 
 /** Утверждённая версия закрывает историю: всё, что было до неё, уже принято. */

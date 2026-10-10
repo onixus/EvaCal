@@ -11,6 +11,13 @@ import {
   loadReviewComments,
   summarizeReviewBulk,
 } from '../lib/review/store';
+import {
+  markNotificationsRead,
+  saveNotifications,
+  syncOverdueNotifications,
+} from '../lib/review/notifications';
+import { loadMyQueue } from '../lib/review/queue';
+import { actorFromSession } from '../lib/review/workflow';
 
 const constraint = /constraint|unique|violat/i;
 
@@ -263,19 +270,154 @@ async function main() {
     assert.equal(legacyComments[0].legacy, true);
     assert.equal(await countOpenBlockers(legacy), 1);
 
+    // #103 WP-3b: просрочка дописывается лениво и идемпотентно.
+    const pastDue = new Date(Date.now() - 86_400_000);
+    const overdueAssignment = await assignReviewStage({
+      packageId: w4.id,
+      stage: 'tw',
+      assigneeId: tw.id,
+      deputyId: null,
+      dueAt: pastDue,
+      assignedBy: gap.id,
+    });
+    assert.equal(await syncOverdueNotifications(tw.id), 1, 'first read creates overdue');
+    assert.equal(await syncOverdueNotifications(tw.id), 0, 'second read is idempotent');
+    assert.equal(
+      await prisma.notification.count({
+        where: { userId: tw.id, kind: 'overdue', entityId: overdueAssignment.id },
+      }),
+      1,
+    );
+    const twActor = actorFromSession({ userId: tw.id, username: tw.username, role: tw.role });
+    const twQueue = await loadMyQueue(twActor);
+    assert.equal(twQueue.overdue, 1, 'overdue assignment is on top of the queue');
+    assert.equal(twQueue.items[0].packageId, w4.id);
+    assert.equal(twQueue.unread, 1);
+    assert.equal(
+      await prisma.notification.count({ where: { userId: tw.id } }),
+      1,
+      'reading the queue again does not duplicate overdue',
+    );
+
+    // Уникальность (user, kind, entity, dueAt) на уровне БД; у прочих видов
+    // dueAt пуст — повторные ответы в одной ветке не схлопываются.
+    await assert.rejects(
+      prisma.notification.create({
+        data: {
+          userId: tw.id,
+          kind: 'overdue',
+          entityType: 'review_assignment',
+          entityId: overdueAssignment.id,
+          dueAt: pastDue,
+        },
+      }),
+      (err: unknown) => (err as { code?: string }).code === 'P2002',
+    );
+    await assert.rejects(
+      prisma.notification.create({
+        data: { userId: tw.id, kind: 'overdue', entityType: 'review_assignment', entityId: 'x' },
+      }),
+      constraint,
+      'overdue requires dueAt',
+    );
+    await assert.rejects(
+      prisma.notification.create({
+        data: { userId: tw.id, kind: 'spam', entityType: 'gost_package', entityId: 'x' },
+      }),
+      constraint,
+      'kind enum is enforced by CHECK',
+    );
+    const reply = {
+      userId: gap.id,
+      kind: 'comment_reply' as const,
+      entityType: 'review_comment' as const,
+      entityId: 'rc-ci',
+      payload: { packageId: w4.id },
+    };
+    assert.equal(await saveNotifications([reply, reply]), 2, 'replies are not deduplicated');
+    assert.equal(
+      await saveNotifications([{ ...reply, userId: 'not-a-user' }]),
+      0,
+      'unknown recipients are skipped',
+    );
+
+    // Прочитать: только свои.
+    assert.equal(await markNotificationsRead(gap.id, 'all'), 2);
+    const twNotification = await prisma.notification.findFirstOrThrow({
+      where: { userId: tw.id },
+    });
+    assert.equal(await markNotificationsRead(gap.id, [twNotification.id]), 0, 'not own');
+    assert.equal(await markNotificationsRead(tw.id, [twNotification.id]), 1);
+    assert.equal((await loadMyQueue(twActor)).unread, 0);
+
+    // Возвращённый комплект автора — в его очереди, пока не заменён.
+    const calc3 = await prisma.calculation.create({
+      data: {
+        templateId: template.id,
+        projectId: project.id,
+        name: 'Ревью 3',
+        customer: 'CI',
+        answers: '{}',
+      },
+    });
+    const line3 = { ...base, calculationId: calc3.id, documentTypes: '["tz","pmi"]' };
+    const r1 = await prisma.gostPackage.create({
+      data: {
+        ...line3,
+        name: 'r1',
+        version: 1,
+        status: 'rejected',
+        reviewStage: 'tw',
+        releasedBy: gapDeputy.id,
+        reviewComment: 'Нет ПМИ',
+      },
+    });
+    const deputyActor = actorFromSession({
+      userId: gapDeputy.id,
+      username: gapDeputy.username,
+      role: gapDeputy.role,
+    });
+    assert.ok(
+      (await loadMyQueue(deputyActor)).items.some(
+        (i) => i.kind === 'returned' && i.packageId === r1.id,
+      ),
+      'returned package is in the author queue',
+    );
+    // Тот же состав в другом порядке — та же линия: замечание переходит, а
+    // возврат заменён новой версией.
+    await blockerOn(r1.id, false);
+    const r2 = await prisma.gostPackage.create({
+      data: {
+        ...line3,
+        documentTypes: '["pmi","tz"]',
+        name: 'r2',
+        version: 2,
+        status: 'under_review',
+        reviewStage: 'tw',
+      },
+    });
+    assert.equal(await countOpenBlockers(r2), 1, 'document order does not split the line');
+    assert.ok(
+      !(await loadMyQueue(deputyActor)).items.some((i) => i.packageId === r1.id),
+      'superseded return leaves the queue',
+    );
+
     // Удаление комплекта каскадно убирает его замечания, ответы и назначения.
     await prisma.gostPackage.delete({ where: { id: v1.id } });
     assert.equal(await prisma.reviewComment.count({ where: { id: blocker.id } }), 0);
     assert.equal(await prisma.reviewCommentReply.count({ where: { commentId: blocker.id } }), 0);
 
     console.log(
-      'Review workflow integration passed: carried-over blockers, approved-version barrier, legacy/archived/other-docs not carried, fixed-unverified blocks approval, status CHECKs, one active assignment per stage (P2002), deputy check, JSON fallback, cascades.',
+      'Review workflow integration passed: carried-over blockers, approved-version barrier, legacy/archived/other-docs not carried, fixed-unverified blocks approval, status CHECKs, one active assignment per stage (P2002), deputy check, JSON fallback, cascades, idempotent overdue notifications, my-queue composition, mark-read scoping, document-order-insensitive lines.',
     );
   } finally {
     await prisma.gostPackage.deleteMany({ where: { calculation: { templateId: template.id } } });
     await prisma.calculation.deleteMany({ where: { templateId: template.id } });
     await prisma.project.delete({ where: { id: project.id } });
     await prisma.formTemplate.delete({ where: { id: template.id } });
+    await prisma.notification.deleteMany({
+      where: { userId: { in: [tw.id, gap.id, gapDeputy.id] } },
+    });
     await prisma.user.deleteMany({ where: { id: { in: [tw.id, gap.id, gapDeputy.id] } } });
   }
 }

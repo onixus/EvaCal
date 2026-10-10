@@ -128,10 +128,21 @@ export interface NavItem {
   label: string;
   group: NavGroup;
   /** Ключ счётчика из `/api/nav/badges`; пункт без ключа бейдж не показывает. */
-  badgeKey?: 'studioDrafts' | 'reviewQueue' | 'gapQueue';
+  badgeKey?: 'studioDrafts' | 'reviewQueue' | 'gapQueue' | 'myQueue';
 }
 
 const DASHBOARD: NavItem = { href: '/', label: 'Рабочий стол', group: 'work' };
+/**
+ * Личная очередь (#103): назначения, проверки исправлений, возвраты и
+ * уведомления. Есть у всех ролей, участвующих в ревью; пресейл в маршруте
+ * ревью не участвует и пункта не получает.
+ */
+const INBOX: NavItem = {
+  href: '/inbox',
+  label: 'Требует моего действия',
+  group: 'work',
+  badgeKey: 'myQueue',
+};
 const PROJECTS: NavItem = { href: '/projects', label: 'Проекты', group: 'work' };
 const CALCULATIONS: NavItem = { href: '/calculations', label: 'Расчёты и сметы', group: 'work' };
 const PRESALE: NavItem = { href: '/presale', label: 'Пресейл-мастер', group: 'work' };
@@ -167,6 +178,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   presale: [DASHBOARD, PROJECTS, PRESALE, CALCULATIONS, SUPPLY_CATALOG, ANALYTICS, LEADERBOARD],
   architect: [
     DASHBOARD,
+    INBOX,
     PROJECTS,
     CALCULATIONS,
     STUDIO,
@@ -184,6 +196,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   ],
   techwriter: [
     DASHBOARD,
+    INBOX,
     { href: '/review', label: 'Очередь нормоконтроля', group: 'work', badgeKey: 'reviewQueue' },
     BOARD,
     CHANGELOG,
@@ -194,6 +207,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   ],
   gap: [
     DASHBOARD,
+    INBOX,
     { href: '/review', label: 'Финальное ревью (ГАП)', group: 'work', badgeKey: 'gapQueue' },
     BOARD,
     PROJECTS,
@@ -206,6 +220,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   ],
   reviewer: [
     DASHBOARD,
+    INBOX,
     { href: '/review', label: 'Очередь ревью', group: 'work', badgeKey: 'reviewQueue' },
     BOARD,
     CHANGELOG,
@@ -217,6 +232,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   // Администратор — надмножество всех ролей: видит все экраны и обе очереди ревью.
   admin: [
     DASHBOARD,
+    INBOX,
     PROJECTS,
     PRESALE,
     CALCULATIONS,
