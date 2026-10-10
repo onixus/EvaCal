@@ -2,7 +2,7 @@ import type { TzAuthorState } from './gost34/llm/tzAuthor/types';
 import { prisma } from './prisma';
 import { storePackageArtifact } from './gost34/storage';
 import { countOpenBlockers } from './review/store';
-import { markSpecificationReleased, releasedSpecificationVersion } from './specification/store';
+import { releasedSpecificationVersion, withSpecificationRelease } from './specification/store';
 
 export interface CreateProjectInput {
   name: string;
@@ -283,26 +283,33 @@ export async function createGostPackageVersion(input: CreateGostPackageInput) {
         ? input.snapshot
         : null;
 
-  const pkg = await prisma.gostPackage.create({
-    data: {
-      projectId,
-      calculationId: calculation.id,
-      name: input.name || `Комплект ГОСТ 34 v${nextVersion}`,
-      version: nextVersion,
-      status: input.status || 'draft',
-      standardProfileId: input.standardProfileId,
-      standardProfileVersion: input.standardProfileVersion,
-      generatorVersion: input.generatorVersion,
-      documentTypes: docTypesJson,
-      metadata: metadataJson,
-      snapshot: snapshotJson,
-      artifactPath: input.artifactPath || null,
-      checksum: input.checksum || null,
-      releasedAt: input.releasedAt || null,
-      releasedBy: input.releasedBy || null,
-      createdBy: input.createdBy || 'architect',
-    },
-  });
+  // An issued package freezes the confirmed BOM revision it was built from;
+  // the package row and the revision status are written atomically.
+  const specificationVersion = input.releasedAt
+    ? releasedSpecificationVersion(input.snapshot)
+    : null;
+  const pkg = await withSpecificationRelease(calculation.id, specificationVersion, (db) =>
+    db.gostPackage.create({
+      data: {
+        projectId,
+        calculationId: calculation.id,
+        name: input.name || `Комплект ГОСТ 34 v${nextVersion}`,
+        version: nextVersion,
+        status: input.status || 'draft',
+        standardProfileId: input.standardProfileId,
+        standardProfileVersion: input.standardProfileVersion,
+        generatorVersion: input.generatorVersion,
+        documentTypes: docTypesJson,
+        metadata: metadataJson,
+        snapshot: snapshotJson,
+        artifactPath: input.artifactPath || null,
+        checksum: input.checksum || null,
+        releasedAt: input.releasedAt || null,
+        releasedBy: input.releasedBy || null,
+        createdBy: input.createdBy || 'architect',
+      },
+    }),
+  );
 
   // Update calculation binding stamps
   await prisma.calculation.update({
@@ -314,13 +321,6 @@ export async function createGostPackageVersion(input: CreateGostPackageInput) {
       generatedAt: new Date(),
     },
   });
-
-  // An issued package freezes the confirmed BOM revision it was built from.
-  const specificationVersion = input.releasedAt
-    ? releasedSpecificationVersion(input.snapshot)
-    : null;
-  if (specificationVersion !== null)
-    await markSpecificationReleased(calculation.id, specificationVersion);
 
   return pkg;
 }
@@ -516,13 +516,20 @@ export async function releaseGostPackage(input: {
 
   try {
     const stored = await storePackageArtifact(projectId, pkg.id, input.zipBuffer);
-    const updatedPkg = await prisma.gostPackage.update({
-      where: { id: pkg.id },
-      data: {
-        artifactPath: stored.artifactPath,
-        checksum: stored.checksum,
-      },
-    });
+    // Finalizing the package and releasing its BOM revision commit together; on any
+    // failure the package is deleted below and the revision keeps its status.
+    const updatedPkg = await withSpecificationRelease(
+      calculation.id,
+      releasedSpecificationVersion(input.snapshot),
+      (db) =>
+        db.gostPackage.update({
+          where: { id: pkg.id },
+          data: {
+            artifactPath: stored.artifactPath,
+            checksum: stored.checksum,
+          },
+        }),
+    );
 
     await prisma.calculation.update({
       where: { id: calculation.id },
@@ -533,10 +540,6 @@ export async function releaseGostPackage(input: {
         generatedAt: new Date(),
       },
     });
-
-    const specificationVersion = releasedSpecificationVersion(input.snapshot);
-    if (specificationVersion !== null)
-      await markSpecificationReleased(calculation.id, specificationVersion);
 
     // Архивируем предыдущие черновики этого расчёта, чтобы они не оставались
     // фантомными записями в очереди Студии после состоявшегося выпуска.

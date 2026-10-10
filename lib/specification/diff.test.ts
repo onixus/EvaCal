@@ -93,7 +93,8 @@ describe('Сравнение редакций спецификации', () => {
     );
     const a = diff.changed.find((c) => c.id === 'a')!;
     expect(a.changes.map((c) => c.field)).toEqual(['disposition', 'currency', 'confirmed']);
-    expect(a.moved).toBe(true);
+    expect(a.moved).toBe(false);
+    expect(diff.changed.filter((c) => c.moved).map((c) => c.id)).toEqual(['b']);
     expect(diff.totals.map((t) => [t.currency, t.delta])).toEqual([['RUB', '-10']]);
   });
   it('причина изменения необязательна: старые снимки читаются, пустая причина не сохраняется', () => {
@@ -106,5 +107,26 @@ describe('Сравнение редакций спецификации', () => {
     expect(() =>
       parseSpecification(snap(1, [row('a', { changeReason: 'x'.repeat(1001) })])),
     ).toThrow(/Причина изменения/);
+  });
+  it('«порядок изменен» только у фактически перемещенных строк', () => {
+    const items = ['a', 'b', 'c', 'd', 'e'].map((id) => row(id));
+    const reorder = (ids: string[]) => ids.map((id) => items.find((i) => i.id === id)!);
+    const moved = (ids: string[]) =>
+      diffSpecifications(snap(1, items), snap(2, reorder(ids)))
+        .changed.filter((c) => c.moved)
+        .map((c) => c.id);
+    // Moving one row to the end shifts others, but only that row is reported.
+    expect(moved(['b', 'c', 'd', 'e', 'a'])).toEqual(['a']);
+    expect(moved(['e', 'a', 'b', 'c', 'd'])).toEqual(['e']);
+    expect(moved(['a', 'b', 'c', 'd', 'e'])).toEqual([]);
+    // Swapping neighbours: one of the pair is moved.
+    expect(moved(['a', 'c', 'b', 'd', 'e'])).toHaveLength(1);
+    // Removal or insertion alone does not mark surviving rows as moved.
+    const diff = diffSpecifications(
+      snap(1, items),
+      snap(2, [row('x'), ...reorder(['a', 'c', 'd', 'e'])]),
+    );
+    expect(diff.changed).toEqual([]);
+    expect(diff.unchangedCount).toBe(4);
   });
 });

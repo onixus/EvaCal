@@ -1,4 +1,5 @@
 import { prisma } from '../prisma';
+import type { Prisma } from '../generated/prisma/client';
 import {
   parseSpecification,
   requireConfirmedSpecification,
@@ -145,8 +146,12 @@ export async function saveSpecification(
  * Drafts and revisions under review are never promoted; the revision data is untouched,
  * so the next edit necessarily creates a new draft revision.
  */
-export async function markSpecificationReleased(calculationId: string, version: number) {
-  const result = await prisma.specificationVersion.updateMany({
+export async function markSpecificationReleased(
+  calculationId: string,
+  version: number,
+  db: Pick<Prisma.TransactionClient, 'specificationVersion'> = prisma,
+) {
+  const result = await db.specificationVersion.updateMany({
     where: { calculationId, version, status: 'confirmed' },
     data: { status: 'released' },
   });
@@ -177,4 +182,21 @@ export function releasedSpecificationVersion(snapshot: unknown): number | null {
   return specification?.status === 'confirmed' || specification?.status === 'released'
     ? version
     : null;
+}
+
+/**
+ * Runs a package write and, when the package pins a final BOM revision, marks that
+ * revision released in the same transaction: either both are stored or neither.
+ */
+export async function withSpecificationRelease<T>(
+  calculationId: string,
+  version: number | null,
+  write: (db: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  if (version === null) return write(prisma);
+  return prisma.$transaction(async (tx) => {
+    const result = await write(tx);
+    await markSpecificationReleased(calculationId, version, tx);
+    return result;
+  });
 }

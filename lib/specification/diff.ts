@@ -111,6 +111,30 @@ function summary(item: SpecificationItem): DiffItem {
 }
 
 /**
+ * Rows present in both revisions keep their place when they belong to the longest
+ * subsequence already in the old relative order (LIS over old indexes); only the
+ * remaining rows were actually moved. O(n log n).
+ */
+export function movedIds(oldIndexes: number[], ids: string[]): Set<string> {
+  const tails: number[] = []; // positions in oldIndexes ending the best run of each length
+  const previous: number[] = new Array(oldIndexes.length).fill(-1);
+  for (let i = 0; i < oldIndexes.length; i++) {
+    let lo = 0,
+      hi = tails.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (oldIndexes[tails[mid]] < oldIndexes[i]) lo = mid + 1;
+      else hi = mid;
+    }
+    if (lo > 0) previous[i] = tails[lo - 1];
+    tails[lo] = i;
+  }
+  const kept = new Set<number>();
+  for (let i = tails.length ? tails[tails.length - 1] : -1; i >= 0; i = previous[i]) kept.add(i);
+  return new Set(ids.filter((_, i) => !kept.has(i)));
+}
+
+/**
  * Compares two revisions by stable row ID. Decimal values compare exactly
  * (1.50 equals 1.5), unknown values differ from 0, totals stay per currency.
  */
@@ -124,8 +148,10 @@ export function diffSpecifications(
   const changed: ChangedItem[] = [];
   let unchangedCount = 0;
   // Relative order among rows present in both revisions detects reordering.
-  const commonOld = before.items.filter((i) => newIds.has(i.id)).map((i) => i.id);
-  const commonNew = after.items.filter((i) => oldById.has(i.id)).map((i) => i.id);
+  const moved = movedIds(
+    after.items.filter((i) => oldById.has(i.id)).map((i) => oldById.get(i.id)!.index),
+    after.items.filter((i) => oldById.has(i.id)).map((i) => i.id),
+  );
   for (const item of after.items) {
     const previous = oldById.get(item.id)?.item;
     if (!previous) {
@@ -138,8 +164,8 @@ export function diffSpecifications(
         b = value(item, field);
       if (!same(field, a, b)) changes.push({ field, before: a, after: b });
     }
-    const moved = commonOld.indexOf(item.id) !== commonNew.indexOf(item.id);
-    if (!changes.length && !moved) {
+    const isMoved = moved.has(item.id);
+    if (!changes.length && !isMoved) {
       unchangedCount++;
       continue;
     }
@@ -150,7 +176,7 @@ export function diffSpecifications(
       changes,
       amount: money ? { before: lineAmount(previous), after: lineAmount(item) } : null,
       changeReason: item.changeReason ?? '',
-      moved,
+      moved: isMoved,
     });
   }
   const removed = before.items.filter((i) => !newIds.has(i.id)).map(summary);

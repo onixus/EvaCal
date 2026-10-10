@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-vi.mock('@/lib/prisma', () => ({
-  prisma: {
+vi.mock('@/lib/prisma', () => {
+  const prisma = {
     calculation: { findUnique: vi.fn(), update: vi.fn() },
     gostPackage: {
       findFirst: vi.fn(),
@@ -10,8 +10,11 @@ vi.mock('@/lib/prisma', () => ({
       delete: vi.fn(),
     },
     specificationVersion: { findFirst: vi.fn(), updateMany: vi.fn() },
-  },
-}));
+    // A failing callback rejects the whole transaction, as Prisma does.
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
+  };
+  return { prisma };
+});
 vi.mock('@/lib/gost34/storage', () => ({
   storePackageArtifact: vi.fn(async () => ({ artifactPath: 'p/pkg.zip', checksum: 'sha' })),
 }));
@@ -118,5 +121,38 @@ describe('Жизненный цикл редакции спецификации'
       }),
     ).toBeNull();
     expect(releasedSpecificationVersion('{bad')).toBeNull();
+  });
+  it('выпуск пакета и статус редакции записываются в одной транзакции', async () => {
+    await releaseGostPackage({
+      ...pkgInput,
+      snapshot: { specificationVersion: 3, specification: confirmed },
+      zipBuffer: Buffer.from('zip'),
+    });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    await createGostPackageVersion({ ...pkgInput, snapshot: { specificationVersion: null } });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+  it('сбой отметки отменяет выпуск: пакет удаляется, ошибка пробрасывается', async () => {
+    vi.mocked(prisma.specificationVersion.updateMany).mockRejectedValueOnce(new Error('db down'));
+    await expect(
+      releaseGostPackage({
+        ...pkgInput,
+        snapshot: { specificationVersion: 3, specification: confirmed },
+        zipBuffer: Buffer.from('zip'),
+      }),
+    ).rejects.toThrow('db down');
+    expect(prisma.gostPackage.delete).toHaveBeenCalledWith({ where: { id: 'pkg' } });
+    expect(prisma.gostPackage.updateMany).not.toHaveBeenCalled();
+  });
+  it('сбой записи пакета не помечает редакцию выпущенной', async () => {
+    vi.mocked(prisma.gostPackage.create).mockRejectedValueOnce(new Error('conflict'));
+    await expect(
+      createGostPackageVersion({
+        ...pkgInput,
+        snapshot: { specificationVersion: 3, specification: confirmed },
+        releasedAt: new Date(),
+      }),
+    ).rejects.toThrow('conflict');
+    expect(prisma.specificationVersion.updateMany).not.toHaveBeenCalled();
   });
 });
