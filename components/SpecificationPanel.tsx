@@ -293,6 +293,9 @@ export default function SpecificationPanel({
           {dirty ? 'Есть несохраненные изменения' : STATUS_LABELS[spec.status]}. Состав вводится
           вручную или копируется из каталога. Ответы опросника не добавляют товары. Реестры
           автоматически не проверяются.
+          {spec.sizingRunIds?.length
+            ? ` Позиции связаны с прогонами сайзинга (${spec.sizingRunIds.length}): влияние изменений — во вкладке «Сайзинг».`
+            : ''}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <label>
@@ -506,6 +509,17 @@ export default function SpecificationPanel({
                 ))}
               </div>
               <PriceOrigin item={item} canUseCatalog={canUseCatalog} />
+              {item.sizingRef && (
+                <p className="text-xs text-slate-500">
+                  Сайзинг: метрика {item.sizingRef.metric}
+                  {item.sizingRef.scenario ? ` (${item.sizingRef.scenario})` : ''} ={' '}
+                  {item.sizingRef.requiredQuantity}
+                  {item.sizingRef.unitCapacity
+                    ? `, ёмкость единицы ${item.sizingRef.unitCapacity}`
+                    : ''}{' '}
+                  · проверка влияния — во вкладке «Сайзинг»
+                </p>
+              )}
               <label className="flex gap-2">
                 <input
                   type="checkbox"

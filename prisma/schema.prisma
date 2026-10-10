@@ -202,6 +202,7 @@ model Calculation {
   parentCalculation   Calculation?  @relation("CalculationVersions", fields: [parentCalculationId], references: [id], onDelete: SetNull)
   derivedCalculations Calculation[] @relation("CalculationVersions")
   specifications      SpecificationVersion[]
+  sizingRuns          SizingRun[]
   versionComment      String? // Version change note (e.g. "Base estimate with risk buffer")
 
   // Commercial financial profile (Horizon B4)
@@ -997,4 +998,61 @@ model PlanScenario {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ==== #101 WP5: sizing ====
+// Сайзинг — техническая потребность (CPU/RAM/диски/EPS/поток/узлы/лицензии),
+// отдельная от закупаемых SKU спецификации. Профиль версионируется: утвержденная
+// версия неизменяема (триггер в миграции), прогон закрепляет версию и хранит
+// рассчитанные результаты, поэтому новая версия не меняет старые прогоны.
+model SizingProfile {
+  id          String                 @id @default(cuid())
+  key         String                 @unique
+  name        String
+  domain      String
+  description String                 @default("")
+  archived    Boolean                @default(false)
+  createdBy   String
+  createdAt   DateTime               @default(now())
+  versions    SizingProfileVersion[]
+}
+
+model SizingProfileVersion {
+  id          String        @id @default(cuid())
+  profileId   String
+  profile     SizingProfile @relation(fields: [profileId], references: [id], onDelete: Restrict)
+  version     Int
+  // Декларативные правила: входы, производные формулы, метрики, сценарии, таблицы.
+  rules       Json
+  // Допущения профиля (string[]), показываются вместе с результатом.
+  assumptions Json
+  source      String
+  status      String        @default("draft") // draft | approved | archived (CHECK в миграции)
+  createdBy   String
+  createdAt   DateTime      @default(now())
+  approvedBy  String?
+  approvedAt  DateTime?
+  runs        SizingRun[]
+
+  @@unique([profileId, version])
+}
+
+// Прогон только добавляется (UPDATE запрещен триггером). source=manual — ручной
+// сайзинг без профиля: outputs введены пользователем.
+model SizingRun {
+  id               String                @id @default(cuid())
+  calculationId    String
+  calculation      Calculation           @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  profileVersionId String?
+  profileVersion   SizingProfileVersion? @relation(fields: [profileVersionId], references: [id], onDelete: Restrict)
+  source           String // profile | manual (CHECK в миграции)
+  inputs           Json
+  scenarios        Json
+  outputs          Json
+  note             String                @default("")
+  createdBy        String
+  createdAt        DateTime              @default(now())
+
+  @@index([calculationId, createdAt])
+  @@index([profileVersionId])
 }

@@ -7,6 +7,7 @@ import {
   ITEM_KINDS,
   ITEM_DISPOSITIONS,
   SPECIFICATION_STATUSES,
+  type SpecificationSizingRef,
   FINAL_SPECIFICATION_STATUSES,
   SpecificationItem,
   SpecificationSnapshot,
@@ -138,6 +139,31 @@ export function parseCatalogOrigin(input: unknown): SpecificationCatalogOrigin {
   };
 }
 
+const SIZING_KEY = /^[a-z][a-z0-9_]{0,63}$/;
+export function parseSizingRef(input: unknown): SpecificationSizingRef {
+  const d = record(input, 'Связь с сайзингом');
+  onlyKeys(d, ['runId', 'metric', 'scenario', 'requiredQuantity', 'unitCapacity']);
+  const runId = text(d.runId, 'Прогон сайзинга', 100);
+  if (!runId) throw new SpecificationError('Некорректная связь с сайзингом');
+  if (typeof d.metric !== 'string' || !SIZING_KEY.test(d.metric))
+    throw new SpecificationError('Некорректная метрика сайзинга');
+  if (d.scenario !== undefined && (typeof d.scenario !== 'string' || !SIZING_KEY.test(d.scenario)))
+    throw new SpecificationError('Некорректный сценарий сайзинга');
+  if (!isDecimal(d.requiredQuantity))
+    throw new SpecificationError('Потребность сайзинга: неотрицательное десятичное число');
+  if (d.unitCapacity !== undefined && (!isDecimal(d.unitCapacity) || Number(d.unitCapacity) <= 0))
+    throw new SpecificationError('Ёмкость единицы позиции: положительное десятичное число');
+  return {
+    runId,
+    metric: d.metric,
+    ...(d.scenario === undefined || d.scenario === 'base'
+      ? {}
+      : { scenario: d.scenario as string }),
+    requiredQuantity: d.requiredQuantity,
+    ...(d.unitCapacity === undefined ? {} : { unitCapacity: d.unitCapacity as string }),
+  };
+}
+
 /** Strict input validation also applies to reloaded snapshots and direct generation. */
 export function parseSpecification(input: unknown): SpecificationSnapshot {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -185,6 +211,7 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
     return {
       id,
       ...(row.origin === undefined ? {} : { origin: parseCatalogOrigin(row.origin) }),
+      ...(row.sizingRef === undefined ? {} : { sizingRef: parseSizingRef(row.sizingRef) }),
       ...(row.priceOverride === undefined ? {} : { priceOverride: row.priceOverride as boolean }),
       kind: row.kind as SpecificationItem['kind'],
       disposition: row.disposition as SpecificationItem['disposition'],
@@ -204,11 +231,18 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
       ...(changeReason ? { changeReason } : {}),
     };
   });
+  let sizingRunIds: string[] | undefined;
+  if (data.sizingRunIds !== undefined) {
+    if (!Array.isArray(data.sizingRunIds) || data.sizingRunIds.length > 500)
+      throw new SpecificationError('Некорректный список прогонов сайзинга');
+    sizingRunIds = data.sizingRunIds.map((id) => text(id, 'Прогон сайзинга', 100));
+  }
   return {
     version: Number(data.version),
     status: data.status as SpecificationSnapshot['status'],
     emptySupplyReason: text(data.emptySupplyReason, 'Причина отсутствия поставки'),
     items,
+    ...(sizingRunIds === undefined ? {} : { sizingRunIds }),
   };
 }
 
