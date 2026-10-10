@@ -429,3 +429,53 @@ model SpecificationVersion {
 
   @@unique([calculationId, version])
 }
+
+// Technical identity is independent from price offers and project snapshots.
+model CatalogVendor {
+  id String @id @default(cuid())
+  name String
+  revision Int @default(1)
+  archived Boolean @default(false)
+  createdBy String
+  createdAt DateTime @default(now())
+  products CatalogProduct[]
+}
+
+model CatalogProduct {
+  id String @id @default(cuid())
+  vendorId String
+  vendor CatalogVendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  revision Int @default(1)
+  archived Boolean @default(false)
+  name String
+  sku String
+  edition String
+  kind String
+  unit String
+  licensing String
+  attributes Json
+  createdBy String
+  createdAt DateTime @default(now())
+  offers CatalogOffer[]
+
+  @@index([vendorId, archived])
+}
+
+// Append-only offers; missing price/dates have no implied value or validity.
+model CatalogOffer {
+  id String @id @default(cuid())
+  productId String
+  productRevision Int
+  product CatalogProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  source String
+  unitPrice Decimal? @db.Decimal(18, 6)
+  currency String
+  region String
+  terms String
+  priceDate String?
+  validUntil String?
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@index([productId, createdAt])
+}

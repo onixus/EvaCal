@@ -1,3 +1,4 @@
+import { CATALOG_ROLES } from '@/lib/catalog/types';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCalcAccess } from '@/lib/access';
 import { loadSpecification, saveSpecification } from '@/lib/specification/store';
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest, props: Params) {
     if (raw !== null && !specification) throw new SpecificationError('Редакция не найдена', 404);
     return NextResponse.json({
       specification,
+      canUseCatalog: access.kind === 'staff' && CATALOG_ROLES.includes(access.session?.role || ''),
       canWrite:
         access.kind === 'anonymous' ||
         (access.kind === 'staff' &&

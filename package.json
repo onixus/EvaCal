@@ -26,6 +26,7 @@
     "db:status": "prisma migrate status",
     "test:postgres": "tsx scripts/verify-postgres.ts",
     "test:specification:postgres": "tsx scripts/verify-specification.ts",
+    "test:catalog:postgres": "tsx scripts/verify-catalog.ts",
     "test:commercial:postgres": "tsx scripts/verify-commercial-pricing.ts"
   },
   "dependencies": {
