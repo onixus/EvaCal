@@ -135,10 +135,16 @@ export interface ScheduledItem extends StagePlanItem {
   dueDate: Date | null;
 }
 
-/** Inserts an automatic customer approval task after every stage run by a role that requires sign-off. */
+/**
+ * Inserts an automatic customer approval task after every stage run by a role that requires sign-off.
+ * Своя длительность согласования хранится и на строке согласования (её читает
+ * Гант), и на основном этапе — её читает редактор этапов, поэтому повторное
+ * сохранение не сбрасывает длительность к умолчанию.
+ */
 export function expandWithApprovals(primary: PrimaryStageInput[]): StagePlanItem[] {
   const items: StagePlanItem[] = [];
   for (const p of primary) {
+    const needsApproval = APPROVAL_REQUIRED_ROLES.includes(p.role as Role);
     items.push({
       name: p.name,
       role: p.role,
@@ -146,9 +152,9 @@ export function expandWithApprovals(primary: PrimaryStageInput[]): StagePlanItem
       isApprovalTask: false,
       requirements: p.requirements ?? null,
       parallel: !!p.parallel,
-      approvalDays: null,
+      approvalDays: needsApproval ? (p.approvalDays ?? null) : null,
     });
-    if (APPROVAL_REQUIRED_ROLES.includes(p.role as Role)) {
+    if (needsApproval) {
       items.push({
         name: `Согласование заказчиком: «${p.name}»`,
         role: 'customer',
@@ -161,6 +167,41 @@ export function expandWithApprovals(primary: PrimaryStageInput[]): StagePlanItem
     }
   }
   return items;
+}
+
+/**
+ * Основные этапы из сохранённых строк Stage (в порядке `order`). Длительность
+ * согласования берётся с основного этапа, а для строк, сохранённых до
+ * исправления, — с его строки согласования (идёт сразу за ним).
+ */
+export function primaryInputsFromStageRows(
+  rows: {
+    id: string;
+    name: string;
+    role: string;
+    hours: number;
+    isApprovalTask: boolean;
+    requirements?: string | null;
+    parallel?: boolean | null;
+    approvalDays?: number | null;
+  }[],
+): PrimaryStageInput[] {
+  const out: PrimaryStageInput[] = [];
+  rows.forEach((s, i) => {
+    if (s.isApprovalTask) return;
+    const next = rows[i + 1];
+    const fromApproval = next && next.isApprovalTask ? (next.approvalDays ?? null) : null;
+    out.push({
+      name: s.name,
+      role: s.role,
+      hours: s.hours,
+      requirements: s.requirements ?? null,
+      parallel: !!s.parallel,
+      approvalDays: s.approvalDays ?? fromApproval,
+      sourceStageId: s.id,
+    });
+  });
+  return out;
 }
 
 /**
@@ -427,37 +468,84 @@ export function validateDependencies(
   return null;
 }
 
+/** Прежняя строка Stage для сопоставления при перестройке этапов. */
+export interface ExistingStageRow {
+  id: string;
+  name: string;
+  role: string;
+  isApprovalTask: boolean;
+}
+
 /**
- * Переносит зависимости прежних строк этапов на новый список основных этапов
- * (перестройка Ганта пересоздаёт строки). Этап узнаётся по `sourceStageId`,
- * иначе по единственному совпадению названия и роли. Зависимость, у которой
- * пропал конец или которая теперь смотрит «назад» по списку (цикл с неявной
- * цепочкой), снимается. Результат — в индексах `items`.
+ * Сопоставляет элементы нового плана (`items` из `expandWithApprovals(primary)`)
+ * с прежними строками Stage (в порядке `order`), чтобы перестройка обновляла
+ * строки на месте и не теряла факт, журнал факта и зависимости.
+ *
+ * Основной этап: по `sourceStageId` (id прежней строки из редактора), иначе по
+ * названию и роли — при нескольких кандидатах предпочтение тому, что стоял на
+ * той же позиции среди основных этапов, затем первому по порядку. Согласование:
+ * строка согласования, шедшая сразу за сопоставленным основным этапом.
+ * Результат — id прежней строки для каждого элемента или null (новая строка).
  */
-export function carryDependencies(
+export function matchStageRows(
   primary: PrimaryStageInput[],
   items: StagePlanItem[],
-  oldPrimary: { id: string; name: string; role: string }[],
-  oldDeps: { fromStageId: string; toStageId: string; lagDays: number }[],
-): IndexedDependency[] {
-  if (oldDeps.length === 0) return [];
+  oldStages: ExistingStageRow[],
+): (string | null)[] {
+  const result: (string | null)[] = items.map(() => null);
   const itemIndexOfPrimary: number[] = [];
   items.forEach((item, i) => {
     if (!item.isApprovalTask) itemIndexOfPrimary.push(i);
   });
+  const oldPrimary = oldStages.filter((s) => !s.isApprovalTask);
   const oldIds = new Set(oldPrimary.map((s) => s.id));
-  const mapped = new Map<string, number>();
+  const used = new Set<string>();
   primary.forEach((p, k) => {
-    if (p.sourceStageId && oldIds.has(p.sourceStageId) && !mapped.has(p.sourceStageId)) {
-      mapped.set(p.sourceStageId, itemIndexOfPrimary[k]);
+    if (p.sourceStageId && oldIds.has(p.sourceStageId) && !used.has(p.sourceStageId)) {
+      used.add(p.sourceStageId);
+      result[itemIndexOfPrimary[k]] = p.sourceStageId;
     }
   });
   primary.forEach((p, k) => {
-    if (p.sourceStageId) return;
+    if (result[itemIndexOfPrimary[k]] !== null) return;
     const candidates = oldPrimary.filter(
-      (s) => !mapped.has(s.id) && s.name === p.name && s.role === p.role,
+      (s) => !used.has(s.id) && s.name === p.name && s.role === p.role,
     );
-    if (candidates.length === 1) mapped.set(candidates[0].id, itemIndexOfPrimary[k]);
+    if (candidates.length === 0) return;
+    const pick =
+      (oldPrimary[k] && candidates.includes(oldPrimary[k]) ? oldPrimary[k] : null) ?? candidates[0];
+    used.add(pick.id);
+    result[itemIndexOfPrimary[k]] = pick.id;
+  });
+  items.forEach((item, i) => {
+    if (!item.isApprovalTask || i === 0) return;
+    const ownerId = result[i - 1];
+    if (!ownerId) return;
+    const pos = oldStages.findIndex((s) => s.id === ownerId);
+    const next = oldStages[pos + 1];
+    if (next && next.isApprovalTask && !used.has(next.id)) {
+      used.add(next.id);
+      result[i] = next.id;
+    }
+  });
+  return result;
+}
+
+/**
+ * Переносит зависимости прежних строк на новый план по сопоставлению
+ * `matchStageRows`. Зависимость, у которой пропал конец или которая теперь
+ * смотрит «назад» по списку (цикл с неявной цепочкой), снимается. Результат —
+ * в индексах `items`.
+ */
+export function carryDependencies(
+  items: StagePlanItem[],
+  matched: (string | null)[],
+  oldDeps: { fromStageId: string; toStageId: string; lagDays: number }[],
+): IndexedDependency[] {
+  if (oldDeps.length === 0) return [];
+  const mapped = new Map<string, number>();
+  matched.forEach((id, i) => {
+    if (id && !items[i].isApprovalTask) mapped.set(id, i);
   });
   const seen = new Set<string>();
   const out: IndexedDependency[] = [];

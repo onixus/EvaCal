@@ -11,6 +11,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma';
 import { rebuildStages, scheduleConfigFromTemplate } from '../lib/calc';
+import { recordManualStageEdit } from '../lib/actualsLedgerData';
+import { primaryInputsFromStageRows } from '../lib/scheduling';
 import {
   DependencyError,
   loadCalcPlans,
@@ -114,25 +116,103 @@ async function main() {
     // A: пн–вт; пауза ср, чт → C в пт 7.03.
     assert.equal(stages[2].startDate.toISOString(), '2031-03-07T09:00:00.000Z', 'FS + lag');
 
-    // 4. Перестройка этапов переносит зависимость на новые строки.
+    // 4. Перестройка этапов обновляет строки на месте: факт, журнал факта и
+    //    зависимость сохраняются; удалённый этап оставляет записи журнала без этапа.
+    await prisma.$transaction(async (tx) => {
+      await recordManualStageEdit(tx, {
+        calculationId: calculation.id,
+        stageId: a.id,
+        hours: 10,
+        startDate: monday,
+      });
+      await recordManualStageEdit(tx, { calculationId: calculation.id, stageId: b.id, hours: 4 });
+    });
+    const ledgerBefore = await prisma.actualEntry.findMany({
+      where: { calculationId: calculation.id },
+      orderBy: { id: 'asc' },
+    });
+    assert.equal(ledgerBefore.length, 2, 'ledger has entries for A and B');
+    stages = await rebuildStages(
+      calculation.id,
+      [
+        { ...primary[0], hours: 14, sourceStageId: a.id },
+        // B убран; C — без id, узнаётся по названию и роли; D — новый.
+        { ...primary[2] },
+        { name: 'D', role: 'architect', hours: 3 },
+      ],
+      monday,
+      config,
+    );
+    assert.equal(stages[0].id, a.id, 'A row kept');
+    assert.equal(stages[1].id, c.id, 'C row kept by name + role');
+    assert.equal(stages[0].hours, 14, 'plan fields updated');
+    assert.equal(stages[0].actualHours, 10, 'stage actual aggregate kept');
+    assert.equal(await prisma.stage.count({ where: { id: b.id } }), 0, 'removed stage deleted');
+    const ledgerAfter = await prisma.actualEntry.findMany({
+      where: { calculationId: calculation.id },
+      orderBy: { id: 'asc' },
+    });
+    assert.equal(ledgerAfter.length, 2, 'ledger entries kept');
+    assert.equal(
+      ledgerAfter.reduce((s, e) => s + (e.hours ?? 0), 0),
+      14,
+      'ledger totals unchanged',
+    );
+    assert.equal(ledgerAfter.find((e) => e.hours === 10)?.stageId, a.id, 'A entry still on A');
+    assert.equal(ledgerAfter.find((e) => e.hours === 4)?.stageId, null, 'B entry unassigned');
+    const carried = await prisma.stageDependency.findMany({
+      where: { calculationId: calculation.id },
+    });
+    assert.equal(carried.length, 1, 'dependency carried over');
+    assert.equal(carried[0].fromStageId, a.id);
+    assert.equal(carried[0].toStageId, c.id);
+    assert.equal(carried[0].lagDays, 2);
+
+    // Обратно к A/B/C (B — новая строка), зависимость A → C на месте.
     stages = await rebuildStages(
       calculation.id,
       [
         { ...primary[0], sourceStageId: a.id },
-        { ...primary[1], sourceStageId: b.id },
+        { ...primary[1] },
         { ...primary[2], sourceStageId: c.id },
       ],
       monday,
       config,
     );
-    const carried = await prisma.stageDependency.findMany({
-      where: { calculationId: calculation.id },
-    });
-    assert.equal(carried.length, 1, 'dependency carried over');
-    assert.equal(carried[0].fromStageId, stages[0].id);
-    assert.equal(carried[0].toStageId, stages[2].id);
-    assert.equal(carried[0].lagDays, 2);
     assert.equal(stages[2].startDate.toISOString(), '2031-03-07T09:00:00.000Z');
+
+    // 4a. Своя длительность согласования переживает «загрузить → сохранить».
+    const approvalCalc = await prisma.calculation.create({
+      data: {
+        templateId: template.id,
+        name: `deps-approval-${marker}`,
+        customer: 'CI',
+        answers: '{}',
+        startDate: monday,
+      },
+    });
+    await rebuildStages(
+      approvalCalc.id,
+      [{ name: 'ТЗ', role: 'analyst', hours: 6, approvalDays: 5 }],
+      monday,
+      config,
+    );
+    for (let round = 0; round < 2; round++) {
+      const rows = await prisma.stage.findMany({
+        where: { calculationId: approvalCalc.id },
+        orderBy: { order: 'asc' },
+      });
+      await rebuildStages(approvalCalc.id, primaryInputsFromStageRows(rows), monday, config);
+    }
+    const approvalRows = await prisma.stage.findMany({
+      where: { calculationId: approvalCalc.id },
+      orderBy: { order: 'asc' },
+    });
+    assert.deepEqual(
+      approvalRows.map((r) => r.approvalDays),
+      [5, 5],
+      'custom approval duration kept after reload/save',
+    );
 
     // 5. Варианты не пишут: даты и updatedAt не меняются.
     const capacity = await prisma.roleCapacity.create({

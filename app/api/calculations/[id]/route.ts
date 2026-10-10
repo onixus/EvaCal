@@ -7,6 +7,7 @@ import {
   pmHoursFor,
   scheduleConfigFromTemplate,
 } from '@/lib/calc';
+import { primaryInputsFromStageRows } from '@/lib/scheduling';
 import { requireCalcAccess, requireStaff } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 
@@ -186,17 +187,8 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   });
 
   if (body.startDate) {
-    const primary = existing.stages
-      .filter((s) => !s.isApprovalTask)
-      .map((s) => ({
-        name: s.name,
-        role: s.role,
-        hours: s.hours,
-        requirements: s.requirements,
-        parallel: s.parallel,
-        approvalDays: s.approvalDays,
-        sourceStageId: s.id,
-      }));
+    // Длительность согласования — с основного этапа, у старых строк — со строки согласования.
+    const primary = primaryInputsFromStageRows(existing.stages);
     await rebuildStages(
       params.id,
       primary,

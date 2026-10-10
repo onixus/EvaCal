@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { buildWorkCalendar, type WorkCalendar } from '../calendar';
 import {
   addLagDays,
-  carryDependencies,
   expandWithApprovals,
   findDependencyCycle,
   scheduleItems,
@@ -189,51 +188,5 @@ describe('зависимости этапов: проверки', () => {
       validateDependencies(plan, [{ from: 0, to: 3, type: 'SS' as 'FS', lagDays: 0 }])?.code,
     ).toBe('bad_type');
     expect(validateDependencies(plan, [fs(0, 3, 5), fs(1, 3)])).toBeNull();
-  });
-});
-
-describe('зависимости этапов: перенос при перестройке этапов', () => {
-  const oldPrimary = [
-    { id: 's1', name: 'A', role: 'architect' },
-    { id: 's2', name: 'B', role: 'architect' },
-    { id: 's3', name: 'C', role: 'architect' },
-  ];
-  const oldDeps = [{ fromStageId: 's1', toStageId: 's3', lagDays: 2 }];
-
-  it('по sourceStageId и по названию с ролью', () => {
-    const primary: PrimaryStageInput[] = [
-      { name: 'A', role: 'architect', hours: 6, sourceStageId: 's1' },
-      { name: 'Новый', role: 'architect', hours: 6 },
-      { name: 'C', role: 'architect', hours: 6 }, // без id — по названию и роли
-    ];
-    const items = expandWithApprovals(primary);
-    expect(carryDependencies(primary, items, oldPrimary, oldDeps)).toEqual([fs(0, 2, 2)]);
-  });
-
-  it('после перестановки «назад» и при удалении этапа зависимость снимается', () => {
-    const swapped: PrimaryStageInput[] = [
-      { name: 'C', role: 'architect', hours: 6, sourceStageId: 's3' },
-      { name: 'A', role: 'architect', hours: 6, sourceStageId: 's1' },
-    ];
-    expect(carryDependencies(swapped, expandWithApprovals(swapped), oldPrimary, oldDeps)).toEqual(
-      [],
-    );
-    const removed: PrimaryStageInput[] = [
-      { name: 'A', role: 'architect', hours: 6, sourceStageId: 's1' },
-    ];
-    expect(carryDependencies(removed, expandWithApprovals(removed), oldPrimary, oldDeps)).toEqual(
-      [],
-    );
-  });
-
-  it('индексы учитывают вставленные согласования', () => {
-    const primary: PrimaryStageInput[] = [
-      { name: 'A', role: 'analyst', hours: 6, sourceStageId: 's1' },
-      { name: 'C', role: 'architect', hours: 6, sourceStageId: 's3' },
-    ];
-    // [0] A, [1] согласование A, [2] C
-    expect(carryDependencies(primary, expandWithApprovals(primary), oldPrimary, oldDeps)).toEqual([
-      fs(0, 2, 2),
-    ]);
   });
 });

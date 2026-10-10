@@ -2,6 +2,7 @@ import { prisma } from './prisma';
 import {
   carryDependencies,
   expandWithApprovals,
+  matchStageRows,
   scheduleItems,
   PrimaryStageInput,
   ScheduleConfig,
@@ -9,12 +10,22 @@ import {
 } from './scheduling';
 import { computePmHours } from './pm';
 import { loadScheduleConfig } from './calendarData';
+import { lockCalculationLedger } from './actualsLedgerData';
 
 /**
- * Wipes and regenerates every Stage row for a calculation from an ordered list of primary stages.
- * Явные зависимости этапов (#103 WP-5e) переносятся на пересозданные строки: этап
- * узнаётся по `sourceStageId`, иначе по совпадению названия и роли. Зависимость,
- * которая после перестановки этапов смотрит «назад» по списку, снимается.
+ * Перестраивает план этапов расчёта по упорядоченному списку основных этапов
+ * **на месте**: прежние строки Stage сопоставляются с новым планом
+ * (`matchStageRows`: id из редактора, иначе название + роль + позиция) и
+ * обновляются, новые создаются, удаляются только этапы, которых больше нет.
+ * Поэтому факт этапа, записи журнала факта (ActualEntry), сопоставления задач
+ * трекера и явные зависимости (#103 WP-5e) переживают правку списка этапов и
+ * перенос даты старта.
+ *
+ * У удалённого этапа записи журнала остаются с `stageId = null` (FK SetNull —
+ * журнал это поддерживает: часы видны как несопоставленные и могут быть
+ * сопоставлены заново); сопоставления задач этого этапа удаляются каскадом.
+ * Агрегат факта сохранённых этапов не меняется: их записи журнала не трогаются.
+ * Зависимость, ставшая «обратной» после перестановки, снимается.
  */
 export async function rebuildStages(
   calculationId: string,
@@ -22,11 +33,11 @@ export async function rebuildStages(
   startDate: Date,
   config: ScheduleConfig = DEFAULT_SCHEDULE_CONFIG,
 ) {
-  const [oldPrimary, oldDeps] = await Promise.all([
+  const [oldStages, oldDeps] = await Promise.all([
     prisma.stage.findMany({
-      where: { calculationId, isApprovalTask: false },
+      where: { calculationId },
       orderBy: { order: 'asc' },
-      select: { id: true, name: true, role: true },
+      select: { id: true, name: true, role: true, isApprovalTask: true },
     }),
     prisma.stageDependency.findMany({
       where: { calculationId },
@@ -34,19 +45,24 @@ export async function rebuildStages(
     }),
   ]);
   const items = expandWithApprovals(primary);
-  const dependencies = carryDependencies(primary, items, oldPrimary, oldDeps);
+  const matched = matchStageRows(primary, items, oldStages);
+  const dependencies = carryDependencies(items, matched, oldDeps);
   const scheduled = scheduleItems(items, startDate, config, dependencies);
+  const kept = new Set(matched.filter((id): id is string => Boolean(id)));
+  const removed = oldStages.filter((s) => !kept.has(s.id)).map((s) => s.id);
 
-  // Зависимости удаляются каскадом вместе со строками этапов.
-  await prisma.stage.deleteMany({ where: { calculationId } });
-
-  if (scheduled.length === 0) return [];
-
-  const created = await prisma.$transaction(
-    scheduled.map((item) =>
-      prisma.stage.create({
-        data: {
-          calculationId,
+  await prisma.$transaction(
+    async (tx) => {
+      // Та же блокировка, что у записей журнала факта: синхронизация не
+      // привяжет запись к этапу, который удаляется в этой транзакции.
+      await lockCalculationLedger(tx, calculationId);
+      await tx.stageDependency.deleteMany({ where: { calculationId } });
+      if (removed.length > 0) {
+        await tx.stage.deleteMany({ where: { calculationId, id: { in: removed } } });
+      }
+      const ids: string[] = [];
+      for (const [i, item] of scheduled.entries()) {
+        const data = {
           name: item.name,
           role: item.role,
           hours: item.hours,
@@ -58,22 +74,33 @@ export async function rebuildStages(
           requirements: item.requirements,
           parallel: item.parallel,
           approvalDays: item.approvalDays,
-        },
-      }),
-    ),
+        };
+        const id = matched[i];
+        if (id) {
+          await tx.stage.update({ where: { id }, data });
+          ids.push(id);
+        } else {
+          const row = await tx.stage.create({
+            data: { calculationId, ...data },
+            select: { id: true },
+          });
+          ids.push(row.id);
+        }
+      }
+      if (dependencies.length > 0) {
+        await tx.stageDependency.createMany({
+          data: dependencies.map((d) => ({
+            calculationId,
+            fromStageId: ids[d.from],
+            toStageId: ids[d.to],
+            type: 'FS',
+            lagDays: d.lagDays,
+          })),
+        });
+      }
+    },
+    { timeout: 30_000 },
   );
-
-  if (dependencies.length > 0) {
-    await prisma.stageDependency.createMany({
-      data: dependencies.map((d) => ({
-        calculationId,
-        fromStageId: created[d.from].id,
-        toStageId: created[d.to].id,
-        type: 'FS',
-        lagDays: d.lagDays,
-      })),
-    });
-  }
 
   return prisma.stage.findMany({
     where: { calculationId },

@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ROLES, APPROVAL_REQUIRED_ROLES, APPROVAL_BUSINESS_DAYS, Role } from '@/lib/roles';
 import StageTable, { StageRow } from '@/components/StageTable';
+import { primaryInputsFromStageRows } from '@/lib/scheduling';
 import GanttChart from '@/components/GanttChart';
 import StatusBadge from '@/components/StatusBadge';
 import TotalsSummary, { RiskRow } from '@/components/TotalsSummary';
@@ -54,17 +55,16 @@ export default function ArchitectEditor({
 }) {
   const router = useRouter();
   const [stages, setStages] = useState<EditableStage[]>(
-    calculation.stages
-      .filter((s) => !s.isApprovalTask)
-      .map((s) => ({
-        key: s.id,
-        name: s.name,
-        role: s.role,
-        hours: s.hours,
-        requirements: s.requirements ?? '',
-        parallel: s.parallel ?? false,
-        approvalDays: s.approvalDays ?? APPROVAL_BUSINESS_DAYS,
-      })),
+    // Длительность согласования — с основного этапа, у старых строк — со строки согласования.
+    primaryInputsFromStageRows(calculation.stages).map((s) => ({
+      key: s.sourceStageId as string,
+      name: s.name,
+      role: s.role,
+      hours: s.hours,
+      requirements: s.requirements ?? '',
+      parallel: s.parallel ?? false,
+      approvalDays: s.approvalDays ?? APPROVAL_BUSINESS_DAYS,
+    })),
   );
   const [startDate, setStartDate] = useState(calculation.startDate.slice(0, 10));
   const [saving, setSaving] = useState(false);
