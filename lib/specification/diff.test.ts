@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SpecificationItem, SpecificationSnapshot } from './types';
-import { diffSpecifications } from './diff';
+import { clearStaleChangeReasons, diffSpecifications } from './diff';
 import { parseSpecification } from './validation';
 
 const row = (id: string, patch: Partial<SpecificationItem> = {}): SpecificationItem => ({
@@ -128,5 +128,30 @@ describe('Сравнение редакций спецификации', () => {
     );
     expect(diff.changed).toEqual([]);
     expect(diff.unchangedCount).toBe(4);
+  });
+  it('причина изменения не переходит в следующие редакции', () => {
+    const v1 = snap(1, [row('a'), row('b')]);
+    const edit = snap(1, [row('a', { quantity: '2', changeReason: 'Сайзинг' }), row('b')]);
+    const v2 = { ...clearStaleChangeReasons(v1, edit), version: 2 };
+    expect(v2.items[0].changeReason).toBe('Сайзинг');
+    // Next edition edits only row b; row a is unchanged and loses the old note.
+    const next = snap(2, [v2.items[0], row('b', { unitPrice: '11', changeReason: 'Новая цена' })]);
+    const v3 = { ...clearStaleChangeReasons(v2, next), version: 3 };
+    expect(v3.items[0]).not.toHaveProperty('changeReason');
+    expect(v3.items[1].changeReason).toBe('Новая цена');
+    // New rows keep their note; no base keeps everything.
+    expect(clearStaleChangeReasons(null, edit).items[0].changeReason).toBe('Сайзинг');
+  });
+  it('в сравнении показывается только причина, заданная в этой паре редакций', () => {
+    const v2 = snap(2, [
+      row('a', { quantity: '2', changeReason: 'Сайзинг' }),
+      row('gone', { changeReason: 'x' }),
+    ]);
+    const v3 = snap(3, [row('a', { quantity: '3', changeReason: 'Сайзинг' })]);
+    const diff = diffSpecifications(v2, v3);
+    expect(diff.changed[0].changeReason).toBe('');
+    expect(diff.removed[0].changeReason).toBe('');
+    const v4 = snap(4, [row('a', { quantity: '4', changeReason: 'Расширение' })]);
+    expect(diffSpecifications(v3, v4).changed[0].changeReason).toBe('Расширение');
   });
 });

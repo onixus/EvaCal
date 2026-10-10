@@ -175,11 +175,18 @@ export function diffSpecifications(
       name: item.name || previous.name,
       changes,
       amount: money ? { before: lineAmount(previous), after: lineAmount(item) } : null,
-      changeReason: item.changeReason ?? '',
+      // A note inherited unchanged from the base revision explains an older edit.
+      changeReason:
+        (item.changeReason ?? '') !== (previous.changeReason ?? '')
+          ? (item.changeReason ?? '')
+          : '',
       moved: isMoved,
     });
   }
-  const removed = before.items.filter((i) => !newIds.has(i.id)).map(summary);
+  // A removed row's note belongs to the edit that produced the old revision.
+  const removed = before.items
+    .filter((i) => !newIds.has(i.id))
+    .map((i) => ({ ...summary(i), changeReason: '' }));
   const beforeTotals = summarizeSpecification(before),
     afterTotals = summarizeSpecification(after);
   const currencies = [...new Set([...beforeTotals, ...afterTotals].map((t) => t.currency))].sort();
@@ -203,5 +210,32 @@ export function diffSpecifications(
     changed,
     unchangedCount,
     totals,
+  };
+}
+
+/** True when any compared field differs (decimals exactly, unknown ≠ 0). */
+export function rowChanged(before: SpecificationItem, after: SpecificationItem) {
+  return DIFF_FIELDS.some((field) => !same(field, value(before, field), value(after, field)));
+}
+
+/**
+ * A change note describes the edit made in one revision. Rows that are unchanged
+ * relative to the base revision drop their note, so it does not carry over into
+ * later editions; edited and new rows keep the note supplied with this save.
+ */
+export function clearStaleChangeReasons(
+  base: SpecificationSnapshot | null,
+  next: SpecificationSnapshot,
+): SpecificationSnapshot {
+  const previous = new Map((base?.items ?? []).map((item) => [item.id, item]));
+  return {
+    ...next,
+    items: next.items.map((item) => {
+      const old = previous.get(item.id);
+      if (!item.changeReason || !old || rowChanged(old, item)) return item;
+      const { changeReason: _stale, ...rest } = item;
+      void _stale;
+      return rest;
+    }),
   };
 }

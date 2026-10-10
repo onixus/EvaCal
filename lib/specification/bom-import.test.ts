@@ -141,4 +141,35 @@ describe('Импорт BOM в черновик спецификации', () => 
     expect(() => parseBomProfile({ headerRow: 3, startRow: 2 })).toThrow(/после заголовка/);
     expect(() => parseBomProfile({ currency: 'rub' })).toThrow(/Валюта/);
   });
+  it('при разделителе «,» точка в тексте — ошибка строки, а не 1000-кратная ошибка', () => {
+    const preview = csv('Наименование;Кол-во;Цена\nA;1.500;1\nB;1;1.500,5\nC;1 500;1,5');
+    expect(preview.rows[0].errors.join()).toMatch(/точка не допускается/);
+    expect(preview.rows[1].errors.join()).toMatch(/точка не допускается/);
+    expect(preview.rows[2].item).toMatchObject({ quantity: '1500', unitPrice: '1.5' });
+    expect(() => exactDecimal('1.500', ',')).toThrow(/точка/);
+    expect(exactDecimal('1.5', ',', true)).toBe('1.5');
+  });
+  it('XLSX: числовые ячейки точны при «,», текстовые ячейки подчиняются разделителю', () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Name', 'Qty', 'Price'],
+      ['Num', 1.5, 1234.5],
+      ['Text', '1.500', '2,5'],
+      ['TextComma', '1,5', '2'],
+    ]);
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, ws, 'BOM');
+    const preview = analyzeBom(
+      XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }),
+      'bom.xlsx',
+      parseBomProfile({ decimalSeparator: ',' }),
+    );
+    expect(preview.rows[0].item).toMatchObject({ quantity: '1.5', unitPrice: '1234.5' });
+    expect(preview.rows[1].errors.join()).toMatch(/точка не допускается/);
+    expect(preview.rows[2].item).toMatchObject({ quantity: '1.5', unitPrice: '2' });
+  });
+  it('апостроф-защита формулы не попадает в значение', () => {
+    const preview = csv("Наименование;Артикул\n'-10% скидка;'+7\n'обычный;x");
+    expect(preview.rows[0].item).toMatchObject({ name: '-10% скидка', sku: '+7' });
+    expect(preview.rows[1].item?.name).toBe("'обычный");
+  });
 });

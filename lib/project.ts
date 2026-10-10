@@ -62,6 +62,11 @@ export interface CreateGostPackageInput {
   releasedBy?: string;
   releasedAt?: Date;
   projectId?: string;
+  /**
+   * The issued package contains the SPEC: mark its pinned confirmed BOM revision
+   * released. Off by default so TZ-only or legacy downloads never freeze the BOM.
+   */
+  releaseSpecification?: boolean;
 }
 
 /**
@@ -285,9 +290,10 @@ export async function createGostPackageVersion(input: CreateGostPackageInput) {
 
   // An issued package freezes the confirmed BOM revision it was built from;
   // the package row and the revision status are written atomically.
-  const specificationVersion = input.releasedAt
-    ? releasedSpecificationVersion(input.snapshot)
-    : null;
+  const specificationVersion =
+    input.releasedAt && input.releaseSpecification
+      ? releasedSpecificationVersion(input.snapshot)
+      : null;
   const pkg = await withSpecificationRelease(calculation.id, specificationVersion, (db) =>
     db.gostPackage.create({
       data: {
@@ -458,6 +464,8 @@ export async function releaseGostPackage(input: {
   snapshot: GostWizardSnapshot | string;
   zipBuffer: Buffer | Uint8Array;
   actorId?: string;
+  /** The package contains SPEC (DOCX or SPEC.xlsx): release its pinned BOM revision. */
+  releaseSpecification?: boolean;
 }) {
   const calculation = await prisma.calculation.findUnique({
     where: { id: input.calculationId },
@@ -520,7 +528,7 @@ export async function releaseGostPackage(input: {
     // failure the package is deleted below and the revision keeps its status.
     const updatedPkg = await withSpecificationRelease(
       calculation.id,
-      releasedSpecificationVersion(input.snapshot),
+      input.releaseSpecification ? releasedSpecificationVersion(input.snapshot) : null,
       (db) =>
         db.gostPackage.update({
           where: { id: pkg.id },

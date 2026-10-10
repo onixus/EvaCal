@@ -43,10 +43,8 @@ const KIND_LABELS: Record<SpecificationItem['kind'], string> = {
 
 type Cell = string | number | null;
 
-/** Text cells starting with formula characters are neutralized (CSV/XLSX injection). */
-function textCell(value: string): string {
-  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-}
+// Text is written as shared strings (t: 's') without formulas, so values such as
+// '-10% скидка', '+7' or '=x' stay literal and round-trip unchanged; no apostrophe prefix.
 
 /**
  * Decimal cell: a number only when the IEEE-754 double round-trips to the same
@@ -64,26 +62,26 @@ export function decimalCell(value: string | null): Cell {
 export function specificationXlsxRows(snapshot: SpecificationSnapshot): Cell[][] {
   return specificationSections(snapshot.items).flatMap((section) =>
     section.items.map((item, index) => [
-      textCell(section.title),
+      section.title,
       index + 1,
-      textCell(item.name),
-      textCell(item.vendor),
-      textCell(item.sku),
+      item.name,
+      item.vendor,
+      item.sku,
       KIND_LABELS[item.kind],
       DISPOSITION_LABELS[item.disposition],
-      textCell(item.configuration),
-      textCell(item.licensing),
-      textCell(item.term),
+      item.configuration,
+      item.licensing,
+      item.term,
       decimalCell(item.quantity),
-      textCell(item.unit),
+      item.unit,
       decimalCell(item.unitPrice),
       item.currency,
       decimalCell(lineAmount(item)),
-      textCell(item.source),
-      textCell(item.rationale),
+      item.source,
+      item.rationale,
       item.confirmed ? 'да' : 'нет',
-      textCell(item.changeReason ?? ''),
-      textCell(item.id),
+      item.changeReason ?? '',
+      item.id,
     ]),
   );
 }
@@ -118,13 +116,13 @@ export function renderSpecificationXlsx(
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(totalRows), SPEC_XLSX_SHEETS.totals);
 
   const info: Cell[][] = [
-    ['Расчет', textCell(meta.calculationName)],
-    ['Заказчик', textCell(meta.customer)],
+    ['Расчет', meta.calculationName],
+    ['Заказчик', meta.customer],
     ['Редакция', snapshot.version],
     ['Статус', STATUS_LABELS[snapshot.status]],
     ['Позиций', snapshot.items.length],
     ...(snapshot.emptySupplyReason
-      ? [['Обоснование отсутствия поставки', textCell(snapshot.emptySupplyReason)]]
+      ? [['Обоснование отсутствия поставки', snapshot.emptySupplyReason]]
       : []),
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(info), SPEC_XLSX_SHEETS.info);

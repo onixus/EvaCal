@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import * as XLSX from 'xlsx';
 import { analyzeImport } from '../catalog/import-parser';
 import { productInput } from '../catalog/validation';
 import type { ImportProfile, ImportRow } from '../catalog/import-types';
@@ -83,10 +84,22 @@ export function parseBomProfile(input: unknown): BomProfile {
  * Exact decimal from a cell. XLSX numeric cells arrive as the OOXML lexical value
  * (possibly with exponent), CSV cells as typed text; no floating-point round trip.
  */
-export function exactDecimal(raw: string, separator: '.' | ','): string | null {
-  let value = raw.replace(/[\s ]/g, '');
+export function exactDecimal(
+  raw: string,
+  separator: '.' | ',',
+  numericCell = false,
+): string | null {
+  let value = raw.replace(/[\s\u00a0]/g, '');
   if (!value) return null;
-  if (separator === ',') value = value.replace(',', '.');
+  // Typed XLSX numbers are lexical OOXML values with '.'; typed text follows the
+  // chosen separator strictly, so '1.500' is never read as 1.5 under ','.
+  if (!numericCell && separator === ',') {
+    if (value.includes('.'))
+      throw new SpecificationError(
+        `«${raw}»: при десятичном разделителе «,» точка не допускается (разряды пишутся пробелом)`,
+      );
+    value = value.replace(',', '.');
+  }
   const match = /^(?:(\d+)(?:\.(\d*))?|\.(\d+))(?:[eE]([+-]?\d{1,5}))?$/.exec(value);
   if (!match) throw new SpecificationError(`«${raw}»: требуется неотрицательное десятичное число`);
   const whole = match[1] ?? '',
@@ -194,6 +207,19 @@ export function analyzeBom(bytes: Uint8Array, filename: string, input: BomProfil
     profile.mapping.quantity === undefined
       ? null
       : new Map(pass(profile.mapping.quantity).rows.map((r) => [r.rowNumber, r]));
+  // Cell types of the numeric columns (XLSX only; archive already validated above).
+  const sheet = /\.xlsx$/i.test(filename)
+    ? XLSX.read(bytes, { type: 'array', sheetRows: 10002, cellFormula: false }).Sheets[
+        priced.profile.sheet
+      ]
+    : undefined;
+  const isNumber = (rowNumber: number, field: BomField) => {
+    const column = profile.mapping[field];
+    if (!sheet || column === undefined) return false;
+    const c = sheet[XLSX.utils.encode_cell({ r: rowNumber - 1, c: column })] as
+      XLSX.CellObject | undefined;
+    return c?.t === 'n';
+  };
   const structural = (row: ImportRow | undefined) =>
     row ? row.errors.filter((e) => e !== MISSING_NAME_ERROR) : [];
 
@@ -201,8 +227,12 @@ export function analyzeBom(bytes: Uint8Array, filename: string, input: BomProfil
     const errors = [...structural(source)];
     const quantityRow = quantities?.get(source.rowNumber);
     for (const e of structural(quantityRow)) if (!errors.includes(e)) errors.push(e);
+    // A leading apostrophe guarding a formula character (older exports, CSV habit)
+    // is not part of the value.
     const cell = (field: BomField, raw = source.raw) =>
-      profile.mapping[field] === undefined ? '' : (raw[profile.mapping[field]!] ?? '').trim();
+      profile.mapping[field] === undefined
+        ? ''
+        : (raw[profile.mapping[field]!] ?? '').trim().replace(/^'(?=[=+\-@])/, '');
     let item: SpecificationItem | null = null;
     if (!errors.length) {
       try {
@@ -216,8 +246,13 @@ export function analyzeBom(bytes: Uint8Array, filename: string, input: BomProfil
         const quantity = exactDecimal(
           cell('quantity', quantityRow?.raw ?? source.raw),
           profile.decimalSeparator,
+          isNumber(source.rowNumber, 'quantity'),
         );
-        const unitPrice = exactDecimal(cell('unitPrice'), profile.decimalSeparator);
+        const unitPrice = exactDecimal(
+          cell('unitPrice'),
+          profile.decimalSeparator,
+          isNumber(source.rowNumber, 'unitPrice'),
+        );
         const candidate: SpecificationItem = {
           id: randomUUID(),
           kind: kindOf(cell('kind'), profile.kind),

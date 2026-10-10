@@ -36,6 +36,7 @@ const pkgInput = {
   standardProfileVersion: '1',
   generatorVersion: '1',
   documentTypes: ['spec'],
+  releaseSpecification: true,
 };
 
 describe('Жизненный цикл редакции спецификации', () => {
@@ -154,5 +155,22 @@ describe('Жизненный цикл редакции спецификации'
       }),
     ).rejects.toThrow('conflict');
     expect(prisma.specificationVersion.updateMany).not.toHaveBeenCalled();
+  });
+  it('пакет без SPEC (ТЗ, GET-выгрузка) не замораживает редакцию', async () => {
+    const tzOnly = { ...pkgInput, documentTypes: ['tz'], releaseSpecification: false };
+    await createGostPackageVersion({
+      ...tzOnly,
+      snapshot: { specificationVersion: 3, specification: confirmed },
+      releasedAt: new Date(),
+    });
+    const { releaseSpecification: _omit, ...legacy } = pkgInput;
+    void _omit;
+    await releaseGostPackage({
+      ...legacy,
+      snapshot: { specificationVersion: 3, specification: confirmed },
+      zipBuffer: Buffer.from('zip'),
+    });
+    expect(prisma.specificationVersion.updateMany).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

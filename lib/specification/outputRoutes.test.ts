@@ -22,11 +22,11 @@ vi.mock('@/lib/audit', () => ({
 import { prisma } from '@/lib/prisma';
 import { loadSpecification } from './store';
 import { createShareToken, type ShareScope } from '@/lib/access';
-import { releaseGostPackage } from '@/lib/project';
+import { createGostPackageVersion, releaseGostPackage } from '@/lib/project';
 import { writeAudit } from '@/lib/audit';
 import { GET as xlsx } from '@/app/api/calculations/[id]/specification/xlsx/route';
 import { POST as bomPreview } from '@/app/api/calculations/[id]/specification/import/route';
-import { POST as release } from '@/app/api/calculations/[id]/gost34/route';
+import { GET as download, POST as release } from '@/app/api/calculations/[id]/gost34/route';
 import type { SpecificationSnapshot } from './types';
 
 const snapshot: SpecificationSnapshot = {
@@ -127,8 +127,35 @@ describe('XLSX редакции: права доступа как у экспо�
       XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets['Сведения'], { header: 1 }),
     ).toContainEqual(['Редакция', 2]);
     expect(releaseGostPackage).toHaveBeenCalledWith(
-      expect.objectContaining({ snapshot: expect.objectContaining({ specificationVersion: 2 }) }),
+      expect.objectContaining({
+        snapshot: expect.objectContaining({ specificationVersion: 2 }),
+        releaseSpecification: true,
+      }),
     );
+  });
+  it('редакция выпускается только с явным выпуском SPEC, но не ТЗ и не GET-выгрузкой', async () => {
+    const post = (body: unknown) =>
+      release(
+        new NextRequest('http://localhost/x', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Share-Token': token(['export']) },
+          body: JSON.stringify(body),
+        }),
+        props,
+      );
+    expect((await post({ docType: 'SPEC', specificationVersion: 2 })).status).toBe(200);
+    expect(createGostPackageVersion).toHaveBeenLastCalledWith(
+      expect.objectContaining({ releaseSpecification: true }),
+    );
+    expect((await post({ docType: 'TZ', specificationVersion: 2 })).status).toBe(200);
+    expect(createGostPackageVersion).toHaveBeenLastCalledWith(
+      expect.objectContaining({ releaseSpecification: false }),
+    );
+    expect((await download(get(token(['export']), '?docType=SPEC'), props)).status).toBe(200);
+    expect(createGostPackageVersion).toHaveBeenLastCalledWith(
+      expect.objectContaining({ releaseSpecification: false }),
+    );
+    expect(releaseGostPackage).not.toHaveBeenCalled();
   });
 });
 

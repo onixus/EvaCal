@@ -42,6 +42,7 @@ async function recordRelease(
   metadata?: Record<string, unknown>,
   snapshot?: GostWizardSnapshot,
   actorId?: string,
+  releaseSpecification = false,
 ) {
   const binding = buildBindingUpdate(standardProfileId);
   await prisma.calculation.update({
@@ -62,6 +63,7 @@ async function recordRelease(
     releasedAt: new Date(),
     releasedBy: actorId || 'architect',
     createdBy: actorId || 'architect',
+    releaseSpecification,
   });
 }
 
@@ -313,6 +315,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         snapshot,
         zipBuffer,
         actorId: access.actorId,
+        // The ZIP carries SPEC.xlsx (and SPEC DOCX when the profile has it).
+        releaseSpecification:
+          Boolean(calc.specification) || zipEntries.some((e) => e.docType === 'SPEC'),
       });
 
       await writeAudit({
@@ -392,6 +397,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       },
       singleSnapshot,
       access.actorId,
+      // Only an explicitly issued SPEC freezes the BOM revision (POST, not GET).
+      docType === 'SPEC',
     );
 
     await writeAudit({

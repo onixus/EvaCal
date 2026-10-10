@@ -8,6 +8,7 @@ import {
 import { catalogItem } from '../catalog/snapshot';
 import type { Product } from '../catalog/types';
 import type { SavedSpecification } from './types';
+import { clearStaleChangeReasons } from './diff';
 
 export async function loadSpecification(
   calculationId: string,
@@ -122,7 +123,10 @@ export async function saveSpecification(
           );
       }
     }
-    const next = { ...snapshot, version: snapshot.version + 1 };
+    const next = {
+      ...clearStaleChangeReasons(previous, snapshot),
+      version: snapshot.version + 1,
+    };
     const row = await tx.specificationVersion.create({
       data: {
         calculationId,
