@@ -41,6 +41,7 @@ const SAMPLE_LABELS: Record<string, string> = {
   used: 'учтён',
   outlier: 'выброс',
   'no-actuals': 'нет факта',
+  'no-driver': 'нет ответа-драйвера',
   'zero-formula': 'формула 0 ч',
 };
 

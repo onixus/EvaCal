@@ -188,10 +188,65 @@ async function main() {
       41,
     );
 
+    // 5a. Перегенерация после ручной правки: новый снимок, устаревшее — superseded.
+    const regen = await generateNormProposals(template.id, 'ci');
+    assert.equal(regen.created, 1);
+    const fresh = await prisma.normProposal.findFirstOrThrow({
+      where: { stageTemplateId: design.id, status: 'proposed' },
+    });
+    assert.equal(fresh.currentBaseHours, 41);
+    assert.equal(fresh.currentStageName, 'Проектирование');
+    assert.equal(fresh.currentDriverFieldKey, null);
+
+    // 5b. Сменили драйвер этапа — утверждение 409, норматив не тронут.
+    await prisma.stageTemplate.update({
+      where: { id: design.id },
+      data: { driverFieldKey: 'sites' },
+    });
+    const driverChanged = await decideNormProposal({
+      formTemplateId: template.id,
+      proposalId: fresh.id,
+      decision: 'approve',
+      decidedBy: 'ci-admin',
+      comment: null,
+    });
+    assert(!driverChanged.ok && driverChanged.status === 409, 'смена драйвера — 409');
+    assert.equal(
+      (await prisma.stageTemplate.findUniqueOrThrow({ where: { id: design.id } })).baseHours,
+      41,
+    );
+    await prisma.stageTemplate.update({ where: { id: design.id }, data: { driverFieldKey: null } });
+
+    // 5c. Отклонённое не возвращается при перегенерации с теми же данными.
+    const rejected = await decideNormProposal({
+      formTemplateId: template.id,
+      proposalId: fresh.id,
+      decision: 'reject',
+      decidedBy: 'ci-admin',
+      comment: 'мало данных',
+    });
+    assert(rejected.ok);
+    const afterReject = await generateNormProposals(template.id, 'ci');
+    assert.equal(afterReject.created, 0);
+    assert(
+      afterReject.skipped.some(
+        (s) => s.stageTemplateId === design.id && s.reason === 'rejected-same-data',
+      ),
+      'rejected-same-data',
+    );
+    assert.equal(
+      await prisma.normProposal.count({
+        where: { stageTemplateId: design.id, status: 'proposed' },
+      }),
+      0,
+    );
+
     // 6. Ограничения БД.
     const base = {
       stageTemplateId: design.id,
       formTemplateId: template.id,
+      currentStageName: 'Проектирование',
+      currentStageRole: 'architect',
       currentBaseHours: 41,
       currentHoursPerUnit: 0,
       proposedBaseHours: 50,
@@ -216,18 +271,30 @@ async function main() {
       }),
       'неполная выборка не может быть средней',
     );
+    const openRow = {
+      ...base,
+      sampleSize: 3,
+      confidence: 'low',
+      status: 'proposed',
+      decidedAt: null,
+    };
+    await prisma.normProposal.create({ data: openRow });
+    await assert.rejects(
+      prisma.normProposal.create({ data: openRow }),
+      'второе открытое предложение на этап запрещено',
+    );
     await assert.rejects(
       prisma.normProposal.create({
-        data: { ...base, sampleSize: 3, confidence: 'low', status: 'proposed', decidedAt: null },
+        data: { ...base, sampleSize: 3, confidence: 'low', proposedBaseHours: -1 },
       }),
-      'второе открытое предложение на этап запрещено',
+      'отрицательный норматив запрещён',
     );
     await assert.rejects(
       prisma.normProposal.create({ data: { ...base, sampleSize: 3, confidence: 'unknown' } }),
     );
 
     console.log(
-      'Norm proposals integration passed: ledger actuals sample, missing actuals not zero, low confidence for small/incomplete samples, idempotent regeneration with supersede, approval updates only StageTemplate, stale snapshot rejected, DB constraints.',
+      'Norm proposals integration passed: ledger actuals sample, missing actuals not zero, low confidence for small/incomplete samples, idempotent regeneration with supersede, approval updates only StageTemplate, stale snapshot (norm, driver) rejected, rejected proposal not re-created, DB constraints.',
     );
   } finally {
     await prisma.calculation.deleteMany({ where: { templateId: template.id } });

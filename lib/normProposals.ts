@@ -72,7 +72,14 @@ export interface NormCalcRow {
   stages: NormStageRow[];
 }
 
-export type NormSampleStatus = 'used' | 'outlier' | 'no-actuals' | 'zero-formula';
+/**
+ * `no-driver` — у шаблона есть драйвер, а в ответах расчёта его нет: формулу
+ * посчитать нельзя, и пустой ответ не считается нулём. Как и `no-actuals`,
+ * такое наблюдение неполное и снижает полноту.
+ */
+export type NormSampleStatus = 'used' | 'outlier' | 'no-actuals' | 'no-driver' | 'zero-formula';
+
+const INCOMPLETE: ReadonlySet<NormSampleStatus> = new Set(['no-actuals', 'no-driver']);
 
 export interface NormSample {
   calculationId: string;
@@ -119,6 +126,10 @@ export interface NormExplanation {
 export interface NormProposalDraft {
   stageTemplateId: string;
   stageName: string;
+  /** Снимок этапа шаблона: имя, роль и драйвер тоже определяют формулу и выборку. */
+  currentStageName: string;
+  currentStageRole: string;
+  currentDriverFieldKey: string | null;
   currentBaseHours: number;
   currentHoursPerUnit: number;
   proposedBaseHours: number;
@@ -131,7 +142,14 @@ export interface NormProposalDraft {
 }
 
 export type NormSkipReason =
-  'ambiguous-template' | 'no-samples' | 'no-complete-samples' | 'within-tolerance';
+  | 'ambiguous-template'
+  | 'negative-norm'
+  | 'no-samples'
+  | 'no-complete-samples'
+  | 'zero-formula'
+  | 'within-tolerance'
+  /** Те же данные уже давали предложение, и владелец его отклонил (ставится в normProposalsData). */
+  | 'rejected-same-data';
 
 export interface NormSkip {
   stageTemplateId: string;
@@ -206,14 +224,27 @@ export function confidenceFor(
   };
 }
 
-function driverOf(st: NormStageTemplate, answers: Record<string, unknown>): number | null {
+/**
+ * Значение драйвера: null — у этапа нет драйвера; undefined — драйвер есть,
+ * а ответа нет или он не число (наблюдение неполное, не ноль).
+ */
+function driverOf(
+  st: NormStageTemplate,
+  answers: Record<string, unknown>,
+): number | null | undefined {
   if (!st.driverFieldKey) return null;
-  return Number(answers[st.driverFieldKey] ?? 0) || 0;
+  const raw = answers[st.driverFieldKey];
+  if (raw === undefined || raw === null || (typeof raw === 'string' && raw.trim() === '')) {
+    return undefined;
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
 }
 
 function fingerprintOf(draft: Omit<NormProposalDraft, 'fingerprint'>): string {
   const payload = {
     st: draft.stageTemplateId,
+    stage: [draft.currentStageName, draft.currentStageRole, draft.currentDriverFieldKey],
     cur: [draft.currentBaseHours, draft.currentHoursPerUnit],
     prop: [draft.proposedBaseHours, draft.proposedHoursPerUnit],
     conf: draft.confidence,
@@ -247,6 +278,15 @@ export function buildNormProposals(
       skip('ambiguous-template');
       continue;
     }
+    // Отрицательный норматив (заведён до проверки знака) масштабировать нельзя:
+    // предложение тоже было бы отрицательным. Пропускаем этап, а не весь прогон.
+    if (
+      !(Number.isFinite(st.baseHours) && st.baseHours >= 0) ||
+      !(Number.isFinite(st.hoursPerUnit) && st.hoursPerUnit >= 0)
+    ) {
+      skip('negative-norm', { baseHours: st.baseHours, hoursPerUnit: st.hoursPerUnit });
+      continue;
+    }
 
     const samples: NormSample[] = [];
     let inProgress = 0;
@@ -259,22 +299,27 @@ export function buildNormProposals(
         continue;
       }
       const driverValue = driverOf(st, calc.answers);
-      const formulaHours = Math.max(0, st.baseHours + st.hoursPerUnit * (driverValue ?? 0));
+      const formulaHours =
+        driverValue === undefined
+          ? 0
+          : Math.max(0, st.baseHours + st.hoursPerUnit * (driverValue ?? 0));
       const hasActuals = stages.every((s) => s.actualHours !== null && s.actualHours !== undefined);
       const actualHours = hasActuals
         ? round2(stages.reduce((s, x) => s + (x.actualHours as number), 0))
         : null;
       const status: NormSampleStatus = !hasActuals
         ? 'no-actuals'
-        : formulaHours <= 0
-          ? 'zero-formula'
-          : 'used';
+        : driverValue === undefined
+          ? 'no-driver'
+          : formulaHours <= 0
+            ? 'zero-formula'
+            : 'used';
       samples.push({
         calculationId: calc.id,
         calculationName: calc.name,
         version: calc.version,
         stageIds: stages.map((s) => s.id),
-        driverValue,
+        driverValue: driverValue ?? null,
         formulaHours: round2(formulaHours),
         planHours: round2(stages.reduce((s, x) => s + x.hours, 0)),
         actualHours,
@@ -288,8 +333,11 @@ export function buildNormProposals(
       skip('no-samples', { inProgress });
       continue;
     }
-    const complete = samples.filter((s) => s.status !== 'no-actuals').length;
-    const completeness = round2(complete / considered);
+    const complete = samples.filter((s) => !INCOMPLETE.has(s.status)).length;
+    // С порогами сравнивается точная доля; округлённая — только для хранения и
+    // показа (иначе 16/23 ≈ 0.696 округлилась бы до 0.7 и прошла порог).
+    const rawCompleteness = complete / considered;
+    const completeness = round2(rawCompleteness);
 
     const fences = tukeyFences(
       samples.filter((s) => s.status === 'used').map((s) => s.ratio as number),
@@ -305,7 +353,12 @@ export function buildNormProposals(
     const ratios = used.map((s) => s.ratio as number);
     const ratio = median(ratios);
     if (ratio === null) {
-      skip('no-complete-samples', { considered, complete, completeness });
+      // Полные наблюдения есть, но у всех формула дала 0 ч — коэффициент не определён.
+      skip(complete > 0 ? 'zero-formula' : 'no-complete-samples', {
+        considered,
+        complete,
+        completeness,
+      });
       continue;
     }
     if (Math.abs(ratio - 1) < MIN_CHANGE) {
@@ -322,11 +375,10 @@ export function buildNormProposals(
 
     const q1 = quantile(ratios, 0.25);
     const q3 = quantile(ratios, 0.75);
-    const spread =
-      ratios.length >= 2 && ratio > 0 && q1 !== null && q3 !== null
-        ? round2((q3 - q1) / ratio)
-        : null;
-    const conf = confidenceFor(used.length, completeness, spread);
+    const rawSpread =
+      ratios.length >= 2 && ratio > 0 && q1 !== null && q3 !== null ? (q3 - q1) / ratio : null;
+    const spread = rawSpread === null ? null : round2(rawSpread);
+    const conf = confidenceFor(used.length, rawCompleteness, rawSpread);
 
     const sum = (f: (s: NormSample) => number) => round1(used.reduce((a, s) => a + f(s), 0));
     const explanation: NormExplanation = {
@@ -357,6 +409,9 @@ export function buildNormProposals(
     const draft = {
       stageTemplateId: st.id,
       stageName: st.name,
+      currentStageName: st.name,
+      currentStageRole: st.role,
+      currentDriverFieldKey: st.driverFieldKey,
       currentBaseHours: st.baseHours,
       currentHoursPerUnit: st.hoursPerUnit,
       proposedBaseHours,
@@ -372,13 +427,34 @@ export function buildNormProposals(
   return { drafts, skipped };
 }
 
-/** Норматив этапа шаблона не менялся с момента формирования предложения. */
+export interface NormSnapshot {
+  currentStageName: string;
+  currentStageRole: string;
+  currentDriverFieldKey: string | null;
+  currentBaseHours: number;
+  currentHoursPerUnit: number;
+}
+
+/**
+ * Этап шаблона не менялся с момента формирования предложения: норматив,
+ * драйвер, имя и роль (по имени и роли собиралась выборка). Сравнение точное —
+ * так же сравнивает условный UPDATE в `decideNormProposal`.
+ */
 export function snapshotMatches(
-  proposal: { currentBaseHours: number; currentHoursPerUnit: number },
-  stageTemplate: { baseHours: number; hoursPerUnit: number },
+  proposal: NormSnapshot,
+  stageTemplate: {
+    name: string;
+    role: string;
+    driverFieldKey: string | null;
+    baseHours: number;
+    hoursPerUnit: number;
+  },
 ): boolean {
   return (
-    Math.abs(proposal.currentBaseHours - stageTemplate.baseHours) < 1e-9 &&
-    Math.abs(proposal.currentHoursPerUnit - stageTemplate.hoursPerUnit) < 1e-9
+    proposal.currentBaseHours === stageTemplate.baseHours &&
+    proposal.currentHoursPerUnit === stageTemplate.hoursPerUnit &&
+    proposal.currentDriverFieldKey === stageTemplate.driverFieldKey &&
+    proposal.currentStageName === stageTemplate.name &&
+    proposal.currentStageRole === stageTemplate.role
   );
 }

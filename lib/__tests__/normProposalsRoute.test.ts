@@ -27,6 +27,10 @@ const db = vi.hoisted(() => {
         t()
           .filter((r) => matches(r, where))
           .map((r) => ({ ...r })),
+      findFirst: async ({ where }: { where: Record<string, unknown> }) => {
+        const r = t().find((x) => matches(x, where));
+        return r ? { ...r } : null;
+      },
       findUnique: async ({ where }: { where: { id: string } }) => {
         const r = t().find((x) => x.id === where.id);
         return r ? { ...r } : null;
@@ -82,6 +86,9 @@ vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn(), clientIp: vi.fn() }));
 
 import { GET, POST as GENERATE } from '@/app/api/templates/[id]/norm-proposals/route';
 import { POST as DECIDE } from '@/app/api/templates/[id]/norm-proposals/[proposalId]/route';
+import { PUT as PUT_STAGE } from '@/app/api/templates/[id]/stage-templates/[stId]/route';
+import { POST as CREATE_STAGE } from '@/app/api/templates/[id]/stage-templates/route';
+import { prisma } from '@/lib/prisma';
 import { writeAudit } from '@/lib/audit';
 
 const json = (body: unknown) =>
@@ -211,5 +218,94 @@ describe('API предложений нормативов', () => {
       params: Promise.resolve({ id: 'other', proposalId: p.id }),
     });
     expect(res.status).toBe(404);
+  });
+
+  it('отклонённое предложение не создаётся заново по тем же данным', async () => {
+    await GENERATE(json({}), tplProps);
+    const p = db.tables.normProposal[0];
+    await DECIDE(json({ decision: 'reject', comment: 'нет' }), decideProps(p.id));
+    const again = await (await GENERATE(json({}), tplProps)).json();
+    expect(again.summary).toMatchObject({ created: 0, unchanged: 0 });
+    expect(again.summary.skipped).toEqual([
+      expect.objectContaining({ stageTemplateId: 'st1', reason: 'rejected-same-data' }),
+    ]);
+    expect(db.tables.normProposal).toHaveLength(1);
+    // Новые данные — новое предложение.
+    db.tables.calculation.push(wonCalc(4, 40));
+    const fresh = await (await GENERATE(json({}), tplProps)).json();
+    expect(fresh.summary.created).toBe(1);
+  });
+
+  it('смена драйвера, имени или роли этапа — 409 при утверждении', async () => {
+    for (const change of [{ driverFieldKey: 'users' }, { name: 'Аудит' }, { role: 'architect' }]) {
+      for (const k of Object.keys(db.tables)) if (k === 'normProposal') delete db.tables[k];
+      const st = db.tables.stageTemplate[0];
+      Object.assign(st, { name: 'Обследование', role: 'analyst', driverFieldKey: 'sites' });
+      await GENERATE(json({}), tplProps);
+      const p = db.tables.normProposal[0];
+      Object.assign(st, change);
+      const res = await DECIDE(json({ decision: 'approve' }), decideProps(p.id));
+      expect(res.status).toBe(409);
+      expect(st).toMatchObject({ baseHours: 10, hoursPerUnit: 2 });
+      expect(db.tables.normProposal[0].status).toBe('proposed');
+    }
+  });
+
+  it('условное обновление: 0 строк — 409, предложение остаётся открытым', async () => {
+    await GENERATE(json({}), tplProps);
+    const p = db.tables.normProposal[0];
+    const spy = vi
+      .spyOn(prisma.stageTemplate, 'updateMany')
+      .mockResolvedValueOnce({ count: 0 } as never);
+    const res = await DECIDE(json({ decision: 'approve' }), decideProps(p.id));
+    expect(res.status).toBe(409);
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'st1',
+          baseHours: 10,
+          hoursPerUnit: 2,
+          driverFieldKey: 'sites',
+          name: 'Обследование',
+          role: 'analyst',
+        }),
+      }),
+    );
+    expect(db.tables.normProposal[0].status).toBe('proposed');
+    spy.mockRestore();
+  });
+
+  it('правка этапа шаблона: блокировка нормативов и проверка знака', async () => {
+    const lock = vi.spyOn(prisma, '$executeRaw');
+    const put = (body: unknown) =>
+      PUT_STAGE(
+        new NextRequest('http://localhost/x', { method: 'PUT', body: JSON.stringify(body) }),
+        {
+          params: Promise.resolve({ id: 't1', stId: 'st1' }),
+        },
+      );
+    expect((await put({ baseHours: -1 })).status).toBe(400);
+    expect((await put({ hoursPerUnit: -0.5 })).status).toBe(400);
+    expect((await put({ baseHours: 'x' })).status).toBe(400);
+    expect(db.tables.stageTemplate[0].baseHours).toBe(10);
+    expect(lock).not.toHaveBeenCalled();
+
+    expect((await put({ baseHours: 12 })).status).toBe(200);
+    expect(db.tables.stageTemplate[0].baseHours).toBe(12);
+    expect(lock).toHaveBeenCalledTimes(1);
+    expect(lock.mock.calls[0].slice(1)).toEqual(['norms:t1']);
+
+    const other = await PUT_STAGE(
+      new NextRequest('http://localhost/x', { method: 'PUT', body: '{"baseHours":1}' }),
+      { params: Promise.resolve({ id: 'other', stId: 'st1' }) },
+    );
+    expect(other.status).toBe(404);
+    lock.mockRestore();
+
+    const created = await CREATE_STAGE(
+      json({ name: 'X', role: 'analyst', baseHours: -3 }),
+      tplProps,
+    );
+    expect(created.status).toBe(400);
   });
 });

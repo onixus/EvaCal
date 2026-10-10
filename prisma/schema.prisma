@@ -927,7 +927,11 @@ model NormProposal {
   stageTemplate        StageTemplate @relation(fields: [stageTemplateId], references: [id], onDelete: Cascade)
   formTemplateId       String
   formTemplate         FormTemplate  @relation(fields: [formTemplateId], references: [id], onDelete: Cascade)
-  /// Норматив на момент формирования: утверждение отклоняется, если он изменился.
+  /// Снимок этапа на момент формирования: утверждение отклоняется (409), если
+  /// изменились имя, роль, драйвер или норматив.
+  currentStageName      String
+  currentStageRole      String
+  currentDriverFieldKey String?
   currentBaseHours     Float
   currentHoursPerUnit  Float
   proposedBaseHours    Float

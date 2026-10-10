@@ -183,9 +183,104 @@ describe('tukeyFences / snapshotMatches', () => {
     expect(tukeyFences([1, 2, 100])).toBeNull();
     expect(tukeyFences([1, 1, 1, 100])).not.toBeNull();
   });
-  it('сверка снимка норматива', () => {
-    const p = { currentBaseHours: 10, currentHoursPerUnit: 2 };
-    expect(snapshotMatches(p, { baseHours: 10, hoursPerUnit: 2 })).toBe(true);
-    expect(snapshotMatches(p, { baseHours: 11, hoursPerUnit: 2 })).toBe(false);
+  it('сверка снимка: норматив, драйвер, имя и роль', () => {
+    const p = {
+      currentStageName: 'Обследование',
+      currentStageRole: 'analyst',
+      currentDriverFieldKey: 'sites',
+      currentBaseHours: 10,
+      currentHoursPerUnit: 2,
+    };
+    const st = {
+      name: 'Обследование',
+      role: 'analyst',
+      driverFieldKey: 'sites' as string | null,
+      baseHours: 10,
+      hoursPerUnit: 2,
+    };
+    expect(snapshotMatches(p, st)).toBe(true);
+    expect(snapshotMatches(p, { ...st, baseHours: 11 })).toBe(false);
+    expect(snapshotMatches(p, { ...st, driverFieldKey: 'users' })).toBe(false);
+    expect(snapshotMatches(p, { ...st, driverFieldKey: null })).toBe(false);
+    expect(snapshotMatches(p, { ...st, name: 'Аудит' })).toBe(false);
+    expect(snapshotMatches(p, { ...st, role: 'architect' })).toBe(false);
+  });
+});
+
+describe('замечания ревью #120', () => {
+  it('отрицательный норматив пропускает этап, а не весь прогон', () => {
+    const neg = { ...ST, id: 'neg', name: 'Минус', baseHours: -5 };
+    const calcs = [30, 30, 30].map((h, i) => calc(i, h));
+    const { drafts, skipped } = buildNormProposals([neg, ST], calcs);
+    expect(drafts.map((d) => d.stageTemplateId)).toEqual(['st1']);
+    expect(skipped).toEqual([
+      expect.objectContaining({ stageTemplateId: 'neg', reason: 'negative-norm' }),
+    ]);
+    const negUnit = { ...ST, hoursPerUnit: -1 };
+    expect(buildNormProposals([negUnit], calcs).skipped[0].reason).toBe('negative-norm');
+  });
+
+  it('с порогом сравнивается точная полнота, хранится округлённая', () => {
+    // 16 полных из 23: 0.696 < 0.7, округлённая 0.7 — всё равно низкая.
+    const low = [
+      ...Array.from({ length: 16 }, (_, i) => calc(i, 30)),
+      ...Array.from({ length: 7 }, (_, i) => calc(100 + i, null)),
+    ];
+    const a = buildNormProposals([ST], low).drafts[0];
+    expect(a.completeness).toBe(0.7);
+    expect(a.confidence).toBe('low');
+    // 26 из 29: 0.897 < 0.9, округлённая 0.9 — не высокая.
+    const mid = [
+      ...Array.from({ length: 26 }, (_, i) => calc(i, 30)),
+      ...Array.from({ length: 3 }, (_, i) => calc(100 + i, null)),
+    ];
+    const b = buildNormProposals([ST], mid).drafts[0];
+    expect(b.completeness).toBe(0.9);
+    expect(b.confidence).toBe('medium');
+  });
+
+  it('нет ответа-драйвера — наблюдение неполное, а не драйвер 0', () => {
+    const noDriver = { ...calc(9, 30), answers: {} };
+    const blank = { ...calc(8, 30), answers: { sites: '' } };
+    const calcs = [calc(1, 30), calc(2, 30), calc(3, 30), noDriver, blank];
+    const d = buildNormProposals([ST], calcs).drafts[0];
+    const s9 = d.explanation.samples.find((s) => s.calculationId === 'c9')!;
+    expect(s9.status).toBe('no-driver');
+    expect(s9.ratio).toBeNull();
+    expect(d.explanation.samples.find((s) => s.calculationId === 'c8')?.status).toBe('no-driver');
+    expect(d.sampleSize).toBe(3);
+    expect(d.completeness).toBe(0.6);
+    expect(d.confidence).toBe('low');
+    // Явный 0 — законный ответ.
+    const zero = { ...calc(7, 30), answers: { sites: 0 } };
+    const z = buildNormProposals([ST], [zero]).drafts[0];
+    expect(z.explanation.samples[0]).toMatchObject({
+      status: 'used',
+      driverValue: 0,
+      formulaHours: 10,
+    });
+  });
+
+  it('все полные наблюдения с формулой 0 ч — своя причина пропуска', () => {
+    const zeroSt = { ...ST, baseHours: 0, hoursPerUnit: 0 };
+    const { drafts, skipped } = buildNormProposals([zeroSt], [calc(1, 30), calc(2, 30)]);
+    expect(drafts).toHaveLength(0);
+    expect(skipped[0].reason).toBe('zero-formula');
+  });
+
+  it('отпечаток учитывает драйвер, имя и роль этапа', () => {
+    const calcs = [30, 30, 30].map((h, i) => calc(i, h));
+    const a = buildNormProposals([ST], calcs).drafts[0];
+    expect(a).toMatchObject({
+      currentStageName: 'Обследование',
+      currentStageRole: 'analyst',
+      currentDriverFieldKey: 'sites',
+    });
+    const renamedCalcs = calcs.map((c) => ({
+      ...c,
+      answers: { users: 5 },
+    }));
+    const b = buildNormProposals([{ ...ST, driverFieldKey: 'users' }], renamedCalcs).drafts[0];
+    expect(b.fingerprint).not.toBe(a.fingerprint);
   });
 });

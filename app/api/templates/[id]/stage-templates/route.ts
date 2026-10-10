@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireApiRole } from '@/lib/auth';
+import { invalidNormHours } from '@/lib/stageTemplateValidation';
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -11,6 +12,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   if (!body.name || !body.role) {
     return NextResponse.json({ error: 'name and role are required' }, { status: 400 });
   }
+  const invalid = invalidNormHours(body);
+  if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
   const count = await prisma.stageTemplate.count({
     where: { templateId: params.id },
   });

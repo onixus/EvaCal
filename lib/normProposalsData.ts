@@ -18,7 +18,11 @@ import {
 
 type Tx = Prisma.TransactionClient;
 
-async function lockTemplate(tx: Tx, formTemplateId: string): Promise<void> {
+/**
+ * Блокировка нормативов шаблона: генерация, решения по предложениям и правка
+ * этапов шаблона (`PUT /api/templates/:id/stage-templates/:stId`) идут по очереди.
+ */
+export async function lockTemplate(tx: Tx, formTemplateId: string): Promise<void> {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`norms:${formTemplateId}`}))`;
 }
 
@@ -100,6 +104,17 @@ export async function generateNormProposals(
       select: { id: true, stageTemplateId: true, fingerprint: true },
     });
     const openByStage = new Map(open.map((p) => [p.stageTemplateId, p]));
+    // Последнее отклонённое предложение каждого этапа: те же данные — то же
+    // предложение, владелец его уже отклонил, повторно не предлагаем.
+    const rejected = await tx.normProposal.findMany({
+      where: { formTemplateId, status: 'rejected' },
+      orderBy: [{ decidedAt: 'desc' }, { id: 'desc' }],
+      select: { stageTemplateId: true, fingerprint: true },
+    });
+    const lastRejected = new Map<string, string>();
+    for (const r of rejected) {
+      if (!lastRejected.has(r.stageTemplateId)) lastRejected.set(r.stageTemplateId, r.fingerprint);
+    }
     const now = new Date();
     let created = 0;
     let unchanged = 0;
@@ -107,6 +122,14 @@ export async function generateNormProposals(
     const keep = new Set<string>();
 
     for (const d of drafts) {
+      if (lastRejected.get(d.stageTemplateId) === d.fingerprint) {
+        skipped.push({
+          stageTemplateId: d.stageTemplateId,
+          stageName: d.stageName,
+          reason: 'rejected-same-data',
+        });
+        continue;
+      }
       const existing = openByStage.get(d.stageTemplateId);
       if (existing && existing.fingerprint === d.fingerprint) {
         keep.add(existing.id);
@@ -125,6 +148,9 @@ export async function generateNormProposals(
         data: {
           stageTemplateId: d.stageTemplateId,
           formTemplateId,
+          currentStageName: d.currentStageName,
+          currentStageRole: d.currentStageRole,
+          currentDriverFieldKey: d.currentDriverFieldKey,
           currentBaseHours: d.currentBaseHours,
           currentHoursPerUnit: d.currentHoursPerUnit,
           proposedBaseHours: d.proposedBaseHours,
@@ -175,8 +201,8 @@ export type NormDecisionResult =
 /**
  * Решение владельца шаблона. Утверждение меняет только `StageTemplate`
  * (действует для новых расчётов): этапы существующих расчётов — копии и не
- * пересчитываются. Если норматив изменили после формирования предложения,
- * утверждение отклоняется — предложение нужно сформировать заново.
+ * пересчитываются. Если этап шаблона (норматив, драйвер, имя, роль) изменили
+ * после формирования предложения, утверждение отклоняется (409).
  */
 export async function decideNormProposal(input: {
   formTemplateId: string;
@@ -196,7 +222,7 @@ export async function decideNormProposal(input: {
     }
     const st = await tx.stageTemplate.findUnique({
       where: { id: p.stageTemplateId },
-      select: { baseHours: true, hoursPerUnit: true },
+      select: { name: true, role: true, driverFieldKey: true, baseHours: true, hoursPerUnit: true },
     });
     if (!st) return { ok: false as const, status: 404, error: 'Этап шаблона удалён' };
     const before = { baseHours: st.baseHours, hoursPerUnit: st.hoursPerUnit };
@@ -215,15 +241,28 @@ export async function decideNormProposal(input: {
       return { ok: true as const, proposal: updated, before, after: before };
     }
 
-    if (!snapshotMatches(p, st)) {
-      return {
-        ok: false as const,
-        status: 409,
-        error: 'Норматив этапа изменился после формирования предложения — сформируйте заново',
-      };
-    }
+    const stale = {
+      ok: false as const,
+      status: 409,
+      error:
+        'Этап шаблона (норматив, драйвер, имя или роль) изменился после формирования предложения — сформируйте заново',
+    };
+    if (!snapshotMatches(p, st)) return stale;
     const after = { baseHours: p.proposedBaseHours, hoursPerUnit: p.proposedHoursPerUnit };
-    await tx.stageTemplate.update({ where: { id: p.stageTemplateId }, data: after });
+    // Условное обновление: даже если правка этапа прошла мимо блокировки,
+    // норматив меняется только при совпадении со снимком.
+    const res = await tx.stageTemplate.updateMany({
+      where: {
+        id: p.stageTemplateId,
+        name: p.currentStageName,
+        role: p.currentStageRole,
+        driverFieldKey: p.currentDriverFieldKey,
+        baseHours: p.currentBaseHours,
+        hoursPerUnit: p.currentHoursPerUnit,
+      },
+      data: after,
+    });
+    if (res.count !== 1) return stale;
     const updated = await tx.normProposal.update({
       where: { id: p.id },
       data: {
