@@ -9,6 +9,7 @@ import {
 import { parsePackageSnapshot } from '@/lib/gost34/diff';
 import { parseChecklist, parseComments } from '@/lib/gost34/review/types';
 import { handleApiError } from '@/lib/apiHelpers';
+import { loadSpecification } from '@/lib/specification/store';
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   try {
@@ -28,7 +29,18 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
           ? latestPackage
           : draft;
 
+    const snapshot = effectiveDraft ? parsePackageSnapshot(effectiveDraft) : null;
+    const savedVersion =
+      snapshot?.specificationVersion !== undefined
+        ? snapshot.specificationVersion
+        : snapshot?.specification?.version;
+    const specificationVersion =
+      savedVersion !== undefined
+        ? savedVersion
+        : ((await loadSpecification(params.id))?.snapshot.version ?? null);
+
     return NextResponse.json({
+      specificationVersion,
       draft: effectiveDraft
         ? {
             id: effectiveDraft.id,
@@ -38,7 +50,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
             standardProfileId: effectiveDraft.standardProfileId,
             standardProfileVersion: effectiveDraft.standardProfileVersion,
             generatorVersion: effectiveDraft.generatorVersion,
-            snapshot: parsePackageSnapshot(effectiveDraft),
+            snapshot,
             updatedAt: effectiveDraft.updatedAt.toISOString(),
           }
         : null,

@@ -87,6 +87,7 @@ export default function DocumentPreviewStep({
           headers: withShareHeaders(calculationId, { 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             calculationId,
+            specificationVersion: decisions.specificationVersion,
             docType: decisions.docType,
             contractNumber: decisions.contractNumber,
             city: decisions.city,
@@ -105,7 +106,9 @@ export default function DocumentPreviewStep({
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Не удалось сформировать предпросмотр документа');
+          throw new Error(
+            errData.message || errData.error || 'Не удалось сформировать предпросмотр документа',
+          );
         }
 
         const data = await res.json();
@@ -142,6 +145,7 @@ export default function DocumentPreviewStep({
     decisions.enrichmentOptions,
     calculationId,
     decisions.docType,
+    decisions.specificationVersion,
     decisions.rawRequirements,
     decisions.standardProfileId,
     decisions.applicabilityOverrides,

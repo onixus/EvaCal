@@ -67,6 +67,7 @@ export default function SpecificationPanel({
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
   const [canWrite, setCanWrite] = useState(false);
   const [canExport, setCanExport] = useState(false);
@@ -77,6 +78,9 @@ export default function SpecificationPanel({
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
+    setLoaded(false);
+    setCanWrite(false);
+    setCanExport(false);
     setError('');
     setDirty(false);
     setSpec(empty());
@@ -92,6 +96,7 @@ export default function SpecificationPanel({
           setSpec(data.specification?.snapshot || empty());
           setCanWrite(data.canWrite);
           setCanExport(data.canExport);
+          setLoaded(true);
         }
       })
       .catch((err) => {
@@ -145,6 +150,7 @@ export default function SpecificationPanel({
     }
   };
   const download = async (draft: boolean) => {
+    if (!loaded || loading || busy || dirty || !canExport) return;
     setBusy(true);
     setError('');
     try {
@@ -154,7 +160,7 @@ export default function SpecificationPanel({
         body: JSON.stringify({
           docType: 'SPEC',
           draft,
-          specificationVersion: spec.version || undefined,
+          specificationVersion: spec.version || null,
         }),
       });
       if (!res.ok) {
@@ -175,7 +181,7 @@ export default function SpecificationPanel({
   };
   const blockers = specificationBlockers(spec);
   const historical = Boolean(selectedVersion);
-  const disabled = loading || busy || !canWrite || historical;
+  const disabled = !loaded || loading || busy || !canWrite || historical;
   const fields: Array<[keyof SpecificationItem, string]> = [
     ['name', 'Наименование'],
     ['vendor', 'Вендор'],
@@ -236,14 +242,14 @@ export default function SpecificationPanel({
           </button>
           <button
             className="btn-secondary"
-            disabled={loading || busy || dirty || !canExport}
+            disabled={!loaded || loading || busy || dirty || !canExport}
             onClick={() => download(true)}
           >
             Черновой DOCX
           </button>
           <button
             className="btn-primary"
-            disabled={loading || busy || dirty || blockers.length > 0 || !canExport}
+            disabled={!loaded || loading || busy || dirty || blockers.length > 0 || !canExport}
             onClick={() => download(false)}
           >
             Выпустить DOCX

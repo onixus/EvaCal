@@ -20,6 +20,7 @@ export interface CreateCalculationVersionInput {
 }
 
 export interface GostWizardSnapshot {
+  specificationVersion?: number | null;
   specification?: import('./specification/types').SpecificationSnapshot;
   version?: number;
   standardProfileId?: string;

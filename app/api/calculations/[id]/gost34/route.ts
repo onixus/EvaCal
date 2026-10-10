@@ -109,7 +109,10 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       standardProfileId,
       [docType.toLowerCase()],
       { docType },
-      { specification: calc.specification },
+      {
+        specification: calc.specification,
+        specificationVersion: calc.specification?.version ?? null,
+      },
       access.actorId,
     );
 
@@ -148,6 +151,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const { specificationVersion } = body;
     if (
       specificationVersion !== undefined &&
+      specificationVersion !== null &&
       (!Number.isSafeInteger(specificationVersion) || specificationVersion < 1)
     ) {
       return NextResponse.json({ error: 'Некорректная версия спецификации' }, { status: 400 });
@@ -276,6 +280,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         contractNumber,
         city,
         specification: calc.specification,
+        specificationVersion: calc.specification?.version ?? null,
         requirements: rawRequirements,
         uploadedFiles: vendorFiles,
         tzAuthor,
@@ -355,6 +360,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       contractNumber,
       city,
       specification: calc.specification,
+      specificationVersion: calc.specification?.version ?? null,
       requirements: rawRequirements,
       uploadedFiles: vendorFiles,
       tzAuthor,

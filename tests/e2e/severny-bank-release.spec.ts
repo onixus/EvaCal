@@ -100,6 +100,17 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     await page.getByRole('button', { name: 'Подтвердить и сохранить' }).click();
     await expect(page.getByRole('button', { name: 'Выпустить DOCX' })).toBeEnabled();
 
+    // A missing historical revision must not expose a latest-version draft download.
+    await page.getByLabel('Историческая версия').fill('999');
+    await expect(page.getByRole('alert').filter({ hasText: 'Редакция не найдена' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Черновой DOCX' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Выпустить DOCX' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Загрузить последнюю' }).click();
+    await expect(page.getByRole('button', { name: 'Выпустить DOCX' })).toBeEnabled();
+    const pinned = (
+      await (await page.request.get(`/api/calculations/${calculationId}/specification`)).json()
+    ).specification.snapshot;
+
     // 6. Из расчёта — в Студию ГОСТ 34.
     const studioLink = page.locator('a[title*="профиль, требования"]');
     await expect(studioLink).toBeVisible({ timeout: 15000 });
@@ -113,6 +124,30 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
       throw e;
     }
     const nextBtn = page.getByRole('button', { name: 'Далее' });
+    await expect(page.getByLabel('Редакция спецификации')).toHaveValue(String(pinned.version));
+    // Persist and reopen the studio before a concurrent BOM revision is created.
+    await page.getByRole('button', { name: 'Сохранить черновик', exact: true }).click();
+    await expect(page.getByText(/черновик сохранён в/)).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel('Редакция спецификации')).toHaveValue(String(pinned.version));
+    const newer = await page.request.post(`/api/calculations/${calculationId}/specification`, {
+      data: {
+        ...pinned,
+        items: pinned.items.map((item: Record<string, unknown>) => ({
+          ...item,
+          sku: 'BANK-NEWER-DO-NOT-EXPORT',
+          quantity: '9',
+        })),
+      },
+    });
+    expect(newer.status()).toBe(201);
+    await expect(page.getByLabel('Редакция спецификации')).toHaveValue(String(pinned.version));
+    const previewVersions: unknown[] = [];
+    page.on('request', (request) => {
+      if (request.url().endsWith('/api/gost34/preview') && request.method() === 'POST') {
+        previewVersions.push(request.postDataJSON().specificationVersion);
+      }
+    });
 
     // Step 1 (Profile) -> 2 (Requirements)
     await nextBtn.click();
@@ -173,6 +208,9 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     const specXml = await specDocx.file('word/document.xml')!.async('string');
     expect(specXml).toContain('BANK-MANUAL-42');
     expect(specXml).toContain('4 шт.');
+    expect(specXml).not.toContain('BANK-NEWER-DO-NOT-EXPORT');
+    expect(previewVersions.length).toBeGreaterThan(0);
+    expect(previewVersions.every((version) => version === pinned.version)).toBe(true);
 
     // 9. Карточка проекта: конвейер показывает нормоконтроль, комплект — в реестре.
     await page.goto('/projects');

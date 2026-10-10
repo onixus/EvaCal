@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
 
     if (
       specificationVersion !== undefined &&
+      specificationVersion !== null &&
       (!Number.isSafeInteger(specificationVersion) || specificationVersion < 1)
     ) {
       return NextResponse.json({ error: 'Некорректная версия спецификации' }, { status: 400 });
