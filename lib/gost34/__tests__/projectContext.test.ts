@@ -172,7 +172,8 @@ describe('buildProjectContext: автоматическое обогащение
     expect(ctx.security?.personalDataProcessed).toBeUndefined();
     expect(ctx.security?.regulatoryScope).toBeUndefined();
     expect(ctx.security?.securityClass).toBeUndefined();
-    expect(ctx.availability?.availabilityTargetPercent).toBe(99.9);
+    expect(ctx.availability).toBeUndefined();
+    expect(ctx.gaps?.find((g) => g.path === 'availability')?.severity).toBe('blocking');
   });
 
   it('для отдельного NGFW использует vendor-neutral контекст и не выдумывает ПДн/КИИ', () => {
@@ -277,9 +278,35 @@ describe('buildProjectContext: автоматическое обогащение
     const infraGaps = (ctx.gaps || []).map((g) => g.path);
     expect(infraGaps).toContain('infrastructure.platforms');
     expect(infraGaps).toContain('infrastructure.computeResources');
-    expect(ctx.availability?.availabilityTargetPercent).toBe(99.9);
-    expect(ctx.availability?.rtoMinutes).toBe(15);
-    expect(ctx.availability?.rpoMinutes).toBe(5);
+    // SLA не выводится из количества серверов: без ответов — пробел.
+    expect(ctx.availability).toBeUndefined();
+    expect(infraGaps).toContain('availability');
+  });
+
+  it('SIEM/IDM sizing не подставляет умолчания и сохраняет явный 0', () => {
+    const siem = buildProjectContext({
+      answers: { event_sources_count: 0, correlation_rules_count: 10 },
+      stages: [],
+    });
+    expect(siem.infrastructure?.computeResources).toContain('SIEM-контур на 0 источников');
+    expect(siem.infrastructure?.computeResources).not.toContain('EPS');
+    expect(siem.performance?.dataVolume).toBeUndefined();
+    const siemGap = siem.gaps?.find((g) => g.label === 'Параметры sizing SIEM');
+    expect(siemGap?.hint).toContain('средний поток EPS');
+    expect(siemGap?.hint).toContain('коэффициент пика EPS');
+
+    const idm = buildProjectContext({
+      answers: { identities_count: 1000, target_systems_count: 0 },
+      stages: [],
+    });
+    expect(idm.infrastructure?.computeResources).toContain('0 целевых систем');
+    expect(idm.infrastructure?.computeResources).not.toContain('прикладных узлов');
+    expect(idm.gaps?.find((g) => g.label === 'Параметры sizing IDM')?.hint).toContain(
+      'требование HA',
+    );
+    expect(idm.gaps?.find((g) => g.label === 'Нагрузочный профиль IDM')?.hint).toContain(
+      'поток JML-событий',
+    );
   });
 
   it('не выдумывает количество стоек и сохраняет нулевое количество', () => {

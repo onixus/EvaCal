@@ -83,6 +83,27 @@ describe('ПЗ и ТЗ не выдумывают платформы и пост�
     expect(text).not.toContain('Postgres Pro');
   });
 
+  it('не выводит SLA из количества серверов', () => {
+    for (const docType of ['PZ', 'TZ'] as const) {
+      const result = prepare(docType, { servers_count: 4 });
+      expect(documentText(result)).not.toMatch(/99[.,]9|RTO не более 15|RPO не более 5/);
+      expect(result.diagnostics.gaps.map((g) => g.path)).toContain('availability');
+    }
+  });
+
+  it('помечает умолчания пресейл-sizing в требованиях ТЗ как допущения', () => {
+    const result = prepare('TZ', {
+      ngfw_clusters_count: 1,
+      ngfw_ha_required: false,
+      internet_throughput_gbps: 1,
+    });
+    const text = documentText(result);
+    expect(text).toContain('целевая доступность — принято «99.99» по умолчанию');
+    expect(text).toContain('запас производительности — принято «30» по умолчанию');
+    const gap = result.diagnostics.gaps.find((g) => g.path === 'infrastructure.sizingAssumptions');
+    expect(gap?.hint).toContain('пропускная способность East-West — не задано');
+  });
+
   it('учитывает отключённый HA для NGFW', () => {
     const text = documentText(
       prepare('PZ', {

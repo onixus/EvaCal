@@ -77,4 +77,61 @@ describe('implementation sizing for SIEM / IDM / NGFW', () => {
     expect(sizing.metrics.find((m) => m.key === 'nodes')?.value).toBe(4);
     expect(sizing.gostRequirements.every((r) => Boolean(r.criterion))).toBe(true);
   });
+
+  it('marks defaulted NGFW parameters as assumptions in GOST requirements', () => {
+    const sizing = buildImplementationSizing({
+      ngfw_clusters_count: 1,
+      ngfw_ha_required: false,
+      internet_throughput_gbps: 1,
+    })!;
+
+    // Пресейл-интерфейс по-прежнему считает по умолчаниям…
+    expect(sizing.metrics.find((m) => m.key === 'nodes')?.value).toBe(1);
+    // …но умолчания перечислены как неподтверждённые допущения.
+    const keys = sizing.assumptions.map((a) => a.key);
+    expect(keys).toContain('capacity_headroom_percent');
+    expect(keys).toContain('availability_target_percent');
+    expect(keys).toContain('east_west_throughput_gbps');
+    expect(keys).not.toContain('ngfw_clusters_count');
+    expect(keys).not.toContain('ngfw_ha_required');
+
+    const ha = sizing.gostRequirements.find((r) => r.code === 'ТР-NGFW-02')!;
+    expect(ha.description).toContain('всего 1 узлов');
+    expect(ha.description).toContain('целевая доступность — принято «99.99» по умолчанию');
+    const perf = sizing.gostRequirements.find((r) => r.code === 'ТР-NGFW-01')!;
+    expect(perf.description).toContain('запас производительности — принято «30» по умолчанию');
+    expect(perf.description).toContain('пропускная способность East-West — не задано');
+  });
+
+  it('keeps explicit zero NGFW clusters and HA default is an assumption', () => {
+    const sizing = buildImplementationSizing({ ngfw_clusters_count: 0, rules_count: 10 })!;
+    expect(sizing.metrics.find((m) => m.key === 'nodes')?.value).toBe(0);
+    const ha = sizing.gostRequirements.find((r) => r.code === 'ТР-NGFW-02')!;
+    expect(ha.description).toContain('резервирование NGFW (HA) — принято «да» по умолчанию');
+  });
+
+  it('does not annotate requirements whose inputs are all answered', () => {
+    const sizing = buildImplementationSizing({
+      internet_throughput_gbps: 4,
+      east_west_throughput_gbps: 6,
+      capacity_headroom_percent: 30,
+      tls_inspection_percent: 50,
+    })!;
+    const perf = sizing.gostRequirements.find((r) => r.code === 'ТР-NGFW-01')!;
+    expect(perf.description).not.toContain('Допущения');
+  });
+
+  it('marks SIEM and IDM defaults as assumptions', () => {
+    const siem = buildImplementationSizing({ event_sources_count: 10, hot_retention_days: 30 })!;
+    const siemHa = siem.gostRequirements.find((r) => r.code === 'ТР-SIEM-05')!;
+    expect(siemHa.description).toContain('целевая доступность — принято «99.9» по умолчанию');
+    expect(siem.gostRequirements.find((r) => r.code === 'ТР-SIEM-01')!.description).toContain(
+      'средний поток EPS — не задано',
+    );
+
+    const idm = buildImplementationSizing({ identities_count: 1000 })!;
+    expect(idm.gostRequirements.find((r) => r.code === 'ТР-IDM-06')!.description).toContain(
+      'резервирование IDM (HA) — принято «да» по умолчанию',
+    );
+  });
 });
