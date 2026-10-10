@@ -99,4 +99,31 @@ describe('Каталог и проектные копии', () => {
     expect(() => catalogItem(product, { ...offer, id: 'foreign' })).toThrow();
     expect(catalogItem(product).unitPrice).toBeNull();
   });
+  it('копия GPL хранит исходный файл и строку, даже после обновления предложения', () => {
+    const imported = {
+      ...offer,
+      importProvenance: {
+        importId: 'gpl-1',
+        importRevision: 3,
+        checksum: 'a'.repeat(64),
+        filename: 'price.csv',
+        sheet: 'CSV',
+        rowNumber: 7,
+        uploadedBy: 'u1',
+        confirmedBy: 'u2',
+      },
+    };
+    const item = catalogItem(product, imported, 'copy');
+    expect(item.source).toContain('GPL gpl-1, ред. 3');
+    expect(item.source).toContain(`SHA-256 ${'a'.repeat(64)}`);
+    expect(item.source).toContain('лист CSV, строка 7');
+    imported.importProvenance.checksum = 'b'.repeat(64);
+    imported.unitPrice = '999';
+    expect(item.unitPrice).toBe('123.000001');
+    expect(item.source).toContain('a'.repeat(64));
+    expect(
+      parseSpecification({ version: 0, status: 'draft', emptySupplyReason: '', items: [item] })
+        .items[0],
+    ).toEqual(item);
+  });
 });

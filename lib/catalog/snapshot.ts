@@ -35,7 +35,7 @@ export function catalogItem(
       .join('; '),
     licensing: technical.licensing,
     term: offer?.terms || '',
-    source: `Каталог ${product.id}, ред. ${product.revision}; вендор ред. ${technical.vendor.revision}${offer ? `; предложение ${offer.id}: ${offer.source}; дата цены ${offer.priceDate || 'неизвестна'}; действует до ${offer.validUntil || 'неизвестно'}; регион ${offer.region || 'не задан'}` : '; цена не выбрана'}`,
+    source: `Каталог ${product.id}, ред. ${product.revision}; вендор ред. ${technical.vendor.revision}${offer ? `; предложение ${offer.id}: ${offer.source}; дата цены ${offer.priceDate || 'неизвестна'}; действует до ${offer.validUntil || 'неизвестно'}; регион ${offer.region || 'не задан'}` : '; цена не выбрана'}${offer?.importProvenance ? `; GPL ${offer.importProvenance.importId}, ред. ${offer.importProvenance.importRevision}; SHA-256 ${offer.importProvenance.checksum}; лист ${offer.importProvenance.sheet}, строка ${offer.importProvenance.rowNumber}` : ''}`,
     rationale: '',
     confirmed: false,
     unitPrice: offer?.unitPrice ?? null,
