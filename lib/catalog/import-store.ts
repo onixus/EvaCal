@@ -45,7 +45,15 @@ export async function loadImport(id: string, historicalRevision?: number): Promi
     ...data,
   };
 }
-export async function listImports() {
+export async function listImports(cursor?: string) {
+  if (cursor !== undefined) {
+    cursor = text(cursor, 'Курсор списка GPL', 100, true);
+    const source = await prisma.catalogImport.findUnique({
+      where: { id: cursor },
+      select: { id: true },
+    });
+    if (!source) throw new SpecificationError('Пакет списка GPL не найден', 404);
+  }
   return prisma.catalogImport.findMany({
     select: {
       id: true,
@@ -56,7 +64,8 @@ export async function listImports() {
       checksum: true,
       createdAt: true,
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    ...(cursor === undefined ? {} : { cursor: { id: cursor }, skip: 1 }),
     take: 100,
   });
 }

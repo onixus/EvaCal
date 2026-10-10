@@ -1,4 +1,5 @@
 'use client';
+import GplComparisonPanel from './catalog/GplComparisonPanel';
 import GplImportPanel from './catalog/GplImportPanel';
 import { useEffect, useState } from 'react';
 import type { Catalog, Product, ProductInput, OfferInput, Vendor } from '@/lib/catalog/types';
@@ -23,6 +24,7 @@ const blankOffer = (): OfferInput => ({
   validUntil: null,
 });
 export default function CatalogPanel() {
+  const [importRefresh, setImportRefresh] = useState(0);
   const [catalog, setCatalog] = useState<Catalog>({ vendors: [], products: [] });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
@@ -354,7 +356,14 @@ export default function CatalogPanel() {
           Сохранить отдельное предложение
         </button>
       </fieldset>
-      <GplImportPanel vendors={catalog.vendors} onImported={load} />
+      <GplImportPanel
+        vendors={catalog.vendors}
+        onImported={async () => {
+          await load();
+          setImportRefresh((value) => value + 1);
+        }}
+      />
+      <GplComparisonPanel vendors={catalog.vendors} refreshToken={importRefresh} />
       <label>
         Поиск по вендору, названию, партномеру
         <input className="input w-full" value={query} onChange={(e) => setQuery(e.target.value)} />
