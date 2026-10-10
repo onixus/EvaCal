@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import type { Catalog, Product, ProductInput, OfferInput } from '@/lib/catalog/types';
+import type { Catalog, Product, ProductInput, OfferInput, Vendor } from '@/lib/catalog/types';
 import { ITEM_KINDS } from '@/lib/specification/types';
 const blankProduct = (): ProductInput => ({
   vendorId: '',
@@ -27,10 +27,12 @@ export default function CatalogPanel() {
   const [busy, setBusy] = useState(true);
   const [vendorName, setVendorName] = useState('');
   const [vendorId, setVendorId] = useState('');
+  const [vendorEditing, setVendorEditing] = useState<Vendor | null>(null);
   const [product, setProduct] = useState<ProductInput>(blankProduct);
   const [editing, setEditing] = useState<Product | null>(null);
   const [offer, setOffer] = useState<OfferInput>(blankOffer);
   const [offerProductId, setOfferProductId] = useState('');
+  const [offerRevision, setOfferRevision] = useState<number | null>(null);
   const [query, setQuery] = useState('');
   async function load() {
     const res = await fetch('/api/catalog');
@@ -62,7 +64,7 @@ export default function CatalogPanel() {
       setBusy(false);
     }
   }
-  const vendor = catalog.vendors.find((v) => v.id === vendorId);
+  const vendor = vendorEditing;
   const offerProduct = catalog.products.find((p) => p.id === offerProductId);
   const fields: Array<[keyof Omit<ProductInput, 'attributes' | 'kind'>, string]> = [
     ['name', 'Наименование'],
@@ -114,6 +116,7 @@ export default function CatalogPanel() {
             value={vendorId}
             onChange={(e) => {
               setVendorId(e.target.value);
+              setVendorEditing(catalog.vendors.find((v) => v.id === e.target.value) || null);
               setVendorName(catalog.vendors.find((v) => v.id === e.target.value)?.name || '');
             }}
           >
@@ -147,6 +150,7 @@ export default function CatalogPanel() {
               },
               () => {
                 setVendorId('');
+                setVendorEditing(null);
                 setVendorName('');
               },
             )
@@ -294,7 +298,12 @@ export default function CatalogPanel() {
           <select
             className="input w-full"
             value={offerProductId}
-            onChange={(e) => setOfferProductId(e.target.value)}
+            onChange={(e) => {
+              setOfferProductId(e.target.value);
+              setOfferRevision(
+                catalog.products.find((p) => p.id === e.target.value)?.revision ?? null,
+              );
+            }}
           >
             <option value="">Выберите позицию</option>
             {catalog.products
@@ -334,7 +343,7 @@ export default function CatalogPanel() {
               {
                 action: 'offer.create',
                 id: offerProductId,
-                revision: offerProduct?.revision,
+                revision: offerRevision,
                 offer,
               },
               () => setOffer(blankOffer()),
