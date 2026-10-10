@@ -7,7 +7,8 @@ import {
   saveGostPackageDraft,
 } from '@/lib/project';
 import { parsePackageSnapshot } from '@/lib/gost34/diff';
-import { parseChecklist, parseComments } from '@/lib/gost34/review/types';
+import { isCommentResolved, parseChecklist } from '@/lib/gost34/review/types';
+import { loadReviewComments } from '@/lib/review/store';
 import { handleApiError } from '@/lib/apiHelpers';
 import { loadSpecification } from '@/lib/specification/store';
 
@@ -39,6 +40,12 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
         ? savedVersion
         : ((await loadSpecification(params.id))?.snapshot.version ?? null);
 
+    // Студии нужны замечания, которые ещё предстоит устранить (#103): закрытые
+    // (проверенные или отклонённые) в список доработки не попадают.
+    const latestComments = latestPackage
+      ? (await loadReviewComments(latestPackage)).filter((c) => !isCommentResolved(c))
+      : [];
+
     return NextResponse.json({
       specificationVersion,
       draft: effectiveDraft
@@ -62,7 +69,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
             status: latestPackage.status,
             reviewStage: latestPackage.reviewStage,
             reviewComment: latestPackage.reviewComment,
-            reviewComments: parseComments(latestPackage.reviewComments),
+            reviewComments: latestComments,
             reviewChecklist: parseChecklist(latestPackage.reviewChecklist),
             twVersion: latestPackage.twVersionPath
               ? {

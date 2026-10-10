@@ -31,7 +31,8 @@
     "test:gpl-comparison:postgres": "tsx scripts/verify-gpl-comparison.ts",
     "test:gpl-project-updates:postgres": "tsx scripts/verify-gpl-project-updates.ts",
     "test:commercial:postgres": "tsx scripts/verify-commercial-pricing.ts",
-    "test:calendars:postgres": "tsx scripts/verify-calendars.ts"
+    "test:calendars:postgres": "tsx scripts/verify-calendars.ts",
+    "test:review:postgres": "tsx scripts/verify-review-workflow.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1131.0",

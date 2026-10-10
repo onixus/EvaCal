@@ -4,6 +4,8 @@ import { requireRole } from '@/lib/auth';
 import { isGapRole, reviewStagesFor } from '@/lib/appRoles';
 import { REVIEW_STAGE_LABELS, type ReviewStage } from '@/lib/gost34/review/types';
 import PageHeader from '@/components/PageHeader';
+import { loadActiveAssignments } from '@/lib/review/store';
+import { isAssignmentOverdue } from '@/lib/review/workflow';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +49,10 @@ export default async function ReviewQueuePage() {
 
   const isArchitect = isGapRole(session.role);
 
+  // Персональные ответственные (#103): видно, на ком стоит комплект и до
+  // какого срока; назначенные текущему пользователю подсвечены.
+  const assignments = await loadActiveAssignments(packages.map((p) => p.id));
+
   return (
     <div className="page">
       <PageHeader
@@ -84,6 +90,12 @@ export default async function ReviewQueuePage() {
                 {inStage.map((pkg) => {
                   const age = ageInDays(pkg.releasedAt || pkg.createdAt);
                   const chip = age >= 5 ? 'chip-block' : age >= 2 ? 'chip-warn' : 'chip-muted';
+                  const assignment = assignments.get(`${pkg.id}:${stage}`);
+                  const overdue = assignment ? isAssignmentOverdue(assignment.dueAt) : false;
+                  const mine =
+                    assignment &&
+                    (assignment.assigneeId === session.userId ||
+                      assignment.deputyId === session.userId);
                   return (
                     <Link
                       key={pkg.id}
@@ -99,6 +111,29 @@ export default async function ReviewQueuePage() {
                       <div className="text-[10px] text-slate-400 dark:text-nord-muted">
                         {pkg.project?.customer || pkg.calculation?.customer || 'Заказчик'} · v
                         {pkg.version} · {REVIEW_STAGE_LABELS[stage]}
+                      </div>
+                      <div
+                        className={`flex flex-wrap items-center gap-1 text-[10px] ${
+                          overdue
+                            ? 'font-bold text-rose-700 dark:text-nord-redText'
+                            : 'text-slate-500 dark:text-nord-muted'
+                        }`}
+                      >
+                        {assignment ? (
+                          <>
+                            <span>
+                              Ответственный: {assignment.assigneeName}
+                              {assignment.deputyName && ` · замещает ${assignment.deputyName}`}
+                            </span>
+                            <span>
+                              · {overdue ? 'просрочено, срок' : 'срок'}{' '}
+                              {new Date(assignment.dueAt).toLocaleDateString('ru-RU')}
+                            </span>
+                            {mine && <span className="chip-warn">моё</span>}
+                          </>
+                        ) : (
+                          <span>Ответственный не назначен</span>
+                        )}
                       </div>
                     </Link>
                   );

@@ -21,12 +21,14 @@ vi.mock('@/lib/prisma', () => ({
     },
     gostPackage: {
       findFirst: vi.fn(),
+      findMany: vi.fn(async () => []),
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
       delete: vi.fn(),
     },
+    reviewComment: { findMany: vi.fn(async () => []) },
   },
 }));
 

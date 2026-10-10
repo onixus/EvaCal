@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { requireRole } from '@/lib/auth';
-import { openBlockerCount, parseChecklist, parseComments } from '@/lib/gost34/review/types';
+import { summarizeReviewBulk } from '@/lib/review/store';
 import { grandTotalHours } from '@/lib/totals';
 import BoardClient, { type BoardCard, type EstimateCard } from './BoardClient';
 
@@ -34,6 +34,8 @@ export default async function BoardPage() {
         id: true,
         name: true,
         version: true,
+        projectId: true,
+        documentTypes: true,
         status: true,
         reviewStage: true,
         reviewComment: true,
@@ -102,6 +104,10 @@ export default async function BoardPage() {
   const nameOf = (value: string | null): string | null =>
     value ? (usernameById.get(value) ?? value) : null;
 
+  // Блокеры — по таблице замечаний (#103): исправленный, но не проверенный
+  // блокер карточку не разблокирует, как и утверждение.
+  const reviewByPackage = await summarizeReviewBulk(rows);
+
   const cards: BoardCard[] = rows.map((p) => ({
     id: p.id,
     name: p.name,
@@ -109,10 +115,7 @@ export default async function BoardPage() {
     status: p.status,
     reviewStage: p.reviewStage === 'gap' ? 'gap' : p.reviewStage === 'done' ? 'done' : 'tw',
     reviewComment: p.reviewComment,
-    openBlockers: openBlockerCount(
-      parseComments(p.reviewComments),
-      parseChecklist(p.reviewChecklist),
-    ),
+    openBlockers: reviewByPackage.get(p.id)?.openBlockers ?? 0,
     calculationId: p.calculationId,
     project: p.project
       ? { id: p.project.id, name: p.project.name, code: p.project.code }

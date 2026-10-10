@@ -1,8 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { SerializedGostPackage } from './types';
+import {
+  COMMENT_SEVERITY_LABELS,
+  COMMENT_STATUS_LABELS,
+  isCommentResolved,
+  REVIEW_STAGE_LABELS,
+  type SectionComment,
+} from '@/lib/gost34/review/types';
+import type { SerializedAssignment } from '@/lib/review/store';
+import { isAssignmentOverdue } from '@/lib/review/workflow';
+
+interface ReviewContext {
+  comments: SectionComment[];
+  assignments: SerializedAssignment[];
+}
 
 export default function PackageReviewModal({
   pkg,
@@ -18,6 +32,31 @@ export default function PackageReviewModal({
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [context, setContext] = useState<ReviewContext | null>(null);
+
+  // Ответственный, срок и незакрытые замечания (#103) — чтобы решение
+  // принималось с видом на то, что ещё не проверено.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/gost34/packages/${pkg.id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.package) return;
+        setContext({
+          comments: data.package.reviewComments ?? [],
+          assignments: data.package.reviewAssignments ?? [],
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [pkg.id]);
+
+  const stage = pkg.reviewStage === 'gap' ? 'gap' : 'tw';
+  const assignment = context?.assignments.find((a) => a.stage === stage) ?? null;
+  const unresolved = (context?.comments ?? []).filter((c) => !isCommentResolved(c));
+  const openBlockers = unresolved.filter((c) => c.severity === 'blocker');
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,6 +108,60 @@ export default function PackageReviewModal({
               {error}
             </div>
           )}
+          <div className="space-y-1.5 rounded-lg border border-slate-200 p-3 text-xs dark:border-nord-3">
+            <div className="font-bold text-slate-700 dark:text-nord-4">
+              {REVIEW_STAGE_LABELS[stage]}
+            </div>
+            {assignment ? (
+              <div className="text-slate-600 dark:text-nord-4">
+                Ответственный: {assignment.assigneeName}
+                {assignment.deputyName && ` · замещает ${assignment.deputyName}`} ·{' '}
+                <span
+                  className={
+                    isAssignmentOverdue(assignment.dueAt)
+                      ? 'font-bold text-rose-700 dark:text-nord-redText'
+                      : undefined
+                  }
+                >
+                  срок {new Date(assignment.dueAt).toLocaleDateString('ru-RU')}
+                </span>
+              </div>
+            ) : (
+              <div className="text-slate-400 dark:text-nord-muted">
+                {context ? 'Ответственный не назначен' : 'Загрузка…'}
+              </div>
+            )}
+            {unresolved.length > 0 && (
+              <ul className="space-y-1">
+                {unresolved.slice(0, 5).map((c) => (
+                  <li key={c.id} className="text-slate-600 dark:text-nord-4">
+                    <span className="font-semibold">
+                      {COMMENT_SEVERITY_LABELS[c.severity]} ·{' '}
+                      {COMMENT_STATUS_LABELS[c.status ?? 'open']}
+                    </span>{' '}
+                    {c.sectionId}: {c.text}
+                    {(c.replies?.length ?? 0) > 0 && (
+                      <span className="text-slate-400 dark:text-nord-muted">
+                        {' '}
+                        (ответов: {c.replies?.length})
+                      </span>
+                    )}
+                  </li>
+                ))}
+                {unresolved.length > 5 && (
+                  <li className="text-slate-400 dark:text-nord-muted">
+                    и ещё {unresolved.length - 5}
+                  </li>
+                )}
+              </ul>
+            )}
+            {decision === 'approve' && openBlockers.length > 0 && (
+              <div className="text-rose-700 dark:text-nord-redText">
+                Незакрытых блокеров: {openBlockers.length}. Исправленный блокер нужно проверить до
+                утверждения.
+              </div>
+            )}
+          </div>
           <div>
             <label className="label text-xs font-bold text-slate-700 dark:text-nord-4">
               Решение

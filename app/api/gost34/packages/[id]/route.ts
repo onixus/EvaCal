@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireCalcAccess } from '@/lib/access';
 import { parsePackageSnapshot } from '@/lib/gost34/diff';
-import { parseChecklist, parseComments } from '@/lib/gost34/review/types';
+import { parseChecklist } from '@/lib/gost34/review/types';
+import { loadActiveAssignments, loadReviewComments } from '@/lib/review/store';
 import { handleApiError } from '@/lib/apiHelpers';
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -39,6 +40,11 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     const access = await requireCalcAccess(req, pkg.calculationId, ['read']);
     if (access instanceof NextResponse) return access;
 
+    const [reviewComments, assignments] = await Promise.all([
+      loadReviewComments(pkg),
+      loadActiveAssignments([pkg.id]),
+    ]);
+
     return NextResponse.json({
       package: {
         id: pkg.id,
@@ -59,7 +65,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
         // без него потребитель API не знает, на чьей подписи стоит комплект.
         reviewStage: pkg.reviewStage,
         reviewChecklist: parseChecklist(pkg.reviewChecklist),
-        reviewComments: parseComments(pkg.reviewComments),
+        reviewComments,
+        // Персональные ответственные по этапам (#103); права подписи не дают.
+        reviewAssignments: Array.from(assignments.values()),
         twVersion: pkg.twVersionPath
           ? {
               name: pkg.twVersionName,

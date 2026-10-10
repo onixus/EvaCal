@@ -284,6 +284,10 @@ model GostPackage {
   @@index([projectId, version])
   @@index([calculationId])
   @@index([status, createdAt])
+
+  // #103 WP-3a: back-relations для назначений и замечаний ревью
+  reviewAssignments ReviewAssignment[]
+  reviewCommentRows ReviewComment[]
 }
 
 // A stage on the Gantt chart. Approval tasks (auto-inserted whenever a stage's
@@ -563,4 +567,70 @@ model RoleReservation {
   createdAt    DateTime @default(now())
 
   @@index([role, from])
+}
+
+// ==== #103 WP-3a: review assignments ====
+
+// Персональный ответственный за этап ревью комплекта. Назначение не даёт права
+// подписи: решение на этапе по-прежнему закреплено за ролью (REVIEW_STAGE_ROLES).
+// Активное назначение на пару (комплект, этап) одно — частичный уникальный
+// индекс "ReviewAssignment_active_key" создан SQL-миграцией (WHERE "active").
+model ReviewAssignment {
+  id         String      @id @default(cuid())
+  packageId  String
+  package    GostPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  stage      String // tw | gap
+  // User.id без @relation: удаление пользователя не должно стирать историю.
+  assigneeId String
+  deputyId   String?
+  dueAt      DateTime
+  assignedBy String
+  assignedAt DateTime    @default(now())
+  active     Boolean     @default(true)
+
+  @@index([packageId, stage])
+  @@index([assigneeId, active])
+  @@index([deputyId, active])
+}
+
+// Замечание ревью с жизненным циклом open -> fixed -> verified | rejected.
+// Заменяет JSON GostPackage.reviewComments (тот остаётся резервом только для чтения).
+model ReviewComment {
+  id               String               @id @default(cuid())
+  packageId        String
+  package          GostPackage          @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  stage            String // tw | gap — этап, на котором оставлено замечание
+  sectionId        String
+  severity         String // blocker | remark | suggestion
+  text             String
+  author           String
+  authorId         String?
+  createdAt        DateTime             @default(now())
+  status           String               @default("open") // open | fixed | verified | rejected
+  fixedBy          String?
+  fixedAt          DateTime?
+  // Более новая версия комплекта той же линии, где замечание исправлено.
+  fixedInPackageId String?
+  fixedInVersion   Int?
+  verifiedBy       String?
+  verifiedAt       DateTime?
+  // Перенесено из JSON-столбца миграцией: такие замечания действуют только в
+  // своём комплекте и в новые версии не переходят.
+  legacy           Boolean              @default(false)
+  replies          ReviewCommentReply[]
+
+  @@index([packageId, status])
+  @@index([fixedInPackageId])
+}
+
+model ReviewCommentReply {
+  id        String        @id @default(cuid())
+  commentId String
+  comment   ReviewComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  text      String
+  author    String
+  authorId  String?
+  createdAt DateTime      @default(now())
+
+  @@index([commentId, createdAt])
 }

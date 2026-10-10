@@ -76,6 +76,28 @@ export const COMMENT_SEVERITY_LABELS: Record<CommentSeverity, string> = {
   suggestion: 'предложение',
 };
 
+/**
+ * Жизненный цикл замечания: открыто → исправлено (в более новой версии
+ * комплекта) → проверено. «Отклонено» — замечание снято автором или ролью
+ * этапа как неприменимое. Закрытыми считаются только «проверено» и
+ * «отклонено»: исправление без проверки замечание не закрывает.
+ */
+export type CommentStatus = 'open' | 'fixed' | 'verified' | 'rejected';
+
+export const COMMENT_STATUS_LABELS: Record<CommentStatus, string> = {
+  open: 'открыто',
+  fixed: 'исправлено',
+  verified: 'проверено',
+  rejected: 'отклонено',
+};
+
+export interface CommentReply {
+  id: string;
+  text: string;
+  author: string;
+  createdAt: string;
+}
+
 export interface SectionComment {
   id: string;
   sectionId: string;
@@ -83,6 +105,33 @@ export interface SectionComment {
   text: string;
   author: string;
   createdAt: string;
+  /** Нет у замечаний из старого JSON-столбца — такие считаются открытыми. */
+  status?: CommentStatus;
+  /** Этап, на котором оставлено замечание: его роль вправе его проверить. */
+  stage?: 'tw' | 'gap';
+  authorId?: string | null;
+  /** Комплект и версия, к которым замечание оставлено. */
+  packageId?: string;
+  packageVersion?: number;
+  fixedBy?: string | null;
+  fixedAt?: string | null;
+  fixedInPackageId?: string | null;
+  fixedInVersion?: number | null;
+  verifiedBy?: string | null;
+  verifiedAt?: string | null;
+  replies?: CommentReply[];
+  /** Прочитано из резервного JSON-столбца: действия над ним недоступны. */
+  legacy?: boolean;
+  /**
+   * Строка, перенесённая миграцией из JSON: действует только в своём
+   * комплекте, этап неизвестен — закрыть может роль любого этапа.
+   */
+  migrated?: boolean;
+}
+
+/** Замечание закрыто: проверено после исправления или отклонено. */
+export function isCommentResolved(comment: Pick<SectionComment, 'status'>): boolean {
+  return comment.status === 'verified' || comment.status === 'rejected';
 }
 
 /**
@@ -165,23 +214,25 @@ export function parseComments(raw: string | null | undefined): SectionComment[] 
   }
 }
 
-/** Счётчики для карточки вердикта. */
+/** Счётчики незакрытых замечаний для карточки вердикта. */
 export function countBySeverity(comments: SectionComment[]) {
+  const unresolved = comments.filter((c) => !isCommentResolved(c));
   return {
-    blocker: comments.filter((c) => c.severity === 'blocker').length,
-    remark: comments.filter((c) => c.severity === 'remark').length,
-    suggestion: comments.filter((c) => c.severity === 'suggestion').length,
+    blocker: unresolved.filter((c) => c.severity === 'blocker').length,
+    remark: unresolved.filter((c) => c.severity === 'remark').length,
+    suggestion: unresolved.filter((c) => c.severity === 'suggestion').length,
   };
 }
 
 /**
- * Открытые блокеры: комментарии серьёзности «блокер» плюс проваленные пункты
- * чек-листа. Утверждение при них недоступно на обоих этапах — это и есть
- * смысл нормоконтроля.
+ * Открытые блокеры: незакрытые комментарии серьёзности «блокер» плюс
+ * проваленные пункты чек-листа. Утверждение при них недоступно на обоих
+ * этапах — это и есть смысл нормоконтроля. Блокер, отмеченный исправленным,
+ * но ещё не проверенный, по-прежнему блокирует.
  */
 export function openBlockerCount(comments: SectionComment[], checklist: ChecklistItem[]): number {
   return (
-    comments.filter((c) => c.severity === 'blocker').length +
+    comments.filter((c) => c.severity === 'blocker' && !isCommentResolved(c)).length +
     checklist.filter((c) => c.state === 'block').length
   );
 }

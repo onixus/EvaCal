@@ -3,13 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
-import {
-  REVIEW_STAGE_LABELS,
-  type ReviewStage,
-  parseComments,
-  openBlockerCount,
-  parseChecklist,
-} from '@/lib/gost34/review/types';
+import { REVIEW_STAGE_LABELS, type ReviewStage } from '@/lib/gost34/review/types';
 
 export interface StudioCalculationItem {
   id: string;
@@ -25,8 +19,9 @@ export interface StudioCalculationItem {
     status: string;
     reviewStage: ReviewStage;
     reviewComment: string | null;
-    reviewComments: string | null;
-    reviewChecklist: string | null;
+    /** Незакрытые блокеры и проваленный чек-лист — считаются на сервере (#103). */
+    openBlockers: number;
+    openComments: number;
     updatedAt: string;
     releasedAt: string | null;
   }[];
@@ -222,9 +217,7 @@ export default function StudioPickerClient({
             <div className="grid gap-2.5 sm:grid-cols-2">
               {rejectedList.map((item) => {
                 const pkg = item.rejectedPackage!;
-                const comments = parseComments(pkg.reviewComments);
-                const checklist = parseChecklist(pkg.reviewChecklist);
-                const blockers = openBlockerCount(comments, checklist);
+                const blockers = pkg.openBlockers;
                 const stageLabel = REVIEW_STAGE_LABELS[pkg.reviewStage] ?? pkg.reviewStage;
 
                 return (
@@ -254,8 +247,8 @@ export default function StudioPickerClient({
                       <span className="text-[11px] font-semibold text-rose-700 dark:text-nord-redText">
                         {blockers > 0
                           ? `${blockers} ${blockers === 1 ? 'блокер' : blockers < 5 ? 'блокера' : 'блокеров'}`
-                          : comments.length > 0
-                            ? `${comments.length} замечаний`
+                          : pkg.openComments > 0
+                            ? `${pkg.openComments} замечаний`
                             : 'Отклонено с замечаниями'}
                       </span>
 
