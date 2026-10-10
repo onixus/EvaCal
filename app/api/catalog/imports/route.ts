@@ -8,11 +8,11 @@ import { importError } from '@/lib/catalog/import-http';
 import { SpecificationError } from '@/lib/specification/validation';
 import { writeAudit, clientIp } from '@/lib/audit';
 export const dynamic = 'force-dynamic';
-export async function GET(req?: NextRequest) {
+export async function GET(req: NextRequest) {
   const auth = await requireApiRole(CATALOG_ROLES);
   if (auth instanceof NextResponse) return auth;
   try {
-    const cursor = req?.nextUrl.searchParams.get('cursor');
+    const cursor = req.nextUrl.searchParams.get('cursor');
     return NextResponse.json(await listImports(cursor == null ? undefined : cursor), {
       headers: { 'Cache-Control': 'private, no-store' },
     });
