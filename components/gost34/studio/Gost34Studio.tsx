@@ -110,6 +110,8 @@ export default function Gost34Studio({
     DEFAULT_LAYOUT_PROFILE.id,
   );
   const [docType, setDocType] = useState<GostDocumentType>('TZ');
+  const [specificationVersion, setSpecificationVersion] = useState<number | null>(null);
+  const [studioLoadError, setStudioLoadError] = useState('');
   const [requirements, setRequirements] = useState<Gost34RequirementItem[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
   const [applicabilityOverrides, setApplicabilityOverrides] = useState<
@@ -134,7 +136,7 @@ export default function Gost34Studio({
   const [exportError, setExportError] = useState('');
 
   // Черновик снимка мастера (RR-2) и статус ревью
-  const [isDraftLoading, setIsDraftLoading] = useState(false);
+  const [isDraftLoading, setIsDraftLoading] = useState(true);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [lastDraftSavedAt, setLastDraftSavedAt] = useState<string | null>(null);
   const [latestPackage, setLatestPackage] = useState<StudioLatestPackage | null>(null);
@@ -165,13 +167,23 @@ export default function Gost34Studio({
 
     async function fetchDraft() {
       setIsDraftLoading(true);
+      setStudioLoadError('');
+      setSpecificationVersion(null);
       try {
         const res = await fetch(`/api/calculations/${calculationId}/gost34/draft`, {
           headers: withShareHeaders(calculationId),
         });
-        if (!res.ok) return;
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Не удалось загрузить решения студии');
         if (cancelled) return;
+
+        if (
+          data.specificationVersion !== null &&
+          (!Number.isSafeInteger(data.specificationVersion) || data.specificationVersion < 1)
+        ) {
+          throw new Error('Некорректная редакция спецификации в сохраненном черновике');
+        }
+        setSpecificationVersion(data.specificationVersion);
 
         if (data?.latestPackage) {
           setLatestPackage(data.latestPackage);
@@ -214,7 +226,10 @@ export default function Gost34Studio({
           );
         }
       } catch (err) {
-        console.error('Failed to load wizard draft snapshot:', err);
+        if (!cancelled)
+          setStudioLoadError(
+            err instanceof Error ? err.message : 'Не удалось загрузить решения студии',
+          );
       } finally {
         if (!cancelled) setIsDraftLoading(false);
       }
@@ -302,7 +317,12 @@ export default function Gost34Studio({
 
   const issues = useMemo(() => review?.compliance.issues ?? [], [review]);
   const blockerCount = issues.filter((i) => i.severity === 'blocker').length;
-  const canExport = Boolean(review?.compliance.canExport) && !isReviewLoading && !reviewError;
+  const canExport =
+    Boolean(review?.compliance.canExport) &&
+    !isReviewLoading &&
+    !reviewError &&
+    !isDraftLoading &&
+    !studioLoadError;
 
   /**
    * Переход к источнику замечания: сменить шаг, доскроллить до поля и мигнуть
@@ -335,6 +355,7 @@ export default function Gost34Studio({
 
   const exportPayload = useMemo(
     () => ({
+      specificationVersion,
       layoutProfileId,
       standardProfileId,
       contractNumber,
@@ -352,6 +373,7 @@ export default function Gost34Studio({
       tzAuthor,
     }),
     [
+      specificationVersion,
       layoutProfileId,
       standardProfileId,
       contractNumber,
@@ -436,6 +458,7 @@ export default function Gost34Studio({
     setIsSavingDraft(true);
     try {
       const snapshot = {
+        specificationVersion,
         standardProfileId,
         layoutProfileId,
         docType,
@@ -478,6 +501,14 @@ export default function Gost34Studio({
     setIsExporting(true);
     setExportError('');
     try {
+      if (isDraftLoading || studioLoadError)
+        throw new Error(studioLoadError || 'Дождитесь загрузки студии');
+      if (
+        (payload.docType === 'SPEC' || payload.docType === 'ZIP' || payload.isBatchZip) &&
+        specificationVersion === null
+      ) {
+        throw new Error('Выберите сохраненную редакцию спецификации перед выпуском SPEC или ZIP');
+      }
       const res = await fetch(`/api/calculations/${calculationId}/gost34`, {
         method: 'POST',
         headers: withShareHeaders(calculationId, { 'Content-Type': 'application/json' }),
@@ -505,7 +536,7 @@ export default function Gost34Studio({
             )}`,
           );
         }
-        throw new Error(data?.error || 'Ошибка при генерации документа ГОСТ 34');
+        throw new Error(data?.message || data?.error || 'Ошибка при генерации документа ГОСТ 34');
       }
 
       const blob = await res.blob();
@@ -555,7 +586,7 @@ export default function Gost34Studio({
           <button
             type="button"
             onClick={handleSaveDraft}
-            disabled={isSavingDraft}
+            disabled={isSavingDraft || isDraftLoading || Boolean(studioLoadError)}
             className="btn-secondary !text-xs"
             title="Сохранить текущие требования и решения студии"
           >
@@ -576,6 +607,32 @@ export default function Gost34Studio({
           </button>
         </div>
       </div>
+
+      {studioLoadError && (
+        <p role="alert" className="text-red-600">
+          {studioLoadError}. Повторно откройте студию после устранения ошибки.
+        </p>
+      )}
+      <label className="flex items-center gap-2 text-sm">
+        Редакция спецификации
+        <input
+          aria-label="Редакция спецификации"
+          type="number"
+          min="1"
+          step="1"
+          className="input w-24"
+          value={specificationVersion ?? ''}
+          disabled={isDraftLoading || isExporting || Boolean(studioLoadError)}
+          onChange={(event) => {
+            const value = Number(event.target.value);
+            setSpecificationVersion(Number.isSafeInteger(value) && value > 0 ? value : null);
+          }}
+        />
+        <span className="text-slate-500">
+          Одна редакция для предпросмотра и выпуска; обновление состава применяется только после
+          вашего выбора.
+        </span>
+      </label>
 
       {/* Баннер замечаний ревьюера при отклонении комплекта */}
       {latestPackage?.status === 'rejected' && !isRejectionBannerDismissed && (
@@ -833,6 +890,7 @@ export default function Gost34Studio({
           {activeStep === 'preview' && (
             <DocumentPreviewStep
               decisions={{
+                specificationVersion,
                 contractNumber,
                 city,
                 vendorFiles: uploadedFiles,

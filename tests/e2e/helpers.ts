@@ -124,9 +124,18 @@ export async function createCalculationViaWizard(page: Page): Promise<string> {
   await expect(page.getByText('Итог: этапы и роли')).toBeVisible();
   await page.getByRole('button', { name: 'Создать расчёт' }).click();
 
-  await page.waitForURL(/\/(calculations|presale)\/[a-z0-9]+/i, { timeout: 20000 });
+  // /presale/new is also matched by the old broad regex. Wait for the
+  // asynchronous create response and an actual calculation, not the wizard URL.
+  await page.waitForURL(
+    (url) => {
+      const created = url.pathname.match(/^\/(?:calculations|presale)\/([a-z0-9]+)$/i);
+      return Boolean(created && created[1] !== 'new');
+    },
+    { timeout: 20000 },
+  );
   const match = page.url().match(/\/(?:calculations|presale)\/([a-z0-9]+)/i);
-  if (!match) throw new Error(`Не удалось прочитать id расчёта из ${page.url()}`);
+  if (!match || match[1] === 'new')
+    throw new Error(`Не удалось прочитать id расчёта из ${page.url()}`);
   return match[1];
 }
 

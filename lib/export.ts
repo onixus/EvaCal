@@ -1,4 +1,6 @@
 import { prisma } from './prisma';
+import { loadSpecification } from './specification/store';
+import { SpecificationError } from './specification/validation';
 import { safeJsonParse } from './json';
 
 export interface StageForExport {
@@ -26,6 +28,7 @@ export interface FieldForExport {
 }
 
 export interface CalculationForExport {
+  specification?: import('@/lib/specification/types').SpecificationSnapshot;
   id?: string;
   name: string;
   customer: string;
@@ -48,7 +51,10 @@ export interface CalculationForExport {
 }
 
 /** Shared shape/query for the PDF, XLSX and JSON export routes. */
-export async function loadCalculationForExport(id: string): Promise<CalculationForExport | null> {
+export async function loadCalculationForExport(
+  id: string,
+  specificationVersion?: number | null,
+): Promise<CalculationForExport | null> {
   const calculation = await prisma.calculation.findUnique({
     where: { id },
     include: {
@@ -59,7 +65,15 @@ export async function loadCalculationForExport(id: string): Promise<CalculationF
   });
   if (!calculation) return null;
 
+  // null pins the absence of a BOM; undefined retains the legacy latest lookup.
+  const specification =
+    specificationVersion === null ? null : await loadSpecification(id, specificationVersion);
+  if (typeof specificationVersion === 'number' && !specification) {
+    throw new SpecificationError('Редакция спецификации не найдена', 404);
+  }
+
   return {
+    specification: specification?.snapshot,
     id: calculation.id,
     name: calculation.name,
     customer: calculation.customer,

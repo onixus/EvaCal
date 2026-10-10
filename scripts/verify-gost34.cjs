@@ -68,7 +68,15 @@ async function run() {
     for (const docType of ['TZ', 'PZ', 'AF', 'PMI', 'SPEC', 'RP', 'RA', 'PSI', 'ACT']) {
       for (const layoutProfileId of ['gost34-modern', 'gost34-eskd-frame', 'plain-corporate']) {
         const input = {
-          calculation: GOLDEN_SCENARIOS[0].calculation,
+          calculation: {
+            ...GOLDEN_SCENARIOS[0].calculation,
+            specification: {
+              version: 1,
+              status: 'confirmed',
+              emptySupplyReason: 'Поставка не входит в предмет договора',
+              items: [],
+            },
+          },
           metadataOverride: {
             docType,
             standardProfileId,

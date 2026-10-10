@@ -6,6 +6,7 @@ import type { TzAuthorState } from '@/lib/gost34/llm/tzAuthor/types';
 
 /** Решения пользователя, которые мастер передаёт и в обзор, и в экспорт. */
 export interface WizardDecisions {
+  specificationVersion?: number | null;
   standardProfileId: string;
   layoutProfileId: string;
   docType: string;

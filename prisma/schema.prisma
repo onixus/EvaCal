@@ -197,6 +197,7 @@ model Calculation {
   parentCalculationId String?
   parentCalculation   Calculation?  @relation("CalculationVersions", fields: [parentCalculationId], references: [id], onDelete: SetNull)
   derivedCalculations Calculation[] @relation("CalculationVersions")
+  specifications      SpecificationVersion[]
   versionComment      String? // Version change note (e.g. "Base estimate with risk buffer")
 
   // Commercial financial profile (Horizon B4)
@@ -411,4 +412,19 @@ model DeviationReport {
   updatedAt DateTime @updatedAt
 
   @@index([createdBy, updatedAt])
+}
+
+// Append-only project BOM. Each revision stores its own complete snapshot.
+// Catalogue updates must never modify these rows.
+model SpecificationVersion {
+  id            String      @id @default(cuid())
+  calculationId String
+  calculation   Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  version       Int
+  status        String      @default("draft")
+  data          String
+  createdBy     String
+  createdAt     DateTime    @default(now())
+
+  @@unique([calculationId, version])
 }

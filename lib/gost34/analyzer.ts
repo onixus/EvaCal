@@ -125,6 +125,7 @@ export function analyzeAndNormalizeInput(input: {
   });
 
   return {
+    specification: calc?.specification,
     metadata,
     standardProfile,
     systemName: metadata.systemName,

@@ -1,3 +1,5 @@
+import { prepareGost34Document } from '@/lib/gost34/generation/prepareDocument';
+import { exportGost34ToDocx } from '@/lib/gost34/exporters/docxExporter';
 import { gost34ErrorResponse } from '@/lib/gost34/generation/apiError';
 import { DEFAULT_SIGNATURES } from '@/lib/gost34/metadataDefaults';
 import { NextRequest, NextResponse } from 'next/server';
@@ -107,7 +109,10 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       standardProfileId,
       [docType.toLowerCase()],
       { docType },
-      undefined,
+      {
+        specification: calc.specification,
+        specificationVersion: calc.specification?.version ?? null,
+      },
       access.actorId,
     );
 
@@ -142,10 +147,17 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const access = await requireCalcAccess(req, params.id, ['export']);
     if (access instanceof NextResponse) return access;
 
-    const calc = await loadCalculationForExport(params.id);
-    if (!calc) return NextResponse.json({ error: 'not found' }, { status: 404 });
-
     const body = await req.json();
+    const { specificationVersion } = body;
+    if (
+      specificationVersion !== undefined &&
+      specificationVersion !== null &&
+      (!Number.isSafeInteger(specificationVersion) || specificationVersion < 1)
+    ) {
+      return NextResponse.json({ error: 'Некорректная версия спецификации' }, { status: 400 });
+    }
+    const calc = await loadCalculationForExport(params.id, specificationVersion);
+    if (!calc) return NextResponse.json({ error: 'not found' }, { status: 404 });
     const {
       docType = 'TZ',
       isBatchZip = false,
@@ -188,6 +200,38 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       customerApprover,
       signDate,
     };
+
+    if (body.draft === true) {
+      if (docType !== 'SPEC' || isBatchZip)
+        return NextResponse.json(
+          { error: 'Черновой DOCX доступен только для SPEC' },
+          { status: 400 },
+        );
+      const { ast } = prepareGost34Document(
+        {
+          calculation: calc,
+          metadataOverride: {
+            docType: 'SPEC',
+            signatures: commonSignatures,
+            standardProfileId,
+            layoutProfileId: layout,
+          },
+        },
+        { mode: 'preview' },
+      );
+      // Draft label is unconditional even for a confirmed source snapshot.
+      ast.sections[0].paragraphs.unshift('ЧЕРНОВИК — не является выпущенным комплектом.');
+      const buffer = await exportGost34ToDocx(ast);
+      return new NextResponse(responseBody(buffer), {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'Content-Disposition': contentDisposition(
+            `DRAFT_SPEC_${safeFileName(calc.name)}`,
+            'docx',
+          ),
+        },
+      });
+    }
 
     // If batch ZIP export is requested
     if (isBatchZip || (docType as GostExportType) === 'ZIP') {
@@ -235,6 +279,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         docType: 'ZIP',
         contractNumber,
         city,
+        specification: calc.specification,
+        specificationVersion: calc.specification?.version ?? null,
         requirements: rawRequirements,
         uploadedFiles: vendorFiles,
         tzAuthor,
@@ -313,6 +359,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       docType,
       contractNumber,
       city,
+      specification: calc.specification,
+      specificationVersion: calc.specification?.version ?? null,
       requirements: rawRequirements,
       uploadedFiles: vendorFiles,
       tzAuthor,

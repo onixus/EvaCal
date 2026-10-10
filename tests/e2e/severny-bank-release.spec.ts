@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import JSZip from 'jszip';
 import { test, expect, type Page } from '@playwright/test';
 import { createCalculationViaWizard, createProject, E2E_PASSWORD, loginAs } from './helpers';
 
@@ -26,6 +28,7 @@ async function signReview(
 }
 
 test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
+  test.use({ actionTimeout: 15000 });
   test.setTimeout(240000);
   const PROJECT_NAME = 'Северный банк (e2e)';
   const CUSTOMER_NAME = 'ПАО Северный банк';
@@ -48,7 +51,65 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     await expect(page.getByRole('list', { name: 'Этапы проекта' })).toBeVisible();
 
     // 4–5. Расчёт через пресейл-мастер.
-    await createCalculationViaWizard(page);
+    const calculationId = await createCalculationViaWizard(page);
+    await page.goto(`/calculations/${calculationId}`);
+
+    // SPEC has no inferred supply: create and confirm a real project snapshot.
+    await page.getByRole('button', { name: 'Спецификация ПАК и ПО' }).click();
+    await expect(page.getByRole('button', { name: 'Выпустить DOCX' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Добавить позицию' }).click();
+    await page.getByLabel('Тип', { exact: true }).selectOption('hardware');
+    await page.getByLabel('Наименование', { exact: true }).fill('Платформа банка (E2E)');
+    await page.getByLabel('Вендор', { exact: true }).fill('Вендор банка');
+    await page.getByLabel('Артикул / редакция', { exact: true }).fill('BANK-MANUAL-42');
+    await page.getByLabel('Количество (пусто — неизвестно)', { exact: true }).fill('4');
+    await page.getByLabel('Источник', { exact: true }).fill('КП поставщика (E2E)');
+    await page
+      .getByLabel('Основание количества / выбора', { exact: true })
+      .fill('Ручная оценка архитектора (E2E)');
+    await page.getByLabel('Подтверждаю сведения и количество этой позиции').check();
+    await page.getByRole('button', { name: 'Подтвердить и сохранить' }).click();
+    await expect(page.getByRole('button', { name: 'Выпустить DOCX' })).toBeEnabled();
+    await page.reload();
+    await page.getByRole('button', { name: 'Спецификация ПАК и ПО' }).click();
+    await expect(page.getByLabel('Наименование', { exact: true })).toHaveValue(
+      'Платформа банка (E2E)',
+    );
+    await expect(page.getByLabel('Количество (пусто — неизвестно)', { exact: true })).toHaveValue(
+      '4',
+    );
+
+    // A second editor creates a revision while this editor keeps unsaved changes.
+    const savedResponse = await page.request.get(
+      `/api/calculations/${calculationId}/specification`,
+    );
+    expect(savedResponse.ok()).toBeTruthy();
+    const savedSnapshot = (await savedResponse.json()).specification.snapshot;
+    const concurrent = await page.request.post(`/api/calculations/${calculationId}/specification`, {
+      data: { ...savedSnapshot, status: 'draft' },
+    });
+    expect(concurrent.status()).toBe(201);
+    await page.getByLabel('Вендор', { exact: true }).fill('Несохраненные изменения');
+    await page.getByRole('button', { name: 'Сохранить новую редакцию' }).click();
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'изменена другим пользователем' }),
+    ).toBeVisible();
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: 'Загрузить последнюю' }).click();
+    await expect(page.getByLabel('Вендор', { exact: true })).toHaveValue('Вендор банка');
+    await page.getByRole('button', { name: 'Подтвердить и сохранить' }).click();
+    await expect(page.getByRole('button', { name: 'Выпустить DOCX' })).toBeEnabled();
+
+    // A missing historical revision must not expose a latest-version draft download.
+    await page.getByLabel('Историческая версия').fill('999');
+    await expect(page.getByRole('alert').filter({ hasText: 'Редакция не найдена' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Черновой DOCX' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Выпустить DOCX' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Загрузить последнюю' }).click();
+    await expect(page.getByRole('button', { name: 'Выпустить DOCX' })).toBeEnabled();
+    const pinned = (
+      await (await page.request.get(`/api/calculations/${calculationId}/specification`)).json()
+    ).specification.snapshot;
 
     // 6. Из расчёта — в Студию ГОСТ 34.
     const studioLink = page.locator('a[title*="профиль, требования"]');
@@ -63,6 +124,30 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
       throw e;
     }
     const nextBtn = page.getByRole('button', { name: 'Далее' });
+    await expect(page.getByLabel('Редакция спецификации')).toHaveValue(String(pinned.version));
+    // Persist and reopen the studio before a concurrent BOM revision is created.
+    await page.getByRole('button', { name: 'Сохранить черновик', exact: true }).click();
+    await expect(page.getByText(/черновик сохранён в/)).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel('Редакция спецификации')).toHaveValue(String(pinned.version));
+    const newer = await page.request.post(`/api/calculations/${calculationId}/specification`, {
+      data: {
+        ...pinned,
+        items: pinned.items.map((item: Record<string, unknown>) => ({
+          ...item,
+          sku: 'BANK-NEWER-DO-NOT-EXPORT',
+          quantity: '9',
+        })),
+      },
+    });
+    expect(newer.status()).toBe(201);
+    await expect(page.getByLabel('Редакция спецификации')).toHaveValue(String(pinned.version));
+    const previewVersions: unknown[] = [];
+    page.on('request', (request) => {
+      if (request.url().endsWith('/api/gost34/preview') && request.method() === 'POST') {
+        previewVersions.push(request.postDataJSON().specificationVersion);
+      }
+    });
 
     // Step 1 (Profile) -> 2 (Requirements)
     await nextBtn.click();
@@ -114,6 +199,18 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     ]);
 
     expect(download.suggestedFilename()).toMatch(/\.zip$/);
+    const zipPath = await download.path();
+    expect(zipPath).toBeTruthy();
+    const zip = await JSZip.loadAsync(await readFile(zipPath!));
+    const specFile = Object.keys(zip.files).find((name) => name.includes('SPEC'));
+    expect(specFile).toBeTruthy();
+    const specDocx = await JSZip.loadAsync(await zip.file(specFile!)!.async('nodebuffer'));
+    const specXml = await specDocx.file('word/document.xml')!.async('string');
+    expect(specXml).toContain('BANK-MANUAL-42');
+    expect(specXml).toContain('4 шт.');
+    expect(specXml).not.toContain('BANK-NEWER-DO-NOT-EXPORT');
+    expect(previewVersions.length).toBeGreaterThan(0);
+    expect(previewVersions.every((version) => version === pinned.version)).toBe(true);
 
     // 9. Карточка проекта: конвейер показывает нормоконтроль, комплект — в реестре.
     await page.goto('/projects');

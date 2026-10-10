@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       calculationId,
+      specificationVersion,
       docType = 'TZ',
       contractNumber,
       city,
@@ -37,7 +38,14 @@ export async function POST(req: NextRequest) {
     const access = await requireCalcAccess(req, calculationId, ['read']);
     if (access instanceof NextResponse) return access;
 
-    const calculation = await loadCalculationForExport(calculationId);
+    if (
+      specificationVersion !== undefined &&
+      specificationVersion !== null &&
+      (!Number.isSafeInteger(specificationVersion) || specificationVersion < 1)
+    ) {
+      return NextResponse.json({ error: 'Некорректная версия спецификации' }, { status: 400 });
+    }
+    const calculation = await loadCalculationForExport(calculationId, specificationVersion);
     if (!calculation) {
       return NextResponse.json({ error: 'not found' }, { status: 404 });
     }

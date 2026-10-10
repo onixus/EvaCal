@@ -1,3 +1,4 @@
+import { requireConfirmedSpecification } from '../../specification/validation';
 import { analyzeAndNormalizeInput } from '../analyzer';
 import { buildGost34DocumentAST } from '../generator';
 import { LEGACY_GOST34_PROFILE_ID } from '../standards';
@@ -22,6 +23,8 @@ export function prepareGost34Document(
   const preview = options.mode === 'preview';
   const includeProposed = preview && Boolean(options.includeProposed);
   const payload = analyzeAndNormalizeInput(params);
+  if (!preview && payload.metadata.docType === 'SPEC')
+    requireConfirmedSpecification(payload.specification);
   const baselineAst = buildGost34DocumentAST(payload);
   const docType = payload.metadata.docType || 'TZ';
   let validTzAuthor = params.tzAuthor;

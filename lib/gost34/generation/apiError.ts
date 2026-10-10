@@ -1,9 +1,16 @@
+import { SpecificationError } from '../../specification/validation';
 import { NextResponse } from 'next/server';
 import { TzAuthorHardFlagsError } from '../llm/tzAuthor/validate';
 import { Gost34StructureError, UnsupportedGostDocumentTypeError } from './errors';
 
 /** Domain failures keep the same status and payload across preview and download routes. */
 export function gost34ErrorResponse(error: unknown) {
+  if (error instanceof SpecificationError) {
+    return NextResponse.json(
+      { error: 'specification_invalid', message: error.message },
+      { status: error.statusCode },
+    );
+  }
   if (error instanceof TzAuthorHardFlagsError) {
     return NextResponse.json(
       { error: error.code, nodes: error.nodes },
