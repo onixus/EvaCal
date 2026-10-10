@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import CatalogPicker from './CatalogPicker';
 import Link from 'next/link';
 import { withShareHeaders } from '@/lib/shareClient';
 import type {
@@ -71,6 +72,7 @@ export default function SpecificationPanel({
   const [error, setError] = useState('');
   const [canWrite, setCanWrite] = useState(false);
   const [canExport, setCanExport] = useState(false);
+  const [canUseCatalog, setCanUseCatalog] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState('');
   const [reload, setReload] = useState(0);
   const answersKey = JSON.stringify(answers);
@@ -81,6 +83,7 @@ export default function SpecificationPanel({
     setLoaded(false);
     setCanWrite(false);
     setCanExport(false);
+    setCanUseCatalog(false);
     setError('');
     setDirty(false);
     setSpec(empty());
@@ -96,6 +99,7 @@ export default function SpecificationPanel({
           setSpec(data.specification?.snapshot || empty());
           setCanWrite(data.canWrite);
           setCanExport(data.canExport);
+          setCanUseCatalog(Boolean(data.canUseCatalog));
           setLoaded(true);
         }
       })
@@ -208,8 +212,8 @@ export default function SpecificationPanel({
             : spec.status === 'confirmed'
               ? 'Подтверждена'
               : 'Черновик'}
-          . Состав вводится вручную. Ответы опросника не добавляют товары. Реестры автоматически не
-          проверяются.
+          . Состав вводится вручную или копируется из каталога. Ответы опросника не добавляют
+          товары. Реестры автоматически не проверяются.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <label>
@@ -282,6 +286,12 @@ export default function SpecificationPanel({
       </div>
       {!loading && (
         <>
+          {canUseCatalog && (
+            <CatalogPicker
+              disabled={disabled}
+              onAdd={(item) => change({ ...spec, items: [...spec.items, item] })}
+            />
+          )}
           {spec.items.map((item, index) => (
             <fieldset key={item.id} disabled={disabled} className="card space-y-3 p-5">
               <legend className="font-semibold">Позиция {index + 1}</legend>

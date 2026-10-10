@@ -148,6 +148,7 @@ const CHANGELOG: NavItem = {
   group: 'docs',
 };
 const STANDARDS: NavItem = { href: '/standards', label: 'Чек-листы и стандарты', group: 'docs' };
+const SUPPLY_CATALOG: NavItem = { href: '/catalog', label: 'Каталог поставки', group: 'work' };
 const CATALOG: NavItem = { href: '/architect', label: 'Архитектурный каталог', group: 'docs' };
 const CAPACITY: NavItem = { href: '/capacity', label: 'Ресурсный план', group: 'analytics' };
 const ANALYTICS: NavItem = { href: '/analytics', label: 'Сделки и точность', group: 'analytics' };
@@ -163,7 +164,7 @@ const ADMIN: NavItem = { href: '/admin', label: 'Шаблоны и пользо�
  * и для пресейла, и для архитектора.
  */
 export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
-  presale: [DASHBOARD, PROJECTS, PRESALE, CALCULATIONS, ANALYTICS, LEADERBOARD],
+  presale: [DASHBOARD, PROJECTS, PRESALE, CALCULATIONS, SUPPLY_CATALOG, ANALYTICS, LEADERBOARD],
   architect: [
     DASHBOARD,
     PROJECTS,
@@ -175,6 +176,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     BOARD,
     CHANGELOG,
     CATALOG,
+    SUPPLY_CATALOG,
     CAPACITY,
     ANALYTICS,
     LEADERBOARD,
@@ -224,6 +226,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     CHANGELOG,
     STANDARDS,
     CATALOG,
+    SUPPLY_CATALOG,
     CAPACITY,
     ANALYTICS,
     LEADERBOARD,
