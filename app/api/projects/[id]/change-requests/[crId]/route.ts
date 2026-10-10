@@ -43,7 +43,17 @@ export async function PATCH(req: NextRequest, props: Props) {
     const action = body?.action;
     let result;
     if (action === 'update') {
-      result = await updateChangeRequestDraft(id, crId, parseDraftInput(body), auth.username);
+      const expected = typeof body?.updatedAt === 'string' ? new Date(body.updatedAt) : null;
+      if (!expected || Number.isNaN(expected.getTime())) {
+        throw new ChangeRequestError('Не указана версия черновика (updatedAt)', 400);
+      }
+      result = await updateChangeRequestDraft(
+        id,
+        crId,
+        parseDraftInput(body),
+        auth.username,
+        expected,
+      );
     } else if (action === 'submit') {
       const comment =
         typeof body?.comment === 'string' ? body.comment.trim().slice(0, 4000) || null : null;

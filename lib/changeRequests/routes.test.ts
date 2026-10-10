@@ -17,6 +17,7 @@ const db = vi.hoisted(() => {
     packages: [] as Row[],
     crs: [] as Row[],
     events: [] as Row[],
+    alwaysDuplicate: false,
   };
   const writes: string[] = [];
   const forbidden = (model: string) =>
@@ -34,7 +35,9 @@ const db = vi.hoisted(() => {
       },
     );
   const matches = (row: Row, where: Row = {}) =>
-    Object.entries(where).every(([k, v]) => row[k] === v);
+    Object.entries(where).every(([k, v]) =>
+      v instanceof Date ? row[k] instanceof Date && row[k].getTime() === v.getTime() : row[k] === v,
+    );
   const decimal = (v: unknown) =>
     v === null || v === undefined ? null : { toFixed: (n: number) => Number(v).toFixed(n) };
   let counter = 0;
@@ -71,6 +74,7 @@ const db = vi.hoisted(() => {
           : row;
       },
       create: async ({ data }: Row) => {
+        if (state.alwaysDuplicate) throw Object.assign(new Error('unique'), { code: 'P2002' });
         if (state.crs.some((r) => r.projectId === data.projectId && r.seq === data.seq)) {
           throw Object.assign(new Error('unique'), { code: 'P2002' });
         }
@@ -113,7 +117,18 @@ const db = vi.hoisted(() => {
       },
     },
   };
-  client.$transaction = async (fn: (tx: Row) => unknown) => fn(client);
+  // Транзакция с откатом: ошибка внутри восстанавливает строки запросов и журнала.
+  client.$transaction = async (fn: (tx: Row) => unknown) => {
+    const crs = state.crs.map((r) => ({ ...r }));
+    const events = [...state.events];
+    try {
+      return await fn(client);
+    } catch (error) {
+      state.crs = crs;
+      state.events = events;
+      throw error;
+    }
+  };
   return { state, writes, client };
 });
 
@@ -175,6 +190,7 @@ function seed() {
   ];
   db.state.crs = [];
   db.state.events = [];
+  db.state.alwaysDuplicate = false;
   db.writes.length = 0;
 }
 
@@ -239,6 +255,7 @@ describe('Маршруты запросов на изменение', () => {
         role: 'architect',
         baseHours: 120,
         requirementIds: ['R1'],
+        ruleRequirementIds: [],
       },
     ]);
     expect(cr.impact.documents.map((d: { type: string }) => d.type)).toEqual(['tz', 'pmi']);
@@ -318,14 +335,42 @@ describe('Маршруты запросов на изменение', () => {
 
   it('правка — только черновик; после передачи база зафиксирована', async () => {
     const cr = await (await create(req(draft), props())).json();
+    // Без версии черновика правка не принимается.
+    expect((await PATCH(patch({ ...draft, action: 'update' }), crProps(cr.id))).status).toBe(400);
     const upd = await PATCH(
-      patch({ ...draft, action: 'update', requirementIds: ['R1', 'R2'], proposedChanges: {} }),
+      patch({
+        ...draft,
+        action: 'update',
+        updatedAt: cr.updatedAt,
+        requirementIds: ['R1', 'R2'],
+        proposedChanges: {},
+      }),
       crProps(cr.id),
     );
     expect(upd.status).toBe(200);
-    expect((await upd.json()).impact.stages.map((s: { id: string }) => s.id)).toEqual(['S1', 'S2']);
+    const updated = await upd.json();
+    expect(updated.impact.stages.map((s: { id: string }) => s.id)).toEqual(['S1', 'S2']);
+    // Правка по устаревшей версии — 409, черновик не перезаписан.
+    const stale = await PATCH(
+      patch({
+        ...draft,
+        action: 'update',
+        title: 'Чужая правка',
+        updatedAt: '2000-01-01T00:00:00.000Z',
+      }),
+      crProps(cr.id),
+    );
+    expect(stale.status).toBe(409);
+    expect(db.state.crs[0].title).toBe(draft.title);
     await PATCH(patch({ action: 'submit' }), crProps(cr.id));
-    expect((await PATCH(patch({ ...draft, action: 'update' }), crProps(cr.id))).status).toBe(409);
+    expect(
+      (
+        await PATCH(
+          patch({ ...draft, action: 'update', updatedAt: updated.updatedAt }),
+          crProps(cr.id),
+        )
+      ).status,
+    ).toBe(409);
     expect((await PATCH(patch({ action: 'submit' }), crProps(cr.id))).status).toBe(409);
     untouched();
   });
@@ -365,6 +410,13 @@ describe('Маршруты запросов на изменение', () => {
     untouched();
   });
 
+  it('исчерпав попытки присвоить номер, отвечает 409, а не 500', async () => {
+    db.state.alwaysDuplicate = true;
+    const res = await create(req(draft), props());
+    expect(res.status).toBe(409);
+    expect(db.state.crs).toEqual([]);
+  });
+
   it('пустой запрос нельзя передать на оценку', async () => {
     const cr = await (
       await create(
@@ -373,5 +425,8 @@ describe('Маршруты запросов на изменение', () => {
       )
     ).json();
     expect((await PATCH(patch({ action: 'submit' }), crProps(cr.id))).status).toBe(400);
+    // Проверка внутри транзакции перехода: статус и журнал откатились.
+    expect(db.state.crs[0].status).toBe('draft');
+    expect(db.state.events.map((e) => e.action)).toEqual(['created']);
   });
 });

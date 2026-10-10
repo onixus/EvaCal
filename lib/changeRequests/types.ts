@@ -79,8 +79,11 @@ export interface ImpactStage {
    */
   baseHours: number | null;
   requirementIds: string[];
-  /** Этап есть в связях комплекта, но не найден в базовом расчёте. */
-  missing?: boolean;
+  /**
+   * Из них связаны правилом движка трассировки (RULE), а не ручным решением —
+   * связь предположительная, специалисту стоит её проверить.
+   */
+  ruleRequirementIds: string[];
 }
 
 export interface ImpactDocument {

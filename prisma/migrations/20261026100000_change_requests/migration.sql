@@ -31,9 +31,9 @@ CREATE TABLE "ChangeRequest" (
  CONSTRAINT "ChangeRequest_pkey" PRIMARY KEY ("id"),
  CHECK ("status" IN ('draft', 'submitted', 'accepted', 'rejected', 'deferred')),
  CHECK ("seq" > 0),
- CHECK (length("title") BETWEEN 1 AND 200),
- CHECK (length("initiator") BETWEEN 1 AND 200),
- CHECK (length("reason") BETWEEN 1 AND 4000),
+ CHECK (length(btrim("title")) >= 1 AND length("title") <= 200),
+ CHECK (length(btrim("initiator")) >= 1 AND length("initiator") <= 200),
+ CHECK (length(btrim("reason")) >= 1 AND length("reason") <= 4000),
  CHECK (jsonb_typeof("affectedRequirements") = 'array'),
  CHECK (jsonb_typeof("proposedChanges") = 'object'),
  -- Изменение может и сокращать объём, поэтому значения со знаком, но в разумных пределах.

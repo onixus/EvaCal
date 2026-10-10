@@ -116,12 +116,25 @@ async function main() {
       cr.impact?.stages.map((s) => [s.id, s.baseHours]),
       [[s1.id, 120]],
     );
-    await updateChangeRequestDraft(
+    const edited = await updateChangeRequestDraft(
       project.id,
       cr.id,
       parseDraftInput({ ...draftBody, requirementIds: ['R1', 'R2'] }),
       'ci',
+      new Date(cr.updatedAt),
     );
+    // Правка по устаревшей версии черновика — 409, ничего не пишется.
+    await assert.rejects(
+      updateChangeRequestDraft(
+        project.id,
+        cr.id,
+        parseDraftInput({ ...draftBody, title: 'stale' }),
+        'ci',
+        new Date(cr.updatedAt),
+      ),
+      (error: unknown) => (error as { status?: number }).status === 409,
+    );
+    assert.equal((await getChangeRequest(project.id, cr.id)).title, edited.title);
     await submitChangeRequest(project.id, cr.id, 'ci', 'на оценку');
     const estimated = await recordEstimate(
       project.id,
@@ -172,6 +185,9 @@ async function main() {
         where: { id: pair[0].id },
         data: { affectedRequirements: { id: 'R1' } },
       }),
+    );
+    await rejects('blank title', () =>
+      prisma.changeRequest.update({ where: { id: pair[0].id }, data: { title: '   ' } }),
     );
     await rejects('unknown event action', () =>
       prisma.changeRequestEvent.create({ data: { crId: cr.id, action: 'approved', actor: 'ci' } }),

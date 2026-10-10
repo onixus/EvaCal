@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CHANGE_REQUEST_ACTION_LABELS,
   CHANGE_REQUEST_STATUS_LABELS,
@@ -65,6 +65,8 @@ interface FormState {
   summary: string;
   selected: Record<string, { kind: 'none' | 'modify' | 'remove'; text: string }>;
   added: string;
+  /** Версия черновика, которую правит автор (оптимистическая блокировка). */
+  updatedAt?: string;
 }
 
 function emptyForm(baseCalculationId: string): FormState {
@@ -96,6 +98,7 @@ function formFromCr(cr: ChangeRequestDto): FormState {
     basePackageId: cr.basePackageId ?? '',
     summary: cr.proposedChanges.summary,
     selected,
+    updatedAt: cr.updatedAt,
     added: cr.proposedChanges.items
       .filter((i) => i.kind === 'add')
       .map((i) => i.text)
@@ -190,7 +193,7 @@ function ChangeRequestForm({
       const cr = editingId
         ? await api<ChangeRequestDto>(`/api/projects/${projectId}/change-requests/${editingId}`, {
             method: 'PATCH',
-            body: JSON.stringify({ ...body, action: 'update' }),
+            body: JSON.stringify({ ...body, action: 'update', updatedAt: form.updatedAt }),
           })
         : await api<ChangeRequestDto>(`/api/projects/${projectId}/change-requests`, {
             method: 'POST',
@@ -614,11 +617,17 @@ function ChangeRequestDetail({
                 <tbody>
                   {cr.impact.stages.map((s) => (
                     <tr key={s.id} className="border-t border-slate-100 dark:border-nord-3">
-                      <td className="py-1">{s.missing ? 'Нет в базовом расчёте' : s.name}</td>
+                      <td className="py-1">{s.name}</td>
                       <td className="py-1">{s.role || '—'}</td>
                       <td className="py-1">{s.baseHours ?? '—'}</td>
                       <td className="py-1 font-mono">
-                        {s.requirementIds.map((id) => reqById.get(id)?.code ?? id).join(', ')}
+                        {s.requirementIds
+                          .map(
+                            (id) =>
+                              (reqById.get(id)?.code ?? id) +
+                              (s.ruleRequirementIds?.includes(id) ? ' (по правилу)' : ''),
+                          )
+                          .join(', ')}
                       </td>
                     </tr>
                   ))}
@@ -730,6 +739,8 @@ export default function ChangeRequestsTab({
   const [items, setItems] = useState<ChangeRequestDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  // Последний запрошенный id: ответ на ранее открытую карточку не перетирает текущую.
+  const openRef = useRef<string | null>(null);
   const [detail, setDetail] = useState<ChangeRequestDto | null>(null);
   const [form, setForm] = useState<{ initial: FormState; editingId: string | null } | null>(null);
 
@@ -751,21 +762,29 @@ export default function ChangeRequestsTab({
   }, [reload]);
 
   const open = async (id: string) => {
+    setError(null);
     if (openId === id) {
+      openRef.current = null;
       setOpenId(null);
       setDetail(null);
       return;
     }
+    openRef.current = id;
     setOpenId(id);
     setDetail(null);
     try {
-      setDetail(await api<ChangeRequestDto>(`/api/projects/${projectId}/change-requests/${id}`));
+      const loaded = await api<ChangeRequestDto>(
+        `/api/projects/${projectId}/change-requests/${id}`,
+      );
+      if (openRef.current === id) setDetail(loaded);
     } catch (err) {
-      setError((err as Error).message);
+      if (openRef.current === id) setError((err as Error).message);
     }
   };
 
   const changed = (cr: ChangeRequestDto) => {
+    setError(null);
+    openRef.current = cr.id;
     setDetail(cr);
     setOpenId(cr.id);
     void reload();

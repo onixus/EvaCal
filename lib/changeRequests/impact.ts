@@ -1,3 +1,11 @@
+import { fromGost34RequirementItem } from '@/lib/gost34/requirements/adapters';
+import {
+  getRequirementEffectiveText,
+  type Gost34RequirementV2,
+} from '@/lib/gost34/requirements/v2';
+import { buildTraceability } from '@/lib/gost34/traceability/engine';
+import type { TraceLink } from '@/lib/gost34/traceability/types';
+import type { Gost34RequirementItem, Gost34StageItem } from '@/lib/gost34/types';
 import type {
   AffectedRequirement,
   ChangeImpact,
@@ -9,8 +17,11 @@ import type {
 /**
  * Связанные с запросом работы, документы и проверки.
  *
- * Источник связей — снимок базового комплекта (`manualLinks` и legacy
- * `mappedStageId` требований). Часы этапов возвращаются только как контекст:
+ * Связи «требование → этап» строятся тем же движком, что и трассировка
+ * выпущенного комплекта (`buildTraceability`): ручные решения снимка
+ * (`manualLinks`, включая «намеренно не распределено») главнее, остальные
+ * требования связываются правилами (RULE), legacy `mappedStageId` — только
+ * запасной вариант для требований без ручного решения. Часы этапов возвращаются только как контекст:
  * связь требования с этапом не значит, что меняются все часы этапа, поэтому
  * здесь нет ни суммы часов, ни стоимости, ни срока — их явно вводит специалист
  * (см. `parseEstimateInput`). Это прямое требование приёмки #103 §1.
@@ -39,39 +50,52 @@ function str(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
-function requirementList(snapshot: unknown): RawRecord[] {
+/**
+ * Требования снимка в модели v2 — как их нормализует генератор комплекта.
+ * Снимок хранит legacy-элементы (`Gost34RequirementItem`); уже v2-объекты
+ * (с `approval`) принимаются как есть. Элементы без id пропускаются.
+ */
+function snapshotRequirements(
+  snapshot: unknown,
+): Array<{ v2: Gost34RequirementV2; raw: RawRecord }> {
   const reqs = (snapshot as { requirements?: unknown } | null)?.requirements;
-  return Array.isArray(reqs)
-    ? reqs.filter((r): r is RawRecord => !!r && typeof r === 'object')
-    : [];
-}
-
-function requirementId(r: RawRecord): string {
-  return str(r.id) || str(r.key);
-}
-
-/** Текст требования, которым его видит заказчик: нормализованный, иначе исходный. */
-function requirementText(r: RawRecord): string {
-  return (
-    str(r.normalizedText).trim() ||
-    str(r.description).trim() ||
-    str(r.originalText).trim() ||
-    str(r.text).trim() ||
-    str(r.title).trim()
-  );
-}
-
-/** Требования базового комплекта в виде, пригодном для выбора и снимка. */
-export function requirementsFromSnapshot(snapshot: unknown): AffectedRequirement[] {
+  if (!Array.isArray(reqs)) return [];
   const seen = new Set<string>();
-  const out: AffectedRequirement[] = [];
-  for (const r of requirementList(snapshot)) {
-    const id = requirementId(r);
+  const out: Array<{ v2: Gost34RequirementV2; raw: RawRecord }> = [];
+  for (const r of reqs) {
+    if (!r || typeof r !== 'object') continue;
+    const raw = r as RawRecord;
+    const id = str(raw.id);
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    out.push({ id, code: str(r.code) || id, text: requirementText(r) });
+    const v2 =
+      'approval' in raw && raw.approval && typeof raw.approval === 'object'
+        ? ({
+            ...(raw as unknown as Gost34RequirementV2),
+            originalText: str(raw.originalText),
+          } as Gost34RequirementV2)
+        : fromGost34RequirementItem({
+            ...(raw as unknown as Gost34RequirementItem),
+            code: str(raw.code),
+            title: str(raw.title),
+            description: str(raw.description) || str(raw.originalText),
+          });
+    out.push({ v2, raw });
   }
   return out;
+}
+
+/**
+ * Требования базового комплекта в виде, пригодном для выбора и снимка. Текст —
+ * действующая редакция (`getRequirementEffectiveText`): нормализованная только
+ * после утверждения, иначе исходная.
+ */
+export function requirementsFromSnapshot(snapshot: unknown): AffectedRequirement[] {
+  return snapshotRequirements(snapshot).map(({ v2 }) => ({
+    id: v2.id,
+    code: v2.code || v2.id,
+    text: getRequirementEffectiveText(v2) || v2.title || '',
+  }));
 }
 
 /**
@@ -93,50 +117,83 @@ export function snapshotAffectedRequirements(
   return { requirements, unknownIds };
 }
 
-/** Связи «требование → этап» из снимка: ручные решения и legacy-привязка. */
-export function traceLinksFromSnapshot(
-  snapshot: unknown,
-): Array<{ requirementId: string; stageId: string }> {
-  const out: Array<{ requirementId: string; stageId: string }> = [];
-  const seen = new Set<string>();
-  const push = (requirementId: string, stageId: string) => {
-    if (!requirementId || !stageId) return;
-    const key = `${requirementId}->${stageId}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push({ requirementId, stageId });
-  };
+/** Ручные решения снимка в формате TraceLink; старые снимки — `targetStageId`. */
+function manualDecisions(snapshot: unknown): TraceLink[] {
   const links = (snapshot as { manualLinks?: unknown } | null)?.manualLinks;
-  if (Array.isArray(links)) {
-    for (const link of links) {
-      if (!link || typeof link !== 'object') continue;
-      const l = link as RawRecord;
-      // TraceLink { sourceId, targetId }; старые снимки — { sourceId, targetStageId }.
-      // Связь без цели — решение «намеренно не распределено», этапа нет.
-      push(str(l.sourceId), str(l.targetId) || str(l.targetStageId));
-    }
-  }
-  for (const r of requirementList(snapshot)) {
-    push(requirementId(r), str(r.mappedStageId));
+  if (!Array.isArray(links)) return [];
+  const out: TraceLink[] = [];
+  for (const link of links) {
+    if (!link || typeof link !== 'object') continue;
+    const l = link as RawRecord;
+    const sourceId = str(l.sourceId);
+    if (!sourceId) continue;
+    out.push({
+      sourceId,
+      // Пустая цель — решение «намеренно не распределено», движок его уважает.
+      targetId: str(l.targetId) || str(l.targetStageId),
+      method: l.method === 'RULE' || l.method === 'LLM' ? l.method : 'MANUAL',
+      approved: l.approved !== false,
+      ...(typeof l.confidence === 'number' ? { confidence: l.confidence } : {}),
+    });
   }
   return out;
 }
 
+export interface ImpactStageInput {
+  id: string;
+  name: string;
+  role: string;
+  hours: number;
+  order?: number;
+  requirements?: string | null;
+  isApprovalTask?: boolean;
+}
+
+/** Этапы так же, как их видит генератор (`normalizeStages`). */
+function engineStages(stages: ImpactStageInput[]): Gost34StageItem[] {
+  return stages.map((s, idx) => ({
+    id: s.id,
+    order: s.order ?? idx + 1,
+    name: s.name || `Этап ${idx + 1}`,
+    role: s.role || 'разработчик',
+    hours: s.hours || 0,
+    requirements: s.requirements || undefined,
+  }));
+}
+
+/**
+ * Связи «требование → этап» по снимку и этапам базового расчёта — результат
+ * того же `buildTraceability`, что и в выпущенном комплекте.
+ */
+export function traceLinksFromSnapshot(snapshot: unknown, stages: ImpactStageInput[]): TraceLink[] {
+  const requirements = snapshotRequirements(snapshot);
+  const engine = engineStages(stages);
+  const stageIds = new Set(engine.map((s) => s.id));
+  const manual = manualDecisions(snapshot);
+  const decided = new Set(manual.map((l) => l.sourceId));
+  // Legacy mappedStageId — запасной вариант, только без ручного решения.
+  const legacy: TraceLink[] = requirements.flatMap(({ raw, v2 }) => {
+    const mapped = str(raw.mappedStageId);
+    if (!mapped || decided.has(v2.id) || !stageIds.has(mapped)) return [];
+    return [{ sourceId: v2.id, targetId: mapped, method: 'MANUAL' as const, approved: true }];
+  });
+  return buildTraceability(
+    requirements.map((r) => r.v2),
+    engine,
+    [...manual, ...legacy],
+  ).links;
+}
+
 function checksFromSnapshot(snapshot: unknown, ids: Set<string>): ImpactCheck[] {
   const checks: ImpactCheck[] = [];
-  for (const r of requirementList(snapshot)) {
-    const id = requirementId(r);
-    if (!ids.has(id)) continue;
-    const criteria = Array.isArray(r.acceptanceCriteria)
-      ? r.acceptanceCriteria.filter((c): c is string => typeof c === 'string')
-      : str(r.criterion)
-          .split(';')
-          .map((c) => c.trim());
+  for (const { v2 } of snapshotRequirements(snapshot)) {
+    if (!ids.has(v2.id)) continue;
+    const criteria = (v2.acceptanceCriteria ?? []).flatMap((c) => c.split(';'));
     for (const criterion of criteria) {
       if (!criterion.trim()) continue;
       checks.push({
-        requirementId: id,
-        code: str(r.code) || id,
+        requirementId: v2.id,
+        code: v2.code || v2.id,
         criterion: criterion.trim(),
         source: 'requirement-criterion',
       });
@@ -147,13 +204,8 @@ function checksFromSnapshot(snapshot: unknown, ids: Set<string>): ImpactCheck[] 
 
 export interface ImpactInput {
   calculation: { id: string; version: number; currency: string };
-  stages: Array<{
-    id: string;
-    name: string;
-    role: string;
-    hours: number;
-    isApprovalTask?: boolean;
-  }>;
+  /** Все этапы базового расчёта в порядке Ганта, как их получает генератор. */
+  stages: ImpactStageInput[];
   basePackage: {
     id: string;
     version: number;
@@ -169,37 +221,33 @@ export function computeChangeImpact(input: ImpactInput): ChangeImpact {
   const snapshot = input.basePackage?.snapshot ?? null;
   const stageById = new Map(input.stages.map((s) => [s.id, s]));
 
-  const stageReqs = new Map<string, string[]>();
+  const stageReqs = new Map<string, { all: string[]; rule: string[] }>();
   const linked = new Set<string>();
-  for (const link of traceLinksFromSnapshot(snapshot)) {
-    if (!ids.has(link.requirementId)) continue;
-    linked.add(link.requirementId);
-    const list = stageReqs.get(link.stageId) ?? [];
-    if (!list.includes(link.requirementId)) list.push(link.requirementId);
-    stageReqs.set(link.stageId, list);
+  for (const link of traceLinksFromSnapshot(snapshot, input.stages)) {
+    if (!ids.has(link.sourceId) || !stageById.has(link.targetId)) continue;
+    linked.add(link.sourceId);
+    const entry = stageReqs.get(link.targetId) ?? { all: [], rule: [] };
+    if (!entry.all.includes(link.sourceId)) entry.all.push(link.sourceId);
+    if (link.method === 'RULE' && !entry.rule.includes(link.sourceId)) {
+      entry.rule.push(link.sourceId);
+    }
+    stageReqs.set(link.targetId, entry);
   }
 
-  const stages: ImpactStage[] = [];
-  for (const [stageId, requirementIds] of stageReqs) {
-    const stage = stageById.get(stageId);
-    stages.push(
-      stage
-        ? {
-            id: stage.id,
-            name: stage.name,
-            role: stage.role,
-            baseHours: stage.hours,
-            requirementIds,
-          }
-        : { id: stageId, name: '', role: '', baseHours: null, requirementIds, missing: true },
-    );
-  }
-  // Порядок этапов — как в расчёте; отсутствующие в расчёте — в конце.
   const order = new Map(input.stages.map((s, i) => [s.id, i]));
-  stages.sort(
-    (a, b) =>
-      (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.id) ?? Number.MAX_SAFE_INTEGER),
-  );
+  const stages: ImpactStage[] = Array.from(stageReqs.entries())
+    .sort(([a], [b]) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
+    .map(([stageId, entry]) => {
+      const stage = stageById.get(stageId)!;
+      return {
+        id: stage.id,
+        name: stage.name,
+        role: stage.role,
+        baseHours: stage.hours,
+        requirementIds: entry.all,
+        ruleRequirementIds: entry.rule,
+      };
+    });
 
   const documents: ImpactDocument[] =
     ids.size > 0 && input.basePackage

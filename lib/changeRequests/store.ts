@@ -174,7 +174,15 @@ async function resolveDraft(projectId: string, input: ChangeRequestDraftInput) {
       version: true,
       currency: true,
       stages: {
-        select: { id: true, name: true, role: true, hours: true, isApprovalTask: true },
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          hours: true,
+          order: true,
+          requirements: true,
+          isApprovalTask: true,
+        },
         orderBy: { order: 'asc' },
       },
     },
@@ -213,7 +221,8 @@ async function resolveDraft(projectId: string, input: ChangeRequestDraftInput) {
 
   const impact = computeChangeImpact({
     calculation,
-    stages: calculation.stages.filter((s) => !s.isApprovalTask),
+    // Все этапы, как их получает генератор комплекта: трассировка совпадает с выпущенной.
+    stages: calculation.stages,
     basePackage,
     requirementIds: requirements.map((r) => r.id),
   });
@@ -262,8 +271,10 @@ export async function createChangeRequest(
 ): Promise<ChangeRequestDto> {
   await requireProject(projectId);
   const data = await resolveDraft(projectId, input);
-  // Номер — max+1 в проекте; параллельное создание ловит уникальный индекс.
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // Номер — max+1 в проекте; параллельное создание ловит уникальный индекс и
+  // повторяет попытку, а исчерпав попытки, отвечает 409, а не 500.
+  const attempts = 5;
+  for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       const created = await prisma.$transaction(async (tx) => {
         const last = await tx.changeRequest.findFirst({
@@ -281,10 +292,13 @@ export async function createChangeRequest(
       });
       return getChangeRequest(projectId, created.id);
     } catch (error) {
-      if (!isUniqueViolation(error) || attempt === 2) throw error;
+      if (!isUniqueViolation(error)) throw error;
     }
   }
-  throw new ChangeRequestError('Не удалось присвоить номер запросу', 409);
+  throw new ChangeRequestError(
+    'Не удалось присвоить номер запросу: параллельное создание, повторите',
+    409,
+  );
 }
 
 async function current(projectId: string, crId: string) {
@@ -296,9 +310,17 @@ async function current(projectId: string, crId: string) {
   return { ...row, status: row.status as ChangeRequestStatus };
 }
 
+interface GuardOptions {
+  /** Оптимистическая блокировка: правка только той версии, которую видел автор. */
+  expectedUpdatedAt?: Date;
+  /** Проверка строки после обновления в той же транзакции; ошибка откатывает всё. */
+  validate?: (row: ChangeRequestRow) => void;
+}
+
 /**
- * Условное обновление: `status` в where защищает от гонки с параллельным
- * переходом — если запрос уже ушёл из ожидаемого состояния, ничего не пишется.
+ * Условное обновление: `status` (и, для правки, `updatedAt`) в where защищает
+ * от гонки с параллельным переходом или правкой — если запрос уже изменился,
+ * ничего не пишется и возвращается 409.
  */
 async function guardedUpdate(
   projectId: string,
@@ -306,10 +328,16 @@ async function guardedUpdate(
   expected: ChangeRequestStatus,
   data: Prisma.ChangeRequestUpdateManyMutationInput,
   event: { action: ChangeRequestAction; actor: string; comment?: string | null; data?: unknown },
+  options: GuardOptions = {},
 ) {
   await prisma.$transaction(async (tx) => {
     const res = await tx.changeRequest.updateMany({
-      where: { id: crId, projectId, status: expected },
+      where: {
+        id: crId,
+        projectId,
+        status: expected,
+        ...(options.expectedUpdatedAt ? { updatedAt: options.expectedUpdatedAt } : {}),
+      },
       data,
     });
     if (res.count !== 1) {
@@ -317,6 +345,10 @@ async function guardedUpdate(
         'Запрос уже изменён другим пользователем, обновите страницу',
         409,
       );
+    }
+    if (options.validate) {
+      const row = await tx.changeRequest.findFirst({ where: { id: crId, projectId } });
+      if (row) options.validate(row);
     }
     await tx.changeRequestEvent.create({
       data: {
@@ -336,13 +368,35 @@ export async function updateChangeRequestDraft(
   crId: string,
   input: ChangeRequestDraftInput,
   actor: string,
+  expectedUpdatedAt: Date,
 ): Promise<ChangeRequestDto> {
   const cr = await current(projectId, crId);
   if (!canEditContent(cr.status)) {
     throw new ChangeRequestError('Править можно только черновик запроса', 409);
   }
   const data = await resolveDraft(projectId, input);
-  return guardedUpdate(projectId, crId, 'draft', data, { action: 'updated', actor });
+  return guardedUpdate(
+    projectId,
+    crId,
+    'draft',
+    data,
+    { action: 'updated', actor },
+    { expectedUpdatedAt },
+  );
+}
+
+function assertHasContent(row: ChangeRequestRow) {
+  const dto = toChangeRequestDto(row);
+  if (
+    dto.affectedRequirements.length === 0 &&
+    dto.proposedChanges.items.length === 0 &&
+    !dto.proposedChanges.summary
+  ) {
+    throw new ChangeRequestError(
+      'Укажите затронутые требования или опишите предлагаемое изменение',
+      400,
+    );
+  }
 }
 
 export async function submitChangeRequest(
@@ -354,23 +408,15 @@ export async function submitChangeRequest(
   const cr = await current(projectId, crId);
   const error = transitionError(cr.status, 'submitted', { hasEstimate: !!cr.estimatedAt });
   if (error) throw new ChangeRequestError(error, 409);
-  const full = await getChangeRequest(projectId, crId);
-  if (
-    full.affectedRequirements.length === 0 &&
-    full.proposedChanges.items.length === 0 &&
-    !full.proposedChanges.summary
-  ) {
-    throw new ChangeRequestError(
-      'Укажите затронутые требования или опишите предлагаемое изменение',
-      400,
-    );
-  }
+  // Непустоту проверяем внутри той же транзакции, что и переход: правка
+  // черновика между проверкой и переходом не проскочит.
   return guardedUpdate(
     projectId,
     crId,
     cr.status,
     { status: 'submitted' },
     { action: cr.status === 'deferred' ? 'reopened' : 'submitted', actor, comment },
+    { validate: assertHasContent },
   );
 }
 
