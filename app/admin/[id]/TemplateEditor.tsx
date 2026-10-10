@@ -43,6 +43,7 @@ interface Template {
   defaultStartDate: string | null;
   workDayHours: number;
   includeWeekends: boolean;
+  calendarId?: string | null;
   fields: Field[];
   stageTemplates: StageTemplate[];
   riskTemplates: RiskTemplate[];
@@ -64,7 +65,13 @@ function moveItem<T>(list: T[], from: number, to: number): T[] {
   return copy;
 }
 
-export default function TemplateEditor({ template }: { template: Template }) {
+export default function TemplateEditor({
+  template,
+  calendars = [],
+}: {
+  template: Template;
+  calendars?: { id: string; name: string; isDefault: boolean }[];
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -217,6 +224,7 @@ export default function TemplateEditor({ template }: { template: Template }) {
     defaultStartDate?: string | null;
     workDayHours?: number;
     includeWeekends?: boolean;
+    calendarId?: string | null;
   }) {
     call(`/api/templates/${template.id}`, {
       method: 'PUT',
@@ -324,7 +332,38 @@ export default function TemplateEditor({ template }: { template: Template }) {
             />
             Учитывать выходные как рабочие дни
           </label>
+          <div>
+            <label className="label" htmlFor="template-calendar">
+              Производственный календарь
+            </label>
+            <select
+              id="template-calendar"
+              className="input"
+              value={template.calendarId ?? ''}
+              onChange={(e) => updateTemplate({ calendarId: e.target.value || null })}
+            >
+              <option value="">
+                По умолчанию
+                {calendars.find((c) => c.isDefault)
+                  ? ` (${calendars.find((c) => c.isDefault)!.name})`
+                  : ''}
+              </option>
+              {calendars.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
+        <p className="mt-2 text-xs text-slate-500 dark:text-nord-muted">
+          Праздники, переносы и сокращённые дни задаются на странице{' '}
+          <Link href="/admin/calendars" className="underline">
+            «Календари и резервы»
+          </Link>
+          ; тот же календарь учитывает ресурсный план. Даты уже построенных Гантов пересчитываются
+          при следующем изменении этапов или даты старта.
+        </p>
       </div>
 
       <div className="card p-6">

@@ -7,6 +7,7 @@ import {
   DEFAULT_SCHEDULE_CONFIG,
 } from './scheduling';
 import { computePmHours } from './pm';
+import { loadScheduleConfig } from './calendarData';
 
 /** Wipes and regenerates every Stage row for a calculation from an ordered list of primary stages. */
 export async function rebuildStages(
@@ -48,14 +49,16 @@ export async function rebuildStages(
   });
 }
 
-export function scheduleConfigFromTemplate(template: {
+/**
+ * Настройки Ганта шаблона вместе с его производственным календарём (#103 WP-5d):
+ * календарь шаблона, иначе календарь по умолчанию — тот же, что читает ресурсный план.
+ */
+export async function scheduleConfigFromTemplate(template: {
   workDayHours: number;
   includeWeekends: boolean;
-}): ScheduleConfig {
-  return {
-    workDayHours: template.workDayHours,
-    includeWeekends: template.includeWeekends,
-  };
+  calendarId?: string | null;
+}): Promise<ScheduleConfig> {
+  return loadScheduleConfig(template);
 }
 
 /** РП isn't a stage — this computes the scalar hours to store on Calculation.pmHours. */

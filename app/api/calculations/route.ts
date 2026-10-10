@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  await rebuildStages(calculation.id, primary, start, scheduleConfigFromTemplate(template));
+  await rebuildStages(calculation.id, primary, start, await scheduleConfigFromTemplate(template));
 
   const defaultRisks = risksFromTemplate(template.riskTemplates);
   if (defaultRisks.length > 0) {

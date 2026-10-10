@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Production calendars, calendar exceptions and role reservations shared by the Gantt and the capacity plan (#103, see [docs/work-calendars.md](docs/work-calendars.md)).
+- **Behaviour change:** Gantt dates are now computed in UTC with a 09:00 UTC working window. On servers with `TZ` ≠ UTC, Gantts rebuilt after the upgrade (stage edit or start-date change) shift relative to dates stored earlier; existing stage dates are not rewritten.
+
 ## 0.7.0 - 2026-09-30
 
 - Make PostgreSQL the sole supported application database, preserving existing migration history.

@@ -13,7 +13,10 @@ import {
   type CapacityMatrix,
   type CapacityWarning,
   type RoleCapacityRow,
+  type RoleReservationRow,
 } from '@/lib/capacity';
+import type { WorkCalendar } from '@/lib/calendar';
+import { calendarFor, loadCalendarSet, loadReservations } from '@/lib/calendarData';
 
 export const DEFAULT_WEEKS = 13;
 export const MAX_WEEKS = 52;
@@ -50,6 +53,8 @@ export async function loadCapacityRows(
 ): Promise<{
   calcs: CapacityCalcRow[];
   capacities: RoleCapacityRow[];
+  reservations: RoleReservationRow[];
+  calendar: WorkCalendar;
 }> {
   const rangeStart = weekStart(from);
   const rangeEnd = addDays(rangeStart, weeks * 7);
@@ -57,7 +62,7 @@ export async function loadCapacityRows(
   // Без сдвигов what-if запас за границами горизонта только раздувает выборку.
   const pad = withShifts ? weeks * 7 : 0;
 
-  const [calcs, capacities] = await Promise.all([
+  const [calcs, capacities, calendars, reservations] = await Promise.all([
     prisma.calculation.findMany({
       where: {
         stages: {
@@ -79,7 +84,7 @@ export async function loadCapacityRows(
         version: true,
         status: true,
         projectId: true,
-        template: { select: { includeWeekends: true } },
+        template: { select: { includeWeekends: true, calendarId: true } },
         project: { select: { name: true, dealStatus: true, wonCalculationId: true, status: true } },
         stages: {
           select: { role: true, hours: true, isApprovalTask: true, startDate: true, endDate: true },
@@ -89,6 +94,8 @@ export async function loadCapacityRows(
     prisma.roleCapacity.findMany({
       select: { role: true, headcount: true, hoursPerWeek: true, effectiveFrom: true },
     }),
+    loadCalendarSet(),
+    loadReservations(rangeStart, rangeEnd),
   ]);
 
   return {
@@ -103,16 +110,24 @@ export async function loadCapacityRows(
       wonCalculationId: c.project?.wonCalculationId ?? null,
       projectStatus: c.project?.status ?? null,
       includeWeekends: c.template?.includeWeekends ?? false,
+      // Тот же календарь, по которому строился Гант расчёта (шаблон → по умолчанию).
+      calendar: calendarFor(calendars, c.template?.calendarId),
       stages: c.stages,
     })),
     capacities,
+    reservations,
+    calendar: calendars.defaultCalendar,
   };
 }
 
 export async function loadCapacityMatrix(q: CapacityQuery): Promise<CapacityMatrix> {
   const from = q.from ?? new Date();
   const weeks = q.weeks ?? DEFAULT_WEEKS;
-  const { calcs, capacities } = await loadCapacityRows(from, weeks, Boolean(q.shifts?.length));
+  const { calcs, capacities, reservations, calendar } = await loadCapacityRows(
+    from,
+    weeks,
+    Boolean(q.shifts?.length),
+  );
   return buildCapacityMatrix({
     calcs,
     capacities,
@@ -121,6 +136,8 @@ export async function loadCapacityMatrix(q: CapacityQuery): Promise<CapacityMatr
     includeDrafts: q.includeDrafts,
     roles: q.roles,
     shifts: q.shifts,
+    calendar,
+    reservations,
   });
 }
 

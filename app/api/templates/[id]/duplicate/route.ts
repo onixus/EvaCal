@@ -23,6 +23,7 @@ export async function POST(_req: NextRequest, props: { params: Promise<{ id: str
       defaultStartDate: source.defaultStartDate,
       workDayHours: source.workDayHours,
       includeWeekends: source.includeWeekends,
+      calendarId: source.calendarId,
       fields: {
         create: source.fields.map((f) => ({
           label: f.label,

@@ -35,6 +35,9 @@ export default async function AdminPage(props: { searchParams: Promise<{ page?: 
             <Link href="/admin/capacity" className="btn-secondary">
               Ёмкость ролей
             </Link>
+            <Link href="/admin/calendars" className="btn-secondary">
+              Календари и резервы
+            </Link>
             <Link href="/admin/users" className="btn-secondary">
               Пользователи
             </Link>

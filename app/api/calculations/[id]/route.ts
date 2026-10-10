@@ -110,7 +110,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
     calculation.id,
     primary,
     startDate,
-    scheduleConfigFromTemplate(existing.template),
+    await scheduleConfigFromTemplate(existing.template),
   );
 
   await writeAudit({
@@ -137,7 +137,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     where: { id: params.id },
     include: {
       stages: { orderBy: { order: 'asc' } },
-      template: { select: { workDayHours: true, includeWeekends: true } },
+      template: { select: { workDayHours: true, includeWeekends: true, calendarId: true } },
     },
   });
   if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 });
@@ -200,7 +200,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       params.id,
       primary,
       startDate,
-      scheduleConfigFromTemplate(existing.template),
+      await scheduleConfigFromTemplate(existing.template),
     );
   }
 
