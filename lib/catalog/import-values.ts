@@ -93,18 +93,41 @@ export interface TechnicalChange {
   after: string;
 }
 const attributesText = (attributes: ProductInput['attributes']) =>
-  [...attributes]
-    .map((a) => `${a.name}: ${a.value}${a.unit ? ` ${a.unit}` : ''}`)
-    .sort()
-    .join('; ');
+  attributes.map((a) => `${a.name}: ${a.value}${a.unit ? ` ${a.unit}` : ''}`).join('; ');
+const attributeOrder = (x: ProductInput['attributes'][number], y: typeof x) =>
+  x.name < y.name
+    ? -1
+    : x.name > y.name
+      ? 1
+      : x.value < y.value
+        ? -1
+        : x.value > y.value
+          ? 1
+          : x.unit < y.unit
+            ? -1
+            : x.unit > y.unit
+              ? 1
+              : 0;
+/** Structural equality of attributes (name, value, unit separately); order is irrelevant. */
+export function sameAttributes(a: ProductInput['attributes'], b: ProductInput['attributes']) {
+  if (a.length !== b.length) return false;
+  const x = [...a].sort(attributeOrder),
+    y = [...b].sort(attributeOrder);
+  return x.every(
+    (attr, i) => attr.name === y[i].name && attr.value === y[i].value && attr.unit === y[i].unit,
+  );
+}
 /** Differences of the technical identity of an existing product and an imported row. */
 export function technicalDiff(before: ProductInput, after: ProductInput): TechnicalChange[] {
   const changes: TechnicalChange[] = [];
   for (const field of ['name', 'kind', 'unit', 'licensing'] as const)
     if (before[field] !== after[field])
       changes.push({ field, before: before[field], after: after[field] });
-  const a = attributesText(before.attributes),
-    b = attributesText(after.attributes);
-  if (a !== b) changes.push({ field: 'attributes', before: a, after: b });
+  if (!sameAttributes(before.attributes, after.attributes))
+    changes.push({
+      field: 'attributes',
+      before: attributesText(before.attributes),
+      after: attributesText(after.attributes),
+    });
   return changes;
 }

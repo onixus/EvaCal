@@ -1,6 +1,24 @@
 import type { Product, Offer } from './types';
 import type { SpecificationItem } from '../specification/types';
 import { SpecificationError } from '../specification/validation';
+const PRICE_CONFIRMATION = /; цена (?:не )?подтверждена(?=;|$)/;
+/**
+ * The offer confirmation note in the copied source is descriptive and may change
+ * later (an unconfirmed offer is confirmed afterwards); integrity checks of the
+ * copied origin ignore it, everything else is compared exactly.
+ */
+export function withoutPriceConfirmation<T extends { baseline: { source: string } } | undefined>(
+  origin: T,
+): T {
+  if (!origin) return origin;
+  return {
+    ...origin,
+    baseline: {
+      ...origin.baseline,
+      source: origin.baseline.source.replace(PRICE_CONFIRMATION, ''),
+    },
+  };
+}
 /** Explicit copy: subsequent edits/archive/price offers cannot mutate this row. */
 export function catalogItem(
   product: Product,

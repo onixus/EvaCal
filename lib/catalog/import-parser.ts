@@ -111,7 +111,21 @@ function csvRows(content: string, delimiter: string): string[][] {
   }
   return rows;
 }
-export function analyzeImport(bytes: Uint8Array, filename: string, profile: ImportProfile) {
+export interface AnalyzeOptions {
+  /**
+   * Catalog price text check («Цена: … — ожидается число»). Callers that read the
+   * column with their own number rules (BOM import) disable it and keep only the
+   * structural XLSX checks.
+   */
+  catalogPriceCheck?: boolean;
+}
+export function analyzeImport(
+  bytes: Uint8Array,
+  filename: string,
+  profile: ImportProfile,
+  options: AnalyzeOptions = {},
+) {
+  const catalogPriceCheck = options.catalogPriceCheck ?? true;
   if (!bytes.length || bytes.length > MAX_IMPORT_BYTES)
     throw new SpecificationError('Размер GPL: от 1 байта до 5 МБ');
   let sheets: string[], cells: string[][];
@@ -294,7 +308,7 @@ export function analyzeImport(bytes: Uint8Array, filename: string, profile: Impo
         : priceRaw
           ? priceRaw.replace(/[\s\u00a0]/g, '').replace(profile.decimalSeparator, '.')
           : null;
-      if (value !== null && !isDecimal(value))
+      if (catalogPriceCheck && value !== null && !isDecimal(value))
         throw new SpecificationError(
           `Цена: «${priceRaw}» — ожидается неотрицательное число (до 12 целых и 6 дробных знаков); пусто — неизвестно`,
         );

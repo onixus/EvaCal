@@ -4,6 +4,7 @@ import { parseImportTaxRate, parseTaxInput, taxLabel, technicalDiff } from './im
 import { analyzeImport, importProfile, percentFormat } from './import-parser';
 import { businessDate } from './business-date';
 import { offerInput } from './validation';
+import { withoutPriceConfirmation } from './snapshot';
 
 describe('shared tax parsing', () => {
   it.each([
@@ -121,5 +122,52 @@ describe('business date', () => {
     expect(businessDate('2026-10-09T20:30:00Z', 'Europe/Moscow')).toBe('2026-10-09');
     expect(businessDate('2026-10-09T22:30:00Z', 'Invalid/Zone')).toBe('2026-10-10');
     expect(businessDate('nonsense')).toBeNull();
+  });
+});
+
+describe('review follow-ups', () => {
+  it('compares attributes structurally, not by joined text', () => {
+    const base = {
+      vendorId: 'v',
+      name: 'A',
+      sku: 'A',
+      edition: '',
+      kind: 'hardware' as const,
+      unit: 'шт',
+      licensing: '',
+    };
+    // Both join to «A: 1: x» but are different characteristics.
+    expect(
+      technicalDiff(
+        { ...base, attributes: [{ name: 'A: 1', value: 'x', unit: '' }] },
+        { ...base, attributes: [{ name: 'A', value: '1: x', unit: '' }] },
+      ).map((c) => c.field),
+    ).toEqual(['attributes']);
+    expect(
+      technicalDiff(
+        { ...base, attributes: [{ name: 'RAM', value: '64 ГБ', unit: '' }] },
+        { ...base, attributes: [{ name: 'RAM', value: '64', unit: 'ГБ' }] },
+      ).map((c) => c.field),
+    ).toEqual(['attributes']);
+  });
+  it('BOM callers can skip the catalog price text check and keep structural checks', () => {
+    const p = importProfile({ vendorId: 'bom', mapping: { unitPrice: 1 } });
+    const bytes = Buffer.from('n;p\nA;1e3\n');
+    const strict = analyzeImport(bytes, 'b.csv', p).rows[0].errors.join();
+    const lenient = analyzeImport(bytes, 'b.csv', p, { catalogPriceCheck: false }).rows[0].errors;
+    expect(strict).toMatch(/Цена: «1e3»/);
+    expect(lenient.join()).not.toMatch(/Цена/);
+  });
+  it('ignores only the offer confirmation note when verifying a copied origin', () => {
+    const origin = (source: string) => ({ offerId: 'o', baseline: { source, name: 'A' } });
+    expect(
+      withoutPriceConfirmation(origin('Каталог p; предложение o: GPL; цена не подтверждена; дата')),
+    ).toEqual(
+      withoutPriceConfirmation(origin('Каталог p; предложение o: GPL; цена подтверждена; дата')),
+    );
+    expect(withoutPriceConfirmation(origin('x; цена подтверждена; дата 1'))).not.toEqual(
+      withoutPriceConfirmation(origin('x; цена подтверждена; дата 2')),
+    );
+    expect(withoutPriceConfirmation(undefined)).toBeUndefined();
   });
 });

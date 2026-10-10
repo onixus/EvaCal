@@ -188,18 +188,24 @@ export function guessBomMapping(headers: string[]): BomProfile['mapping'] {
 export function analyzeBom(bytes: Uint8Array, filename: string, input: BomProfile): BomPreview {
   let profile = input;
   const pass = (column: number | undefined) =>
-    analyzeImport(bytes, filename, {
-      vendorId: 'bom',
-      sheet: profile.sheet,
-      headerRow: profile.headerRow,
-      startRow: profile.startRow,
-      endRow: profile.endRow,
-      delimiter: profile.delimiter,
-      decimalSeparator: profile.decimalSeparator,
-      currency: profile.currency,
-      kind: profile.kind,
-      mapping: column === undefined ? {} : { unitPrice: column },
-    } satisfies ImportProfile);
+    analyzeImport(
+      bytes,
+      filename,
+      {
+        vendorId: 'bom',
+        sheet: profile.sheet,
+        headerRow: profile.headerRow,
+        startRow: profile.startRow,
+        endRow: profile.endRow,
+        delimiter: profile.delimiter,
+        decimalSeparator: profile.decimalSeparator,
+        currency: profile.currency,
+        kind: profile.kind,
+        mapping: column === undefined ? {} : { unitPrice: column },
+      } satisfies ImportProfile,
+      // BOM parses quantity/price with its own exactDecimal messages.
+      { catalogPriceCheck: false },
+    );
   if (!Object.keys(profile.mapping).length)
     profile = { ...profile, mapping: guessBomMapping(pass(undefined).headers.map(String)) };
   const priced = pass(profile.mapping.unitPrice);
