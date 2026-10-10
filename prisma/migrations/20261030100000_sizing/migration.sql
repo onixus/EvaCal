@@ -116,15 +116,22 @@ CREATE TRIGGER "SizingProfileVersion_immutable"
   BEFORE UPDATE OR DELETE ON "SizingProfileVersion"
   FOR EACH ROW EXECUTE FUNCTION "sizing_profile_version_guard"();
 
--- Runs are append-only (deletion only cascades with the calculation).
+-- Runs are append-only: UPDATE is always rejected; DELETE only as the FK cascade of a
+-- deleted calculation (nested trigger level and the parent row is already gone).
 CREATE FUNCTION "sizing_run_append_only"() RETURNS trigger AS $$
 BEGIN
+  IF TG_OP = 'DELETE'
+    AND pg_trigger_depth() > 1
+    AND NOT EXISTS (SELECT 1 FROM "Calculation" WHERE "id" = OLD."calculationId")
+  THEN
+    RETURN OLD;
+  END IF;
   RAISE EXCEPTION 'Прогон сайзинга неизменяем (%)', OLD."id";
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER "SizingRun_append_only"
-  BEFORE UPDATE ON "SizingRun"
+  BEFORE UPDATE OR DELETE ON "SizingRun"
   FOR EACH ROW EXECUTE FUNCTION "sizing_run_append_only"();
 
 -- Seed: approved v1 profiles reproducing lib/presets/implementationSizing.ts

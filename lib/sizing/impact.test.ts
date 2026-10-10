@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { applySizingSelections, buildSizingImpact, type SizingImpactRun } from './impact';
+import {
+  applySizingSelections,
+  buildSizingImpact,
+  ceilQuantity,
+  type SizingImpactRun,
+} from './impact';
 import { parseSpecification } from '../specification/validation';
 import type { SpecificationItem, SpecificationSnapshot } from '../specification/types';
 import type { SizingOutputValue } from './types';
@@ -188,5 +193,50 @@ describe('sizingRef validation (backward compatible)', () => {
       ]),
     );
     expect(ok.items[0].sizingRef).toEqual({ runId: 'r', metric: 'nodes', requiredQuantity: '1' });
+  });
+});
+
+describe('exact quantity arithmetic', () => {
+  it('ceil division is exact for fractional and large values', () => {
+    expect(ceilQuantity('0.5', '1000000000')).toBe('1');
+    expect(ceilQuantity('1000000000', '0.5')).toBe('2000000000');
+    expect(ceilQuantity('12', '4')).toBe('3');
+    expect(ceilQuantity('12.000001', '4')).toBe('4');
+    expect(ceilQuantity('0', '3')).toBe('0');
+    // 18 significant digits: float division would lose the last unit.
+    expect(ceilQuantity('999999999999.999999', '0.000001')).toBe('999999999999999999');
+    expect(ceilQuantity('123456789012.345678', '1')).toBe('123456789013');
+  });
+  it('a quantity outside the specification range is "cannot verify", not success', () => {
+    const row = buildSizingImpact(
+      spec([
+        item({
+          id: 'big',
+          quantity: '1',
+          sizingRef: {
+            runId: 'run-1',
+            metric: 'nodes',
+            requiredQuantity: '1',
+            unitCapacity: '0.000001',
+          },
+        }),
+      ]),
+      run([out('nodes', 999999999999)]),
+    ).rows[0];
+    expect(row.status).toBe('unknown');
+    expect(row.proposedQuantity).toBeNull();
+  });
+  it('deficit is never described as sufficient', () => {
+    const linked = item({
+      id: 'n',
+      quantity: '2',
+      sizingRef: { runId: 'run-1', metric: 'nodes', requiredQuantity: '2' },
+    });
+    const r = run([out('nodes', 2.5)]);
+    const p = buildSizingImpact(spec([linked]), r);
+    expect(p.rows[0]).toMatchObject({ status: 'deficit', proposedQuantity: '3' });
+    const next = applySizingSelections(spec([linked]), p.rows, p.selections, r);
+    expect(next.items[0].quantity).toBe('3');
+    expect(next.items[0].changeReason).not.toContain('достаточно');
   });
 });

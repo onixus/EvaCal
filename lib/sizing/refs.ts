@@ -16,7 +16,9 @@ export function findMetric(
   metric: string,
 ): SizingOutputValue | null {
   if (!outputs || typeof outputs !== 'object') return null;
-  const list = (outputs as Record<string, unknown>)[scenario ?? 'base'];
+  const key = scenario ?? 'base';
+  if (!Object.hasOwn(outputs, key)) return null;
+  const list = (outputs as Record<string, unknown>)[key];
   if (!Array.isArray(list)) return null;
   return (list as SizingOutputValue[]).find((o) => o?.key === metric) ?? null;
 }

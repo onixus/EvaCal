@@ -54,6 +54,14 @@ const req = (path: string, body?: unknown, share?: string) =>
     headers: { 'Content-Type': 'application/json', ...(share ? { 'X-Share-Token': share } : {}) },
   });
 const base = '/api/calculations/calculation-1/sizing';
+const approveHash = 'a'.repeat(64);
+const secretRules = {
+  inputs: [{ key: 'a', label: 'A', type: 'number' }],
+  derived: [{ key: 'secret_factor', formula: 'a * 1.37' }],
+  outputs: [{ key: 'nodes', label: 'Узлы', kind: 'nodes', unit: 'шт.', formula: 'secret_factor' }],
+  scenarios: [{ key: 'ha', label: 'HA', overrides: { a: 'a * 2' } }],
+  tables: { t: { rows: [{ upTo: null, value: 1 }] } },
+};
 
 describe('calculation sizing routes follow specification access rules', () => {
   beforeEach(() => {
@@ -71,8 +79,8 @@ describe('calculation sizing routes follow specification access rules', () => {
         description: '',
         archived: false,
         versions: [
-          { id: 'v2', status: 'draft' },
-          { id: 'v1', status: 'approved' },
+          { id: 'v2', status: 'draft', rules: secretRules, contentHash: approveHash },
+          { id: 'v1', status: 'approved', rules: secretRules, contentHash: approveHash },
         ],
       },
     ] as never);
@@ -98,6 +106,16 @@ describe('calculation sizing routes follow specification access rules', () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.canWrite).toBe(false);
+    // Guests get inputs and metric names, never formulas, derived values or tables.
+    const text = JSON.stringify(data.profiles);
+    expect(text).not.toContain('secret_factor');
+    expect(text).not.toContain('1.37');
+    expect(text).not.toContain('a * 2');
+    expect(data.profiles[0].versions[0].rules.inputs[0].key).toBe('a');
+    expect(data.profiles[0].versions[0].rules.outputs[0]).toMatchObject({
+      key: 'nodes',
+      formula: '',
+    });
     expect(data.profiles[0].versions.map((v: { id: string }) => v.id)).toEqual(['v1']);
     expect((await impact.POST(req(`${base}/impact`, { runId: 'r' }, share), context)).status).toBe(
       200,
@@ -132,6 +150,8 @@ describe('calculation sizing routes follow specification access rules', () => {
     session('presale');
     const data = await (await runs.GET(req(base), context)).json();
     expect(data.canWrite).toBe(true);
+    // Staff sessions see full rules of approved versions.
+    expect(JSON.stringify(data.profiles)).toContain('secret_factor');
     expect(data.canEditProfiles).toBe(false);
     expect(data.profiles[0].versions.map((v: { id: string }) => v.id)).toEqual(['v1']);
     await impact.POST(req(`${base}/impact`, { profileVersionId: 'v2' }), context);
@@ -176,16 +196,26 @@ describe('sizing profile admin routes', () => {
     expect((await profiles.GET(req('/api/sizing/profiles'))).status).toBe(200);
     expect((await profiles.POST(req('/api/sizing/profiles', { key: 'k' }))).status).toBe(403);
     expect(
-      (await versions.POST(req('/api/sizing/versions/v2', { action: 'approve' }), vctx)).status,
+      (
+        await versions.POST(
+          req('/api/sizing/versions/v2', { action: 'approve', expectedHash: approveHash }),
+          vctx,
+        )
+      ).status,
     ).toBe(403);
     expect(store.createProfile).not.toHaveBeenCalled();
     expect(store.approveVersion).not.toHaveBeenCalled();
     session('architect');
     expect((await profiles.POST(req('/api/sizing/profiles', { key: 'k' }))).status).toBe(201);
     expect(
-      (await versions.POST(req('/api/sizing/versions/v2', { action: 'approve' }), vctx)).status,
+      (
+        await versions.POST(
+          req('/api/sizing/versions/v2', { action: 'approve', expectedHash: approveHash }),
+          vctx,
+        )
+      ).status,
     ).toBe(200);
-    expect(store.approveVersion).toHaveBeenCalledWith('v2', 'actor-1');
+    expect(store.approveVersion).toHaveBeenCalledWith('v2', approveHash, 'actor-1');
   });
   it('approved version edits are rejected with 409', async () => {
     session('admin');

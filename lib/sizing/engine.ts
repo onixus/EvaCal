@@ -29,7 +29,26 @@ export class SizingError extends Error {
 }
 
 const KEY = /^[a-z][a-z0-9_]{0,63}$/;
-const RESERVED = new Set(['true', 'false', 'max', 'min', 'ceil', 'floor', 'round', 'abs', 'if']);
+const RESERVED = new Set([
+  'true',
+  'false',
+  'max',
+  'min',
+  'ceil',
+  'floor',
+  'round',
+  'abs',
+  'if',
+  'lookup',
+  // Имена из прототипа объекта запрещены, чтобы не разрешаться через Object.prototype.
+  ...Object.getOwnPropertyNames(Object.prototype),
+  'prototype',
+]);
+
+/** Собственное значение ключа без обращения к прототипу. */
+function own(record: Record<string, unknown>, key: string): unknown {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
 
 function obj(value: unknown, what: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -68,7 +87,7 @@ export function parseRules(input: unknown): SizingRules {
     if (names.has(name)) throw new SizingError(`Имя «${name}» объявлено дважды`);
     names.add(name);
   };
-  const tables: Record<string, LookupTable> = {};
+  const tables: Record<string, LookupTable> = Object.create(null);
   for (const [name, raw] of Object.entries(
     d.tables === undefined ? {} : obj(d.tables, 'Таблицы'),
   )) {
@@ -125,7 +144,7 @@ export function parseRules(input: unknown): SizingRules {
     for (const name of referencedNames(expr))
       if (!known.has(name)) throw new SizingError(`${what}: неизвестное имя «${name}»`);
     collectTables(expr).forEach((t) => {
-      if (!tables[t]) throw new SizingError(`${what}: нет таблицы «${t}»`);
+      if (!Object.hasOwn(tables, t)) throw new SizingError(`${what}: нет таблицы «${t}»`);
     });
     return source;
   };
@@ -214,6 +233,33 @@ function rounded(value: number, mode: SizingOutputDef['round']): number {
   return value;
 }
 
+/**
+ * Кэш разобранных формул. Правила версии профиля неизменяемы после утверждения,
+ * а текст формулы однозначно задает AST, поэтому кэш по тексту безопасен для всех версий.
+ */
+const AST_CACHE = new Map<string, Expr>();
+const AST_CACHE_LIMIT = 5000;
+export function compiled(formula: string): Expr {
+  let expr = AST_CACHE.get(formula);
+  if (!expr) {
+    expr = parseExpression(formula);
+    if (AST_CACHE.size >= AST_CACHE_LIMIT) AST_CACHE.delete(AST_CACHE.keys().next().value!);
+    AST_CACHE.set(formula, expr);
+  }
+  return expr;
+}
+
+/** Бесконечность/NaN не выдаются за результат: значение неизвестно, причина — в предупреждении. */
+function finiteOrWarn(name: string, value: SizingValue, warnings: string[]): SizingValue {
+  if (typeof value === 'number' && !Number.isFinite(value)) {
+    warnings.push(
+      `${name}: результат не является конечным числом (${String(value)}, вероятно переполнение); значение не определено.`,
+    );
+    return null;
+  }
+  return value;
+}
+
 interface ResolvedInput extends SizingInputValue {
   deps: Set<string>;
 }
@@ -242,13 +288,13 @@ function scenario(
     };
     let value: SizingValue;
     try {
-      value = evaluate(parseExpression(formula), ctx);
+      value = evaluate(compiled(formula), ctx);
     } catch (e) {
       if (!(e instanceof SizingExpressionError)) throw e;
       warnings.push(`${name}: ${e.message}; значение не определено.`);
       value = null;
     }
-    if (typeof value === 'number' && !Number.isFinite(value)) value = null;
+    value = finiteOrWarn(name, value, warnings);
     values.set(name, { value, deps });
     return { value, deps };
   };
@@ -293,10 +339,11 @@ export function evaluateRules(
   const base = new Map<string, ResolvedInput>();
   const baseWarnings: string[] = [];
   for (const def of rules.inputs) {
-    let value = readInput(def, rawInputs[def.key]);
+    const raw = own(rawInputs, def.key);
+    let value = readInput(def, raw);
     let origin: SizingInputValue['origin'] = 'answer';
-    if (value === undefined && rawInputs[def.key] !== undefined && rawInputs[def.key] !== '')
-      baseWarnings.push(`${def.label}: значение «${String(rawInputs[def.key])}» не распознано.`);
+    if (value === undefined && raw !== undefined && raw !== null && raw !== '')
+      baseWarnings.push(`${def.label}: значение «${String(raw)}» не распознано.`);
     if (value === undefined && def.default !== undefined) {
       value = def.default;
       origin = 'assumption';
@@ -330,7 +377,7 @@ export function evaluateRules(
       const deps = new Set<string>();
       let value: SizingValue;
       try {
-        value = evaluate(parseExpression(formula), {
+        value = evaluate(compiled(formula), {
           tables: rules.tables,
           resolve: (n) => {
             const v = base.get(n);
@@ -344,6 +391,7 @@ export function evaluateRules(
         warnings.push(`${target}: ${e.message}`);
         value = null;
       }
+      value = finiteOrWarn(`${s.key}.${target}`, value, warnings);
       const prev = base.get(target)!;
       // Константа сценария — сценарное значение; формула наследует происхождение
       // исходных входов (для пометок «неизвестно» и «допущение»).

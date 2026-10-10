@@ -229,3 +229,63 @@ describe('builtin profile evaluation', () => {
     }
   });
 });
+
+describe('prototype-safe names and non-finite results', () => {
+  it('rejects prototype names as keys of inputs, derived values, outputs and tables', () => {
+    const output = { key: 'out', label: 'Out', kind: 'nodes', unit: 'шт.', formula: '1' };
+    for (const name of ['constructor', 'prototype', 'lookup']) {
+      expect(() =>
+        parseRules({ inputs: [{ key: name, label: 'X', type: 'text' }], outputs: [output] }),
+      ).toThrow(SizingError);
+      expect(() =>
+        parseRules({ inputs: [], derived: [{ key: name, formula: '1' }], outputs: [output] }),
+      ).toThrow(SizingError);
+      expect(() =>
+        parseRules({
+          inputs: [],
+          outputs: [{ ...output, formula: `lookup('${name}', 1)` }],
+          tables: { [name]: { rows: [{ upTo: null, value: 1 }] } },
+        }),
+      ).toThrow(SizingError);
+    }
+    // A table that was never declared is not found through Object.prototype.
+    expect(() =>
+      parseRules({ inputs: [], outputs: [{ ...output, formula: "lookup('constructor', 1)" }] }),
+    ).toThrow(SizingError);
+  });
+  it('unanswered inputs never resolve through Object.prototype', () => {
+    // Rules bypassing validation (e.g. legacy JSON) still evaluate safely.
+    const rules = {
+      inputs: [
+        { key: 'constructor', label: 'C', type: 'text' as const },
+        { key: 'tostring', label: 'T', type: 'number' as const },
+      ],
+      derived: [],
+      outputs: [
+        { key: 'out', label: 'Out', kind: 'count' as const, unit: '', formula: 'tostring + 1' },
+      ],
+      scenarios: [],
+      tables: {},
+    };
+    const r = evaluateRules(rules, {});
+    expect(r.scenarios[0].inputs.map((i) => [i.key, i.value, i.origin])).toEqual([
+      ['constructor', null, 'missing'],
+      ['tostring', null, 'missing'],
+    ]);
+    expect(r.scenarios[0].outputs[0].value).toBeNull();
+    expect(() =>
+      evaluate(parseExpression("lookup('constructor', 1)"), { tables: {}, resolve: () => 1 }),
+    ).toThrow(SizingExpressionError);
+  });
+  it('overflow is unknown with an explicit warning', () => {
+    const rules = parseRules({
+      inputs: [{ key: 'a', label: 'A', type: 'number' }],
+      outputs: [{ key: 'big', label: 'Big', kind: 'count', unit: '', formula: 'a * 1e308 * 10' }],
+      scenarios: [{ key: 'x', label: 'X', overrides: { a: 'a * 1e308 * 1e308' } }],
+    });
+    const r = evaluateRules(rules, { a: 10 });
+    expect(r.scenarios[0].outputs[0].value).toBeNull();
+    expect(r.scenarios[0].warnings.join(' ')).toContain('не является конечным числом');
+    expect(r.scenarios[1].warnings.join(' ')).toContain('x.a: результат не является конечным');
+  });
+});

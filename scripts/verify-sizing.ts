@@ -11,6 +11,7 @@ import {
   createVersion,
   listProfiles,
   loadRun,
+  loadVersion,
   updateDraftVersion,
 } from '../lib/sizing/store';
 import { applySizingImpact, linkSizing, previewSizingImpact } from '../lib/sizing/service';
@@ -68,6 +69,14 @@ async function main() {
     await rejects(
       prisma.sizingRun.update({ where: { id: run1.id }, data: { note: 'x' } }),
       'runs are append-only',
+    );
+    await rejects(
+      prisma.sizingRun.delete({ where: { id: run1.id } }),
+      'direct run deletion is rejected',
+    );
+    await rejects(
+      prisma.$executeRaw`DELETE FROM "SizingRun" WHERE "calculationId" = ${calculation.id}`,
+      'bulk run deletion is rejected',
     );
 
     // Specification with one supplied row linked to the nodes metric.
@@ -160,7 +169,17 @@ async function main() {
       ),
       'presale cannot preview a draft profile',
     );
-    await approveVersion(v2.id, 'architect');
+    // Approval is bound to the content the approver saw.
+    const seen = v2.contentHash;
+    await updateDraftVersion(v2.id, { source: 'CI: изменение профиля (уточнено)' });
+    await rejects(approveVersion(v2.id, seen, 'architect'), 'stale content hash rejected');
+    const fresh = await loadVersion(v2.id);
+    assert.equal(fresh.status, 'draft');
+    await approveVersion(v2.id, fresh.contentHash, 'architect');
+    await rejects(
+      approveVersion(v2.id, fresh.contentHash, 'architect'),
+      'approved version cannot be approved again',
+    );
     const run2 = await createProfileRun(
       calculation.id,
       { profileVersionId: v2.id, inputs },

@@ -3,7 +3,12 @@ import type {
   SpecificationItem,
   SpecificationSnapshot,
 } from '../specification/types';
-import { lineAmount, subtractDecimal, summarizeSpecification } from '../specification/totals';
+import {
+  lineAmount,
+  subtractDecimal,
+  summarizeSpecification,
+  toScaled,
+} from '../specification/totals';
 import { isDecimal } from '../specification/validation';
 import { findMetric, metricDecimal } from './refs';
 import type { SizingOutputValue } from './types';
@@ -71,9 +76,16 @@ export interface SizingImpactSelection {
   allowManualOverride?: boolean;
 }
 
-const EPS = 1e-9;
-function ceilQuantity(required: string, capacity: string): string {
-  return String(Math.max(0, Math.ceil(Number(required) / Number(capacity) - EPS)));
+/** Точное ceil(required / capacity) в целых единицах позиции (BigInt, без float). */
+export function ceilQuantity(required: string, capacity: string): string {
+  const a = toScaled(required);
+  const b = toScaled(capacity);
+  if (b <= BigInt(0)) throw new Error('Ёмкость единицы должна быть положительной');
+  if (a <= BigInt(0)) return '0';
+  return ((a + b - BigInt(1)) / b).toString();
+}
+function sameDecimal(a: string, b: string): boolean {
+  return toScaled(a) === toScaled(b);
 }
 function multiply(a: string, b: string): string {
   return lineAmount({ quantity: a, unitPrice: b })!;
@@ -112,7 +124,7 @@ export function evaluateItem(item: SpecificationItem, run: SizingImpactRun): Siz
   if (!ref) return row;
   row.manualQuantity =
     item.quantity !== null &&
-    Number(item.quantity) !== Number(ceilQuantity(ref.requiredQuantity, row.unitCapacity));
+    !sameDecimal(item.quantity, ceilQuantity(ref.requiredQuantity, row.unitCapacity));
   const metric = findMetric(run.outputs, ref.scenario, ref.metric);
   if (metric) {
     row.metricLabel = metric.label;
@@ -136,8 +148,12 @@ export function evaluateItem(item: SpecificationItem, run: SizingImpactRun): Siz
   row.coverage = multiply(item.quantity, row.unitCapacity);
   row.balance = subtractDecimal(row.coverage, row.newRequired);
   const proposed = ceilQuantity(row.newRequired, row.unitCapacity);
-  const changed = Number(proposed) !== Number(item.quantity);
-  if (changed && isDecimal(proposed)) {
+  if (!isDecimal(proposed)) {
+    row.reason = `Требуемое количество ${proposed} вне допустимого диапазона спецификации: невозможно проверить соответствие.`;
+    return row;
+  }
+  const changed = !sameDecimal(proposed, item.quantity);
+  if (changed) {
     row.proposedQuantity = proposed;
     row.amountAfter = lineAmount({ quantity: proposed, unitPrice: item.unitPrice });
   }
@@ -184,7 +200,8 @@ export function applySizingSelections(
       if (row.status === 'unknown' || row.status === 'unlinked') return item;
       if (row.manualQuantity && !selection.allowManualOverride) return item;
       const quantity = row.proposedQuantity ?? item.quantity;
-      const changed = quantity !== item.quantity;
+      const changed =
+        quantity !== null && item.quantity !== null && !sameDecimal(quantity, item.quantity);
       return {
         ...item,
         quantity,
@@ -198,7 +215,9 @@ export function applySizingSelections(
         },
         changeReason: changed
           ? `Сайзинг (${run.label}): ${row.metricLabel} ${row.linkedRequired ?? '?'} → ${row.newRequired}; количество ${item.quantity ?? '?'} → ${quantity}.`
-          : `Сайзинг (${run.label}): потребность ${row.metricLabel} ${row.linkedRequired ?? '?'} → ${row.newRequired}, количество достаточно.`,
+          : row.status === 'deficit'
+            ? `Сайзинг (${run.label}): потребность ${row.metricLabel} ${row.linkedRequired ?? '?'} → ${row.newRequired}; количество не изменено, дефицит сохраняется.`
+            : `Сайзинг (${run.label}): потребность ${row.metricLabel} ${row.linkedRequired ?? '?'} → ${row.newRequired}, количество достаточно.`,
       };
     }),
   };

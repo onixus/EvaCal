@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCalcAccess } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 import { createManualRun, createProfileRun, listProfiles, listRuns } from '@/lib/sizing/store';
-import { canEditSizingProfiles, canWriteCalculation, sizingError } from '@/lib/sizing/http';
+import {
+  canEditSizingProfiles,
+  canWriteCalculation,
+  publicVersion,
+  sizingError,
+} from '@/lib/sizing/http';
 
 export const dynamic = 'force-dynamic';
 type Params = { params: Promise<{ id: string }> };
@@ -17,9 +22,10 @@ export async function GET(req: NextRequest, props: Params) {
     const profiles = (await listProfiles()).map((p) => ({
       ...p,
       // Черновики профилей видят только редакторы профилей.
-      versions: p.versions.filter(
-        (v) => v.status === 'approved' || (editor && v.status === 'draft'),
-      ),
+      versions: p.versions
+        .filter((v) => v.status === 'approved' || (editor && v.status === 'draft'))
+        // Полные правила — только сотрудникам; гостю — входы и названия метрик.
+        .map((v) => (access.kind === 'staff' ? v : publicVersion(v))),
     }));
     return NextResponse.json(
       {

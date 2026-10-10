@@ -270,7 +270,8 @@ function call(fn: string, args: Expr[], ctx: EvalContext): SizingValue {
     const [tableExpr, keyExpr] = args;
     if (args.length !== 2 || tableExpr?.t !== 'str')
       throw new SizingExpressionError("lookup('таблица', значение)");
-    const table = ctx.tables[tableExpr.v];
+    // Только собственные ключи: имена вроде constructor не должны найти Object.prototype.
+    const table = Object.hasOwn(ctx.tables, tableExpr.v) ? ctx.tables[tableExpr.v] : undefined;
     if (!table) throw new SizingExpressionError(`Нет таблицы «${tableExpr.v}»`);
     const key = num(evaluate(keyExpr, ctx), 'lookup');
     if (key === null) return null;

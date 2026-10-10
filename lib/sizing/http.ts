@@ -2,7 +2,34 @@ import { NextResponse } from 'next/server';
 import { SpecificationError } from '../specification/validation';
 import { SizingError } from './engine';
 import type { AccessContext } from '../access';
-import { SIZING_EDIT_ROLES } from './types';
+import { SIZING_EDIT_ROLES, type SizingProfileVersionView } from './types';
+
+/**
+ * Для гостя (share-токен, анонимный пресейл) — только то, что нужно для ввода и
+ * чтения результатов: входы, названия метрик и сценариев. Формулы, производные
+ * величины, таблицы и переопределения сценариев не раскрываются.
+ */
+export function publicVersion(v: SizingProfileVersionView): SizingProfileVersionView {
+  return {
+    ...v,
+    rules: {
+      inputs: v.rules.inputs,
+      derived: [],
+      outputs: v.rules.outputs.map(({ key, label, kind, unit, round, basis }) => ({
+        key,
+        label,
+        kind,
+        unit,
+        formula: '',
+        ...(round === undefined ? {} : { round }),
+        ...(basis === undefined ? {} : { basis }),
+      })),
+      scenarios: v.rules.scenarios.map(({ key, label }) => ({ key, label, overrides: {} })),
+      tables: {},
+    },
+    contentHash: '',
+  };
+}
 
 /** Редактировать профили и считать по черновикам могут архитектор и администратор. */
 export function canEditSizingProfiles(access: AccessContext): boolean {

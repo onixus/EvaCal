@@ -49,6 +49,11 @@
 }
 ```
 
+- Имена из прототипа объекта (`constructor`, `prototype` и т. п.) и имена функций зарезервированы;
+  входы, таблицы и значения ищутся только по собственным ключам. Разобранные формулы кэшируются.
+  Бесконечность/NaN (переполнение) дает «неизвестно» с предупреждением.
+- Количество позиции считается точно: `ceil(requiredQuantity / unitCapacity)` в BigInt-десятичной
+  арифметике `totals.ts`; результат вне диапазона спецификации — «невозможно проверить».
 - Формулы — безопасный язык (`lib/sizing/expression.ts`, без `eval`): числа, `true/false`,
   `+ - * / %`, сравнения, `&& || !`, `?:`, функции `max min ceil floor round abs if lookup`.
 - Формула видит только объявленные выше имена: циклы невозможны, ссылки проверяются при
@@ -66,6 +71,10 @@
   новая версия профиля не меняет старые прогоны.
 - Ручной сайзинг — тоже прогон (`source = manual`), метрики вводит пользователь, основание
   обязательно.
+- Гость (share-токен, анонимный пресейл) получает версии профиля без формул, производных величин,
+  таблиц и переопределений сценариев — только входы и названия метрик.
+- Ответы вида «10 000» (пробел, неразрывный или узкий неразрывный пробел между группами по три
+  цифры) читаются как 10000 (`lib/presets/answerValues.ts`, общий разбор с пресейлом).
 - Предпросмотр без сохранения доступен по любой утвержденной версии; по черновику — архитектору и
   администратору (чтобы увидеть влияние нового профиля до утверждения).
 
@@ -92,17 +101,17 @@
 
 ## API
 
-| Метод и путь                                              | Доступ                                                              |
-| --------------------------------------------------------- | ------------------------------------------------------------------- |
-| `GET /api/sizing/profiles`                                | любой вошедший сотрудник (черновики — только admin/architect)       |
-| `POST /api/sizing/profiles`                               | admin, architect                                                    |
-| `POST /api/sizing/profiles/:id/versions`, `PATCH` (архив) | admin, architect                                                    |
-| `GET/PATCH/POST /api/sizing/versions/:versionId`          | правка черновика, `{action: approve \| archive}` — admin, architect |
-| `GET /api/calculations/:id/sizing`                        | как чтение спецификации (share `read`)                              |
-| `POST /api/calculations/:id/sizing`                       | запись (share `write`): прогон по профилю или `{source: 'manual'}`  |
-| `POST /api/calculations/:id/sizing/impact`                | чтение; `{runId}` или `{profileVersionId, inputs}`                  |
-| `POST /api/calculations/:id/sizing/apply`                 | запись; `{runId, version, selections[]}` → новая черновая редакция  |
-| `POST /api/calculations/:id/sizing/link`                  | запись; связать строку с метрикой или снять связь (`runId: null`)   |
+| Метод и путь                                              | Доступ                                                                                                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/sizing/profiles`                                | любой вошедший сотрудник (черновики — только admin/architect)                                                                              |
+| `POST /api/sizing/profiles`                               | admin, architect                                                                                                                           |
+| `POST /api/sizing/profiles/:id/versions`, `PATCH` (архив) | admin, architect                                                                                                                           |
+| `GET/PATCH/POST /api/sizing/versions/:versionId`          | правка черновика, `{action: approve, expectedHash}` (хэш просмотренного содержимого, иначе 409) или `{action: archive}` — admin, architect |
+| `GET /api/calculations/:id/sizing`                        | как чтение спецификации (share `read`)                                                                                                     |
+| `POST /api/calculations/:id/sizing`                       | запись (share `write`): прогон по профилю или `{source: 'manual'}`                                                                         |
+| `POST /api/calculations/:id/sizing/impact`                | чтение; `{runId}` или `{profileVersionId, inputs}`                                                                                         |
+| `POST /api/calculations/:id/sizing/apply`                 | запись; `{runId, version, selections[]}` → новая черновая редакция                                                                         |
+| `POST /api/calculations/:id/sizing/link`                  | запись; связать строку с метрикой или снять связь (`runId: null`)                                                                          |
 
 ## UI
 

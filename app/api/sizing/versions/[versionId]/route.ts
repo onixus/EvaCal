@@ -40,7 +40,7 @@ export async function PATCH(req: NextRequest, context: Context) {
   }
 }
 
-/** { action: 'approve' | 'archive' }. */
+/** { action: 'approve', expectedHash } | { action: 'archive' }. */
 export async function POST(req: NextRequest, context: Context) {
   try {
     const auth = await requireApiRole(SIZING_EDIT_ROLES);
@@ -48,7 +48,8 @@ export async function POST(req: NextRequest, context: Context) {
     const { versionId } = await context.params;
     const body = await req.json();
     let result;
-    if (body?.action === 'approve') result = await approveVersion(versionId, auth.userId);
+    if (body?.action === 'approve')
+      result = await approveVersion(versionId, body.expectedHash, auth.userId);
     else if (body?.action === 'archive') result = await archiveVersion(versionId);
     else throw new SizingError('Неизвестное действие');
     await writeAudit({

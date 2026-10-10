@@ -263,7 +263,10 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
     });
   const approve = () =>
     run(async () => {
-      await call(`/api/sizing/versions/${versionId}`, { action: 'approve' });
+      await call(`/api/sizing/versions/${versionId}`, {
+        action: 'approve',
+        expectedHash: version?.contentHash,
+      });
       await load();
     });
 

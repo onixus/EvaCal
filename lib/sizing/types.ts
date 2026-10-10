@@ -120,6 +120,8 @@ export interface SizingProfileVersionView {
   createdAt: string;
   approvedBy: string | null;
   approvedAt: string | null;
+  /** SHA-256 содержимого (rules, assumptions, source): утверждение проверяет его. */
+  contentHash: string;
 }
 
 export interface SizingProfileView {

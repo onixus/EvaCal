@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { prisma } from '../prisma';
 import type { Prisma } from '../generated/prisma/client';
 import { evaluateRules, parseRules, SizingError } from './engine';
@@ -6,6 +7,7 @@ import {
   type SizingOutputValue,
   type SizingProfileVersionView,
   type SizingProfileView,
+  type SizingRules,
   type SizingRunView,
   type SizingScenarioResult,
   type SizingVersionStatus,
@@ -34,6 +36,35 @@ function assumptionsList(value: unknown): string[] {
   return value.map((a) => str(a, 'Допущение', 1000));
 }
 
+/** Каноническая сериализация: порядок ключей jsonb не влияет на хэш. */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (value && typeof value === 'object')
+    return `{${Object.keys(value)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`)
+      .join(',')}}`;
+  return JSON.stringify(value);
+}
+export function contentHash(row: { rules: unknown; assumptions: unknown; source: string }) {
+  return createHash('sha256')
+    .update(canonical({ rules: row.rules, assumptions: row.assumptions, source: row.source }))
+    .digest('hex');
+}
+
+/** Разобранные правила по версии и содержимому (утвержденные версии неизменяемы). */
+const RULES_CACHE = new Map<string, SizingRules>();
+export function cachedRules(version: SizingProfileVersionView): SizingRules {
+  const key = `${version.id}:${version.contentHash}`;
+  let rules = RULES_CACHE.get(key);
+  if (!rules) {
+    rules = parseRules(version.rules);
+    if (RULES_CACHE.size >= 500) RULES_CACHE.delete(RULES_CACHE.keys().next().value!);
+    RULES_CACHE.set(key, rules);
+  }
+  return rules;
+}
+
 export function versionView(row: VersionRow): SizingProfileVersionView {
   return {
     id: row.id,
@@ -50,6 +81,7 @@ export function versionView(row: VersionRow): SizingProfileVersionView {
     createdAt: row.createdAt.toISOString(),
     approvedBy: row.approvedBy,
     approvedAt: row.approvedAt?.toISOString() ?? null,
+    contentHash: contentHash(row),
   };
 }
 
@@ -179,16 +211,32 @@ export async function updateDraftVersion(versionId: string, input: unknown) {
   return loadVersion(versionId);
 }
 
-export async function approveVersion(versionId: string, actorId: string) {
+/**
+ * Утверждается ровно то содержимое, которое видел утверждающий: expectedHash
+ * сверяется с текущим, а условие updateMany повторяет содержимое (гонка с правкой → 409).
+ */
+export async function approveVersion(versionId: string, expectedHash: unknown, actorId: string) {
+  if (typeof expectedHash !== 'string' || !/^[a-f0-9]{64}$/.test(expectedHash))
+    throw new SizingError('Требуется хэш утверждаемого содержимого версии');
   const current = await prisma.sizingProfileVersion.findUnique({ where: { id: versionId } });
   if (!current) throw new SizingError('Версия профиля не найдена', 404);
+  if (current.status !== 'draft') throw new SizingError('Утвердить можно только черновик', 409);
+  if (contentHash(current) !== expectedHash)
+    throw new SizingError('Черновик изменен после просмотра. Обновите данные.', 409);
   // Утверждаются только корректные правила.
   parseRules(current.rules);
   const updated = await prisma.sizingProfileVersion.updateMany({
-    where: { id: versionId, status: 'draft' },
+    where: {
+      id: versionId,
+      status: 'draft',
+      rules: { equals: current.rules as Prisma.InputJsonValue },
+      assumptions: { equals: current.assumptions as Prisma.InputJsonValue },
+      source: current.source,
+    },
     data: { status: 'approved', approvedBy: actorId, approvedAt: new Date() },
   });
-  if (!updated.count) throw new SizingError('Утвердить можно только черновик', 409);
+  if (!updated.count)
+    throw new SizingError('Черновик изменен или уже утвержден. Обновите данные.', 409);
   return loadVersion(versionId);
 }
 
@@ -249,7 +297,7 @@ export function parseRunInputs(value: unknown): Record<string, unknown> {
 export async function evaluateVersion(versionId: string, rawInputs: unknown) {
   const version = await loadVersion(versionId);
   const inputs = parseRunInputs(rawInputs);
-  return { version, inputs, evaluation: evaluateRules(parseRules(version.rules), inputs) };
+  return { version, inputs, evaluation: evaluateRules(cachedRules(version), inputs) };
 }
 
 async function requireCalculation(calculationId: string) {

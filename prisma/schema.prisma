@@ -1037,7 +1037,8 @@ model SizingProfileVersion {
   @@unique([profileId, version])
 }
 
-// Прогон только добавляется (UPDATE запрещен триггером). source=manual — ручной
+// Прогон только добавляется (UPDATE и прямой DELETE запрещены триггером; удаление —
+// только каскадом с расчетом). source=manual — ручной
 // сайзинг без профиля: outputs введены пользователем.
 model SizingRun {
   id               String                @id @default(cuid())

@@ -9,12 +9,19 @@
 const TRUE_WORDS = /^(да|yes|true|1|есть|требуется)$/i;
 const FALSE_WORDS = /^(нет|no|false|0|не требуется|отсутствует)$/i;
 
-/** Число из ответа; из строки берётся первое число («10 Гбит/с» → 10, «2,5» → 2.5). */
+/**
+ * Число из ответа; из строки берётся первое число («10 Гбит/с» → 10, «2,5» → 2.5).
+ * Пробел, неразрывный и узкий неразрывный пробел между группами по три цифры —
+ * разделители тысяч: «10 000» → 10000, «1 234 567,5» → 1234567.5.
+ */
 export function parseAnswerNumber(value: unknown): number | undefined {
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
   if (typeof value === 'string') {
-    const match = value.replace(',', '.').match(/-?\d+(\.\d+)?/);
-    if (match) return Number(match[0]);
+    const match = value.match(/-?\d+(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)?/);
+    if (match) {
+      const parsed = Number(match[0].replace(/[ \u00a0\u202f]/g, '').replace(',', '.'));
+      if (Number.isFinite(parsed)) return parsed;
+    }
   }
   return undefined;
 }
