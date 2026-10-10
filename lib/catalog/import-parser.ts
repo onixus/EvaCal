@@ -112,10 +112,24 @@ export function analyzeImport(bytes: Uint8Array, filename: string, profile: Impo
     const chosen = profile.sheet || sheets[0];
     if (!sheets.includes(chosen)) throw new SpecificationError('Лист не найден');
     const ws = workbook.Sheets[chosen];
+    // Validate dimensions before materializing the rectangular row array. SheetJS
+    // retains the original dimension in !fullref when sheetRows truncates input.
+    const physicalRange = XLSX.utils.decode_range(ws['!fullref'] ?? ws['!ref'] ?? 'A1');
+    if (
+      physicalRange.s.r < 0 ||
+      physicalRange.s.c < 0 ||
+      physicalRange.e.r > 10000 ||
+      physicalRange.e.c > 99 ||
+      physicalRange.s.r > physicalRange.e.r ||
+      physicalRange.s.c > physicalRange.e.c
+    )
+      throw new SpecificationError('До 10000 строк данных и 100 колонок');
+
     for (const [address, cell] of Object.entries(ws))
       if (!address.startsWith('!') && cell.f) formulas.add(XLSX.utils.decode_cell(address).r);
     cells = XLSX.utils.sheet_to_json(ws, {
       header: 1,
+      range: { s: { r: 0, c: 0 }, e: physicalRange.e },
       raw: true,
       defval: '',
       blankrows: true,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import { analyzeImport, importProfile } from './import-parser';
 const profile = importProfile({
   vendorId: 'v',
@@ -124,4 +125,40 @@ describe('GPL source analysis', () => {
     expect(() => csv('n;s;u;p\n"A"suffix;SKU;шт;1')).toThrow(/закрывающих/);
     expect(() => csv('n;s;u;p\n"" "suffix;SKU;шт;1')).toThrow(/закрывающих/);
   });
+  it('retains physical rows and columns when the sheet begins at C5', () => {
+    const sheet = XLSX.utils.aoa_to_sheet([]);
+    XLSX.utils.sheet_add_aoa(
+      sheet,
+      [
+        ['name', 'sku', 'unit', 'price'],
+        ['A', 'A', 'шт', 1],
+      ],
+      { origin: 'C5' },
+    );
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, 'GPL');
+    const parsed = analyzeImport(XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }), 'x.xlsx', {
+      ...profile,
+      headerRow: 5,
+      startRow: 6,
+      mapping: { name: 2, sku: 3, unit: 4, unitPrice: 5 },
+    });
+    expect(parsed.headers.slice(2)).toEqual(['name', 'sku', 'unit', 'price']);
+    expect(parsed.rows[0].rowNumber).toBe(6);
+    expect(parsed.rows[0].raw.slice(0, 2)).toEqual(['', '']);
+    expect(parsed.rows[0].normalized?.product.sku).toBe('A');
+  });
+  it.each(['A1:XFD10001', 'A1:D1048576'])(
+    'rejects sparse oversized dimension %s before row materialization',
+    async (dimension) => {
+      const book = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['n']]), 'GPL');
+      const zip = await JSZip.loadAsync(XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }));
+      const path = 'xl/worksheets/sheet1.xml',
+        xml = await zip.file(path)!.async('string');
+      zip.file(path, xml.replace(/<dimension ref="[^"]*"/, `<dimension ref="${dimension}"`));
+      const bytes = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+      expect(() => analyzeImport(bytes, 'x.xlsx', profile)).toThrow(/100 колонок/);
+    },
+  );
 });
