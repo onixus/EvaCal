@@ -74,9 +74,12 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
-  await prisma.project.delete({
-    where: { id: params.id },
-  });
+  // Запросы на изменение ссылаются на проект скалярным id (без FK), поэтому
+  // удаляются явно; журнал уходит каскадом.
+  await prisma.$transaction([
+    prisma.changeRequest.deleteMany({ where: { projectId: params.id } }),
+    prisma.project.delete({ where: { id: params.id } }),
+  ]);
 
   await writeAudit({
     actorType: 'user',
