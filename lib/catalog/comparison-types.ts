@@ -12,7 +12,9 @@ export type ComparisonField =
   | 'region'
   | 'terms'
   | 'priceDate'
-  | 'validUntil';
+  | 'validUntil'
+  | 'taxRate'
+  | 'discountCategory';
 export interface ComparisonSource {
   id: string;
   filename: string;

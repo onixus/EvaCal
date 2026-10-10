@@ -1,7 +1,7 @@
 import { prisma } from '../prisma';
 import { SpecificationError } from '../specification/validation';
 import { object, text, revision, productInput, offerInput } from './validation';
-import type { Prisma } from '../generated/prisma/client';
+import { Prisma } from '../generated/prisma/client';
 
 async function lockProduct(tx: Prisma.TransactionClient, id: string) {
   const rows = await tx.$queryRaw<
@@ -23,7 +23,11 @@ export async function loadCatalog() {
     vendors,
     products: rows.map((p) => ({
       ...p,
-      offers: p.offers.map((o) => ({ ...o, unitPrice: o.unitPrice?.toString() ?? null })),
+      offers: p.offers.map((o) => ({
+        ...o,
+        unitPrice: o.unitPrice?.toString() ?? null,
+        taxRate: o.taxRate?.toString() ?? null,
+      })),
     })),
   };
 }
@@ -121,7 +125,42 @@ export async function mutateCatalog(input: unknown, actorId: string) {
           createdBy: actorId,
         },
       });
-      return { ...offer, unitPrice: offer.unitPrice?.toString() ?? null };
+      return {
+        ...offer,
+        unitPrice: offer.unitPrice?.toString() ?? null,
+        taxRate: offer.taxRate?.toString() ?? null,
+      };
+    }
+    if (d.action === 'offer.confirm') {
+      // Only manual offers: GPL offers are confirmed by the explicit import confirmation.
+      // Lock order Product → Vendor as in every other existing-product write.
+      const offerId = text(d.offerId, 'Предложение', 100, true);
+      const product = await lockProduct(tx, id);
+      const vendors = await tx.$queryRaw<
+        Array<{ archived: boolean }>
+      >`SELECT archived FROM "CatalogVendor" WHERE id = ${product.vendorId} FOR UPDATE`;
+      if (product.archived || !vendors.length || vendors[0].archived)
+        throw new SpecificationError('Позиция или вендор архивированы', 409);
+      const result = await tx.catalogOffer.updateMany({
+        where: {
+          id: offerId,
+          productId: id,
+          confirmationStatus: 'unconfirmed',
+          importProvenance: { equals: Prisma.DbNull },
+        },
+        data: { confirmationStatus: 'confirmed', confirmedBy: actorId, confirmedAt: new Date() },
+      });
+      if (!result.count)
+        throw new SpecificationError(
+          'Предложение не найдено, уже подтверждено или получено из GPL (подтверждается импортом)',
+          409,
+        );
+      const offer = await tx.catalogOffer.findUniqueOrThrow({ where: { id: offerId } });
+      return {
+        ...offer,
+        unitPrice: offer.unitPrice?.toString() ?? null,
+        taxRate: offer.taxRate?.toString() ?? null,
+      };
     }
     throw new SpecificationError('Неизвестное действие каталога');
   });

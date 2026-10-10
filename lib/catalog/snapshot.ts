@@ -1,6 +1,24 @@
 import type { Product, Offer } from './types';
 import type { SpecificationItem } from '../specification/types';
 import { SpecificationError } from '../specification/validation';
+const PRICE_CONFIRMATION = /; цена (?:не )?подтверждена(?=;|$)/;
+/**
+ * The offer confirmation note in the copied source is descriptive and may change
+ * later (an unconfirmed offer is confirmed afterwards); integrity checks of the
+ * copied origin ignore it, everything else is compared exactly.
+ */
+export function withoutPriceConfirmation<T extends { baseline: { source: string } } | undefined>(
+  origin: T,
+): T {
+  if (!origin) return origin;
+  return {
+    ...origin,
+    baseline: {
+      ...origin.baseline,
+      source: origin.baseline.source.replace(PRICE_CONFIRMATION, ''),
+    },
+  };
+}
 /** Explicit copy: subsequent edits/archive/price offers cannot mutate this row. */
 export function catalogItem(
   product: Product,
@@ -35,7 +53,7 @@ export function catalogItem(
       .join('; '),
     licensing: technical.licensing,
     term: offer?.terms || '',
-    source: `Каталог ${product.id}, ред. ${product.revision}; вендор ред. ${technical.vendor.revision}${offer ? `; предложение ${offer.id}: ${offer.source}; дата цены ${offer.priceDate || 'неизвестна'}; действует до ${offer.validUntil || 'неизвестно'}; регион ${offer.region || 'не задан'}` : '; цена не выбрана'}${offer?.importProvenance ? `; GPL ${offer.importProvenance.importId}, ред. ${offer.importProvenance.importRevision}; SHA-256 ${offer.importProvenance.checksum}; лист ${offer.importProvenance.sheet}, строка ${offer.importProvenance.rowNumber}` : ''}`,
+    source: `Каталог ${product.id}, ред. ${product.revision}; вендор ред. ${technical.vendor.revision}${offer ? `; предложение ${offer.id}: ${offer.source}; ${offer.confirmationStatus === 'confirmed' ? 'цена подтверждена' : 'цена не подтверждена'}; дата цены ${offer.priceDate || 'неизвестна'}; действует до ${offer.validUntil || 'неизвестно'}; регион ${offer.region || 'не задан'}` : '; цена не выбрана'}${offer?.importProvenance ? `; GPL ${offer.importProvenance.importId}, ред. ${offer.importProvenance.importRevision}; SHA-256 ${offer.importProvenance.checksum}; лист ${offer.importProvenance.sheet}, строка ${offer.importProvenance.rowNumber}` : ''}`,
     rationale: '',
     confirmed: false,
     unitPrice: offer?.unitPrice ?? null,

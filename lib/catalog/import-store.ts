@@ -3,9 +3,10 @@ import { prisma } from '../prisma';
 import { SpecificationError } from '../specification/validation';
 import { object, text, revision, productInput, offerInput } from './validation';
 import { analyzeImport, importProfile } from './import-parser';
+import { analyzeWithSavedProfile, type Analysis } from './import-profile-analysis';
+import { technicalDiff } from './import-values';
 import type { ImportDraft, ImportRow } from './import-types';
 import type { Prisma } from '../generated/prisma/client';
-type Analysis = ReturnType<typeof analyzeImport>;
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 export async function loadImport(id: string, historicalRevision?: number): Promise<ImportDraft> {
   const batch = await prisma.catalogImport.findUnique({
@@ -76,15 +77,30 @@ export async function createImport(
   actorId: string,
 ) {
   filename = text(filename.replace(/^.*[\\/]/, ''), 'Имя файла', 200, true);
-  const profile = importProfile(input),
-    data = analyzeImport(bytes, filename, profile);
+  const d = object(input);
+  // A saved profile is resolved against this file's headers; otherwise the explicit mapping is used.
+  const data: Analysis =
+    d.savedProfileId !== undefined
+      ? await analyzeWithSavedProfile(
+          bytes,
+          filename,
+          d,
+          d.vendorId === undefined ? undefined : text(d.vendorId, 'Вендор', 100, true),
+        )
+      : analyzeImport(bytes, filename, importProfile(input));
+  const profile = data.profile;
   await matchDiagnostics(data);
   const checksum = createHash('sha256').update(bytes).digest('hex');
+  let reopened = false;
   const batch = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "CatalogVendor" WHERE id = ${profile.vendorId} FOR UPDATE`;
     const vendor = await tx.catalogVendor.findUnique({ where: { id: profile.vendorId } });
     if (!vendor || vendor.archived)
       throw new SpecificationError('Выберите действующего вендора', 409);
+    reopened = !!(await tx.catalogImport.findUnique({
+      where: { vendorId_checksum: { vendorId: profile.vendorId, checksum } },
+      select: { id: true },
+    }));
     // The unique identity also serializes concurrent retry uploads.
     return tx.catalogImport.upsert({
       where: { vendorId_checksum: { vendorId: profile.vendorId, checksum } },
@@ -99,7 +115,14 @@ export async function createImport(
       },
     });
   });
-  return loadImport(batch.id);
+  const draft = await loadImport(batch.id);
+  // The same file reopens its saved package unchanged; say so instead of implying a new analysis.
+  if (reopened)
+    draft.notice =
+      d.savedProfileId !== undefined
+        ? 'Этот файл уже загружен: открыт сохраненный пакет, выбранный профиль к нему не применен. Примените профиль кнопкой «Применить профиль к этому файлу».'
+        : 'Этот файл уже загружен: открыт сохраненный пакет с его настройками.';
+  return draft;
 }
 export async function importAttachment(id: string) {
   const batch = await prisma.catalogImport.findUnique({
@@ -124,10 +147,14 @@ export async function mutateImport(id: string, input: unknown, actorId: string) 
         throw new SpecificationError('Импорт уже изменен или подтвержден. Обновите страницу.', 409);
       let data = batch.revisions[0].data as unknown as Analysis;
       if (d.action === 'analyze') {
-        const profile = importProfile(d.profile);
-        if (profile.vendorId !== batch.vendorId)
-          throw new SpecificationError('Вендор импорта неизменяем');
-        data = analyzeImport(batch.file, batch.filename, profile);
+        if (d.savedProfileId !== undefined) {
+          data = await analyzeWithSavedProfile(batch.file, batch.filename, d, batch.vendorId, tx);
+        } else {
+          const profile = importProfile(d.profile);
+          if (profile.vendorId !== batch.vendorId)
+            throw new SpecificationError('Вендор импорта неизменяем');
+          data = analyzeImport(batch.file, batch.filename, profile);
+        }
       } else if (d.action === 'correct') {
         const rowId = text(d.rowId, 'Строка', 300, true),
           normalized = object(d.normalized);
@@ -158,6 +185,12 @@ export async function mutateImport(id: string, input: unknown, actorId: string) 
           selected = data.rows.filter((r) => ids.has(r.id));
         if (selected.length !== ids.size || selected.some((r) => r.errors.length || !r.normalized))
           throw new SpecificationError('Выбраны ошибочные или неизвестные строки');
+        const accept = d.acceptTechnicalChanges ?? [];
+        if (!Array.isArray(accept) || accept.some((v) => typeof v !== 'string' || !ids.has(v)))
+          throw new SpecificationError(
+            'Принять технические изменения можно только для выбранных строк',
+          );
+        const acceptedChanges = new Set(accept as string[]);
         if (
           new Set(
             selected.map((r) =>
@@ -209,11 +242,34 @@ export async function mutateImport(id: string, input: unknown, actorId: string) 
               'Каталог изменен во время подтверждения. Повторите подтверждение.',
               409,
             );
-          if (product && JSON.stringify(productInput(product)) !== JSON.stringify(technical))
-            throw new SpecificationError(
-              `Технические данные ${technical.sku} отличаются. Исправьте строку или создайте новый артикул.`,
-              409,
-            );
+          if (product && technicalDiff(productInput(product), technical).length) {
+            // A differing technical identity is a reviewed change: a new product
+            // revision (old offers and project copies keep their snapshots).
+            if (!acceptedChanges.has(row.id))
+              throw new SpecificationError(
+                `Строка ${row.rowNumber}: технические данные ${technical.sku} отличаются от каталога. Проверьте изменения и примите их явно.`,
+                409,
+              );
+            if (
+              row.technicalChange?.productId !== product.id ||
+              row.technicalChange.productRevision !== product.revision
+            )
+              throw new SpecificationError(
+                `Строка ${row.rowNumber}: позиция каталога изменилась после проверки. Примените настройки и проверьте строки заново.`,
+                409,
+              );
+            const updated = await tx.catalogProduct.updateMany({
+              where: { id: product.id, revision: product.revision, archived: false },
+              data: {
+                ...technical,
+                attributes: json(technical.attributes),
+                revision: { increment: 1 },
+              },
+            });
+            if (!updated.count)
+              throw new SpecificationError('Позиция изменена. Повторите подтверждение.', 409);
+            product = await tx.catalogProduct.findUniqueOrThrow({ where: { id: product.id } });
+          }
           if (!product)
             product = await tx.catalogProduct.create({
               data: { ...technical, attributes: json(technical.attributes), createdBy: actorId },
@@ -229,6 +285,10 @@ export async function mutateImport(id: string, input: unknown, actorId: string) 
                 revision: product.revision,
                 vendor: { id: vendor.id, name: vendor.name, revision: vendor.revision },
               }),
+              // The explicit GPL confirmation is the confirmation of these offers.
+              confirmationStatus: 'confirmed',
+              confirmedBy: actorId,
+              confirmedAt: new Date(),
               importProvenance: {
                 importId: id,
                 importRevision: expected,
@@ -276,6 +336,7 @@ async function matchDiagnostics(
 ) {
   const products = await db.catalogProduct.findMany({ where: { vendorId: data.profile.vendorId } });
   for (const row of data.rows) {
+    row.technicalChange = null;
     if (!row.normalized || row.errors.length) continue;
     const technical = row.normalized.product;
     const matches = products.filter(
@@ -285,10 +346,12 @@ async function matchDiagnostics(
       row.errors.push(
         'Неоднозначный или архивный артикул/редакция. Укажите новый артикул или редакцию.',
       );
-    else if (matches[0] && JSON.stringify(productInput(matches[0])) !== JSON.stringify(technical))
-      row.errors.push(
-        'Технические данные существующей позиции отличаются. Исправьте значения или укажите новый артикул/редакцию.',
-      );
+    else if (matches[0]) {
+      const changes = technicalDiff(productInput(matches[0]), technical);
+      row.technicalChange = changes.length
+        ? { productId: matches[0].id, productRevision: matches[0].revision, changes }
+        : null;
+    }
     if (row.errors.length) row.status = 'error';
   }
 }

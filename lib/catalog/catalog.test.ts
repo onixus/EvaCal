@@ -14,6 +14,9 @@ const offer: Offer = {
   terms: '12 месяцев',
   priceDate: null,
   validUntil: null,
+  confirmationStatus: 'unconfirmed',
+  confirmedBy: null,
+  confirmedAt: null,
   createdBy: 'u',
   createdAt: '2026-10-10',
 };

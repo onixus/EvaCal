@@ -29,7 +29,15 @@ export interface OfferInput {
   terms: string;
   priceDate: string | null;
   validUntil: string | null;
+  /** VAT/tax rate in percent as an exact decimal string; null is unknown. Optional for legacy rows. */
+  taxRate?: string | null;
+  /** Explicit «Без НДС» (exemption); then taxRate is '0'. Optional for legacy rows. */
+  taxExempt?: boolean;
+  /** Vendor discount category/group as given in the source; empty is not set. */
+  discountCategory?: string;
 }
+export const OFFER_CONFIRMATION = ['unconfirmed', 'confirmed'] as const;
+export type OfferConfirmation = (typeof OFFER_CONFIRMATION)[number];
 export interface OfferProductSnapshot extends ProductInput {
   id: string;
   revision: number;
@@ -49,6 +57,10 @@ export interface Offer extends OfferInput {
   importProvenance?: ImportProvenance | null;
   productSnapshot: OfferProductSnapshot | null;
   productRevision: number;
+  /** Imported offers are confirmed only by the explicit GPL confirmation; manual ones by a separate action. */
+  confirmationStatus: OfferConfirmation;
+  confirmedBy: string | null;
+  confirmedAt: string | null;
   id: string;
   createdAt: string;
   createdBy: string;

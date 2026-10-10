@@ -5,7 +5,7 @@ import {
   requireConfirmedSpecification,
   SpecificationError,
 } from './validation';
-import { catalogItem } from '../catalog/snapshot';
+import { catalogItem, withoutPriceConfirmation } from '../catalog/snapshot';
 import type { Product } from '../catalog/types';
 import type { SavedSpecification } from './types';
 import { clearStaleChangeReasons } from './diff';
@@ -116,7 +116,10 @@ export async function saveSpecification(
           : product;
         const expected = catalogItem(historicalProduct, offer, item.id);
         const normalized = parseSpecification({ ...snapshot, items: [expected] }).items[0].origin;
-        if (JSON.stringify(normalized) !== JSON.stringify(item.origin))
+        if (
+          JSON.stringify(withoutPriceConfirmation(normalized)) !==
+          JSON.stringify(withoutPriceConfirmation(item.origin))
+        )
           throw new SpecificationError(
             'Каталожное происхождение не соответствует сохраненному предложению',
             409,

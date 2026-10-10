@@ -154,6 +154,56 @@ describe('confirmed GPL comparison', () => {
       'validUntil',
     ]);
   });
+  it('compares tax rate exactly, discount category, and treats legacy absent tax as unknown', () => {
+    const legacy = row(),
+      unknown = clone(legacy);
+    unknown.normalized!.offer.taxRate = null;
+    unknown.normalized!.offer.discountCategory = '';
+    expect(
+      compareImportSnapshots(batch('a', [legacy]), batch('b', [unknown])).counts.unchanged,
+    ).toBe(1);
+    const a = clone(legacy),
+      b = clone(legacy);
+    a.normalized!.offer.taxRate = '20.0';
+    b.normalized!.offer.taxRate = '20';
+    expect(compareImportSnapshots(batch('a', [a]), batch('b', [b])).counts.unchanged).toBe(1);
+    b.normalized!.offer.taxRate = '22';
+    b.normalized!.offer.discountCategory = 'B';
+    const result = compareImportSnapshots(batch('a', [a]), batch('b', [b]));
+    expect(result.rows[0].changes).toEqual([
+      { field: 'taxRate', before: '20', after: '22' },
+      { field: 'discountCategory', before: '', after: 'B' },
+    ]);
+    expect(result.warnings.join()).toMatch(/ставка НДС: 1/);
+  });
+  it('warns about price changes without a price date and about expired validity', () => {
+    const a = row('A', '1'),
+      undated = row('A', '2'),
+      dated = row('B', '2'),
+      b0 = row('B', '1');
+    Object.assign(dated.normalized!.offer, { priceDate: '2026-01-01', validUntil: '2026-06-30' });
+    const result = compareImportSnapshots(batch('a', [a, b0]), batch('b', [undated, dated]));
+    expect(result.counts.changed).toBe(2);
+    expect(result.warnings.join()).toMatch(/без даты прайса во втором GPL: 1/);
+    expect(result.warnings.join()).toMatch(/срок действия цены истек до подтверждения импорта: 1/);
+  });
+  it('judges expiry by the business-time-zone date of the confirmation', () => {
+    const before = row('A', '1'),
+      next = row('A', '2');
+    Object.assign(next.normalized!.offer, { priceDate: '2026-10-01', validUntil: '2026-10-09' });
+    const after = batch('b', [next]);
+    // 22:30 UTC on 9 Oct is already 10 Oct in Moscow: the 9 Oct validity has expired.
+    after.confirmedAt = '2026-10-09T22:30:00Z';
+    vi.stubEnv('BUSINESS_TIME_ZONE', 'Europe/Moscow');
+    expect(compareImportSnapshots(batch('a', [before]), after).warnings.join()).toMatch(
+      /срок действия цены истек/,
+    );
+    vi.stubEnv('BUSINESS_TIME_ZONE', 'UTC');
+    expect(compareImportSnapshots(batch('a', [before]), after).warnings.join()).not.toMatch(
+      /срок действия цены истек/,
+    );
+    vi.unstubAllEnvs();
+  });
   it('ignores source filenames, physical row movement and incidental attribute order without modifying snapshots', () => {
     const a = row(),
       b = clone(a);

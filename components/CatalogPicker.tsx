@@ -83,7 +83,10 @@ export default function CatalogPicker({
                   )
                   .map((o) => (
                     <option key={o.id} value={o.id}>
-                      {o.unitPrice ?? 'Неизвестно'} {o.currency} · {o.source} · дата{' '}
+                      {o.confirmationStatus === 'confirmed'
+                        ? 'Цена подтверждена'
+                        : 'Цена не подтверждена'}{' '}
+                      · {o.unitPrice ?? 'Неизвестно'} {o.currency} · {o.source} · дата{' '}
                       {o.priceDate || 'неизвестна'} · до {o.validUntil || 'неизвестно'} · {o.region}{' '}
                       · {o.terms}
                     </option>

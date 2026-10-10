@@ -1,20 +1,21 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { ITEM_KINDS } from '@/lib/specification/types';
-import type { ImportDraft, ImportProfile, ImportRow } from '@/lib/catalog/import-types';
-import type { Vendor } from '@/lib/catalog/types';
+import {
+  IMPORT_FIELDS,
+  IMPORT_FIELD_LABELS,
+  type ImportAttributeColumn,
+  type ImportDraft,
+  type ImportProfile,
+  type ImportRow,
+} from '@/lib/catalog/import-types';
+import type { SavedImportProfile } from '@/lib/catalog/import-profile-match';
+import { parseImportKind, parseTaxInput, taxLabel } from '@/lib/catalog/import-values';
+import type { OfferInput, Vendor } from '@/lib/catalog/types';
 
-const fields = [
-  ['name', 'Наименование'],
-  ['sku', 'Партномер'],
-  ['edition', 'Редакция'],
-  ['unit', 'Единица'],
-  ['licensing', 'Лицензирование'],
-  ['unitPrice', 'Цена'],
-  ['currency', 'Валюта'],
-  ['description', 'Описание'],
-  ['terms', 'Условия / срок'],
-] as const;
+const fields = IMPORT_FIELDS.map((key) => [key, IMPORT_FIELD_LABELS[key]] as const);
+const KIND_LABELS = ['Оборудование', 'ПО', 'Лицензия', 'Поддержка', 'Услуга', 'Другое'];
+type AttributeDraft = { column: string; name: string; unit: string };
 
 export default function GplImportPanel({
   vendors,
@@ -33,6 +34,11 @@ export default function GplImportPanel({
   const [decimalSeparator, setDecimalSeparator] = useState(',');
   const [currency, setCurrency] = useState('RUB');
   const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [attributeColumns, setAttributeColumns] = useState<AttributeDraft[]>([]);
+  const [profiles, setProfiles] = useState<SavedImportProfile[]>([]);
+  const [profileId, setProfileId] = useState('');
+  const [profileName, setProfileName] = useState('');
+  const activeProfile = profiles.find((p) => p.id === profileId) || null;
   const [kind, setKind] = useState<ImportProfile['kind']>('hardware');
   const [draft, setDraft] = useState<ImportDraft | null>(null);
   const [latestRevision, setLatestRevision] = useState(1);
@@ -41,6 +47,12 @@ export default function GplImportPanel({
   const [selected, setSelected] = useState<string[]>([]);
   const [saved, setSaved] = useState<Array<Pick<ImportDraft, 'id' | 'filename' | 'createdAt'>>>([]);
   const [editing, setEditing] = useState<ImportRow | null>(null);
+  // Rows whose differing technical data the user explicitly accepts (new product revision).
+  const [acceptedChanges, setAcceptedChanges] = useState<string[]>([]);
+  const [profileWarnings, setProfileWarnings] = useState<string[]>([]);
+  const pendingChanges = (draft?.rows ?? []).filter(
+    (r) => selected.includes(r.id) && r.technicalChange && !acceptedChanges.includes(r.id),
+  );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -50,6 +62,15 @@ export default function GplImportPanel({
       })
       .catch(() => {});
   }, []);
+  async function loadProfiles(vendor: string) {
+    if (!vendor) return setProfiles([]);
+    const res = await fetch(`/api/catalog/imports/profiles?vendorId=${encodeURIComponent(vendor)}`);
+    if (res.ok) setProfiles(await res.json());
+  }
+  useEffect(() => {
+    setProfileId('');
+    loadProfiles(vendorId).catch(() => {});
+  }, [vendorId]);
   function applyProfile(profile: ImportProfile) {
     setVendorId(profile.vendorId);
     setSheet(profile.sheet);
@@ -64,6 +85,13 @@ export default function GplImportPanel({
       Object.fromEntries(
         Object.entries(profile.mapping).map(([key, value]) => [key, String(value)]),
       ),
+    );
+    setAttributeColumns(
+      (profile.attributes ?? []).map((a) => ({
+        column: String(a.column),
+        name: a.name,
+        unit: a.unit,
+      })),
     );
   }
   const profile: ImportProfile = {
@@ -81,13 +109,20 @@ export default function GplImportPanel({
         .filter(([, value]) => value !== '')
         .map(([key, value]) => [key, Number(value)]),
     ),
+    attributes: attributeColumns
+      .filter((a) => a.column !== '')
+      .map((a) => ({ column: Number(a.column), name: a.name, unit: a.unit })),
   };
+  const sameAttributes = (a: ImportAttributeColumn[] = [], b: ImportAttributeColumn[] = []) =>
+    JSON.stringify(a) === JSON.stringify(b);
   const settingsChanged =
     !!draft &&
     (Object.keys(profile) as Array<keyof ImportProfile>).some((key) =>
       key === 'mapping'
         ? fields.some(([field]) => profile.mapping[field] !== draft.profile.mapping[field])
-        : profile[key] !== draft.profile[key],
+        : key === 'attributes'
+          ? !sameAttributes(profile.attributes, draft.profile.attributes)
+          : profile[key] !== draft.profile[key],
     );
   async function request(url: string, init?: RequestInit): Promise<ImportDraft> {
     const res = await fetch(url, init);
@@ -113,6 +148,17 @@ export default function GplImportPanel({
     setDraft(next);
     setSelected([]);
     setEditing(null);
+    setAcceptedChanges([]);
+  }
+  async function profileRequest(body: unknown): Promise<SavedImportProfile> {
+    const res = await fetch('/api/catalog/imports/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Ошибка профиля импорта');
+    return data;
   }
   function mutate(body: unknown) {
     if (historical) throw new Error('Историческая редакция: только просмотр');
@@ -279,7 +325,7 @@ export default function GplImportPanel({
           />
         </label>
         <label>
-          Тип импортируемых позиций
+          Тип позиций по умолчанию (если колонка типа не сопоставлена или пуста)
           <select
             className="input w-full"
             value={kind}
@@ -287,7 +333,7 @@ export default function GplImportPanel({
           >
             {ITEM_KINDS.map((value, i) => (
               <option key={value} value={value}>
-                {['Оборудование', 'ПО', 'Лицензия', 'Поддержка', 'Услуга', 'Другое'][i]}
+                {KIND_LABELS[i]}
               </option>
             ))}
           </select>
@@ -299,7 +345,18 @@ export default function GplImportPanel({
             void run(async () => {
               const body = new FormData();
               body.set('file', file!);
-              body.set('profile', JSON.stringify(profile));
+              body.set(
+                'profile',
+                JSON.stringify(
+                  activeProfile
+                    ? {
+                        ...profile,
+                        savedProfileId: activeProfile.id,
+                        savedProfileRevision: activeProfile.revision,
+                      }
+                    : profile,
+                ),
+              );
               const next = await request('/api/catalog/imports', { method: 'POST', body });
               applyProfile(next.profile);
               accept(next);
@@ -309,6 +366,138 @@ export default function GplImportPanel({
         >
           Загрузить черновик GPL
         </button>
+      </fieldset>
+      <fieldset disabled={busy || !vendorId} className="space-y-3">
+        <legend>Профили импорта вендора</legend>
+        <label className="block">
+          Профиль импорта
+          <select
+            className="input w-full"
+            value={profileId}
+            onChange={(e) => {
+              setProfileId(e.target.value);
+              const chosen = profiles.find((p) => p.id === e.target.value);
+              if (chosen) setProfileName(chosen.name);
+            }}
+          >
+            <option value="">Без профиля: сопоставить колонки вручную</option>
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} · {p.format.toUpperCase()} · ред. {p.revision}
+              </option>
+            ))}
+          </select>
+        </label>
+        {activeProfile && (
+          <p>
+            Профиль «{activeProfile.name}» применяется к загружаемому файлу: колонки ищутся по
+            заголовкам, поэтому другой порядок колонок допустим. Не найденные заголовки показываются
+            как расхождения и остаются без сопоставления. Обновлен {activeProfile.updatedAt} ·{' '}
+            {activeProfile.updatedBy}.
+          </p>
+        )}
+        {activeProfile && draft && draft.status === 'draft' && !historical && (
+          <button
+            className="btn-secondary"
+            onClick={() =>
+              void run(async () =>
+                accept(
+                  await mutate({
+                    action: 'analyze',
+                    revision: draft.revision,
+                    savedProfileId: activeProfile.id,
+                    savedProfileRevision: activeProfile.revision,
+                  }),
+                ),
+              )
+            }
+          >
+            Применить профиль к этому файлу
+          </button>
+        )}
+        {draft && !historical && (
+          <div className="space-y-2">
+            <label className="block">
+              Название профиля
+              <input
+                className="input w-full"
+                maxLength={100}
+                value={profileName}
+                onChange={(e) => setProfileName(e.target.value)}
+              />
+            </label>
+            {settingsChanged && (
+              <p>Сначала примените настройки: профиль сохраняет проверенное сопоставление.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="btn-secondary"
+                disabled={!profileName.trim() || settingsChanged}
+                onClick={() =>
+                  void run(async () => {
+                    const created = await profileRequest({
+                      action: 'create',
+                      name: profileName,
+                      importId: draft.id,
+                    });
+                    await loadProfiles(draft.profile.vendorId);
+                    setProfileId(created.id);
+                    setProfileWarnings(created.warnings ?? []);
+                  })
+                }
+              >
+                Сохранить как новый профиль
+              </button>
+              {activeProfile && (
+                <>
+                  <button
+                    className="btn-secondary"
+                    disabled={!profileName.trim() || settingsChanged}
+                    onClick={() =>
+                      void run(async () => {
+                        const updated = await profileRequest({
+                          action: 'update',
+                          id: activeProfile.id,
+                          revision: activeProfile.revision,
+                          name: profileName,
+                          importId: draft.id,
+                        });
+                        setProfileWarnings(updated.warnings ?? []);
+                        await loadProfiles(draft.profile.vendorId);
+                      })
+                    }
+                  >
+                    Обновить профиль «{activeProfile.name}»
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => {
+                      if (!window.confirm('Архивировать профиль? Пакеты GPL сохранятся.')) return;
+                      void run(async () => {
+                        await profileRequest({
+                          action: 'archive',
+                          id: activeProfile.id,
+                          revision: activeProfile.revision,
+                        });
+                        setProfileId('');
+                        await loadProfiles(draft.profile.vendorId);
+                      });
+                    }}
+                  >
+                    Архивировать профиль
+                  </button>
+                </>
+              )}
+            </div>
+            {profileWarnings.length > 0 && (
+              <ul role="status" className="list-disc pl-5">
+                {profileWarnings.map((w) => (
+                  <li key={w}>Предупреждение профиля: {w}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </fieldset>
       {draft && (
         <>
@@ -358,6 +547,30 @@ export default function GplImportPanel({
             <summary>Контрольная сумма исходного файла</summary>
             <code className="break-all">{draft.checksum}</code>
           </details>
+          {draft.notice && <p role="status">{draft.notice}</p>}
+          {draft.profileApplication && (
+            <div aria-label="Применение профиля" className="space-y-1" role="group">
+              <p>
+                Применен профиль «{draft.profileApplication.name}» (ред.{' '}
+                {draft.profileApplication.profileRevision}).
+              </p>
+              {draft.profileApplication.mismatches.length ? (
+                <ul role="alert" className="list-disc pl-5 text-red-600">
+                  {draft.profileApplication.mismatches.map((m) => (
+                    <li key={m}>Расхождение: {m}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>Все колонки профиля найдены по заголовкам.</p>
+              )}
+              {draft.profileApplication.moved.map((m) => (
+                <p key={m}>Колонка перемещена: {m}</p>
+              ))}
+              {draft.profileApplication.added.length > 0 && (
+                <p>Новые колонки файла: {draft.profileApplication.added.join(', ')}</p>
+              )}
+            </div>
+          )}
           {draft.status === 'draft' && !historical && (
             <fieldset disabled={busy} className="space-y-3">
               <legend>Сопоставление колонок</legend>
@@ -387,6 +600,72 @@ export default function GplImportPanel({
                   </label>
                 ))}
               </div>
+              <p>
+                Колонки характеристик: значение ячейки сохраняется как характеристика позиции
+                (название, значение, единица). Пустая ячейка — характеристика неизвестна.
+              </p>
+              {attributeColumns.map((a, i) => (
+                <div className="flex flex-wrap gap-2" key={i}>
+                  <select
+                    aria-label={`Колонка характеристики ${i + 1}`}
+                    className="input"
+                    value={a.column}
+                    onChange={(e) => {
+                      const header = draft.headers[Number(e.target.value)] ?? '';
+                      setAttributeColumns(
+                        attributeColumns.map((old, n) =>
+                          n === i
+                            ? { ...old, column: e.target.value, name: old.name || header.trim() }
+                            : old,
+                        ),
+                      );
+                      setSelected([]);
+                    }}
+                  >
+                    <option value="">Выберите колонку</option>
+                    {draft.headers.map((header, n) => (
+                      <option key={n} value={n}>
+                        {n + 1}: {header || '(без заголовка)'}
+                      </option>
+                    ))}
+                  </select>
+                  {(['name', 'unit'] as const).map((key) => (
+                    <input
+                      key={key}
+                      aria-label={`${key === 'name' ? 'Название' : 'Единица'} характеристики ${i + 1}`}
+                      className="input"
+                      placeholder={key === 'name' ? 'Название' : 'Единица'}
+                      value={a[key]}
+                      onChange={(e) => {
+                        setAttributeColumns(
+                          attributeColumns.map((old, n) =>
+                            n === i ? { ...old, [key]: e.target.value } : old,
+                          ),
+                        );
+                        setSelected([]);
+                      }}
+                    />
+                  ))}
+                  <button
+                    className="btn-secondary"
+                    onClick={() => {
+                      setAttributeColumns(attributeColumns.filter((_, n) => n !== i));
+                      setSelected([]);
+                    }}
+                  >
+                    Убрать характеристику {i + 1}
+                  </button>
+                </div>
+              ))}
+              <button
+                className="btn-secondary"
+                disabled={attributeColumns.length >= 30}
+                onClick={() =>
+                  setAttributeColumns([...attributeColumns, { column: '', name: '', unit: '' }])
+                }
+              >
+                Добавить колонку характеристики
+              </button>
               <button
                 className="btn-secondary"
                 onClick={() =>
@@ -452,10 +731,26 @@ export default function GplImportPanel({
                     <td>
                       {row.normalized ? (
                         <>
-                          {row.normalized.product.name} · {row.normalized.product.sku}
+                          {row.normalized.product.name} · {row.normalized.product.sku} ·{' '}
+                          {KIND_LABELS[ITEM_KINDS.indexOf(row.normalized.product.kind)]}
                           <br />
                           {row.normalized.offer.unitPrice ?? 'Цена неизвестна'}{' '}
-                          {row.normalized.offer.currency}
+                          {row.normalized.offer.currency} · {taxLabel(row.normalized.offer)}
+                          <br />
+                          Дата цены {row.normalized.offer.priceDate || 'неизвестна'} · действует до{' '}
+                          {row.normalized.offer.validUntil || 'неизвестно'} · регион{' '}
+                          {row.normalized.offer.region || 'не задан'}
+                          {row.normalized.offer.discountCategory
+                            ? ` · скидочная категория ${row.normalized.offer.discountCategory}`
+                            : ''}
+                          {row.normalized.product.attributes.length > 0 && (
+                            <>
+                              <br />
+                              {row.normalized.product.attributes
+                                .map((a) => `${a.name}: ${a.value}${a.unit ? ` ${a.unit}` : ''}`)
+                                .join('; ')}
+                            </>
+                          )}
                         </>
                       ) : (
                         'Требует исправления'
@@ -470,6 +765,51 @@ export default function GplImportPanel({
                             excluded: 'Не выбрана',
                             error: 'Ошибка',
                           }[row.status]}
+                      {row.technicalChange && !row.errors.length && (
+                        <div
+                          role="group"
+                          aria-label={`Изменение технических данных строки ${row.rowNumber}`}
+                        >
+                          <p>
+                            Технические данные отличаются от позиции каталога (ред.{' '}
+                            {row.technicalChange.productRevision}). Подтверждение создаст новую
+                            редакцию позиции; прежние цены и проектные копии не изменятся.
+                          </p>
+                          <ul className="list-disc pl-5">
+                            {row.technicalChange.changes.map((c) => (
+                              <li key={c.field}>
+                                {
+                                  {
+                                    name: 'Наименование',
+                                    kind: 'Тип',
+                                    unit: 'Единица',
+                                    licensing: 'Лицензирование',
+                                    attributes: 'Характеристики',
+                                  }[c.field]
+                                }
+                                : {c.before || '(пусто)'} → {c.after || '(пусто)'}
+                              </li>
+                            ))}
+                          </ul>
+                          {draft.status === 'draft' && !historical && (
+                            <label>
+                              <input
+                                type="checkbox"
+                                disabled={busy}
+                                checked={acceptedChanges.includes(row.id)}
+                                onChange={(e) =>
+                                  setAcceptedChanges(
+                                    e.target.checked
+                                      ? [...acceptedChanges, row.id]
+                                      : acceptedChanges.filter((id) => id !== row.id),
+                                  )
+                                }
+                              />{' '}
+                              Принять изменение технических данных строки {row.rowNumber}
+                            </label>
+                          )}
+                        </div>
+                      )}
                       {draft.status === 'draft' && !historical && (
                         <button
                           className="btn-secondary"
@@ -488,30 +828,72 @@ export default function GplImportPanel({
                                     name: value('name'),
                                     sku: value('sku'),
                                     edition: value('edition'),
-                                    kind: draft.profile.kind,
+                                    kind: (() => {
+                                      // Use the row's own kind cell when it is recognizable.
+                                      try {
+                                        return value('kind').trim()
+                                          ? parseImportKind(value('kind'))
+                                          : draft.profile.kind;
+                                      } catch {
+                                        return draft.profile.kind;
+                                      }
+                                    })(),
                                     unit: value('unit') || 'шт.',
                                     licensing: value('licensing'),
-                                    attributes: value('description')
-                                      ? [
-                                          {
-                                            name: 'Описание',
-                                            value: value('description'),
-                                            unit: '',
-                                          },
-                                        ]
-                                      : [],
+                                    attributes: [
+                                      ...(value('description')
+                                        ? [
+                                            {
+                                              name: 'Описание',
+                                              value: value('description'),
+                                              unit: '',
+                                            },
+                                          ]
+                                        : []),
+                                      ...(value('manufacturer')
+                                        ? [
+                                            {
+                                              name: 'Производитель',
+                                              value: value('manufacturer'),
+                                              unit: '',
+                                            },
+                                          ]
+                                        : []),
+                                      ...(draft.profile.attributes ?? [])
+                                        .map((a) => ({
+                                          name: a.name,
+                                          value: (row.raw[a.column] || '').trim(),
+                                          unit: a.unit,
+                                        }))
+                                        .filter((a) => a.value),
+                                    ],
                                   },
+                                  // Dates and tax are never guessed: the user enters them explicitly.
                                   offer: {
                                     source: draft.filename,
                                     unitPrice: value('unitPrice') || null,
                                     currency: value('currency') || draft.profile.currency,
-                                    region: '',
+                                    region: value('region'),
                                     terms: value('terms'),
                                     priceDate: null,
                                     validUntil: null,
+                                    taxRate: value('taxRate').trim() || null,
+                                    discountCategory: value('discountCategory'),
                                   },
                                 },
                               }),
+                            );
+                            // Tax is edited as text in the importer's formats («20%», «Без НДС»).
+                            setEditing((current) =>
+                              current?.normalized?.offer.taxExempt
+                                ? {
+                                    ...current,
+                                    normalized: {
+                                      ...current.normalized,
+                                      offer: { ...current.normalized.offer, taxRate: 'Без НДС' },
+                                    },
+                                  }
+                                : current,
                             );
                             setSelected([]);
                           }}
@@ -570,6 +952,66 @@ export default function GplImportPanel({
                   }
                 />
               </label>
+              <label className="block">
+                Исправленный тип позиции
+                <select
+                  className="input w-full"
+                  value={editing.normalized.product.kind}
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      normalized: {
+                        ...editing.normalized!,
+                        product: {
+                          ...editing.normalized!.product,
+                          kind: e.target.value as ImportProfile['kind'],
+                        },
+                      },
+                    })
+                  }
+                >
+                  {ITEM_KINDS.map((value, i) => (
+                    <option key={value} value={value}>
+                      {KIND_LABELS[i]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {(
+                [
+                  ['priceDate', 'Исправленная дата цены (пусто — неизвестна)', 'date'],
+                  ['validUntil', 'Исправленный срок действия (пусто — неизвестен)', 'date'],
+                  ['taxRate', 'Исправленный НДС, % или «Без НДС» (пусто — неизвестен)', 'text'],
+                  ['region', 'Исправленный регион', 'text'],
+                  ['discountCategory', 'Исправленная скидочная категория', 'text'],
+                ] as const
+              ).map(([key, label, type]) => (
+                <label className="block" key={key}>
+                  {label}
+                  <input
+                    type={type}
+                    className="input w-full"
+                    value={editing.normalized!.offer[key] ?? ''}
+                    onChange={(e) => {
+                      const nullable: Array<keyof OfferInput> = [
+                        'priceDate',
+                        'validUntil',
+                        'taxRate',
+                      ];
+                      setEditing({
+                        ...editing,
+                        normalized: {
+                          ...editing.normalized!,
+                          offer: {
+                            ...editing.normalized!.offer,
+                            [key]: e.target.value || (nullable.includes(key) ? null : ''),
+                          },
+                        },
+                      });
+                    }}
+                  />
+                </label>
+              ))}
               <label className="block">
                 Исправленная валюта
                 <input
@@ -640,7 +1082,13 @@ export default function GplImportPanel({
                         action: 'correct',
                         revision: draft.revision,
                         rowId: editing.id,
-                        normalized: editing.normalized,
+                        normalized: {
+                          ...editing.normalized,
+                          offer: {
+                            ...editing.normalized!.offer,
+                            ...parseTaxInput(editing.normalized!.offer.taxRate),
+                          },
+                        },
                       }),
                     ),
                   )
@@ -653,16 +1101,33 @@ export default function GplImportPanel({
               </button>
             </fieldset>
           )}
+          {pendingChanges.length > 0 && !historical && (
+            <p role="status">
+              Примите изменение технических данных для строк{' '}
+              {pendingChanges.map((r) => r.rowNumber).join(', ')} или снимите их выбор.
+            </p>
+          )}
           {historical ? (
             <p>Историческая редакция: только просмотр.</p>
           ) : draft.status === 'draft' ? (
             <button
               className="btn-primary"
-              disabled={busy || !selected.length || settingsChanged || !!editing}
+              disabled={
+                busy ||
+                !selected.length ||
+                settingsChanged ||
+                !!editing ||
+                pendingChanges.length > 0
+              }
               onClick={() =>
                 void run(async () => {
                   accept(
-                    await mutate({ action: 'confirm', revision: draft.revision, rowIds: selected }),
+                    await mutate({
+                      action: 'confirm',
+                      revision: draft.revision,
+                      rowIds: selected,
+                      acceptTechnicalChanges: acceptedChanges.filter((id) => selected.includes(id)),
+                    }),
                   );
                   await onImported();
                 })

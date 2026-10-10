@@ -1,6 +1,7 @@
 import { SpecificationError } from '../specification/validation';
 import { offerInput, productInput, text } from './validation';
 import { loadImport } from './import-store';
+import { businessDate } from './business-date';
 import type { ImportDraft, ImportRow } from './import-types';
 import type {
   ComparisonField,
@@ -21,6 +22,8 @@ const FIELDS: ComparisonField[] = [
   'terms',
   'priceDate',
   'validUntil',
+  'taxRate',
+  'discountCategory',
 ];
 const order = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 // Decimal identity is lexical after removing insignificant trailing zeroes;
@@ -48,6 +51,9 @@ function comparable(row: ImportRow): Record<ComparisonField, string | null> {
     terms: offer.terms,
     priceDate: offer.priceDate,
     validUntil: offer.validUntil,
+    // «Без НДС» is an exemption, distinct from a 0 % rate and from unknown.
+    taxRate: offer.taxExempt ? 'Без НДС' : decimalIdentity(offer.taxRate ?? null),
+    discountCategory: offer.discountCategory ?? '',
   };
 }
 function source(batch: ImportDraft): ComparisonSource {
@@ -170,6 +176,34 @@ export function compareImportSnapshots(before: ImportDraft, after: ImportDraft):
         `${label}: выбран только лист «${batch.profile.sheet}» из ${batch.sheets.length}.`,
       );
   }
+  // A price change is only interpretable against its price date and validity period.
+  const changedPrices = rows.filter((r) => r.changes.some((c) => c.field === 'unitPrice'));
+  const undated = changedPrices.filter(
+    (r) => (r.after[0]?.normalized?.offer?.priceDate ?? null) === null,
+  ).length;
+  if (undated)
+    warnings.push(
+      `Изменение цены без даты прайса во втором GPL: ${undated}. Дата неизвестна — актуальность цены не подтверждена.`,
+    );
+  const expired = rows.filter((r) => {
+    const validUntil = r.after[0]?.normalized?.offer?.validUntil ?? null;
+    const confirmed = after.confirmedAt ? businessDate(after.confirmedAt) : null;
+    return (
+      r.status !== 'ambiguous' &&
+      validUntil !== null &&
+      confirmed !== null &&
+      validUntil < confirmed
+    );
+  }).length;
+  if (expired)
+    warnings.push(
+      `Во втором GPL срок действия цены истек до подтверждения импорта: ${expired} поз.`,
+    );
+  const taxChanged = rows.filter((r) => r.changes.some((c) => c.field === 'taxRate')).length;
+  if (taxChanged)
+    warnings.push(
+      `Изменилась ставка НДС: ${taxChanged} поз. Сравнивайте цены с учетом налога отдельно.`,
+    );
   if (counts.ambiguous)
     warnings.push(
       `Неоднозначные или некорректные подтвержденные позиции: ${counts.ambiguous}. Автоматическое сопоставление не выполнено.`,

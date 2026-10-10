@@ -4,6 +4,7 @@ import GplImportPanel from './catalog/GplImportPanel';
 import { useEffect, useState } from 'react';
 import type { Catalog, Product, ProductInput, OfferInput, Vendor } from '@/lib/catalog/types';
 import { ITEM_KINDS } from '@/lib/specification/types';
+import { parseTaxInput, taxLabel } from '@/lib/catalog/import-values';
 const blankProduct = (): ProductInput => ({
   vendorId: '',
   name: '',
@@ -22,6 +23,8 @@ const blankOffer = (): OfferInput => ({
   terms: '',
   priceDate: null,
   validUntil: null,
+  taxRate: null,
+  discountCategory: '',
 });
 export default function CatalogPanel() {
   const [importRefresh, setImportRefresh] = useState(0);
@@ -76,7 +79,7 @@ export default function CatalogPanel() {
     ['unit', 'Единица'],
     ['licensing', 'Лицензирование'],
   ];
-  const offerFields: Array<[keyof OfferInput, string]> = [
+  const offerFields: Array<[Exclude<keyof OfferInput, 'taxExempt'>, string]> = [
     ['source', 'Источник цены'],
     ['unitPrice', 'Цена за единицу: пусто — неизвестно'],
     ['currency', 'Валюта'],
@@ -84,13 +87,16 @@ export default function CatalogPanel() {
     ['terms', 'Условия / срок поставки'],
     ['priceDate', 'Дата цены'],
     ['validUntil', 'Действует до'],
+    ['taxRate', 'НДС, % или «Без НДС»: пусто — неизвестно'],
+    ['discountCategory', 'Скидочная категория'],
   ];
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-500">
         Технические позиции и ценовые предложения ведутся отдельно. Новая цена сохраняется отдельным
-        предложением. Архивирование сохраняет историю. Проект получает копию только после явного
-        выбора.
+        неподтвержденным предложением; подтверждение фиксируется отдельным действием, а цены из GPL
+        подтверждаются при явном подтверждении строк импорта. Архивирование сохраняет историю.
+        Проект получает копию только после явного выбора.
       </p>
       {error && (
         <p role="alert" className="text-red-600">
@@ -331,7 +337,9 @@ export default function CatalogPanel() {
                     ...offer,
                     [key]:
                       e.target.value ||
-                      (['unitPrice', 'priceDate', 'validUntil'].includes(key) ? null : ''),
+                      (['unitPrice', 'priceDate', 'validUntil', 'taxRate'].includes(key)
+                        ? null
+                        : ''),
                   })
                 }
               />
@@ -341,17 +349,25 @@ export default function CatalogPanel() {
         <button
           className="btn-primary"
           disabled={!offerProduct || !offer.source.trim()}
-          onClick={() =>
-            mutate(
+          onClick={() => {
+            // Same tax formats as the GPL importer («20», «20%», «Без НДС»).
+            let tax;
+            try {
+              tax = parseTaxInput(offer.taxRate);
+            } catch (e) {
+              setError((e as Error).message);
+              return;
+            }
+            void mutate(
               {
                 action: 'offer.create',
                 id: offerProductId,
                 revision: offerRevision,
-                offer,
+                offer: { ...offer, ...tax },
               },
               () => setOffer(blankOffer()),
-            )
-          }
+            );
+          }}
         >
           Сохранить отдельное предложение
         </button>
@@ -445,10 +461,35 @@ export default function CatalogPanel() {
                     </p>
                   )}
                   <p>
+                    Статус цены:{' '}
+                    {o.confirmationStatus === 'confirmed'
+                      ? `подтверждена ${o.confirmedBy ?? ''} · ${o.confirmedAt ?? ''}`
+                      : 'не подтверждена'}
+                    {o.confirmationStatus !== 'confirmed' && !o.importProvenance && (
+                      <button
+                        className="btn-secondary ml-2"
+                        disabled={busy}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              'Подтвердить цену? Значение, валюта и даты не изменятся; фиксируется автор и время подтверждения.',
+                            )
+                          )
+                            mutate({ action: 'offer.confirm', id: p.id, offerId: o.id });
+                        }}
+                      >
+                        Подтвердить цену
+                      </button>
+                    )}
+                  </p>
+                  <p>
                     Ред. позиции {o.productRevision} · {o.unitPrice ?? 'Цена неизвестна'}{' '}
                     {o.currency} · {o.source} · {o.region || 'Регион не задан'} · дата цены{' '}
-                    {o.priceDate || 'неизвестна'} · действует до {o.validUntil || 'неизвестно'} ·{' '}
-                    {o.terms} · добавлено {o.createdAt} · {o.createdBy}
+                    {o.priceDate || 'неизвестна'} · действует до {o.validUntil || 'неизвестно'} ·
+                    {taxLabel(o)}
+                    {o.discountCategory
+                      ? ` · скидочная категория ${o.discountCategory}`
+                      : ''} · {o.terms} · добавлено {o.createdAt} · {o.createdBy}
                   </p>
                 </div>
               ))}
