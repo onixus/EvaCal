@@ -274,7 +274,10 @@ export default function CapacityClient({
           </div>
           <p className="mb-2 text-slate-500 dark:text-nord-muted">
             Твёрдый спрос {selected.cell.firmHours} ч, с воронкой {selected.cell.weightedHours} ч
-            {selected.cell.capacityHours !== null && `, ёмкость ${selected.cell.capacityHours} ч`}.
+            {selected.cell.capacityHours !== null && `, ёмкость ${selected.cell.capacityHours} ч`}
+            {selected.cell.reservedHours > 0 &&
+              ` (за вычетом резерва ${selected.cell.reservedHours} ч)`}
+            .
           </p>
           {selected.cell.items.length === 0 ? (
             <p className="text-slate-500">Расчётов в этой неделе нет.</p>

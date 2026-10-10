@@ -5,7 +5,20 @@
  * рабочим дням между его датами и суммируются по ISO-неделям и ролям. Ёмкость
  * ролей задаёт админ (headcount × часов в неделю) с датой начала действия.
  * Загрузка данных — в `lib/capacityData.ts`.
+ *
+ * Производственный календарь (#103 WP-5d) — общий с Гантом `lib/calendar.ts`:
+ * праздник не получает часов этапа и снижает ёмкость недели, сокращённый день —
+ * пропорционально, резерв роли вычитается из ёмкости.
  */
+import {
+  dateKey,
+  dayFactor,
+  nominalWorkDaysPerWeek,
+  STANDARD_CALENDAR,
+  utcDay,
+  weekCapacityFactor,
+  type WorkCalendar,
+} from './calendar';
 import { normalizeRoleKey } from './roles';
 import { round1, round2 } from './stats';
 
@@ -32,6 +45,8 @@ export interface CapacityCalcRow {
   wonCalculationId: string | null;
   projectStatus: string | null; // active | on_hold | completed | archived
   includeWeekends: boolean;
+  /** Календарь шаблона расчёта; без него — календарь плана (`CapacityOptions.calendar`). */
+  calendar?: WorkCalendar;
   stages: CapacityStageRow[];
 }
 
@@ -40,6 +55,20 @@ export interface RoleCapacityRow {
   headcount: number;
   hoursPerWeek: number;
   effectiveFrom: Date;
+}
+
+/** Резерв ёмкости роли: hoursPerWeek часов в неделю на интервале [from, to] включительно. */
+export interface RoleReservationRow {
+  role: string;
+  from: Date;
+  to: Date;
+  hoursPerWeek: number;
+}
+
+export interface CapacityContext {
+  /** Календарь, по которому считается ёмкость ролей (по умолчанию — сб/вс без исключений). */
+  calendar?: WorkCalendar;
+  reservations?: RoleReservationRow[];
 }
 
 /** Сдвиг расчёта для what-if: положительное — позже. */
@@ -59,6 +88,9 @@ export interface CapacityOptions {
   includeDrafts?: boolean;
   shifts?: CalcShift[];
   roles?: string[];
+  /** Календарь по умолчанию: ёмкость ролей и расчёты без своего календаря. */
+  calendar?: WorkCalendar;
+  reservations?: RoleReservationRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -80,6 +112,8 @@ export interface CapacityCell {
   firmHours: number;
   weightedHours: number;
   capacityHours: number | null;
+  /** Часы, уже вычтенные из ёмкости резервами роли. */
+  reservedHours: number;
   firmUtil: number | null;
   weightedUtil: number | null;
   signal: CapacitySignal;
@@ -189,10 +223,6 @@ export function selectVersionPerProject(
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function utcDay(d: Date): Date {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-}
-
 /** Понедельник ISO-недели, содержащей дату (UTC, без времени). */
 export function weekStart(d: Date): Date {
   const day = utcDay(d);
@@ -208,49 +238,100 @@ export function addDays(d: Date, days: number): Date {
   return new Date(d.getTime() + days * DAY_MS);
 }
 
-function isWeekend(d: Date): boolean {
-  const dow = d.getUTCDay();
-  return dow === 0 || dow === 6;
-}
-
 /**
- * Раскладывает часы этапа равномерно по рабочим дням между датами и
- * складывает по неделям. Если рабочих дней в интервале нет (этап внутри
- * выходных при includeWeekends=false), всё падает на неделю начала.
+ * Раскладывает часы этапа по рабочим дням между датами (UTC) пропорционально
+ * доле рабочего дня по календарю: обычный день — 1, сокращённый — меньше,
+ * праздник и выходной — 0. Если рабочих дней в интервале нет (этап внутри
+ * выходных при includeWeekends=false), всё падает на день начала.
  */
-export function spreadStageByWeek(
+export function spreadStageByDay(
   stage: { hours: number; startDate: Date; endDate: Date },
   includeWeekends: boolean,
+  calendar: WorkCalendar = STANDARD_CALENDAR,
 ): Map<string, number> {
   const out = new Map<string, number>();
   if (stage.hours <= 0) return out;
   const start = utcDay(stage.startDate);
   const end = utcDay(stage.endDate);
-  const days: Date[] = [];
+  const days: { day: Date; factor: number }[] = [];
+  let total = 0;
   for (let d = start; d.getTime() <= end.getTime(); d = addDays(d, 1)) {
-    if (includeWeekends || !isWeekend(d)) days.push(d);
+    const factor = dayFactor(d, calendar, includeWeekends);
+    if (factor <= 0) continue;
+    days.push({ day: d, factor });
+    total += factor;
   }
   if (days.length === 0) {
-    out.set(weekKey(start), stage.hours);
+    out.set(dateKey(start), stage.hours);
     return out;
   }
-  const perDay = stage.hours / days.length;
-  for (const d of days) {
-    const k = weekKey(d);
-    out.set(k, (out.get(k) ?? 0) + perDay);
+  for (const { day, factor } of days) {
+    const k = dateKey(day);
+    out.set(k, (out.get(k) ?? 0) + (stage.hours * factor) / total);
   }
   return out;
 }
 
-/** Ёмкость роли на неделю: последняя строка с effectiveFrom ≤ понедельник; null — не задана. */
-export function capacityFor(role: string, week: Date, rows: RoleCapacityRow[]): number | null {
+/** То же, что spreadStageByDay, сложенное по ISO-неделям. */
+export function spreadStageByWeek(
+  stage: { hours: number; startDate: Date; endDate: Date },
+  includeWeekends: boolean,
+  calendar: WorkCalendar = STANDARD_CALENDAR,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [day, hours] of spreadStageByDay(stage, includeWeekends, calendar)) {
+    const k = weekKey(new Date(day));
+    out.set(k, (out.get(k) ?? 0) + hours);
+  }
+  return out;
+}
+
+/**
+ * Часы резервов роли в неделе. Резерв задан на обычную неделю и масштабируется
+ * так же, как ёмкость: праздник внутри интервала резерва уменьшает и его.
+ */
+export function reservedHoursFor(
+  role: string,
+  week: Date,
+  reservations: RoleReservationRow[] = [],
+  calendar: WorkCalendar = STANDARD_CALENDAR,
+): number {
+  if (nominalWorkDaysPerWeek(calendar) <= 0) return 0;
+  const monday = weekStart(week);
+  const sunday = addDays(monday, 6);
+  let total = 0;
+  for (const r of reservations) {
+    if (r.role !== role || r.hoursPerWeek <= 0) continue;
+    const from = utcDay(r.from);
+    const to = utcDay(r.to);
+    if (to.getTime() < monday.getTime() || from.getTime() > sunday.getTime()) continue;
+    total += r.hoursPerWeek * weekCapacityFactor(monday, calendar, { from, to });
+  }
+  return total;
+}
+
+/**
+ * Ёмкость роли на неделю: последняя строка с effectiveFrom ≤ понедельник,
+ * умноженная на долю рабочих дней недели по календарю, минус резервы роли.
+ * null — ёмкость не задана. Без календаря и резервов — headcount × hoursPerWeek.
+ */
+export function capacityFor(
+  role: string,
+  week: Date,
+  rows: RoleCapacityRow[],
+  ctx: CapacityContext = {},
+): number | null {
   let best: RoleCapacityRow | null = null;
   for (const r of rows) {
     if (r.role !== role) continue;
     if (utcDay(r.effectiveFrom).getTime() > week.getTime()) continue;
     if (!best || r.effectiveFrom.getTime() > best.effectiveFrom.getTime()) best = r;
   }
-  return best ? Math.round(best.headcount * best.hoursPerWeek * 10) / 10 : null;
+  if (!best) return null;
+  const calendar = ctx.calendar ?? STANDARD_CALENDAR;
+  const base = best.headcount * best.hoursPerWeek * weekCapacityFactor(weekStart(week), calendar);
+  const reserved = reservedHoursFor(role, week, ctx.reservations, calendar);
+  return Math.round(Math.max(0, base - reserved) * 10) / 10;
 }
 
 export function signalFor(util: number | null): CapacitySignal {
@@ -315,6 +396,7 @@ export function buildCapacityMatrix(opts: CapacityOptions): CapacityMatrix {
           endDate: addDays(s.endDate, shift),
         },
         calc.includeWeekends,
+        calc.calendar ?? opts.calendar,
       );
       let byWeek = perCalcRole.get(role);
       if (!byWeek) {
@@ -350,6 +432,10 @@ export function buildCapacityMatrix(opts: CapacityOptions): CapacityMatrix {
       .filter((r) => !opts.roles || opts.roles.length === 0 || opts.roles.includes(r)),
   ]);
 
+  const capacityCtx: CapacityContext = {
+    calendar: opts.calendar,
+    reservations: opts.reservations,
+  };
   const roles: RoleRow[] = [...roleNames]
     .sort((a, b) => a.localeCompare(b))
     .map((role) => {
@@ -359,7 +445,10 @@ export function buildCapacityMatrix(opts: CapacityOptions): CapacityMatrix {
       let overWeeks = 0;
       const cells = weeks.map((week) => {
         const a = acc.get(role)?.get(week) ?? { firm: 0, weighted: 0, items: [] };
-        const cap = capacityFor(role, new Date(week), opts.capacities);
+        const weekDate = new Date(week);
+        const cap = capacityFor(role, weekDate, opts.capacities, capacityCtx);
+        const reserved =
+          cap === null ? 0 : reservedHoursFor(role, weekDate, opts.reservations, opts.calendar);
         const firmUtil = cap && cap > 0 ? round2(a.firm / cap) : null;
         const weightedUtil = cap && cap > 0 ? round2(a.weighted / cap) : null;
         const signal = signalFor(weightedUtil);
@@ -373,6 +462,7 @@ export function buildCapacityMatrix(opts: CapacityOptions): CapacityMatrix {
           firmHours: round1(a.firm),
           weightedHours: round1(a.weighted),
           capacityHours: cap,
+          reservedHours: round1(reserved),
           firmUtil,
           weightedUtil,
           signal,

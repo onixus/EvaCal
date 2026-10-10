@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     const pmHours = pmHoursFor(template.fields, answers, primary);
 
     const startDate = body?.startDate ? new Date(body.startDate) : new Date();
-    const config = scheduleConfigFromTemplate(template);
+    const config = await scheduleConfigFromTemplate(template);
     const scheduled = scheduleItems(expandWithApprovals(primary), startDate, config);
 
     const stageHours = totalLaborHours(scheduled);

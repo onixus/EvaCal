@@ -72,6 +72,8 @@ model FormTemplate {
   stageTemplates       StageTemplate[]
   riskTemplates        RiskTemplate[]
   calculations         Calculation[]
+  calendar             WorkCalendar?   @relation(fields: [calendarId], references: [id], onDelete: SetNull)
+  calendarId           String? // #103 WP-5d: производственный календарь; null — календарь по умолчанию
 
   // Presale looks up the active templates on every page load.
   @@index([isActive])
@@ -512,4 +514,53 @@ model CatalogImportRevision {
   createdAt DateTime      @default(now())
 
   @@unique([importId, revision])
+}
+
+// ==== #103 WP-5d: work calendars ====
+// Производственный календарь: выходные дни недели + исключения (праздники,
+// рабочие выходные, сокращённые дни). Ровно один календарь — по умолчанию
+// (частичный уникальный индекс в миграции). Один и тот же календарь читают
+// Гант (lib/scheduling.ts) и ресурсный план (lib/capacity.ts) через lib/calendar.ts.
+model WorkCalendar {
+  id          String              @id @default(cuid())
+  name        String
+  isDefault   Boolean             @default(false)
+  // ISO-дни недели через запятую (1 = пн … 7 = вс), по умолчанию сб и вс.
+  weekendDays String              @default("6,7")
+  note        String?
+  createdBy   String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  exceptions  CalendarException[]
+  templates   FormTemplate[]
+}
+
+model CalendarException {
+  id         String       @id @default(cuid())
+  calendar   WorkCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  calendarId String
+  date       DateTime     @db.Date
+  kind       String // holiday | workday | short (CHECK в миграции)
+  // Для short: длительность дня в часах стандартного 8-часового дня (по умолчанию 7).
+  hours      Float?
+  note       String?
+  createdBy  String
+  createdAt  DateTime     @default(now())
+
+  @@unique([calendarId, date])
+}
+
+// Резерв ёмкости роли (отпуска, пресейл, внутренние работы): уменьшает
+// ёмкость в ресурсном плане на hoursPerWeek в неделях интервала [from, to].
+model RoleReservation {
+  id           String   @id @default(cuid())
+  role         String // canonical Role из lib/roles.ts
+  from         DateTime @db.Date
+  to           DateTime @db.Date
+  hoursPerWeek Float
+  reason       String
+  createdBy    String
+  createdAt    DateTime @default(now())
+
+  @@index([role, from])
 }

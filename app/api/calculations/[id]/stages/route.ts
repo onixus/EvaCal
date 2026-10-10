@@ -30,7 +30,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
     where: { id: params.id },
     include: {
       template: {
-        select: { fields: true, workDayHours: true, includeWeekends: true },
+        select: { fields: true, workDayHours: true, includeWeekends: true, calendarId: true },
       },
     },
   });
@@ -70,7 +70,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
     params.id,
     primary,
     existing.startDate,
-    scheduleConfigFromTemplate(existing.template),
+    await scheduleConfigFromTemplate(existing.template),
   );
   return NextResponse.json(result);
 }

@@ -1,13 +1,25 @@
 import { APPROVAL_BUSINESS_DAYS, APPROVAL_REQUIRED_ROLES, Role } from './roles';
+import {
+  addUtcDays,
+  dayFactor,
+  DAY_MS,
+  STANDARD_CALENDAR,
+  utcDay,
+  type WorkCalendar,
+} from './calendar';
 
+/** Начало рабочего дня, часов UTC. Весь расчёт Ганта — в UTC (см. lib/calendar.ts). */
 const WORK_START_HOUR = 9;
+const HOUR_MS = 3600000;
 
 export const MIN_WORK_DAY_HOURS = 4;
 export const MAX_WORK_DAY_HOURS = 6;
 
 export interface ScheduleConfig {
-  workDayHours: number; // 4-6, length of a working day starting at 09:00
-  includeWeekends: boolean; // if true, Saturday/Sunday count as working days too
+  workDayHours: number; // 4-6, length of a working day starting at 09:00 UTC
+  includeWeekends: boolean; // if true, the calendar's weekend days count as working days too
+  /** Производственный календарь; без него — сб/вс выходные, исключений нет. */
+  calendar?: WorkCalendar;
 }
 
 export const DEFAULT_SCHEDULE_CONFIG: ScheduleConfig = {
@@ -15,64 +27,64 @@ export const DEFAULT_SCHEDULE_CONFIG: ScheduleConfig = {
   includeWeekends: false,
 };
 
+/** Защита от бесконечного цикла на вырожденном календаре (≈ 10 лет без рабочих дней). */
+const MAX_SKIPPED_DAYS = 3660;
+
 export function clampWorkDayHours(hours: number): number {
   if (!Number.isFinite(hours)) return DEFAULT_SCHEDULE_CONFIG.workDayHours;
   return Math.min(MAX_WORK_DAY_HOURS, Math.max(MIN_WORK_DAY_HOURS, Math.round(hours)));
 }
 
-function isWeekend(d: Date): boolean {
-  const day = d.getDay();
-  return day === 0 || day === 6;
+/** Длина рабочего окна дня в часах с учётом выходных, праздников и сокращённых дней. */
+export function workHoursOn(d: Date, config: ScheduleConfig): number {
+  return (
+    config.workDayHours * dayFactor(d, config.calendar ?? STANDARD_CALENDAR, config.includeWeekends)
+  );
 }
 
-function addDays(d: Date, days: number): Date {
-  const result = new Date(d);
-  result.setDate(result.getDate() + days);
-  return result;
+function dayStart(d: Date): Date {
+  return new Date(utcDay(d).getTime() + WORK_START_HOUR * HOUR_MS);
 }
 
-function atHour(d: Date, hour: number): Date {
-  const result = new Date(d);
-  result.setHours(hour, 0, 0, 0);
-  return result;
+function dayEnd(d: Date, config: ScheduleConfig): Date {
+  return new Date(dayStart(d).getTime() + workHoursOn(d, config) * HOUR_MS);
+}
+
+function nextDayStart(d: Date): Date {
+  return dayStart(addUtcDays(utcDay(d), 1));
 }
 
 /** Rolls a moment forward to the next point inside the configured working window. */
 function nextWorkMoment(d: Date, config: ScheduleConfig): Date {
-  const workEndHour = WORK_START_HOUR + config.workDayHours;
   let result = new Date(d);
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    if (!config.includeWeekends && isWeekend(result)) {
-      result = atHour(addDays(result, 1), WORK_START_HOUR);
+  for (let guard = 0; guard <= MAX_SKIPPED_DAYS; guard++) {
+    if (workHoursOn(result, config) <= 0) {
+      result = nextDayStart(result);
       continue;
     }
-    if (result.getHours() < WORK_START_HOUR) {
-      result = atHour(result, WORK_START_HOUR);
-      continue;
-    }
-    if (result.getHours() >= workEndHour) {
-      result = atHour(addDays(result, 1), WORK_START_HOUR);
+    const start = dayStart(result);
+    if (result.getTime() < start.getTime()) return start;
+    if (result.getTime() >= dayEnd(result, config).getTime()) {
+      result = nextDayStart(result);
       continue;
     }
     return result;
   }
+  throw new Error('Календарь не содержит рабочих дней');
 }
 
-/** Advances `hours` of actual work time from `start`, skipping nights/weekends per config. */
+/** Advances `hours` of actual work time from `start`, skipping nights/weekends/holidays. */
 function addWorkHours(start: Date, hours: number, config: ScheduleConfig): Date {
-  const workEndHour = WORK_START_HOUR + config.workDayHours;
   let cursor = nextWorkMoment(start, config);
   let remaining = hours;
   while (remaining > 0) {
-    const dayEnd = atHour(cursor, workEndHour);
-    const availableHours = (dayEnd.getTime() - cursor.getTime()) / 3600000;
+    const availableHours = (dayEnd(cursor, config).getTime() - cursor.getTime()) / HOUR_MS;
     if (availableHours >= remaining) {
-      cursor = new Date(cursor.getTime() + remaining * 3600000);
+      cursor = new Date(cursor.getTime() + remaining * HOUR_MS);
       remaining = 0;
     } else {
       remaining -= availableHours;
-      cursor = nextWorkMoment(atHour(addDays(cursor, 1), WORK_START_HOUR), config);
+      cursor = nextWorkMoment(nextDayStart(cursor), config);
     }
   }
   return cursor;
@@ -82,9 +94,11 @@ function addWorkHours(start: Date, hours: number, config: ScheduleConfig): Date 
 function addBusinessDays(start: Date, days: number, config: ScheduleConfig): Date {
   let cursor = nextWorkMoment(start, config);
   let count = 0;
+  let guard = 0;
   while (count < days) {
-    cursor = addDays(cursor, 1);
-    if (config.includeWeekends || !isWeekend(cursor)) count++;
+    cursor = new Date(cursor.getTime() + DAY_MS);
+    if (workHoursOn(cursor, config) > 0) count++;
+    if (++guard > MAX_SKIPPED_DAYS + days) throw new Error('Календарь не содержит рабочих дней');
   }
   return cursor;
 }

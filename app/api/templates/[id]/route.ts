@@ -23,6 +23,14 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   if (auth instanceof NextResponse) return auth;
 
   const body = await req.json();
+  // #103 WP-5d: производственный календарь шаблона; null/'' — календарь по умолчанию.
+  let calendarId: string | null | undefined;
+  if (body.calendarId !== undefined) {
+    calendarId = body.calendarId ? String(body.calendarId) : null;
+    if (calendarId && !(await prisma.workCalendar.findUnique({ where: { id: calendarId } }))) {
+      return NextResponse.json({ error: 'Календарь не найден' }, { status: 400 });
+    }
+  }
   const template = await prisma.formTemplate.update({
     where: { id: params.id },
     data: {
@@ -37,6 +45,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
         ? { workDayHours: clampWorkDayHours(Number(body.workDayHours)) }
         : {}),
       ...(body.includeWeekends !== undefined ? { includeWeekends: !!body.includeWeekends } : {}),
+      ...(calendarId !== undefined ? { calendarId } : {}),
     },
   });
   return NextResponse.json(template);

@@ -87,8 +87,28 @@ async function seedDefaultUsers() {
 
 const DEMO_TEMPLATE_NAME = 'Внедрение CRM-системы';
 
+/**
+ * Календарь по умолчанию (#103 WP-5d). Миграция его уже создаёт; сид лишь
+ * восстанавливает его, если базу очистили вручную. Праздники конкретного года
+ * не зашиты — их вносит администратор на /admin/calendars.
+ */
+async function seedDefaultCalendar() {
+  if (await prisma.workCalendar.findFirst({ where: { isDefault: true } })) return;
+  await prisma.workCalendar.create({
+    data: {
+      id: 'default-work-calendar',
+      name: 'Основной (пн–пт)',
+      isDefault: true,
+      weekendDays: '6,7',
+      note: 'Создан сидом. Праздники и переносы добавляет администратор.',
+      createdBy: 'system',
+    },
+  });
+}
+
 async function main() {
   await seedDefaultUsers();
+  await seedDefaultCalendar();
 
   const { seedAllIndustryPresets } = await import('../lib/presets/importer');
   const seededPresets = await seedAllIndustryPresets();
@@ -252,7 +272,7 @@ async function main() {
     calculation.id,
     primary,
     calculation.startDate,
-    scheduleConfigFromTemplate(template),
+    await scheduleConfigFromTemplate(template),
   );
 
   console.log('Сид выполнен: создан базовый шаблон и демонстрационный расчёт.');
