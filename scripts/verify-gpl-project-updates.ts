@@ -300,8 +300,88 @@ async function main() {
       (await loadSpecification(calculation.id))!.snapshot.version,
       overridden.snapshot.version,
     );
+    const freeProduct = catalog.products.find(
+      (item) => item.vendorId === vendor.id && item.sku === 'F',
+    )!;
+    await mutateCatalog(
+      { action: 'product.archive', id: freeProduct.id, revision: freeProduct.revision },
+      actor,
+    );
+    const archiveCalculation = await prisma.calculation.create({
+      data: {
+        templateId,
+        name: `${actor}-archive`,
+        customer: 'CI',
+        answers: '{}',
+      },
+    });
+    async function rejectArchivedNoOffer(sku: string) {
+      const archived = (await loadCatalog()).products.find(
+        (item) => item.vendorId === vendor.id && item.sku === sku,
+      )! as unknown as Product;
+      assert.throws(() => catalogItem(archived), /архив/);
+      // A direct caller must not manufacture a current catalog origin by clearing flags.
+      const forgedCopy = catalogItem(
+        { ...archived, archived: false, vendor: { ...archived.vendor, archived: false } },
+        undefined,
+        `archive-${sku}`,
+      );
+      await assert.rejects(
+        saveSpecification(
+          archiveCalculation.id,
+          {
+            version: 0,
+            status: 'draft',
+            emptySupplyReason: '',
+            items: [forgedCopy],
+          },
+          actor,
+        ),
+        /архив/,
+      );
+      assert.equal(
+        await loadSpecification(archiveCalculation.id),
+        null,
+        'archive refusal must not append a version',
+      );
+    }
+    await rejectArchivedNoOffer('F');
+    await mutateCatalog(
+      { action: 'vendor.archive', id: vendor.id, revision: 1 },
+      actor,
+    );
+    await rejectArchivedNoOffer('B');
+    const historicalCopy = copied('F', 'historical-offer');
+    const historicalSaved = await saveSpecification(
+      archiveCalculation.id,
+      {
+        version: 0,
+        status: 'draft',
+        emptySupplyReason: '',
+        items: [historicalCopy],
+      },
+      actor,
+    );
+    assert.deepEqual(
+      historicalSaved.snapshot.items[0],
+      historicalCopy,
+      'an immutable offer remains valid after product and vendor archive',
+    );
+    const retained = await saveSpecification(
+      archiveCalculation.id,
+      {
+        ...historicalSaved.snapshot,
+        items: [
+          ...historicalSaved.snapshot.items,
+          { ...historicalSaved.snapshot.items[0], id: 'historical-copy' },
+        ],
+      },
+      'share:archive',
+      { allowNewCatalogOrigins: false },
+    );
+    assert.equal(retained.snapshot.items.length, 2, 'existing project copies survive archive');
     console.log(
-      'GPL project updates PostgreSQL passed: verified confirmed source revisions, exact currency totals, selective new draft, preserved manual prices and rows, explicit override, partial field provenance, stale 409 and immutable historical version.',
+      'GPL project updates PostgreSQL passed: verified confirmed source revisions, exact currency totals, selective new draft, preserved manual prices and rows, explicit override, partial field provenance, stale 409, immutable historical version, archived current copies rejected and historical offers retained.',
     );
   } finally {
     if (templateId) {

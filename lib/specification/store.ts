@@ -97,12 +97,14 @@ export async function saveSpecification(
         if (item.origin.offerId && !offer)
           throw new SpecificationError('Источник предложения не найден', 409);
         // Verify an immutable offer even if the live catalog changed after it was copied.
-        const historicalProduct = {
-          ...product,
-          revision: offer?.productRevision ?? product.revision,
-          archived: false,
-          vendor: { ...product.vendor, archived: false },
-        };
+        const historicalProduct = offer
+          ? {
+              ...product,
+              revision: offer.productRevision,
+              archived: false,
+              vendor: { ...product.vendor, archived: false },
+            }
+          : product;
         const expected = catalogItem(historicalProduct, offer, item.id);
         const normalized = parseSpecification({ ...snapshot, items: [expected] }).items[0].origin;
         if (JSON.stringify(normalized) !== JSON.stringify(item.origin))
