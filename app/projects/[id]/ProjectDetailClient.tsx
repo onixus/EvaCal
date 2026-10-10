@@ -8,6 +8,8 @@ import type { LifecycleState } from '@/lib/lifecycle';
 import CalculationsTab from './project-detail/CalculationsTab';
 import PackagesTab from './project-detail/PackagesTab';
 import CommercialTab from './project-detail/CommercialTab';
+import ChangeRequestsTab from './project-detail/ChangeRequestsTab';
+import { canEditChangeRequests } from '@/lib/changeRequests/workflow';
 import ProjectSettingsPanel from './project-detail/ProjectSettingsPanel';
 import ProjectEditModal from './project-detail/ProjectEditModal';
 import CreateVersionModal from './project-detail/CreateVersionModal';
@@ -29,7 +31,7 @@ export type {
   SerializedProject,
 } from './project-detail/types';
 
-type ActiveTab = 'calculations' | 'packages' | 'commercial' | 'settings';
+type ActiveTab = 'calculations' | 'packages' | 'changes' | 'commercial' | 'settings';
 
 interface ReviewRequest {
   pkg: SerializedGostPackage;
@@ -55,6 +57,8 @@ export default function ProjectDetailClient({
   const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
 
   const latestCalculation = project.calculations[0] ?? null;
+  // Вкладка видна только ролям, которым API отдаёт запросы (ГАП, тех.писатель — нет).
+  const showChangeRequests = canEditChangeRequests(sessionRole);
 
   return (
     <div className="page">
@@ -137,6 +141,14 @@ export default function ProjectDetailClient({
           >
             <span>Реестр ГОСТ 34 ({project.packages.length})</span>
           </button>
+          {showChangeRequests && (
+            <button
+              onClick={() => setActiveTab('changes')}
+              className={`tab-btn ${activeTab === 'changes' ? 'tab-btn-active' : ''}`}
+            >
+              <span>Запросы на изменение</span>
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('commercial')}
             className={`tab-btn ${activeTab === 'commercial' ? 'tab-btn-active' : ''}`}
@@ -170,6 +182,16 @@ export default function ProjectDetailClient({
           onCompare={() => setIsDiffModalOpen(true)}
           onShare={setSharePackage}
           onReview={(pkg, decision) => setReviewRequest({ pkg, decision })}
+        />
+      )}
+
+      {activeTab === 'changes' && showChangeRequests && (
+        <ChangeRequestsTab
+          projectId={project.id}
+          calculations={project.calculations}
+          packages={project.packages}
+          wonCalculationId={project.deal.wonCalculationId ?? null}
+          sessionRole={sessionRole}
         />
       )}
 

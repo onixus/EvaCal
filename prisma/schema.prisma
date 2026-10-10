@@ -739,3 +739,64 @@ model CatalogImportProfile {
   // Name is unique among non-archived profiles only (partial unique index in the migration).
   @@index([vendorId, format, name])
 }
+
+// ==== #103 WP-2a: change requests ====
+// Запрос на изменение требований. Ссылки на проект, базовый расчёт и комплект —
+// скалярные id без @relation: общие модели не меняются, а запрос не должен
+// каскадно править договорную базу. Пока запрос не принят, базовые расчёт,
+// этапы и комплект остаются нетронутыми; новая версия создаётся только
+// решением «принять» (следующий этап WP-2b) и записывается в result*Id.
+model ChangeRequest {
+  id                    String               @id @default(cuid())
+  projectId             String
+  // Сквозной номер в пределах проекта, печатается как «ЗИ-01».
+  seq                   Int
+  title                 String
+  initiator             String
+  reason                String
+  status                String               @default("draft") // draft | submitted | accepted | rejected | deferred (CHECK в миграции)
+  baseCalculationId     String
+  basePackageId         String?
+  // Снимок затронутых требований базового комплекта: [{ id, code, text }].
+  affectedRequirements  Json                 @default("[]")
+  // Предлагаемые изменения: { summary, items: [{ kind, requirementId, text }] }.
+  proposedChanges       Json                 @default("{}")
+  // Связанные этапы/документы/проверки (lib/changeRequests/impact.ts). Часы
+  // этапов — справочно, сумма не считается.
+  impact                Json?
+  // Оценка специалиста: вводится явно, все три значения вместе.
+  confirmedHours        Float?
+  confirmedCost         Decimal?             @db.Decimal(18, 2)
+  confirmedScheduleDays Int?
+  estimateComment       String?
+  estimatedBy           String?
+  estimatedAt           DateTime?
+  // Решение и результат (WP-2b): кто решил и какие версии появились.
+  decidedBy             String?
+  decidedAt             DateTime?
+  resultCalculationId   String?
+  resultPackageId       String?
+  createdBy             String
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  events                ChangeRequestEvent[]
+
+  @@unique([projectId, seq])
+  @@index([projectId, status])
+  @@index([baseCalculationId])
+}
+
+// Журнал согласования запроса: только добавление, записи не правятся.
+model ChangeRequestEvent {
+  id            String        @id @default(cuid())
+  changeRequest ChangeRequest @relation(fields: [crId], references: [id], onDelete: Cascade)
+  crId          String
+  action        String // created | updated | submitted | estimated | accepted | rejected | deferred | reopened (CHECK в миграции)
+  actor         String
+  comment       String?
+  // Значения на момент события (например, оценка), чтобы переоценка не стирала историю.
+  data          Json?
+  at            DateTime      @default(now())
+
+  @@index([crId, at])
+}

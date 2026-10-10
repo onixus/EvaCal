@@ -41,6 +41,10 @@ vi.mock('@/lib/prisma', () => ({
     calculation: {
       findUnique: vi.fn(),
     },
+    changeRequest: {
+      deleteMany: vi.fn(),
+    },
+    $transaction: vi.fn(async (ops: unknown[]) => ops),
   },
 }));
 
@@ -242,6 +246,9 @@ describe('Project API routes', () => {
       expect(res.status).toBe(200);
       expect(prisma.project.delete).toHaveBeenCalledWith({
         where: { id: 'p1' },
+      });
+      expect(prisma.changeRequest.deleteMany).toHaveBeenCalledWith({
+        where: { projectId: 'p1' },
       });
     });
 
