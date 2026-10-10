@@ -1,4 +1,4 @@
-import type { SpecificationSnapshot } from './types';
+import type { SpecificationCurrencyTotal, SpecificationSnapshot } from './types';
 export const GPL_UPDATE_FIELDS = [
   'name',
   'kind',
@@ -56,12 +56,7 @@ export interface GplUpdateRow {
   }>;
   targetSource: SpecificationImportOrigin | null;
 }
-export interface GplCurrencyTotal {
-  currency: string;
-  total: string;
-  unknownCount: number;
-  includedCount: number;
-}
+export type GplCurrencyTotal = SpecificationCurrencyTotal;
 export interface GplUpdatePreview {
   version: number;
   target: { id: string; revision: number; checksum: string; filename: string; vendorId: string };

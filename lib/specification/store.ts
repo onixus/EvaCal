@@ -17,9 +17,12 @@ export async function loadSpecification(
     orderBy: { version: 'desc' },
   });
   if (!row) return null;
+  const snapshot = parseSpecification(JSON.parse(row.data));
+  // The revision data stays byte-for-byte immutable; release is tracked in the row status.
+  if (row.status === 'released') snapshot.status = 'released';
   return {
     id: row.id,
-    snapshot: parseSpecification(JSON.parse(row.data)),
+    snapshot,
     createdAt: row.createdAt.toISOString(),
     createdBy: row.createdBy,
   };
@@ -33,6 +36,10 @@ export async function saveSpecification(
   options: { allowOriginUpdates?: boolean; allowNewCatalogOrigins?: boolean } = {},
 ) {
   const snapshot = parseSpecification(input);
+  if (snapshot.status === 'released')
+    throw new SpecificationError(
+      'Статус «выпущена» присваивается только при выпуске комплекта ГОСТ 34. Новая редакция сохраняется как черновик, на согласовании или подтвержденная.',
+    );
   if (snapshot.status === 'confirmed') requireConfirmedSpecification(snapshot);
   return prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<Array<{ id: string }>>`
@@ -131,4 +138,43 @@ export async function saveSpecification(
       createdBy: row.createdBy,
     };
   });
+}
+
+/**
+ * Marks a confirmed revision as released when a GOST package is issued from it.
+ * Drafts and revisions under review are never promoted; the revision data is untouched,
+ * so the next edit necessarily creates a new draft revision.
+ */
+export async function markSpecificationReleased(calculationId: string, version: number) {
+  const result = await prisma.specificationVersion.updateMany({
+    where: { calculationId, version, status: 'confirmed' },
+    data: { status: 'released' },
+  });
+  return result.count;
+}
+
+/** Extracts the pinned, final revision number from a GOST package snapshot. */
+export function releasedSpecificationVersion(snapshot: unknown): number | null {
+  let data = snapshot;
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      return null;
+    }
+  }
+  if (!data || typeof data !== 'object') return null;
+  const { specificationVersion, specification } = data as {
+    specificationVersion?: unknown;
+    specification?: { status?: unknown; version?: unknown } | null;
+  };
+  const version = Number.isSafeInteger(specificationVersion)
+    ? Number(specificationVersion)
+    : Number.isSafeInteger(specification?.version)
+      ? Number(specification?.version)
+      : null;
+  if (version === null || version < 1) return null;
+  return specification?.status === 'confirmed' || specification?.status === 'released'
+    ? version
+    : null;
 }

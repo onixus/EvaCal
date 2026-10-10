@@ -2,6 +2,7 @@ import type { TzAuthorState } from './gost34/llm/tzAuthor/types';
 import { prisma } from './prisma';
 import { storePackageArtifact } from './gost34/storage';
 import { countOpenBlockers } from './review/store';
+import { markSpecificationReleased, releasedSpecificationVersion } from './specification/store';
 
 export interface CreateProjectInput {
   name: string;
@@ -314,6 +315,13 @@ export async function createGostPackageVersion(input: CreateGostPackageInput) {
     },
   });
 
+  // An issued package freezes the confirmed BOM revision it was built from.
+  const specificationVersion = input.releasedAt
+    ? releasedSpecificationVersion(input.snapshot)
+    : null;
+  if (specificationVersion !== null)
+    await markSpecificationReleased(calculation.id, specificationVersion);
+
   return pkg;
 }
 
@@ -525,6 +533,10 @@ export async function releaseGostPackage(input: {
         generatedAt: new Date(),
       },
     });
+
+    const specificationVersion = releasedSpecificationVersion(input.snapshot);
+    if (specificationVersion !== null)
+      await markSpecificationReleased(calculation.id, specificationVersion);
 
     // Архивируем предыдущие черновики этого расчёта, чтобы они не оставались
     // фантомными записями в очереди Студии после состоявшегося выпуска.

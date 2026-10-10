@@ -29,11 +29,37 @@ export interface SpecificationItem {
   /** Decimal strings preserve source precision; null means unknown, not free. */
   unitPrice: string | null;
   currency: string;
+  /** Optional note explaining why this row changed in the revision (shown in diff). */
+  changeReason?: string;
+}
+
+/**
+ * Lifecycle: draft → review → confirmed → released. `released` is never sent by
+ * editors: it is assigned when a GOST package is issued from a confirmed revision.
+ * Older snapshots only contain draft/confirmed and remain valid.
+ */
+export const SPECIFICATION_STATUSES = ['draft', 'review', 'confirmed', 'released'] as const;
+export type SpecificationStatus = (typeof SPECIFICATION_STATUSES)[number];
+/** Statuses that pass the final SPEC gate (released is a confirmed revision issued in a package). */
+export const FINAL_SPECIFICATION_STATUSES: readonly SpecificationStatus[] = [
+  'confirmed',
+  'released',
+];
+
+export interface SpecificationCurrencyTotal {
+  currency: string;
+  /** Exact decimal sum of quantity × unit price for known rows (no rounding). */
+  total: string;
+  /** Rows of this currency whose quantity, price or currency is unknown. */
+  unknownCount: number;
+  includedCount: number;
+  /** True when at least one included row has an unknown amount: the total is a lower bound. */
+  incomplete: boolean;
 }
 
 export interface SpecificationSnapshot {
   version: number;
-  status: 'draft' | 'confirmed';
+  status: SpecificationStatus;
   /** Explicitly confirmed empty supply is valid, unlike missing data. */
   emptySupplyReason: string;
   items: SpecificationItem[];

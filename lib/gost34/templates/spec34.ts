@@ -1,18 +1,18 @@
 import { Gost34InputPayload, Gost34Section } from '../types';
 import { parseSpecification, specificationBlockers } from '../../specification/validation';
 import type { SpecificationItem } from '../../specification/types';
-
-const dispositions = {
-  supply: 'Поставляем',
-  existing: 'Используем имеющееся',
-  alternative: 'Предлагаем альтернативу',
-};
+import {
+  DISPOSITION_LABELS as dispositions,
+  specificationSections,
+} from '../../specification/sections';
+import { describeTotal, summarizeSpecification } from '../../specification/totals';
 
 /** Questionnaire values and catalogue heuristics never become accepted supply lines. */
 export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[] {
   const spec = payload.specification && parseSpecification(payload.specification);
   const items = spec?.items || [];
   const blockers = specificationBlockers(spec);
+  const totals = spec ? summarizeSpecification(spec) : [];
   const headers = [
     '№',
     'Наименование',
@@ -52,7 +52,7 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
         `Спецификация системы «${payload.metadata.systemName}» для ${payload.metadata.customerName}. Основание оформления: ${payload.standardProfile.citations.specificationBasis}.`,
         blockers.length
           ? 'ЧЕРНОВИК — состав поставки не утвержден. Не является основанием для закупки.'
-          : `Подтвержденная спецификация, версия ${spec?.version}.`,
+          : `${spec?.status === 'released' ? 'Выпущенная' : 'Подтвержденная'} спецификация, версия ${spec?.version}.`,
         ...blockers,
         ...(spec?.emptySupplyReason
           ? [`Обоснование отсутствия поставки: ${spec.emptySupplyReason}`]
@@ -60,24 +60,23 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
         'Позиции и сведения приведены из сохраненной проектной версии. Наличие бренда не подтверждает соответствие нормативным требованиям. Реестры и сертификаты автоматически не проверяются.',
       ],
     },
-    section(
-      2,
-      'ПРОГРАММНОЕ ОБЕСПЕЧЕНИЕ И ЛИЦЕНЗИИ',
-      items.filter((i) => ['software', 'license'].includes(i.kind)),
-    ),
-    section(
-      3,
-      'ОБОРУДОВАНИЕ',
-      items.filter((i) => i.kind === 'hardware'),
-    ),
-    section(
-      4,
-      'ПОДДЕРЖКА, УСЛУГИ И ПРОЧИЕ ПОЗИЦИИ',
-      items.filter((i) => ['support', 'service', 'other'].includes(i.kind)),
-    ),
+    ...specificationSections(items).map((group) => section(group.num, group.title, group.items)),
     {
       id: 'sec-5',
       numStr: '5',
+      title: 'ИТОГИ ПО ВАЛЮТАМ',
+      paragraphs: [
+        ...(totals.length
+          ? totals.map(
+              (total) => `Итого ${total.currency || 'без валюты'}: ${describeTotal(total)}.`,
+            )
+          : ['Поставляемые позиции отсутствуют; итоговая стоимость не рассчитывается.']),
+        'Итоги считаются только по позициям «Поставляем», отдельно по каждой валюте, без пересчета курсов. Сумма строки равна количеству, умноженному на цену, без промежуточного округления; итог округляется до 0,01 по правилу половины вверх только при печати, точное значение приведено в скобках. Неизвестные цена или количество не считаются нулем: такой итог помечен как неполный. Цена 0 означает бесплатную позицию.',
+      ],
+    },
+    {
+      id: 'sec-6',
+      numStr: '6',
       title: 'УСЛОВИЯ И ПОДТВЕРЖДЕНИЯ',
       paragraphs: [
         'Условия гарантии, поддержки, лицензирования и комплектности определяются указанными источниками и согласованными условиями конкретной позиции. Неуказанные условия требуют уточнения.',

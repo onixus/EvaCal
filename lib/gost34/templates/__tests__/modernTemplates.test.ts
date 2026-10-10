@@ -127,7 +127,8 @@ describe('Modern Document Generators (PZ, AF, PMI, SPEC, RP, RA)', () => {
 
   it('buildSPEC34Sections never treats inferred context as confirmed supply', () => {
     const sections = buildSPEC34Sections(mockPayload);
-    expect(sections).toHaveLength(5);
+    expect(sections).toHaveLength(6);
+    expect(sections[4].title).toBe('ИТОГИ ПО ВАЛЮТАМ');
     for (const section of sections.slice(1, 4)) expect(section.tables?.[0].rows).toEqual([]);
     expect(sections[0].paragraphs.join(' ')).toContain('ЧЕРНОВИК');
   });
