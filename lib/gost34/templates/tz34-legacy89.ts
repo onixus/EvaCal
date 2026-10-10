@@ -81,7 +81,11 @@ export function buildTZ34LegacySections(payload: Gost34InputPayload): Gost34Sect
             {
               caption: 'Таблица 1 — Спецификация требований к системе',
               headers: ['Код требования', 'Категория / Название', 'Описание требования'],
-              rows: reqs.map((r) => [r.code, r.title, r.description]),
+              rows: reqs.map((r) => [
+                r.code,
+                r.title,
+                r.assumptions ? `${r.description} ${r.assumptions}` : r.description,
+              ]),
             },
           ],
         },

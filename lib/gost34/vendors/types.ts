@@ -3,8 +3,9 @@
  *
  * Реестр — единственный источник реквизитов отечественных продуктов
  * (номера записей Минцифры/Минпромторга, сертификаты ФСТЭК/ФСБ, модели
- * лицензирования). Раньше эти сведения были размазаны по шаблонам
- * документов и пресетам; теперь шаблоны берут их отсюда.
+ * лицензирования). Используется как справочник для распознавания продуктов
+ * во вендорских документах; шаблоны ГОСТ 34 эти реквизиты в документы не
+ * печатают — состав поставки берётся только из подтверждённой спецификации.
  *
  * Правило заполнения: номер записывается только если он подтверждён
  * вендорским документом или публичным реестром (`sourceUrl`); если
@@ -60,23 +61,3 @@ export interface VendorSoftwareProduct {
   /** Дата последней сверки реквизитов с источником (ISO). */
   verifiedAt?: string;
 }
-
-export interface VendorHardwareProduct {
-  id: string;
-  kind: 'hardware';
-  category: VendorProductCategory | 'server' | 'storage' | 'appliance';
-  name: string;
-  model: string;
-  vendor?: string;
-  /** Основание включения в реестр Минпромторга (ПП РФ № 878 / № 719). */
-  reestrMinpromtorg: string;
-  /** Технические характеристики по умолчанию (перекрываются контекстом). */
-  defaultSpecs: string;
-  formFactor: string;
-  match: RegExp;
-  quantity?: QuantityRule;
-  sourceUrl?: string;
-  verifiedAt?: string;
-}
-
-export type VendorProduct = VendorSoftwareProduct | VendorHardwareProduct;

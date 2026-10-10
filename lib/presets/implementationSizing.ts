@@ -1,4 +1,5 @@
 import type { Gost34RequirementItem, RequirementCategory } from '../gost34/types';
+import { parseAnswerBoolean, parseAnswerNumber } from './answerValues';
 
 export type ImplementationSizingProfile = 'siem' | 'idm' | 'ngfw';
 
@@ -23,6 +24,16 @@ export interface TypicalPmiScenario {
   expectedResult: string;
 }
 
+/**
+ * Параметр sizing, не подтверждённый ответом опросника. `assumed` — значение,
+ * принятое пресейл-расчётом по умолчанию; без него параметр просто не задан.
+ */
+export interface SizingAssumption {
+  key: string;
+  label: string;
+  assumed?: string;
+}
+
 export interface ImplementationSizing {
   profile: ImplementationSizingProfile;
   label: string;
@@ -32,34 +43,114 @@ export interface ImplementationSizing {
   tzSections: TypicalTzSection[];
   pmiScenarios: TypicalPmiScenario[];
   gostRequirements: Gost34RequirementItem[];
+  /** Допущения и незаданные параметры: в ТЗ они не выдаются за требования Заказчика. */
+  assumptions: SizingAssumption[];
 }
 
-function numberAnswer(answers: Record<string, unknown>, key: string, fallback = 0): number {
-  const raw = answers[key];
-  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
-  if (typeof raw === 'string') {
-    const parsed = Number(raw.replace(',', '.').trim());
-    if (Number.isFinite(parsed)) return parsed;
+const PARAM_LABELS: Record<string, string> = {
+  event_sources_count: 'количество источников событий',
+  eps_estimate: 'средний поток EPS',
+  eps_peak_factor: 'коэффициент пика EPS',
+  avg_event_size_bytes: 'средний размер события',
+  hot_retention_days: 'срок оперативного хранения',
+  archive_retention_days: 'срок архивного хранения',
+  compression_ratio: 'коэффициент сжатия',
+  sites_count: 'количество площадок',
+  collector_ha_required: 'резервирование коллекторов',
+  platform_ha_required: 'резервирование платформы',
+  correlation_rules_count: 'количество сценариев корреляции',
+  custom_connectors_count: 'количество нестандартных коннекторов',
+  siem_integrations_count: 'количество внешних интеграций SIEM',
+  gossopka_required: 'взаимодействие с ГосСОПКА',
+  availability_target_percent: 'целевая доступность',
+  identities_count: 'количество идентичностей',
+  target_systems_count: 'количество целевых систем',
+  authoritative_sources_count: 'количество авторитетных источников',
+  business_roles_count: 'количество бизнес-ролей',
+  avg_entitlements_per_identity: 'среднее число назначений на идентичность',
+  jml_events_per_day: 'поток JML-событий в сутки',
+  jml_peak_factor: 'коэффициент пика JML',
+  approval_workflows_count: 'количество маршрутов согласования',
+  service_accounts_count: 'количество сервисных учётных записей',
+  recertification_required: 'рекертификация прав',
+  recertification_period: 'периодичность рекертификации',
+  sod_required: 'контроль SoD',
+  pam_integration_required: 'интеграция с PAM',
+  idm_ha_required: 'резервирование IDM (HA)',
+  provisioning_sla_minutes: 'SLA провижининга',
+  ngfw_clusters_count: 'количество кластеров NGFW',
+  network_zones_count: 'количество сетевых зон',
+  rules_count: 'количество правил',
+  integrations_count: 'количество инфраструктурных интеграций',
+  internet_throughput_gbps: 'пропускная способность Internet',
+  east_west_throughput_gbps: 'пропускная способность East-West',
+  capacity_headroom_percent: 'запас производительности',
+  tls_inspection_percent: 'доля TLS-inspection',
+  peak_concurrent_sessions: 'пик одновременных сессий',
+  peak_new_connections_per_sec: 'пик новых соединений в секунду',
+  remote_vpn_users: 'количество удалённых VPN-пользователей',
+  site_to_site_vpn_count: 'количество межплощадочных VPN-туннелей',
+  ngfw_ha_required: 'резервирование NGFW (HA)',
+  ips_required: 'IPS',
+  siem_integration_required: 'передача событий в SIEM',
+  cutover_window: 'окно переключения',
+};
+
+/**
+ * Читает ответы опросника и запоминает, какие значения взяты из умолчаний.
+ * Пресейл-интерфейс продолжает показывать расчёт по умолчаниям, а требования
+ * ТЗ явно помечают такие значения как допущения, требующие подтверждения.
+ */
+class AnswerReader {
+  private readonly unconfirmed = new Map<string, SizingAssumption>();
+
+  constructor(private readonly answers: Record<string, unknown>) {}
+
+  private mark(key: string, assumed?: string) {
+    if (!this.unconfirmed.has(key))
+      this.unconfirmed.set(key, { key, label: PARAM_LABELS[key] ?? key, assumed });
   }
-  return fallback;
-}
 
-function booleanAnswer(answers: Record<string, unknown>, key: string, fallback = false): boolean {
-  const raw = answers[key];
-  if (typeof raw === 'boolean') return raw;
-  if (typeof raw === 'number') return raw !== 0;
-  if (typeof raw === 'string') {
-    if (/^(true|1|да|yes|требуется)$/i.test(raw.trim())) return true;
-    if (/^(false|0|нет|no|не требуется)$/i.test(raw.trim())) return false;
+  num(key: string, fallback?: number): number {
+    const value = parseAnswerNumber(this.answers[key]);
+    if (value !== undefined) return value;
+    this.mark(key, fallback === undefined ? undefined : String(fallback));
+    return fallback ?? 0;
   }
-  return fallback;
-}
 
-function textAnswer(answers: Record<string, unknown>, key: string, fallback = ''): string {
-  const raw = answers[key];
-  if (raw === null || raw === undefined) return fallback;
-  const text = String(raw).trim();
-  return text || fallback;
+  bool(key: string, fallback = false): boolean {
+    const value = parseAnswerBoolean(this.answers[key]);
+    if (value !== undefined) return value;
+    this.mark(key, fallback ? 'да' : 'нет');
+    return fallback;
+  }
+
+  text(key: string, fallback: string): string {
+    const raw = this.answers[key];
+    const text = raw === null || raw === undefined ? '' : String(raw).trim();
+    if (text) return text;
+    this.mark(key, fallback);
+    return fallback;
+  }
+
+  get assumptions(): SizingAssumption[] {
+    return [...this.unconfirmed.values()];
+  }
+
+  /** Пометка для текста требования ТЗ: какие исходные данные не подтверждены. */
+  note(...keys: string[]): string {
+    const items = keys
+      .map((key) => this.unconfirmed.get(key))
+      .filter((item): item is SizingAssumption => Boolean(item))
+      .map((item) =>
+        item.assumed === undefined
+          ? `${item.label} — не задано`
+          : `${item.label} — принято «${item.assumed}» по умолчанию`,
+      );
+    return items.length > 0
+      ? `Допущения пресейл-расчёта, требуют подтверждения Заказчиком: ${items.join('; ')}.`
+      : '';
+  }
 }
 
 function round(value: number, digits = 1): number {
@@ -95,6 +186,19 @@ function requirement(
     originalText: description,
     normalizedBy: 'evacal-presale-sizing',
   };
+}
+
+/** Прикладывает к требованиям ТЗ перечень значений, взятых из умолчаний пресейла. */
+function annotate(
+  requirements: Gost34RequirementItem[],
+  reader: AnswerReader,
+  keysById: Record<string, string[]>,
+): Gost34RequirementItem[] {
+  return requirements.map((item) => {
+    const assumptions = reader.note(...(keysById[item.id] || []));
+    // Отдельное поле: текст требования (и его проверка качества) не меняется.
+    return assumptions ? { ...item, assumptions } : item;
+  });
 }
 
 /**
@@ -161,22 +265,23 @@ export function buildImplementationSizing(
 }
 
 function buildSiemSizing(answers: Record<string, unknown>): ImplementationSizing {
-  const sources = Math.max(0, numberAnswer(answers, 'event_sources_count'));
-  const avgEps = Math.max(0, numberAnswer(answers, 'eps_estimate'));
-  const peakFactor = Math.max(1, numberAnswer(answers, 'eps_peak_factor', 2));
+  const r = new AnswerReader(answers);
+  const sources = Math.max(0, r.num('event_sources_count'));
+  const avgEps = Math.max(0, r.num('eps_estimate'));
+  const peakFactor = Math.max(1, r.num('eps_peak_factor', 2));
   const peakEps = avgEps * peakFactor;
-  const eventSizeBytes = Math.max(100, numberAnswer(answers, 'avg_event_size_bytes', 800));
-  const hotDays = Math.max(1, numberAnswer(answers, 'hot_retention_days', 30));
-  const archiveDays = Math.max(0, numberAnswer(answers, 'archive_retention_days', 180));
-  const compressionRatio = Math.max(1, numberAnswer(answers, 'compression_ratio', 2));
-  const sites = Math.max(1, numberAnswer(answers, 'sites_count', 1));
-  const collectorHa = booleanAnswer(answers, 'collector_ha_required', true);
-  const platformHa = booleanAnswer(answers, 'platform_ha_required', true);
-  const useCases = Math.max(0, numberAnswer(answers, 'correlation_rules_count'));
-  const customConnectors = Math.max(0, numberAnswer(answers, 'custom_connectors_count'));
-  const integrations = Math.max(0, numberAnswer(answers, 'siem_integrations_count'));
-  const gossopka = booleanAnswer(answers, 'gossopka_required');
-  const sla = Math.max(0, numberAnswer(answers, 'availability_target_percent', 99.9));
+  const eventSizeBytes = Math.max(100, r.num('avg_event_size_bytes', 800));
+  const hotDays = Math.max(1, r.num('hot_retention_days', 30));
+  const archiveDays = Math.max(0, r.num('archive_retention_days', 180));
+  const compressionRatio = Math.max(1, r.num('compression_ratio', 2));
+  const sites = Math.max(1, r.num('sites_count', 1));
+  const collectorHa = r.bool('collector_ha_required', true);
+  const platformHa = r.bool('platform_ha_required', true);
+  const useCases = Math.max(0, r.num('correlation_rules_count'));
+  const customConnectors = Math.max(0, r.num('custom_connectors_count'));
+  const integrations = Math.max(0, r.num('siem_integrations_count'));
+  const gossopka = r.bool('gossopka_required');
+  const sla = Math.max(0, r.num('availability_target_percent', 99.9));
 
   const dailyRawGb = (avgEps * 86_400 * eventSizeBytes) / 1_000_000_000;
   const hotStorageTb = (dailyRawGb * hotDays * 1.25) / compressionRatio / 1_000;
@@ -281,6 +386,28 @@ function buildSiemSizing(answers: Record<string, unknown>): ImplementationSizing
       ),
     );
   }
+
+  const annotated = annotate(requirements, r, {
+    'preset-siem-req-performance': ['eps_estimate', 'eps_peak_factor'],
+    'preset-siem-req-retention': [
+      'hot_retention_days',
+      'archive_retention_days',
+      'eps_estimate',
+      'avg_event_size_bytes',
+      'compression_ratio',
+    ],
+    'preset-siem-req-sources': ['event_sources_count', 'custom_connectors_count'],
+    'preset-siem-req-correlation': ['correlation_rules_count'],
+    'preset-siem-req-ha': [
+      'availability_target_percent',
+      'collector_ha_required',
+      'platform_ha_required',
+      'sites_count',
+      'event_sources_count',
+      'eps_estimate',
+      'eps_peak_factor',
+    ],
+  });
 
   return {
     profile: 'siem',
@@ -422,28 +549,30 @@ function buildSiemSizing(answers: Record<string, unknown>): ImplementationSizing
           'Прием и обработка событий продолжаются или восстанавливаются в согласованное время без нарушения контрольной выборки.',
       },
     ],
-    gostRequirements: requirements,
+    gostRequirements: annotated,
+    assumptions: r.assumptions,
   };
 }
 
 function buildIdmSizing(answers: Record<string, unknown>): ImplementationSizing {
-  const identities = Math.max(0, numberAnswer(answers, 'identities_count'));
-  const targetSystems = Math.max(0, numberAnswer(answers, 'target_systems_count'));
-  const sources = Math.max(0, numberAnswer(answers, 'authoritative_sources_count'));
-  const roles = Math.max(0, numberAnswer(answers, 'business_roles_count'));
-  const avgEntitlements = Math.max(1, numberAnswer(answers, 'avg_entitlements_per_identity', 8));
-  const jmlPerDay = Math.max(0, numberAnswer(answers, 'jml_events_per_day'));
-  const peakFactor = Math.max(1, numberAnswer(answers, 'jml_peak_factor', 3));
+  const r = new AnswerReader(answers);
+  const identities = Math.max(0, r.num('identities_count'));
+  const targetSystems = Math.max(0, r.num('target_systems_count'));
+  const sources = Math.max(0, r.num('authoritative_sources_count'));
+  const roles = Math.max(0, r.num('business_roles_count'));
+  const avgEntitlements = Math.max(1, r.num('avg_entitlements_per_identity', 8));
+  const jmlPerDay = Math.max(0, r.num('jml_events_per_day'));
+  const peakFactor = Math.max(1, r.num('jml_peak_factor', 3));
   const peakJml = jmlPerDay * peakFactor;
-  const approvalFlows = Math.max(0, numberAnswer(answers, 'approval_workflows_count'));
-  const serviceAccounts = Math.max(0, numberAnswer(answers, 'service_accounts_count'));
-  const recertification = booleanAnswer(answers, 'recertification_required', true);
-  const recertificationPeriod = textAnswer(answers, 'recertification_period', 'Ежеквартально');
-  const sod = booleanAnswer(answers, 'sod_required', true);
-  const pam = booleanAnswer(answers, 'pam_integration_required');
-  const ha = booleanAnswer(answers, 'idm_ha_required', true);
-  const provisionSla = Math.max(1, numberAnswer(answers, 'provisioning_sla_minutes', 30));
-  const availability = Math.max(0, numberAnswer(answers, 'availability_target_percent', 99.9));
+  const approvalFlows = Math.max(0, r.num('approval_workflows_count'));
+  const serviceAccounts = Math.max(0, r.num('service_accounts_count'));
+  const recertification = r.bool('recertification_required', true);
+  const recertificationPeriod = r.text('recertification_period', 'Ежеквартально');
+  const sod = r.bool('sod_required', true);
+  const pam = r.bool('pam_integration_required');
+  const ha = r.bool('idm_ha_required', true);
+  const provisionSla = Math.max(1, r.num('provisioning_sla_minutes', 30));
+  const availability = Math.max(0, r.num('availability_target_percent', 99.9));
 
   const appNodes = Math.max(
     ha ? 2 : 1,
@@ -564,6 +693,32 @@ function buildIdmSizing(answers: Record<string, unknown>): ImplementationSizing 
       ),
     );
   }
+
+  const annotated = annotate(requirements, r, {
+    'preset-idm-req-jml': ['jml_events_per_day', 'jml_peak_factor', 'provisioning_sla_minutes'],
+    'preset-idm-req-connectors': ['authoritative_sources_count', 'target_systems_count'],
+    'preset-idm-req-rbac': ['business_roles_count', 'sod_required'],
+    'preset-idm-req-recert': [
+      'recertification_required',
+      'recertification_period',
+      'identities_count',
+      'avg_entitlements_per_identity',
+    ],
+    'preset-idm-req-performance': [
+      'identities_count',
+      'avg_entitlements_per_identity',
+      'jml_events_per_day',
+      'jml_peak_factor',
+      'provisioning_sla_minutes',
+    ],
+    'preset-idm-req-ha': [
+      'availability_target_percent',
+      'idm_ha_required',
+      'identities_count',
+      'target_systems_count',
+    ],
+    'preset-idm-req-audit': ['service_accounts_count'],
+  });
 
   return {
     profile: 'idm',
@@ -708,28 +863,30 @@ function buildIdmSizing(answers: Record<string, unknown>): ImplementationSizing 
           : 'Функция доступна для последующего включения или исключение документировано.',
       },
     ],
-    gostRequirements: requirements,
+    gostRequirements: annotated,
+    assumptions: r.assumptions,
   };
 }
 
 function buildNgfwSizing(answers: Record<string, unknown>): ImplementationSizing {
-  const clusters = Math.max(1, numberAnswer(answers, 'ngfw_clusters_count', 1));
-  const zones = Math.max(0, numberAnswer(answers, 'network_zones_count'));
-  const rules = Math.max(0, numberAnswer(answers, 'rules_count'));
-  const integrations = Math.max(0, numberAnswer(answers, 'integrations_count'));
-  const internetGbps = Math.max(0, numberAnswer(answers, 'internet_throughput_gbps'));
-  const eastWestGbps = Math.max(0, numberAnswer(answers, 'east_west_throughput_gbps'));
-  const headroom = Math.max(0, numberAnswer(answers, 'capacity_headroom_percent', 30));
-  const tlsPercent = Math.min(100, Math.max(0, numberAnswer(answers, 'tls_inspection_percent')));
-  const concurrentSessions = Math.max(0, numberAnswer(answers, 'peak_concurrent_sessions'));
-  const cps = Math.max(0, numberAnswer(answers, 'peak_new_connections_per_sec'));
-  const vpnUsers = Math.max(0, numberAnswer(answers, 'remote_vpn_users'));
-  const siteVpn = Math.max(0, numberAnswer(answers, 'site_to_site_vpn_count'));
-  const ha = booleanAnswer(answers, 'ngfw_ha_required', true);
-  const ips = booleanAnswer(answers, 'ips_required', true);
-  const siem = booleanAnswer(answers, 'siem_integration_required', true);
-  const availability = Math.max(0, numberAnswer(answers, 'availability_target_percent', 99.99));
-  const changeWindow = textAnswer(answers, 'cutover_window', 'по согласованному окну');
+  const r = new AnswerReader(answers);
+  const clusters = Math.max(0, r.num('ngfw_clusters_count', 1));
+  const zones = Math.max(0, r.num('network_zones_count'));
+  const rules = Math.max(0, r.num('rules_count'));
+  const integrations = Math.max(0, r.num('integrations_count'));
+  const internetGbps = Math.max(0, r.num('internet_throughput_gbps'));
+  const eastWestGbps = Math.max(0, r.num('east_west_throughput_gbps'));
+  const headroom = Math.max(0, r.num('capacity_headroom_percent', 30));
+  const tlsPercent = Math.min(100, Math.max(0, r.num('tls_inspection_percent')));
+  const concurrentSessions = Math.max(0, r.num('peak_concurrent_sessions'));
+  const cps = Math.max(0, r.num('peak_new_connections_per_sec'));
+  const vpnUsers = Math.max(0, r.num('remote_vpn_users'));
+  const siteVpn = Math.max(0, r.num('site_to_site_vpn_count'));
+  const ha = r.bool('ngfw_ha_required', true);
+  const ips = r.bool('ips_required', true);
+  const siem = r.bool('siem_integration_required', true);
+  const availability = Math.max(0, r.num('availability_target_percent', 99.99));
+  const changeWindow = r.text('cutover_window', 'по согласованному окну');
 
   const baseTraffic = internetGbps + eastWestGbps;
   const targetSecurityThroughput = baseTraffic * (1 + headroom / 100);
@@ -833,6 +990,25 @@ function buildNgfwSizing(answers: Record<string, unknown>): ImplementationSizing
       'consultant',
     ),
   ];
+
+  const annotated = annotate(requirements, r, {
+    'preset-ngfw-req-performance': [
+      'internet_throughput_gbps',
+      'east_west_throughput_gbps',
+      'capacity_headroom_percent',
+      'tls_inspection_percent',
+    ],
+    'preset-ngfw-req-ha': [
+      'ngfw_clusters_count',
+      'ngfw_ha_required',
+      'availability_target_percent',
+    ],
+    'preset-ngfw-req-policy': ['network_zones_count', 'rules_count'],
+    'preset-ngfw-req-security-services': ['ips_required', 'tls_inspection_percent'],
+    'preset-ngfw-req-integration': ['integrations_count', 'siem_integration_required'],
+    'preset-ngfw-req-vpn': ['remote_vpn_users', 'site_to_site_vpn_count'],
+    'preset-ngfw-req-cutover': ['cutover_window'],
+  });
 
   return {
     profile: 'ngfw',
@@ -974,6 +1150,7 @@ function buildNgfwSizing(answers: Record<string, unknown>): ImplementationSizing
           'Политики применяются в соответствии с матрицей, критичные исключенные приложения сохраняют работоспособность.',
       },
     ],
-    gostRequirements: requirements,
+    gostRequirements: annotated,
+    assumptions: r.assumptions,
   };
 }

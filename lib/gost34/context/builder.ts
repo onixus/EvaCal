@@ -25,7 +25,11 @@ import {
   UserGroup,
 } from './types';
 import { Gost34RequirementItem, Gost34RiskItem, Gost34StageItem } from '../types';
-import { detectImplementationSizingProfileFromKeys } from '../../presets/implementationSizing';
+import {
+  buildImplementationSizing,
+  detectImplementationSizingProfileFromKeys,
+} from '../../presets/implementationSizing';
+import { parseAnswerBoolean, parseAnswerNumber } from '../../presets/answerValues';
 
 export interface ProjectContextInput {
   systemName?: string;
@@ -40,28 +44,8 @@ export interface ProjectContextInput {
   override?: Partial<ProjectContext>;
 }
 
-const TRUE_WORDS = /^(да|yes|true|1|есть|требуется)$/i;
-const FALSE_WORDS = /^(нет|no|false|0|не требуется|отсутствует)$/i;
-
-function toBool(value: unknown): boolean | undefined {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value !== 0;
-  if (typeof value === 'string') {
-    const v = value.trim();
-    if (TRUE_WORDS.test(v)) return true;
-    if (FALSE_WORDS.test(v)) return false;
-  }
-  return undefined;
-}
-
-function toNumber(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const match = value.replace(',', '.').match(/-?\d+(\.\d+)?/);
-    if (match) return Number(match[0]);
-  }
-  return undefined;
-}
+const toBool = parseAnswerBoolean;
+const toNumber = parseAnswerNumber;
 
 /**
  * Служебные значения опросника сложности печатаются в документе словами:
@@ -119,6 +103,35 @@ function gap(
   hint?: string,
 ) {
   state.gaps.push({ path, label, severity, hint });
+}
+
+/** Класс продукта известен из профиля опросника, конкретный продукт — нет. */
+function productGap(state: BuildState, label: string) {
+  gap(
+    state,
+    'infrastructure.platforms',
+    `${label}: производитель и редакция`,
+    'major',
+    'Продукт не выбран в опроснике; выбор подтверждается Заказчиком',
+  );
+}
+
+/**
+ * Склеивает известные параметры sizing; неизвестные (undefined) не заменяются
+ * умолчаниями, а перечисляются в пробеле. Явный 0 и false считаются известными.
+ */
+function knownParts(
+  state: BuildState,
+  path: string,
+  gapLabel: string,
+  parts: Array<[missingLabel: string, text: string | undefined]>,
+): string | undefined {
+  const known = parts.filter(([, text]) => text !== undefined).map(([, text]) => text!);
+  const missing = parts.filter(([, text]) => text === undefined).map(([label]) => label);
+  if (missing.length > 0) {
+    gap(state, path, gapLabel, 'major', `Не заданы в опроснике: ${missing.join(', ')}`);
+  }
+  return known.length > 0 ? known.join('; ') : undefined;
 }
 
 /** Ищет первый ответ опросника, ключ которого соответствует шаблону. */
@@ -369,6 +382,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
       'Подсистема централизованного управления и журналирования NGFW',
     ];
     record(state, 'infrastructure.platforms', 'questionnaire', 'ngfw_implementation_preset');
+    productGap(state, 'NGFW-платформа');
   } else if (implementationProfile === 'idm') {
     const directory = toText(answers.directory_platform);
     infrastructure.platforms = [
@@ -378,6 +392,7 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
         : 'Корпоративная служба каталога (уточняется на обследовании)',
     ];
     record(state, 'infrastructure.platforms', 'questionnaire', 'idm_preset');
+    productGap(state, 'IDM / IGA-платформа');
   } else if (implementationProfile === 'siem') {
     const siemPlatform = toText(answers.siem_platform);
     infrastructure.platforms = [
@@ -386,67 +401,22 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
         : 'SIEM-платформа (выбор подтверждается по результатам пилота/обследования)',
     ];
     record(state, 'infrastructure.platforms', 'questionnaire', 'siem_full_preset');
+    if (!siemPlatform || /определить/i.test(siemPlatform)) productGap(state, 'SIEM-платформа');
   } else if (answers.event_sources_count || answers.siem_platform) {
-    // Legacy SIEM сохраняет прежнее обогащение для воспроизводимости.
+    // Legacy SIEM: продукт печатается только если он явно выбран в опроснике.
     const siemPlatform = toText(answers.siem_platform);
-    infrastructure.platforms = [
-      siemPlatform && !/определить/i.test(siemPlatform)
-        ? `SIEM-платформа ${siemPlatform}`
-        : 'SIEM-платформа (MaxPatrol SIEM / Kaspersky KUMA)',
-    ];
-    infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'siem_preset');
+    if (siemPlatform && !/определить/i.test(siemPlatform)) {
+      infrastructure.platforms = [`SIEM-платформа ${siemPlatform}`];
+      record(state, 'infrastructure.platforms', 'questionnaire', 'siem_platform');
+    } else {
+      productGap(state, 'SIEM-платформа');
+    }
   } else if (platformsList) {
     infrastructure.platforms = platformsList;
     record(state, 'infrastructure.platforms', 'questionnaire', platformsAnswer!.key);
-  } else if (
-    answers.ngfw_clusters_count ||
-    answers.storage_audits_count ||
-    answers.vpn_tunnels_count
-  ) {
-    // Старый комбинированный NGFW/SZI-пресет сохраняет прежнее обогащение.
-    infrastructure.platforms = [
-      'Межсетевые экраны NGFW UserGate в отказоустойчивом кластере HA',
-      'СЗИ от вредоносного ПО Kaspersky Endpoint Security',
-      'Система аудита доступа к неструктурированным данным Cyberpeak',
-      'СКЗИ ViPNet Coordinator HW (ГОСТ-VPN)',
-    ];
-    infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'ngfw_szi_preset');
-  } else if (answers.servers_count || answers.db_clusters_count) {
-    infrastructure.platforms = [
-      'Серверные платформы отечественного производства YADRO Vegman / Аквариус',
-      'СХД корпоративного уровня (All-Flash NVMe)',
-      'Защищенная ОС Astra Linux Special Edition',
-      'СУБД Postgres Pro Enterprise (отказоустойчивый кластер)',
-    ];
-    infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'pac_preset');
-  } else if (answers.kii_objects_count) {
-    infrastructure.platforms = [
-      'СЗИ от несанкционированного доступа Secret Net / Dallas Lock',
-      'Аппаратно-программные модули доверенной загрузки (АПМДЗ) Соболь',
-      'СКЗИ КриптоПро CSP / ViPNet Coordinator',
-    ];
-    infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'kii_preset');
-  } else if (answers.vm_count || answers.hypervisor_hosts_count) {
-    infrastructure.platforms = [
-      'Платформа серверной виртуализации zVirt',
-      'Служба каталога ALD Pro',
-      'Защищенная ОС Astra Linux Special Edition / РЕД ОС',
-      'СУБД Postgres Pro Enterprise',
-    ];
-    infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'migration_preset');
-  } else if (answers.protected_vms_count || answers.backup_volume_tb) {
-    infrastructure.platforms = [
-      'Система резервного копирования «Кибер Бэкап» / RuBackup',
-      'Неизменяемые (immutable) хранилища резервных копий',
-    ];
-    infrastructure.importSubstitution = true;
-    record(state, 'infrastructure.platforms', 'questionnaire', 'backup_preset');
   } else {
+    // Количественные ответы (серверы, кластеры NGFW, ВМ, объём резервных копий)
+    // не определяют производителя и редакцию продукта: бренды не подставляются.
     gap(
       state,
       'infrastructure.platforms',
@@ -460,37 +430,131 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (resourcesAnswer) {
     infrastructure.computeResources = toText(resourcesAnswer.value);
     record(state, 'infrastructure.computeResources', 'questionnaire', resourcesAnswer.key);
-  } else if (answers.servers_count) {
-    const sCount = toNumber(answers.servers_count) || 1;
-    const rCount = toNumber(answers.racks_count) || 1;
-    infrastructure.computeResources = `${sCount} серверных платформ в ${rCount} стойках 42U с резервированием по питанию и подключением к SAN/LAN`;
+  } else if (toNumber(answers.servers_count) !== undefined) {
+    const sCount = toNumber(answers.servers_count)!;
+    const rCount = toNumber(answers.racks_count);
+    infrastructure.computeResources =
+      rCount === undefined
+        ? `количество серверов по опроснику — ${sCount}`
+        : `количество серверов по опроснику — ${sCount}, количество стоек — ${rCount}`;
     record(state, 'infrastructure.computeResources', 'questionnaire', 'servers_count');
+    gap(
+      state,
+      'infrastructure.computeResources',
+      'Конфигурация и размещение технических средств',
+      'major',
+      rCount === undefined
+        ? 'Известно только количество серверов; модели, характеристики и размещение не подтверждены'
+        : 'Известно только количество серверов и стоек; модели и характеристики не подтверждены',
+    );
   } else if (implementationProfile === 'ngfw') {
-    const ngfwCount = toNumber(answers.ngfw_clusters_count) || 1;
-    const ha = toBool(answers.ngfw_ha_required) ?? true;
-    const internet = toNumber(answers.internet_throughput_gbps) || 0;
-    const eastWest = toNumber(answers.east_west_throughput_gbps) || 0;
-    const headroom = toNumber(answers.capacity_headroom_percent) || 0;
-    const target = (internet + eastWest) * (1 + headroom / 100);
-    infrastructure.computeResources = `${ngfwCount} кластер(а/ов), ${ngfwCount * (ha ? 2 : 1)} узлов NGFW; целевая производительность с запасом — ${target.toFixed(2)} Гбит/с`;
-    record(state, 'infrastructure.computeResources', 'questionnaire', 'ngfw_implementation_sizing');
+    const ngfwCount = toNumber(answers.ngfw_clusters_count);
+    const ha = toBool(answers.ngfw_ha_required);
+    const internet = toNumber(answers.internet_throughput_gbps);
+    const eastWest = toNumber(answers.east_west_throughput_gbps);
+    const headroom = toNumber(answers.capacity_headroom_percent);
+    const text = knownParts(state, 'infrastructure.computeResources', 'Параметры sizing NGFW', [
+      [
+        'количество кластеров',
+        ngfwCount === undefined ? undefined : `${ngfwCount} кластер(а/ов) NGFW`,
+      ],
+      [
+        'требование HA',
+        ha === undefined ? undefined : ha ? 'с резервированием (HA)' : 'без резервирования (HA)',
+      ],
+      ...(ngfwCount !== undefined && ha !== undefined
+        ? ([['', `${ngfwCount * (ha ? 2 : 1)} узлов NGFW`]] as Array<[string, string]>)
+        : []),
+      [
+        'пропускная способность Internet',
+        internet === undefined ? undefined : `Internet ${internet} Гбит/с`,
+      ],
+      [
+        'пропускная способность East-West',
+        eastWest === undefined ? undefined : `East-West ${eastWest} Гбит/с`,
+      ],
+      ['запас производительности', headroom === undefined ? undefined : `запас ${headroom} %`],
+      ...(internet !== undefined && eastWest !== undefined && headroom !== undefined
+        ? ([
+            [
+              '',
+              `целевая производительность с запасом — ${((internet + eastWest) * (1 + headroom / 100)).toFixed(2)} Гбит/с`,
+            ],
+          ] as Array<[string, string]>)
+        : []),
+    ]);
+    if (text) {
+      infrastructure.computeResources = text;
+      record(
+        state,
+        'infrastructure.computeResources',
+        'questionnaire',
+        'ngfw_implementation_sizing',
+      );
+    }
   } else if (implementationProfile === 'siem') {
-    const eps = toNumber(answers.eps_estimate) || 0;
-    const peakFactor = toNumber(answers.eps_peak_factor) || 2;
-    const sourcesCount = toNumber(answers.event_sources_count) || 0;
-    infrastructure.computeResources = `SIEM-контур на ${sourcesCount} источников; средний поток ${eps} EPS, проектный пик ${Math.ceil(eps * peakFactor)} EPS; емкость хранения уточняется по размеру события и ретенции`;
-    record(state, 'infrastructure.computeResources', 'questionnaire', 'siem_sizing');
+    const eps = toNumber(answers.eps_estimate);
+    const peakFactor = toNumber(answers.eps_peak_factor);
+    const sourcesCount = toNumber(answers.event_sources_count);
+    const text = knownParts(state, 'infrastructure.computeResources', 'Параметры sizing SIEM', [
+      [
+        'количество источников событий',
+        sourcesCount === undefined ? undefined : `SIEM-контур на ${sourcesCount} источников`,
+      ],
+      ['средний поток EPS', eps === undefined ? undefined : `средний поток ${eps} EPS`],
+      [
+        'коэффициент пика EPS',
+        peakFactor === undefined ? undefined : `коэффициент пика ${peakFactor}`,
+      ],
+      ...(eps !== undefined && peakFactor !== undefined
+        ? ([['', `проектный пик ${Math.ceil(eps * peakFactor)} EPS`]] as Array<[string, string]>)
+        : []),
+    ]);
+    if (text) {
+      infrastructure.computeResources = `${text}; емкость хранения уточняется по размеру события и ретенции`;
+      record(state, 'infrastructure.computeResources', 'questionnaire', 'siem_sizing');
+    }
   } else if (implementationProfile === 'idm') {
-    const identities = toNumber(answers.identities_count) || 0;
-    const targets = toNumber(answers.target_systems_count) || 0;
-    const ha = toBool(answers.idm_ha_required) ?? true;
-    const appNodes = Math.max(ha ? 2 : 1, Math.ceil(identities / 50000), Math.ceil(targets / 20));
-    infrastructure.computeResources = `IDM / IGA: ${identities} идентичностей, ${targets} целевых систем, не менее ${appNodes} логических прикладных узлов по пресейл-sizing`;
-    record(state, 'infrastructure.computeResources', 'questionnaire', 'idm_sizing');
-  } else if (answers.ngfw_clusters_count) {
-    const ngfwCount = toNumber(answers.ngfw_clusters_count) || 1;
-    infrastructure.computeResources = `${ngfwCount} кластеров аппаратных платформ UserGate NGFW (HA Active-Passive), серверы управления Kaspersky Security Center и Cyberpeak`;
+    const identities = toNumber(answers.identities_count);
+    const targets = toNumber(answers.target_systems_count);
+    const ha = toBool(answers.idm_ha_required);
+    const text = knownParts(state, 'infrastructure.computeResources', 'Параметры sizing IDM', [
+      [
+        'количество идентичностей',
+        identities === undefined ? undefined : `IDM / IGA: ${identities} идентичностей`,
+      ],
+      [
+        'количество целевых систем',
+        targets === undefined ? undefined : `${targets} целевых систем`,
+      ],
+      [
+        'требование HA',
+        ha === undefined ? undefined : ha ? 'с резервированием (HA)' : 'без резервирования (HA)',
+      ],
+      ...(identities !== undefined && targets !== undefined && ha !== undefined
+        ? ([
+            [
+              '',
+              `не менее ${Math.max(ha ? 2 : 1, Math.ceil(identities / 50000), Math.ceil(targets / 20))} логических прикладных узлов по пресейл-sizing`,
+            ],
+          ] as Array<[string, string]>)
+        : []),
+    ]);
+    if (text) {
+      infrastructure.computeResources = text;
+      record(state, 'infrastructure.computeResources', 'questionnaire', 'idm_sizing');
+    }
+  } else if (toNumber(answers.ngfw_clusters_count) !== undefined) {
+    const ngfwCount = toNumber(answers.ngfw_clusters_count)!;
+    infrastructure.computeResources = `количество кластеров NGFW по опроснику — ${ngfwCount}`;
     record(state, 'infrastructure.computeResources', 'questionnaire', 'ngfw_clusters_count');
+    gap(
+      state,
+      'infrastructure.computeResources',
+      'Конфигурация технических средств NGFW',
+      'major',
+      'Известно только количество кластеров; платформа, число узлов и HA не подтверждены',
+    );
   } else {
     gap(
       state,
@@ -506,6 +570,29 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
   if (importValue !== undefined) {
     infrastructure.importSubstitution = importValue;
     record(state, 'infrastructure.importSubstitution', 'questionnaire', importAnswer!.key);
+  }
+
+  // Требования ТЗ из пресейл-sizing помечают значения по умолчанию как допущения;
+  // диагностика документа фиксирует их как пробел, а не как подтверждённые данные.
+  // Корень пути не совпадает с полями ProjectContext: ручная правка инфраструктуры
+  // не подтверждает ответы пресейл-опросника и не должна снимать этот пробел.
+  const sizingAssumptions = implementationProfile
+    ? buildImplementationSizing(answers)?.assumptions || []
+    : [];
+  if (sizingAssumptions.length > 0) {
+    gap(
+      state,
+      'sizingAssumptions',
+      'Исходные данные пресейл-sizing, не подтверждённые Заказчиком',
+      'major',
+      sizingAssumptions
+        .map((a) =>
+          a.assumed === undefined
+            ? `${a.label} — не задано`
+            : `${a.label} — принято «${a.assumed}»`,
+        )
+        .join('; '),
+    );
   }
 
   if (Object.keys(infrastructure).length > 0) ctx.infrastructure = infrastructure;
@@ -532,17 +619,8 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     availability.rpoMinutes = toNumber(rpoAnswer.value);
     record(state, 'availability.rpoMinutes', 'questionnaire', rpoAnswer.key);
   }
-  if (
-    Object.keys(availability).length === 0 &&
-    (answers.servers_count ||
-      answers.db_clusters_count ||
-      (answers.ngfw_clusters_count && implementationProfile !== 'ngfw'))
-  ) {
-    availability.availabilityTargetPercent = 99.9;
-    availability.rtoMinutes = 15;
-    availability.rpoMinutes = 5;
-    record(state, 'availability', 'questionnaire', 'preset_defaults');
-  }
+  // Количество серверов или кластеров не задаёт SLA: универсальные 99,9 % /
+  // RTO 15 / RPO 5 не подставляются, при отсутствии ответов остаётся пробел.
   if (Object.keys(availability).length > 0) {
     ctx.availability = availability;
   } else {
@@ -574,20 +652,54 @@ export function buildProjectContext(input: ProjectContextInput): ProjectContext 
     performance.dataVolume = toText(volumeAnswer.value);
     record(state, 'performance.dataVolume', 'questionnaire', volumeAnswer.key);
   } else if (implementationProfile === 'siem') {
-    const eps = toNumber(answers.eps_estimate) || 0;
-    const peakFactor = toNumber(answers.eps_peak_factor) || 2;
-    performance.dataVolume = `SIEM: ${eps} EPS average / ${Math.ceil(eps * peakFactor)} EPS peak`;
-    record(state, 'performance.dataVolume', 'questionnaire', 'eps_estimate');
+    const eps = toNumber(answers.eps_estimate);
+    const peakFactor = toNumber(answers.eps_peak_factor);
+    const text = knownParts(state, 'performance.dataVolume', 'Нагрузочный профиль SIEM', [
+      ['средний поток EPS', eps === undefined ? undefined : `${eps} EPS average`],
+      [
+        'коэффициент пика EPS',
+        peakFactor === undefined
+          ? undefined
+          : eps === undefined
+            ? `коэффициент пика ${peakFactor}`
+            : `${Math.ceil(eps * peakFactor)} EPS peak`,
+      ],
+    ]);
+    if (text) {
+      performance.dataVolume = `SIEM: ${text.replace('; ', ' / ')}`;
+      record(state, 'performance.dataVolume', 'questionnaire', 'eps_estimate');
+    }
   } else if (implementationProfile === 'idm') {
-    const identities = toNumber(answers.identities_count) || 0;
-    const jml = toNumber(answers.jml_events_per_day) || 0;
-    performance.dataVolume = `IDM: ${identities} идентичностей; ${jml} JML-событий/сутки`;
-    record(state, 'performance.dataVolume', 'questionnaire', 'identities_count');
+    const identities = toNumber(answers.identities_count);
+    const jml = toNumber(answers.jml_events_per_day);
+    const text = knownParts(state, 'performance.dataVolume', 'Нагрузочный профиль IDM', [
+      [
+        'количество идентичностей',
+        identities === undefined ? undefined : `${identities} идентичностей`,
+      ],
+      ['поток JML-событий', jml === undefined ? undefined : `${jml} JML-событий/сутки`],
+    ]);
+    if (text) {
+      performance.dataVolume = `IDM: ${text}`;
+      record(state, 'performance.dataVolume', 'questionnaire', 'identities_count');
+    }
   } else if (implementationProfile === 'ngfw') {
-    const internet = toNumber(answers.internet_throughput_gbps) || 0;
-    const eastWest = toNumber(answers.east_west_throughput_gbps) || 0;
-    performance.dataVolume = `NGFW: ${internet} Гбит/с Internet + ${eastWest} Гбит/с East-West`;
-    record(state, 'performance.dataVolume', 'questionnaire', 'ngfw_throughput');
+    const internet = toNumber(answers.internet_throughput_gbps);
+    const eastWest = toNumber(answers.east_west_throughput_gbps);
+    const text = knownParts(state, 'performance.dataVolume', 'Нагрузочный профиль NGFW', [
+      [
+        'пропускная способность Internet',
+        internet === undefined ? undefined : `${internet} Гбит/с Internet`,
+      ],
+      [
+        'пропускная способность East-West',
+        eastWest === undefined ? undefined : `${eastWest} Гбит/с East-West`,
+      ],
+    ]);
+    if (text) {
+      performance.dataVolume = `NGFW: ${text.replace('; ', ' + ')}`;
+      record(state, 'performance.dataVolume', 'questionnaire', 'ngfw_throughput');
+    }
   }
   if (Object.keys(performance).length > 0) {
     ctx.performance = performance;

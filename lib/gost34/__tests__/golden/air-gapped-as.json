@@ -138,10 +138,10 @@
   },
   "validation": {
     "ERROR": 0,
-    "WARNING": 9,
+    "WARNING": 10,
     "INFO": 5
   },
-  "traceabilityCoveragePercent": 75,
+  "traceabilityCoveragePercent": 62.5,
   "contextGapPaths": [
     "goals",
     "measurableGoalCriteria",

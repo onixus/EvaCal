@@ -85,11 +85,15 @@ describe('Modern Document Generators (PZ, AF, PMI, SPEC, RP, RA)', () => {
     expect(sec3?.paragraphs[0]).toContain('Микросервисная архитектура');
     expect(sec3?.paragraphs[1]).toContain('PostgreSQL Cluster');
 
-    // Обоснование выбора ПО строится из базы знаний вендоров РФ.
+    // Без подтверждённой спецификации обоснование выбора ПО — пробел, а не
+    // реквизиты из статического справочника вендоров.
     const vendorTable = sec3?.tables?.find((t) => t.caption?.includes('Обоснование'));
-    expect(vendorTable).toBeDefined();
-    expect(vendorTable!.rows.map((r) => r[0]).join(' ')).toContain('Astra Linux');
-    expect(vendorTable!.rows.map((r) => r[3]).join(' ')).toContain('№ 2557');
+    expect(vendorTable).toBeUndefined();
+    expect(sec3?.paragraphs.join(' ')).toContain('Astra Linux SE');
+    expect(sec3?.paragraphs.join(' ')).toContain(
+      'Состав программных средств не подтверждён спецификацией проекта',
+    );
+    expect(sec3?.paragraphs.join(' ')).not.toMatch(/№ \d|Единый реестр/);
 
     // Незаполненные поля контекста помечаются, а не выдумываются.
     const sec2 = sections.find((s) => s.id === 'sec-2');

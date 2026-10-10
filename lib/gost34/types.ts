@@ -37,7 +37,7 @@ export interface Gost34EnrichmentOptions {
   fsb_282_gossopka?: boolean; // Приказ ФСБ № 282 (Интеграция с ГосСОПКА / НКЦКИ)
   fz_187_kii?: boolean; // 187-ФЗ (О безопасности КИИ РФ)
   fz_152?: boolean; // 152-ФЗ / 242-ФЗ (Локализация баз ПДн в РФ)
-  fz_188_reestr?: boolean; // 188-ФЗ (Единый реестр российского ПО, Astra Linux/PostgreSQL)
+  fz_188_reestr?: boolean; // 188-ФЗ (Единый реестр российского ПО)
   sla_999?: boolean; // SLA 99.9% (RTO ≤ 15 мин, RPO ≤ 5 мин)
   wcag_52872?: boolean; // ГОСТ Р 52872-2019 / WCAG 2.1 AA (Доступность)
 }
@@ -126,6 +126,12 @@ export interface Gost34RequirementItem {
   originalText?: string;
   /** Who produced `description` if it is not the original text (e.g. an LLM). */
   normalizedBy?: string;
+  /**
+   * Неподтверждённые исходные данные (допущения пресейл-расчёта). Печатается
+   * рядом с требованием, но не входит в его текст и не участвует в проверке
+   * качества формулировки.
+   */
+  assumptions?: string;
   stageName?: string;
   stageRole?: string;
   mappedStageId?: string;

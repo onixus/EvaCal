@@ -71,6 +71,9 @@ export interface Gost34RequirementV2 {
   verificationMethod?: VerificationMethod;
   acceptanceCriteria?: string[];
 
+  /** Допущения исходных данных; печатаются в ТЗ отдельно и не валидируются как текст требования. */
+  assumptions?: string;
+
   approval: RequirementApproval;
 
   /** 0..1 confidence for machine-created proposals/mappings. */
