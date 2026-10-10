@@ -99,6 +99,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
       currency: c.currency,
       roleRates: c.roleRates,
       overheadPercent: c.overheadPercent,
+      pricingMode: c.pricingMode,
       marginPercent: c.marginPercent,
       discountPercent: c.discountPercent,
       vatPercent: c.vatPercent,

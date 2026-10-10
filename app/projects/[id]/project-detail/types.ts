@@ -34,6 +34,7 @@ export interface SerializedCalculation {
   currency: string;
   roleRates: string | null;
   overheadPercent: number;
+  pricingMode: string;
   marginPercent: number;
   discountPercent: number;
   vatPercent: number;

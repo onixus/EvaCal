@@ -122,7 +122,7 @@ pipeline {
                         sh 'cd "$BUILD_DIR" && npx prisma generate'
                         // Миграции PostgreSQL применяются к живой базе: сломанная
                         // миграция падает здесь, а не у пользователя при деплое.
-                        sh 'cd "$BUILD_DIR" && npm run db:sync && npm run test:postgres && npm run test:specification:postgres'
+                        sh 'cd "$BUILD_DIR" && npm run db:sync && npm run test:postgres && npm run test:specification:postgres && npm run test:commercial:postgres'
                     }
                 }
 

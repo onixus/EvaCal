@@ -54,6 +54,7 @@ export interface RoleCommercialBreakdown {
 }
 
 export interface CommercialConfig {
+  pricingMode?: string;
   currency?: string;
   roleRates?: Record<string, number> | string | null;
   overheadPercent?: number;
@@ -64,6 +65,9 @@ export interface CommercialConfig {
 }
 
 export interface CommercialSummary {
+  pricingMode: PricingMode;
+  profitAfterDiscount: number;
+  effectiveMarginPercent: number | null;
   currency: string;
   currencySymbol: string;
   rolesBreakdown: RoleCommercialBreakdown[];
@@ -89,6 +93,67 @@ export interface CommercialSummary {
   vatAmount: number;
   grandTotal: number;
   blendedHourlyRate: number; // Effective rate per hour (subtotal / directLaborHours)
+}
+
+export type PricingMode = 'legacy_markup' | 'markup' | 'target_margin';
+export const PRICING_MODE_LABELS: Record<PricingMode, string> = {
+  legacy_markup: 'Наценка на себестоимость (прежние правила)',
+  markup: 'Наценка на себестоимость',
+  target_margin: 'Целевая маржа от выручки',
+};
+
+export function resolvePricingMode(value?: string): PricingMode {
+  if (value === undefined) return 'legacy_markup';
+  if (value === 'legacy_markup' || value === 'markup' || value === 'target_margin') return value;
+  throw new Error('Неизвестный режим расчета цены');
+}
+
+/** Validate writes before touching the calculation or regenerating stages. */
+export function validateCommercialUpdate(
+  body: Record<string, unknown>,
+  existing: { pricingMode?: string; marginPercent: number },
+): void {
+  const mode = resolvePricingMode(
+    body.pricingMode === undefined ? existing.pricingMode : String(body.pricingMode),
+  );
+  for (const key of ['marginPercent', 'overheadPercent', 'discountPercent', 'vatPercent']) {
+    const value = body[key];
+    if (value === undefined) continue;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      throw new Error(`${key}: требуется конечное неотрицательное число`);
+    }
+    if ((key === 'discountPercent' || key === 'vatPercent') && value > 100) {
+      throw new Error(`${key}: значение должно быть не больше 100%`);
+    }
+  }
+  const percent = body.marginPercent === undefined ? existing.marginPercent : body.marginPercent;
+  if (
+    mode === 'target_margin' &&
+    (typeof percent !== 'number' || percent >= 100 || percent < 0 || !Number.isFinite(percent))
+  ) {
+    throw new Error('Целевая маржа должна быть от 0% включительно до 100% исключительно');
+  }
+  if (body.includeVat !== undefined && typeof body.includeVat !== 'boolean') {
+    throw new Error('includeVat: требуется логическое значение');
+  }
+  if (body.roleRates !== undefined) {
+    let rates = body.roleRates;
+    if (typeof rates === 'string') {
+      try {
+        rates = JSON.parse(rates);
+      } catch {
+        throw new Error('Некорректный JSON ставок');
+      }
+    }
+    if (rates !== null && (typeof rates !== 'object' || Array.isArray(rates))) {
+      throw new Error('Ставки должны быть объектом');
+    }
+    for (const value of Object.values(rates ?? {})) {
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+        throw new Error('Ставки должны быть конечными неотрицательными числами');
+      }
+    }
+  }
 }
 
 /**
@@ -137,6 +202,19 @@ export function calculateCommercialSummary(
   const discountPercent = safePercent(config.discountPercent, 0);
   const vatPercent = safePercent(config.vatPercent, 20);
   const includeVat = config.includeVat ?? true;
+  const pricingMode = resolvePricingMode(config.pricingMode);
+  if (pricingMode === 'target_margin') {
+    validateCommercialUpdate(
+      { marginPercent: config.marginPercent ?? 20 },
+      { pricingMode, marginPercent },
+    );
+  }
+  // Released legacy calculations keep their original whole-unit rounding.
+  const money =
+    pricingMode === 'legacy_markup'
+      ? Math.round
+      : (value: number) =>
+          Math.round((value + Number.EPSILON * Math.max(1, Math.abs(value))) * 100) / 100;
 
   // 1. Group stages by role
   const roleHoursMap: Record<string, number> = {};
@@ -159,7 +237,7 @@ export function calculateCommercialSummary(
     const hours = roleHoursMap[roleKey];
     if (hours <= 0 && roleKey === 'customer') continue;
     const rate = roleRates[roleKey] ?? DEFAULT_ROLE_RATES.other ?? 3000;
-    const cost = hours * rate;
+    const cost = pricingMode === 'legacy_markup' ? hours * rate : money(hours * rate);
 
     stagesHours += hours;
     stagesCost += cost;
@@ -178,7 +256,7 @@ export function calculateCommercialSummary(
 
   // 3. PM (Project Management)
   const pmRate = roleRates.pm ?? DEFAULT_ROLE_RATES.pm ?? 4500;
-  const pmCost = pmHours * pmRate;
+  const pmCost = pricingMode === 'legacy_markup' ? pmHours * pmRate : money(pmHours * pmRate);
 
   // 4. Risks
   const riskHours = risksTotalHours(risks);
@@ -186,11 +264,17 @@ export function calculateCommercialSummary(
   const directCostExRisk = stagesCost + pmCost;
   const baseBlendedRate =
     directHoursExRisk > 0 ? directCostExRisk / directHoursExRisk : (roleRates.developer ?? 3500);
-  const riskCost = riskHours * baseBlendedRate;
+  const riskCost =
+    pricingMode === 'legacy_markup'
+      ? riskHours * baseBlendedRate
+      : money(riskHours * baseBlendedRate);
 
   // 5. Total Labor
   const directLaborHours = directHoursExRisk + riskHours;
-  const directLaborCost = directCostExRisk + riskCost;
+  const directLaborCost =
+    pricingMode === 'legacy_markup'
+      ? directCostExRisk + riskCost
+      : money(directCostExRisk + riskCost);
 
   // Compute share percentages
   for (const item of rolesBreakdown) {
@@ -198,26 +282,49 @@ export function calculateCommercialSummary(
   }
 
   // 6. Overheads
-  const overheadAmount = Math.round(directLaborCost * (overheadPercent / 100));
-  const totalCost = directLaborCost + overheadAmount;
+  const overheadAmount = money(directLaborCost * (overheadPercent / 100));
+  const totalCost =
+    pricingMode === 'legacy_markup'
+      ? directLaborCost + overheadAmount
+      : money(directLaborCost + overheadAmount);
 
   // 7. Margin / Target Price
-  // Margin as markup on cost: TotalCost * (1 + margin%)
-  const marginAmount = Math.round(totalCost * (marginPercent / 100));
-  const priceBeforeDiscount = totalCost + marginAmount;
+  const priceBeforeDiscount =
+    pricingMode === 'target_margin'
+      ? money(totalCost / (1 - marginPercent / 100))
+      : pricingMode === 'legacy_markup'
+        ? totalCost + money(totalCost * (marginPercent / 100))
+        : money(totalCost + money(totalCost * (marginPercent / 100)));
+  const marginAmount =
+    pricingMode === 'legacy_markup'
+      ? Math.round(totalCost * (marginPercent / 100))
+      : money(priceBeforeDiscount - totalCost);
 
   // 8. Discount
-  const discountAmount = Math.round(priceBeforeDiscount * (discountPercent / 100));
-  const subtotalExVat = Math.max(0, priceBeforeDiscount - discountAmount);
+  const discountAmount = money(priceBeforeDiscount * (discountPercent / 100));
+  const subtotalExVat = Math.max(
+    0,
+    pricingMode === 'legacy_markup'
+      ? priceBeforeDiscount - discountAmount
+      : money(priceBeforeDiscount - discountAmount),
+  );
+  const profitAfterDiscount =
+    pricingMode === 'legacy_markup' ? subtotalExVat - totalCost : money(subtotalExVat - totalCost);
+  const effectiveMarginPercent =
+    subtotalExVat > 0 ? (profitAfterDiscount / subtotalExVat) * 100 : null;
 
   // 9. VAT
-  const vatAmount = includeVat ? Math.round(subtotalExVat * (vatPercent / 100)) : 0;
-  const grandTotal = subtotalExVat + vatAmount;
+  const vatAmount = includeVat ? money(subtotalExVat * (vatPercent / 100)) : 0;
+  const grandTotal =
+    pricingMode === 'legacy_markup' ? subtotalExVat + vatAmount : money(subtotalExVat + vatAmount);
 
   // 10. Effective blended rate per hour
-  const blendedHourlyRate = directLaborHours > 0 ? Math.round(subtotalExVat / directLaborHours) : 0;
+  const blendedHourlyRate = directLaborHours > 0 ? money(subtotalExVat / directLaborHours) : 0;
 
   return {
+    pricingMode,
+    profitAfterDiscount,
+    effectiveMarginPercent,
     currency,
     currencySymbol,
     rolesBreakdown,

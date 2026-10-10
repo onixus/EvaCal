@@ -169,6 +169,14 @@ export async function createCalculationVersion(input: CreateCalculationVersionIn
       standardProfileId: source.standardProfileId,
       standardProfileVersion: source.standardProfileVersion,
       generatorVersion: source.generatorVersion,
+      pricingMode: source.pricingMode,
+      currency: source.currency,
+      roleRates: source.roleRates,
+      overheadPercent: source.overheadPercent,
+      marginPercent: source.marginPercent,
+      discountPercent: source.discountPercent,
+      vatPercent: source.vatPercent,
+      includeVat: source.includeVat,
     },
   });
 

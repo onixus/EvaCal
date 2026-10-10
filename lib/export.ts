@@ -44,6 +44,7 @@ export interface CalculationForExport {
   currency?: string;
   roleRates?: string | null;
   overheadPercent?: number;
+  pricingMode?: string;
   marginPercent?: number;
   discountPercent?: number;
   vatPercent?: number;
@@ -88,6 +89,7 @@ export async function loadCalculationForExport(
     currency: calculation.currency,
     roleRates: calculation.roleRates,
     overheadPercent: calculation.overheadPercent,
+    pricingMode: calculation.pricingMode,
     marginPercent: calculation.marginPercent,
     discountPercent: calculation.discountPercent,
     vatPercent: calculation.vatPercent,

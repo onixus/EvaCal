@@ -72,6 +72,7 @@ export default async function CalculationViewPage(props: { params: Promise<{ id:
     currency: calculation.currency,
     roleRates: calculation.roleRates,
     overheadPercent: calculation.overheadPercent,
+    pricingMode: calculation.pricingMode,
     marginPercent: calculation.marginPercent,
     discountPercent: calculation.discountPercent,
     vatPercent: calculation.vatPercent,

@@ -120,4 +120,34 @@ describe('Commercial Exports', () => {
     const doc = renderCalculationPdf(mockCalc);
     expect(doc).toBeDefined();
   });
+
+  it.each([
+    ['markup', 120],
+    ['target_margin', 125],
+  ] as const)('exports the saved %s mode and matching final amounts', (pricingMode, amount) => {
+    const calc = {
+      ...mockCalc,
+      pricingMode,
+      stages: [{ ...mockCalc.stages[0], role: 'developer', hours: 1 }],
+      pmHours: 0,
+      risks: [],
+      roleRates: '{"developer":100}',
+      overheadPercent: 0,
+      marginPercent: 20,
+      discountPercent: 0,
+      includeVat: false,
+    };
+    const workbook = XLSX.read(renderCalculationXlsx(calc), { type: 'buffer' });
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets['Смета КП'], { header: 1 });
+    expect(rows.find((row) => row[0] === 'ИТОГО К ОПЛАТЕ')?.[2]).toBe(amount);
+    expect(rows.find((row) => row[0] === 'Прибыль после скидки')?.[2]).toBe(amount - 100);
+    expect(
+      rows.some(
+        (row) =>
+          row[0] ===
+          (pricingMode === 'markup' ? 'Наценка на себестоимость' : 'Целевая маржа от выручки'),
+      ),
+    ).toBe(true);
+    expect(renderCalculationPdf(calc)).toBeDefined();
+  });
 });

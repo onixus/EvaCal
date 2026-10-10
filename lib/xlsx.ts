@@ -3,7 +3,7 @@ import { CalculationForExport } from './export';
 import { roleLabel, STATUS_LABELS } from './roles';
 import { totalLaborHours } from './scheduling';
 import { risksTotalHours } from './totals';
-import { calculateCommercialSummary } from './commercial';
+import { calculateCommercialSummary, PRICING_MODE_LABELS } from './commercial';
 import { buildFullTraceabilityMatrix } from './gost34/traceability/matrix';
 import type { Gost34RequirementItem, Gost34StageItem } from './gost34/types';
 
@@ -88,6 +88,7 @@ export function renderCalculationXlsx(
     currency: calc.currency,
     roleRates: calc.roleRates,
     overheadPercent: calc.overheadPercent,
+    pricingMode: calc.pricingMode,
     marginPercent: calc.marginPercent,
     discountPercent: calc.discountPercent,
     vatPercent: calc.vatPercent,
@@ -179,10 +180,22 @@ export function renderCalculationXlsx(
     ['Прямая себестоимость труда', '', commercial.directLaborCost],
     ['Накладные расходы (Overhead)', `${commercial.overheadPercent}%`, commercial.overheadAmount],
     ['Полная себестоимость проекта', '', commercial.totalCost],
-    ['Плановая прибыль / Маржа', `${commercial.marginPercent}%`, commercial.marginAmount],
+    [
+      PRICING_MODE_LABELS[commercial.pricingMode],
+      `${commercial.marginPercent}%`,
+      commercial.marginAmount,
+    ],
     ['Базовая цена до скидки', '', commercial.priceBeforeDiscount],
     ['Скидка', `${commercial.discountPercent}%`, -commercial.discountAmount],
     ['Итого без НДС', '', commercial.subtotalExVat],
+    ['Прибыль после скидки', '', commercial.profitAfterDiscount],
+    [
+      'Маржа после скидки, без НДС',
+      commercial.effectiveMarginPercent === null
+        ? 'Не определена (нулевая выручка)'
+        : `${commercial.effectiveMarginPercent.toFixed(2)}%`,
+      '',
+    ],
     [
       `НДС (${commercial.vatPercent}%)`,
       calc.includeVat ? `${commercial.vatPercent}%` : '0% (не облагается)',

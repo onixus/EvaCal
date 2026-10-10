@@ -128,6 +128,14 @@ describe('lib/project', () => {
         standardProfileId: 'ru-gost34-current',
         standardProfileVersion: '2020',
         generatorVersion: '0.2.0',
+        pricingMode: 'target_margin',
+        marginPercent: 35,
+        currency: 'USD',
+        roleRates: '{"developer": 100}',
+        overheadPercent: 10,
+        discountPercent: 5,
+        vatPercent: 0,
+        includeVat: false,
         stages: [
           {
             id: 'st_1',
@@ -175,6 +183,14 @@ describe('lib/project', () => {
           parentCalculationId: 'calc_1',
           versionComment: 'Версия 2: уточнение сроков',
           status: 'draft',
+          pricingMode: 'target_margin',
+          marginPercent: 35,
+          currency: 'USD',
+          roleRates: '{"developer": 100}',
+          overheadPercent: 10,
+          discountPercent: 5,
+          vatPercent: 0,
+          includeVat: false,
         }),
       });
 
