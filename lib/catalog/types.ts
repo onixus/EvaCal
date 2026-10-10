@@ -35,7 +35,18 @@ export interface OfferProductSnapshot extends ProductInput {
   revision: number;
   vendor: { id: string; name: string; revision: number };
 }
+export interface ImportProvenance {
+  importId: string;
+  importRevision: number;
+  checksum: string;
+  filename: string;
+  sheet: string;
+  rowNumber: number;
+  uploadedBy: string;
+  confirmedBy: string;
+}
 export interface Offer extends OfferInput {
+  importProvenance?: ImportProvenance | null;
   productSnapshot: OfferProductSnapshot | null;
   productRevision: number;
   id: string;

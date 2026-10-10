@@ -1,4 +1,5 @@
 'use client';
+import GplImportPanel from './catalog/GplImportPanel';
 import { useEffect, useState } from 'react';
 import type { Catalog, Product, ProductInput, OfferInput, Vendor } from '@/lib/catalog/types';
 import { ITEM_KINDS } from '@/lib/specification/types';
@@ -353,6 +354,7 @@ export default function CatalogPanel() {
           Сохранить отдельное предложение
         </button>
       </fieldset>
+      <GplImportPanel vendors={catalog.vendors} onImported={load} />
       <label>
         Поиск по вендору, названию, партномеру
         <input className="input w-full" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -401,6 +403,19 @@ export default function CatalogPanel() {
               <summary>История предложений ({p.offers.length})</summary>
               {p.offers.map((o) => (
                 <div key={o.id} className="space-y-1 border-t py-2">
+                  {o.importProvenance && (
+                    <p>
+                      Исходный GPL:{' '}
+                      <a
+                        className="text-blue-600 underline"
+                        href={`/api/catalog/imports/${o.importProvenance.importId}/attachment`}
+                      >
+                        {o.importProvenance.filename}
+                      </a>{' '}
+                      · лист {o.importProvenance.sheet} · строка {o.importProvenance.rowNumber} ·
+                      редакция импорта {o.importProvenance.importRevision}
+                    </p>
+                  )}
                   {o.productSnapshot ? (
                     <>
                       <p>

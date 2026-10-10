@@ -27,6 +27,7 @@
     "test:postgres": "tsx scripts/verify-postgres.ts",
     "test:specification:postgres": "tsx scripts/verify-specification.ts",
     "test:catalog:postgres": "tsx scripts/verify-catalog.ts",
+    "test:gpl:postgres": "tsx scripts/verify-gpl-import.ts",
     "test:commercial:postgres": "tsx scripts/verify-commercial-pricing.ts"
   },
   "dependencies": {
