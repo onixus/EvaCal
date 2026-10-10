@@ -123,10 +123,8 @@ export default function GplImportPanel({
     });
   }
   return (
-    <section aria-labelledby="gpl-heading" className="card space-y-4 p-4">
-      <h2 id="gpl-heading" className="text-lg font-semibold">
-        Импорт вендорского GPL
-      </h2>
+    <section aria-label="Импорт вендорского GPL" className="card space-y-4 p-4">
+      <h2 className="text-lg font-semibold">Импорт вендорского GPL</h2>
       <p>
         Загрузите XLSX или CSV, проверьте сопоставление колонок и подтвердите выбранные строки.
         Пустая цена означает неизвестную цену, 0 — бесплатную позицию.

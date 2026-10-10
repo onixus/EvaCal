@@ -15,8 +15,11 @@ test('GPL: map raw CSV, correct an error and import only selected confirmed rows
   ).toHaveCount(1);
   // Refresh the import panel's vendor list after creating a new vendor.
   await page.reload();
-  const panel = page.getByRole('region', { name: 'Импорт вендорского GPL' });
-  await panel.getByLabel('Вендор GPL', { exact: true }).selectOption({ label: vendor });
+  const panel = page.getByRole('region', { name: 'Импорт вендорского GPL', exact: true });
+  await expect(panel).toBeVisible();
+  await panel
+    .getByRole('combobox', { name: 'Вендор GPL', exact: true })
+    .selectOption({ label: vendor });
   await panel.getByLabel('Файл GPL (XLSX / CSV)').setInputFiles({
     name: 'vendor.csv',
     mimeType: 'text/csv',
@@ -25,10 +28,12 @@ test('GPL: map raw CSV, correct an error and import only selected confirmed rows
     ),
   });
   await panel.getByRole('button', { name: 'Загрузить черновик GPL' }).click();
-  await panel.getByLabel('Колонка: Наименование', { exact: true }).selectOption('0');
-  await panel.getByLabel('Колонка: Партномер', { exact: true }).selectOption('1');
-  await panel.getByLabel('Колонка: Цена', { exact: true }).selectOption('2');
-  await panel.getByLabel('Колонка: Единица', { exact: true }).selectOption('3');
+  await panel
+    .getByRole('combobox', { name: 'Колонка: Наименование', exact: true })
+    .selectOption('0');
+  await panel.getByRole('combobox', { name: 'Колонка: Партномер', exact: true }).selectOption('1');
+  await panel.getByRole('combobox', { name: 'Колонка: Цена', exact: true }).selectOption('2');
+  await panel.getByRole('combobox', { name: 'Колонка: Единица', exact: true }).selectOption('3');
   await panel.getByRole('button', { name: 'Применить настройки и проверить строки' }).click();
   await expect(panel.getByLabel('Подтверждаю строку 2', { exact: true })).toBeEnabled();
   await expect(panel.getByLabel('Подтверждаю строку 3', { exact: true })).toBeDisabled();
@@ -56,9 +61,11 @@ test('GPL: map raw CSV, correct an error and import only selected confirmed rows
     page.getByRole('heading', { name: new RegExp(`${vendor}.*Не выбранная`) }),
   ).toHaveCount(0);
   await page.reload();
-  await panel.getByLabel('Сохраненные пакеты и профили').selectOption({ index: 1 });
+  await panel
+    .getByRole('combobox', { name: 'Сохраненные пакеты и профили', exact: true })
+    .selectOption({ index: 1 });
   await expect(panel.getByRole('status')).toContainText('1 принято');
-  await panel.getByLabel('Редакция пакета GPL').selectOption('1');
+  await panel.getByRole('combobox', { name: 'Редакция пакета GPL', exact: true }).selectOption('1');
   await expect(
     panel.getByText('Историческая редакция: только просмотр.', { exact: true }),
   ).toBeVisible();
