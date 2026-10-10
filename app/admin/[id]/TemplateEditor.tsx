@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ROLES } from '@/lib/roles';
 import { COMPLEXITY_LEVELS } from '@/lib/pm';
 import { MIN_WORK_DAY_HOURS, MAX_WORK_DAY_HOURS } from '@/lib/scheduling';
+import NormProposalsPanel from '@/components/NormProposalsPanel';
 
 interface Field {
   id: string;
@@ -575,6 +576,8 @@ export default function TemplateEditor({
           )}
         </div>
       </div>
+
+      <NormProposalsPanel templateId={template.id} />
 
       <div className="card p-6">
         <div className="mb-3 flex items-center justify-between">

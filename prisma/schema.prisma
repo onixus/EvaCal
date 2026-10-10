@@ -74,6 +74,7 @@ model FormTemplate {
   calculations         Calculation[]
   calendar             WorkCalendar?   @relation(fields: [calendarId], references: [id], onDelete: SetNull)
   calendarId           String? // #103 WP-5d: производственный календарь; null — календарь по умолчанию
+  normProposals        NormProposal[] // #103 WP-6c
 
   // Presale looks up the active templates on every page load.
   @@index([isActive])
@@ -113,6 +114,7 @@ model StageTemplate {
   // generated from this stage template. The architect can still edit it per calculation.
   requirements   String?
   order          Int          @default(0)
+  normProposals  NormProposal[] // #103 WP-6c
 
   @@index([templateId, order])
 }
@@ -910,4 +912,42 @@ model AcceptanceEvidence {
   uploadedAt   DateTime          @default(now())
 
   @@index([checkId, resultId])
+}
+
+// ==== #103 WP-6c: norm proposals ====
+
+// Предложение изменить норматив этапа шаблона (baseHours/hoursPerUnit) по
+// факту завершённых проектов. Утверждает владелец шаблона (admin): меняется
+// только StageTemplate, уже созданные расчёты не трогаются. Правила —
+// docs/norm-proposals.md, расчёт — lib/normProposals.ts. Не больше одного
+// открытого предложения на этап шаблона (частичный уникальный индекс в миграции).
+model NormProposal {
+  id                   String        @id @default(cuid())
+  stageTemplateId      String
+  stageTemplate        StageTemplate @relation(fields: [stageTemplateId], references: [id], onDelete: Cascade)
+  formTemplateId       String
+  formTemplate         FormTemplate  @relation(fields: [formTemplateId], references: [id], onDelete: Cascade)
+  /// Норматив на момент формирования: утверждение отклоняется, если он изменился.
+  currentBaseHours     Float
+  currentHoursPerUnit  Float
+  proposedBaseHours    Float
+  proposedHoursPerUnit Float
+  /// Сколько полных наблюдений вошло в статистику (без выбросов).
+  sampleSize           Int
+  /// Доля завершённых этапов выборки с внесённым фактом, 0..1.
+  completeness         Float
+  confidence           String // low | medium | high
+  /// Метод, пороги, использованные расчёты (id, план, формула, факт), выбросы.
+  explanation          Json
+  /// Отпечаток входных данных: повторная генерация с теми же данными не плодит записи.
+  fingerprint          String
+  status               String        @default("proposed") // proposed | approved | rejected | superseded
+  createdBy            String?
+  createdAt            DateTime      @default(now())
+  decidedBy            String?
+  decidedAt            DateTime?
+  decisionComment      String?
+
+  @@index([formTemplateId, status, createdAt])
+  @@index([stageTemplateId, status])
 }
