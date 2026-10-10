@@ -30,7 +30,13 @@ export interface OfferInput {
   priceDate: string | null;
   validUntil: string | null;
 }
+export interface OfferProductSnapshot extends ProductInput {
+  id: string;
+  revision: number;
+  vendor: { id: string; name: string; revision: number };
+}
 export interface Offer extends OfferInput {
+  productSnapshot: OfferProductSnapshot | null;
   productRevision: number;
   id: string;
   createdAt: string;

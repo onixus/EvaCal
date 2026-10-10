@@ -78,7 +78,9 @@ export default function CatalogPicker({
               >
                 <option value="">Без цены — ввести вручную</option>
                 {product.offers
-                  .filter((o) => o.productRevision === product.revision)
+                  .filter(
+                    (o) => o.productRevision === product.revision && o.productSnapshot !== null,
+                  )
                   .map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.unitPrice ?? 'Неизвестно'} {o.currency} · {o.source} · дата{' '}

@@ -13,24 +13,29 @@ export function catalogItem(
     throw new SpecificationError('Предложение относится к предыдущей редакции позиции');
   if (offer && !product.offers.some((o) => o.id === offer.id))
     throw new SpecificationError('Предложение относится к другой позиции');
+  if (offer && !offer.productSnapshot)
+    throw new SpecificationError(
+      'Для этого предложения не сохранены исторические характеристики. Создайте новое предложение.',
+    );
+  const technical = offer?.productSnapshot || product;
   return {
     id,
-    kind: product.kind,
+    kind: technical.kind,
     disposition: 'supply',
-    name: product.name,
-    vendor: product.vendor.name,
-    sku: product.sku,
+    name: technical.name,
+    vendor: technical.vendor.name,
+    sku: technical.sku,
     quantity: null,
-    unit: product.unit,
+    unit: technical.unit,
     configuration: [
-      product.edition && `Редакция: ${product.edition}`,
-      ...product.attributes.map((a) => `${a.name}: ${a.value}${a.unit ? ` ${a.unit}` : ''}`),
+      technical.edition && `Редакция: ${technical.edition}`,
+      ...technical.attributes.map((a) => `${a.name}: ${a.value}${a.unit ? ` ${a.unit}` : ''}`),
     ]
       .filter(Boolean)
       .join('; '),
-    licensing: product.licensing,
+    licensing: technical.licensing,
     term: offer?.terms || '',
-    source: `Каталог ${product.id}, ред. ${product.revision}; вендор ред. ${product.vendor.revision}${offer ? `; предложение ${offer.id}: ${offer.source}; дата цены ${offer.priceDate || 'неизвестна'}; действует до ${offer.validUntil || 'неизвестно'}; регион ${offer.region || 'не задан'}` : '; цена не выбрана'}`,
+    source: `Каталог ${product.id}, ред. ${product.revision}; вендор ред. ${technical.vendor.revision}${offer ? `; предложение ${offer.id}: ${offer.source}; дата цены ${offer.priceDate || 'неизвестна'}; действует до ${offer.validUntil || 'неизвестно'}; регион ${offer.region || 'не задан'}` : '; цена не выбрана'}`,
     rationale: '',
     confirmed: false,
     unitPrice: offer?.unitPrice ?? null,

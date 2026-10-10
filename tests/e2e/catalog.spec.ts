@@ -77,7 +77,7 @@ test('catalog: new vendor, attributes, price history and mixed immutable project
       action: 'product.update',
       id: product.id,
       revision: product.revision,
-      product: { ...product, name: 'Новая редакция', sku: 'SKU-2' },
+      product: { ...product, name: `${name} Новая редакция`, sku: 'SKU-2' },
     },
   });
   expect(changed.status()).toBe(201);
@@ -92,4 +92,13 @@ test('catalog: new vendor, attributes, price history and mixed immutable project
       .getByRole('group', { name: 'Позиция 1', exact: true })
       .getByLabel('Наименование', { exact: true }),
   ).toHaveValue(`${name} Товар`);
+  await page.goto('/catalog');
+  const card = page
+    .locator('.card')
+    .filter({ has: page.getByRole('heading', { name: new RegExp(`${name} Новая редакция`) }) });
+  await card.getByText('История предложений (1)', { exact: true }).click();
+  await expect(
+    card.getByText(`Цена для: ${name} · ${name} Товар · SKU-1 ·`, { exact: false }),
+  ).toBeVisible();
+  await expect(card.getByText('CPU: 4 ядра', { exact: false }).last()).toBeVisible();
 });

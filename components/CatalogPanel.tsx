@@ -359,7 +359,7 @@ export default function CatalogPanel() {
       </label>
       {catalog.products
         .filter((p) =>
-          `${p.name} ${p.sku} ${p.edition} ${p.vendor.name}`
+          `${p.name} ${p.sku} ${p.edition} ${p.vendor.name} ${p.offers.map((o) => (o.productSnapshot ? `${o.productSnapshot.name} ${o.productSnapshot.sku} ${o.productSnapshot.edition} ${o.productSnapshot.vendor.name}` : '')).join(' ')}`
             .toLowerCase()
             .includes(query.toLowerCase()),
         )
@@ -400,12 +400,33 @@ export default function CatalogPanel() {
             <details>
               <summary>История предложений ({p.offers.length})</summary>
               {p.offers.map((o) => (
-                <p key={o.id}>
-                  Ред. позиции {o.productRevision} · {o.unitPrice ?? 'Цена неизвестна'} {o.currency}{' '}
-                  · {o.source} · {o.region || 'Регион не задан'} · дата цены{' '}
-                  {o.priceDate || 'неизвестна'} · действует до {o.validUntil || 'неизвестно'} ·{' '}
-                  {o.terms} · добавлено {o.createdAt} · {o.createdBy}
-                </p>
+                <div key={o.id} className="space-y-1 border-t py-2">
+                  {o.productSnapshot ? (
+                    <>
+                      <p>
+                        Цена для: {o.productSnapshot.vendor.name} · {o.productSnapshot.name} ·{' '}
+                        {o.productSnapshot.sku} · {o.productSnapshot.edition}
+                      </p>
+                      <p>
+                        {o.productSnapshot.attributes
+                          .map((a) => `${a.name}: ${a.value} ${a.unit}`)
+                          .join('; ')}{' '}
+                        · {o.productSnapshot.licensing} · единица {o.productSnapshot.unit}
+                      </p>
+                    </>
+                  ) : (
+                    <p>
+                      Исторические характеристики не сохранены. Для нового подбора создайте новое
+                      предложение.
+                    </p>
+                  )}
+                  <p>
+                    Ред. позиции {o.productRevision} · {o.unitPrice ?? 'Цена неизвестна'}{' '}
+                    {o.currency} · {o.source} · {o.region || 'Регион не задан'} · дата цены{' '}
+                    {o.priceDate || 'неизвестна'} · действует до {o.validUntil || 'неизвестно'} ·{' '}
+                    {o.terms} · добавлено {o.createdAt} · {o.createdBy}
+                  </p>
+                </div>
               ))}
             </details>
           </div>

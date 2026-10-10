@@ -466,6 +466,7 @@ model CatalogOffer {
   id String @id @default(cuid())
   productId String
   productRevision Int
+  productSnapshot Json? // Immutable technical identity at offer creation; null marks legacy unknown.
   product CatalogProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
   source String
   unitPrice Decimal? @db.Decimal(18, 6)

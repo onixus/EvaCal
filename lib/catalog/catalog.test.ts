@@ -4,6 +4,7 @@ import { catalogItem } from './snapshot';
 import { parseSpecification } from '../specification/validation';
 import type { Product, Offer } from './types';
 const offer: Offer = {
+  productSnapshot: null,
   id: 'o1',
   productRevision: 1,
   source: 'Ручной прайс',
@@ -30,6 +31,12 @@ const product: Product = {
   licensing: 'На узел',
   attributes: [{ name: 'EPS', value: '1000', unit: 'событий/с' }],
   offers: [offer],
+};
+offer.productSnapshot = {
+  ...productInput(product),
+  id: product.id,
+  revision: product.revision,
+  vendor: { id: product.vendor.id, name: product.vendor.name, revision: product.vendor.revision },
 };
 describe('Каталог и проектные копии', () => {
   it('новые вендоры и произвольные атрибуты не требуют статического справочника', () => {
@@ -76,6 +83,13 @@ describe('Каталог и проектные копии', () => {
     expect(() => catalogItem(changed, offer)).toThrow('предыдущей редакции');
     expect(saved.items[0].name).toBe('Подписка');
     expect(saved.items[0].configuration).toContain('EPS: 1000');
+  });
+  it('технический снимок цены переживает переименование вендора; неизвестная история не подставляется', () => {
+    const renamed = { ...product, vendor: { ...product.vendor, name: 'Другое имя', revision: 2 } };
+    expect(catalogItem(renamed, offer).vendor).toBe('Новый вендор');
+    expect(() => catalogItem(product, { ...offer, productSnapshot: null })).toThrow(
+      'исторические характеристики',
+    );
   });
   it('архив и чужая цена исключены; без цены можно заполнить вручную', () => {
     expect(() => catalogItem({ ...product, archived: true })).toThrow();

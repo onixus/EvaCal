@@ -1,6 +1,15 @@
 import { prisma } from '../prisma';
 import { SpecificationError } from '../specification/validation';
 import { object, text, revision, productInput, offerInput } from './validation';
+import type { Prisma } from '../generated/prisma/client';
+
+async function lockProduct(tx: Prisma.TransactionClient, id: string) {
+  const rows = await tx.$queryRaw<
+    Array<{ id: string }>
+  >`SELECT id FROM "CatalogProduct" WHERE id = ${id} FOR UPDATE`;
+  if (!rows.length) throw new SpecificationError('Позиция не найдена', 404);
+  return tx.catalogProduct.findUniqueOrThrow({ where: { id } });
+}
 
 export async function loadCatalog() {
   const [vendors, rows] = await Promise.all([
@@ -42,7 +51,13 @@ export async function mutateCatalog(input: unknown, actorId: string) {
     }
     if (d.action === 'product.create' || d.action === 'product.update') {
       const data = productInput(d.product);
-      // Lock parent against concurrent archiving during creation/edit.
+      // Existing-product operations always lock Product → Vendor. Vendor-only
+      // writes never acquire a product lock; creation has no existing product.
+      if (d.action === 'product.update') {
+        const current = await lockProduct(tx, id);
+        if (current.archived || current.revision !== revision(d.revision))
+          throw new SpecificationError('Позиция изменена или архивирована. Обновите каталог.', 409);
+      }
       const vendor = await tx.$queryRaw<
         Array<{ archived: boolean }>
       >`SELECT archived FROM "CatalogVendor" WHERE id = ${data.vendorId} FOR UPDATE`;
@@ -75,18 +90,36 @@ export async function mutateCatalog(input: unknown, actorId: string) {
     }
     if (d.action === 'offer.create') {
       const data = offerInput(d.offer);
-      const rows = await tx.$queryRaw<
-        Array<{ archived: boolean; vendorArchived: boolean; revision: number }>
-      >`SELECT p.archived, p.revision, v.archived AS "vendorArchived" FROM "CatalogProduct" p JOIN "CatalogVendor" v ON v.id = p."vendorId" WHERE p.id = ${id} FOR UPDATE OF p, v`;
-      if (!rows.length || rows[0].archived || rows[0].vendorArchived)
-        throw new SpecificationError('Позиция или вендор архивированы', 409);
-      if (rows[0].revision !== revision(d.revision))
+      const product = await lockProduct(tx, id);
+      if (product.archived) throw new SpecificationError('Позиция архивирована', 409);
+      if (product.revision !== revision(d.revision))
         throw new SpecificationError(
           'Позиция изменена. Обновите каталог перед добавлением цены.',
           409,
         );
+      const vendors = await tx.$queryRaw<
+        Array<{ id: string; name: string; revision: number; archived: boolean }>
+      >`
+        SELECT id, name, revision, archived FROM "CatalogVendor" WHERE id = ${product.vendorId} FOR UPDATE
+      `;
+      const vendor = vendors[0];
+      if (!vendor || vendor.archived) throw new SpecificationError('Вендор архивирован', 409);
+      const technical = productInput(product);
+      const productSnapshot = {
+        ...technical,
+        attributes: technical.attributes.map((a) => ({ ...a })),
+        id: product.id,
+        revision: product.revision,
+        vendor: { id: vendor.id, name: vendor.name, revision: vendor.revision },
+      };
       const offer = await tx.catalogOffer.create({
-        data: { ...data, productId: id, productRevision: rows[0].revision, createdBy: actorId },
+        data: {
+          ...data,
+          productId: id,
+          productRevision: product.revision,
+          productSnapshot,
+          createdBy: actorId,
+        },
       });
       return { ...offer, unitPrice: offer.unitPrice?.toString() ?? null };
     }
