@@ -1,6 +1,7 @@
 import type { TzAuthorState } from './gost34/llm/tzAuthor/types';
 import { prisma } from './prisma';
 import { storePackageArtifact } from './gost34/storage';
+import { countOpenBlockers } from './review/store';
 
 export interface CreateProjectInput {
   name: string;
@@ -571,7 +572,12 @@ export class GostReviewConflictError extends Error {
  * этапе отклоняет выпуск и возвращает комплект автору.
  *
  * Блокеры проверяются вызывающей стороной (ей видны чек-лист и комментарии), но
- * страховка нужна и здесь: утвердить комплект мимо UI нельзя.
+ * страховка нужна и здесь: утвердить комплект мимо UI нельзя. Если вызывающий
+ * не передал счётчик, он считается по таблице замечаний (#103): блокер,
+ * отмеченный исправленным, но не проверенный, утверждение не пропускает.
+ *
+ * Персональное назначение на этап здесь не учитывается: оно не даёт права
+ * подписи, решение закреплено за ролью этапа в маршруте `/review`.
  */
 export async function reviewGostPackage(input: {
   packageId: string;
@@ -593,7 +599,11 @@ export async function reviewGostPackage(input: {
     throw new GostReviewConflictError('Утверждённый комплект документов неизменяем.');
   }
 
-  if (input.decision === 'approve' && (input.openBlockers ?? 0) > 0) {
+  const openBlockers =
+    input.decision === 'approve'
+      ? (input.openBlockers ?? (await countOpenBlockers(pkg)))
+      : (input.openBlockers ?? 0);
+  if (input.decision === 'approve' && openBlockers > 0) {
     throw new GostReviewConflictError('Утверждение недоступно, пока открыт хотя бы один блокер.');
   }
 

@@ -2,18 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireCalcAccess } from '@/lib/access';
 import { handleApiError } from '@/lib/apiHelpers';
-import {
-  parseChecklist,
-  parseComments,
-  type ChecklistItem,
-  type CommentSeverity,
-  type SectionComment,
-} from '@/lib/gost34/review/types';
-
-const SEVERITIES: CommentSeverity[] = ['blocker', 'remark', 'suggestion'];
+import { parseChecklist, type ChecklistItem } from '@/lib/gost34/review/types';
+import { loadReviewComments } from '@/lib/review/store';
 
 /**
- * Черновое состояние ревью: отметки чек-листа и комментарии по разделам.
+ * Черновое состояние ревью: отметки чек-листа нормоконтроля.
  *
  * Пишется по мере работы ревьювера, до вынесения вердикта — иначе закрытая
  * вкладка стоила бы часа нормоконтроля.
@@ -32,7 +25,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     }
 
     const body = await req.json();
-    const data: { reviewChecklist?: string; reviewComments?: string } = {};
+    const data: { reviewChecklist?: string } = {};
 
     if (Array.isArray(body?.checklist)) {
       // Пишем только то, что относится к известным пунктам: клиент не должен
@@ -48,22 +41,14 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       data.reviewChecklist = JSON.stringify(cleaned);
     }
 
+    // Замечания больше не пишутся JSON-массивом целиком (#103): у каждого свой
+    // жизненный цикл и ответы, поэтому они идут через /comments. Столбец
+    // reviewComments остаётся резервом только для чтения.
     if (Array.isArray(body?.comments)) {
-      const actor =
-        access.kind === 'staff' ? (access.session?.username ?? 'reviewer') : access.actorId;
-
-      const cleaned: SectionComment[] = body.comments
-        .filter((c: SectionComment) => c?.sectionId && String(c?.text ?? '').trim())
-        .map((c: SectionComment, idx: number) => ({
-          id: c.id || `c${idx}-${Date.now()}`,
-          sectionId: String(c.sectionId).slice(0, 200),
-          severity: SEVERITIES.includes(c.severity) ? c.severity : 'remark',
-          text: String(c.text).trim().slice(0, 2000),
-          // Автора проставляет сервер: подписать чужим именем нельзя.
-          author: c.author || actor,
-          createdAt: c.createdAt || new Date().toISOString(),
-        }));
-      data.reviewComments = JSON.stringify(cleaned);
+      return NextResponse.json(
+        { error: 'Замечания сохраняются через /api/gost34/packages/:id/comments' },
+        { status: 400 },
+      );
     }
 
     if (Object.keys(data).length === 0) {
@@ -74,7 +59,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
     return NextResponse.json({
       checklist: parseChecklist(updated.reviewChecklist),
-      comments: parseComments(updated.reviewComments),
+      comments: await loadReviewComments(updated),
     });
   } catch (err) {
     return handleApiError(err, 'Failed to save review state', 500);

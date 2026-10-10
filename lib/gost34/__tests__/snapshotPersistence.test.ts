@@ -27,6 +27,7 @@ vi.mock('@/lib/prisma', () => ({
       updateMany: vi.fn(),
       delete: vi.fn(),
     },
+    reviewComment: { findMany: vi.fn(async () => []) },
   },
 }));
 

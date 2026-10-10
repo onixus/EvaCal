@@ -7,15 +7,26 @@ import { safeJsonParse } from '@/lib/json';
 import type { GostWizardSnapshot } from '@/lib/project';
 import {
   COMMENT_SEVERITY_LABELS,
+  COMMENT_STATUS_LABELS,
   countBySeverity,
+  isCommentResolved,
   openBlockerCount,
   REVIEW_STAGE_LABELS,
   type ChecklistItem,
   type ChecklistState,
   type CommentSeverity,
   type ReviewStage,
+  type CommentStatus,
   type SectionComment,
 } from '@/lib/gost34/review/types';
+import type { SerializedAssignment } from '@/lib/review/store';
+import {
+  canResolveComment,
+  isAssignmentOverdue,
+  type AssignableStage,
+  type CommentAction,
+  type ReviewActor,
+} from '@/lib/review/workflow';
 
 export interface ReviewQueueItem {
   id: string;
@@ -26,6 +37,14 @@ export interface ReviewQueueItem {
   stage: ReviewStage;
   /** Дней с момента выпуска — по нему считается срочность в очереди. */
   ageDays: number;
+  /** Персональный ответственный за текущий этап (#103). */
+  assignment?: { assigneeName: string; dueAt: string };
+}
+
+export interface AssignCandidate {
+  id: string;
+  username: string;
+  role: string;
 }
 
 export interface SerializedReviewPackage {
@@ -54,6 +73,8 @@ export interface SerializedReviewPackage {
   snapshot: GostWizardSnapshot;
   checklist: ChecklistItem[];
   comments: SectionComment[];
+  /** Активные назначения по этапам. */
+  assignments: SerializedAssignment[];
   twVersion: {
     name: string;
     uploadedAt: string | null;
@@ -83,6 +104,13 @@ const NEXT_STATE: Record<ChecklistState, ChecklistState> = {
   block: 'empty',
 };
 
+const STATUS_CHIP: Record<CommentStatus, string> = {
+  open: 'chip-warn',
+  fixed: 'chip-muted',
+  verified: 'chip-ok',
+  rejected: 'chip-muted',
+};
+
 const SEVERITY_TONE: Record<CommentSeverity, string> = {
   blocker: 'text-rose-700 dark:text-nord-redText',
   remark: 'text-amber-700 dark:text-nord-yellow',
@@ -100,12 +128,22 @@ export default function PackageReviewClient({
   queue,
   shareToken,
   canReview,
+  canParticipate,
+  actor,
+  canAssignStages,
+  assignCandidates,
 }: {
   pkg: SerializedReviewPackage;
   queue: ReviewQueueItem[];
   shareToken: string | null;
   /** Роль позволяет выносить вердикт на текущем этапе. */
   canReview: boolean;
+  /** Есть право review: ответы, отметка «исправлено», закрытие своих замечаний. */
+  canParticipate: boolean;
+  actor: ReviewActor;
+  /** Этапы, на которые пользователь вправе назначать ответственного. */
+  canAssignStages: AssignableStage[];
+  assignCandidates: Partial<Record<AssignableStage, AssignCandidate[]>>;
 }) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -113,6 +151,7 @@ export default function PackageReviewClient({
   const [tab, setTab] = useState<'checklist' | 'sections'>('checklist');
   const [checklist, setChecklist] = useState(pkg.checklist);
   const [comments, setComments] = useState(pkg.comments);
+  const [assignments, setAssignments] = useState(pkg.assignments);
   const [twVersion, setTwVersion] = useState(pkg.twVersion);
 
   const [reviewerName, setReviewerName] = useState('');
@@ -156,7 +195,7 @@ export default function PackageReviewClient({
   }
 
   /** Состояние ревью сохраняется сразу — закрытая вкладка не должна стоить работы. */
-  async function persist(next: { checklist?: ChecklistItem[]; comments?: SectionComment[] }) {
+  async function persist(next: { checklist?: ChecklistItem[] }) {
     try {
       await fetch(`/api/gost34/packages/${pkg.id}/review-state${shareQuery}`, {
         method: 'PATCH',
@@ -177,26 +216,81 @@ export default function PackageReviewClient({
     persist({ checklist: next });
   }
 
-  function addComment(sectionId: string, severity: CommentSeverity, text: string) {
-    const next: SectionComment[] = [
-      ...comments,
-      {
-        id: `c-${Date.now()}`,
-        sectionId,
-        severity,
-        text,
-        author: reviewerName.trim() || 'reviewer',
-        createdAt: new Date().toISOString(),
-      },
-    ];
-    setComments(next);
-    persist({ comments: next });
+  /** Замечание с сервера заменяет локальную копию — статусы и ответы приходят оттуда. */
+  function applyComment(next: SectionComment) {
+    setComments((prev) =>
+      prev.some((c) => c.id === next.id)
+        ? prev.map((c) => (c.id === next.id ? { ...c, ...next } : c))
+        : [...prev, next],
+    );
   }
 
-  function removeComment(id: string) {
-    const next = comments.filter((c) => c.id !== id);
-    setComments(next);
-    persist({ comments: next });
+  async function callComments(
+    path: string,
+    method: 'POST' | 'PATCH',
+    body: Record<string, unknown>,
+  ): Promise<boolean> {
+    setError(null);
+    try {
+      const res = await fetch(`/api/gost34/packages/${pkg.id}/comments${path}${shareQuery}`, {
+        method,
+        headers: headers(),
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Не удалось сохранить замечание');
+      applyComment(data.comment);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка сохранения замечания');
+      return false;
+    }
+  }
+
+  function addComment(sectionId: string, severity: CommentSeverity, text: string) {
+    return callComments('', 'POST', {
+      sectionId,
+      severity,
+      text,
+      author: reviewerName.trim() || undefined,
+    });
+  }
+
+  function changeStatus(id: string, action: CommentAction) {
+    return callComments(`/${encodeURIComponent(id)}`, 'PATCH', { action });
+  }
+
+  function reply(id: string, text: string) {
+    return callComments(`/${encodeURIComponent(id)}`, 'POST', {
+      text,
+      author: reviewerName.trim() || undefined,
+    });
+  }
+
+  async function assign(
+    stage: AssignableStage,
+    input: { assigneeId: string; deputyId: string; dueAt: string },
+  ): Promise<boolean> {
+    setError(null);
+    try {
+      const res = await fetch(`/api/gost34/packages/${pkg.id}/assignments`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({
+          stage,
+          assigneeId: input.assigneeId,
+          deputyId: input.deputyId || undefined,
+          dueAt: input.dueAt,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Не удалось назначить ответственного');
+      setAssignments((prev) => [...prev.filter((a) => a.stage !== stage), data.assignment]);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка назначения');
+      return false;
+    }
   }
 
   async function handleUpload(file: File) {
@@ -297,6 +391,18 @@ export default function PackageReviewClient({
               <span className="mt-0.5 truncate text-[10px] text-slate-400 dark:text-nord-muted">
                 {item.customerName} · v{item.version} · {REVIEW_STAGE_LABELS[item.stage]}
               </span>
+              {item.assignment && (
+                <span
+                  className={`mt-0.5 truncate text-[10px] ${
+                    isAssignmentOverdue(item.assignment.dueAt)
+                      ? 'font-bold text-rose-700 dark:text-nord-redText'
+                      : 'text-slate-500 dark:text-nord-muted'
+                  }`}
+                >
+                  → {item.assignment.assigneeName} · до{' '}
+                  {new Date(item.assignment.dueAt).toLocaleDateString('ru-RU')}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -376,6 +482,12 @@ export default function PackageReviewClient({
           )}
         </div>
 
+        {error && (
+          <div className="rounded-lg bg-rose-50 px-3 py-2 text-[11px] text-rose-700 dark:bg-nord-red/15 dark:text-nord-redText">
+            {error}
+          </div>
+        )}
+
         <div className="flex gap-1 border-b border-slate-200 dark:border-nord-3">
           {(
             [
@@ -439,16 +551,27 @@ export default function PackageReviewClient({
           </div>
         ) : (
           <div className="space-y-2">
-            {sections.map((sectionId) => {
+            {[
+              ...sections,
+              // Замечания к разделам, которых нет в текущем снимке (например,
+              // перенесённые из ранней версии), не должны теряться.
+              ...Array.from(new Set(comments.map((c) => c.sectionId))).filter(
+                (id) => !sections.includes(id),
+              ),
+            ].map((sectionId) => {
               const sectionComments = comments.filter((c) => c.sectionId === sectionId);
               return (
                 <SectionCard
                   key={sectionId}
                   sectionId={sectionId}
                   comments={sectionComments}
-                  canEdit={!isFinal && canReview}
+                  packageVersion={pkg.version}
+                  actor={actor}
+                  canAdd={!isFinal && canReview}
+                  canParticipate={!isFinal && canParticipate}
                   onAdd={(severity, text) => addComment(sectionId, severity, text)}
-                  onRemove={removeComment}
+                  onStatus={changeStatus}
+                  onReply={reply}
                 />
               );
             })}
@@ -517,6 +640,14 @@ export default function PackageReviewClient({
             </div>
           )}
         </div>
+
+        <AssignmentsCard
+          assignments={assignments}
+          currentStage={pkg.reviewStage}
+          canAssignStages={isFinal ? [] : canAssignStages}
+          candidates={assignCandidates}
+          onAssign={assign}
+        />
 
         <div className="card-flat space-y-2.5 p-3.5">
           <div className="text-xs font-extrabold text-slate-900 dark:text-nord-6">
@@ -681,7 +812,8 @@ export default function PackageReviewClient({
 
               <p className="text-[10px] leading-relaxed text-slate-400 dark:text-nord-muted">
                 Решение тех.писателя уходит ГАП на финальное ревью. Утверждение недоступно, пока
-                открыт хотя бы один блокер; всё фиксируется в реестре выпусков и листе изменений.
+                открыт хотя бы один блокер — исправленный, но не проверенный тоже считается
+                открытым; всё фиксируется в реестре выпусков и листе изменений.
               </p>
             </form>
           )}
@@ -691,37 +823,49 @@ export default function PackageReviewClient({
   );
 }
 
-/** Карточка раздела с комментариями нормоконтроля. */
+/** Карточка раздела с замечаниями: статусы, ответы и переходы жизненного цикла. */
 function SectionCard({
   sectionId,
   comments,
-  canEdit,
+  packageVersion,
+  actor,
+  canAdd,
+  canParticipate,
   onAdd,
-  onRemove,
+  onStatus,
+  onReply,
 }: {
   sectionId: string;
   comments: SectionComment[];
-  canEdit: boolean;
-  onAdd: (severity: CommentSeverity, text: string) => void;
-  onRemove: (id: string) => void;
+  packageVersion: number;
+  actor: ReviewActor;
+  /** Новое замечание оставляет роль этапа (как и раньше). */
+  canAdd: boolean;
+  /** Ответы и переходы — любой с правом review; закрытие — автор или роль этапа. */
+  canParticipate: boolean;
+  onAdd: (severity: CommentSeverity, text: string) => Promise<boolean>;
+  onStatus: (id: string, action: CommentAction) => Promise<boolean>;
+  onReply: (id: string, text: string) => Promise<boolean>;
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [severity, setSeverity] = useState<CommentSeverity>('remark');
   const [text, setText] = useState('');
 
-  const worst: CommentSeverity | null = comments.some((c) => c.severity === 'blocker')
+  const unresolved = comments.filter((c) => !isCommentResolved(c));
+  const worst: CommentSeverity | null = unresolved.some((c) => c.severity === 'blocker')
     ? 'blocker'
-    : comments.some((c) => c.severity === 'remark')
+    : unresolved.some((c) => c.severity === 'remark')
       ? 'remark'
-      : comments.length > 0
+      : unresolved.length > 0
         ? 'suggestion'
         : null;
 
-  function submit() {
+  async function submit() {
     if (!text.trim()) return;
-    onAdd(severity, text.trim());
-    setText('');
-    setIsAdding(false);
+    if (await onAdd(severity, text.trim())) {
+      setText('');
+      setIsAdding(false);
+    }
   }
 
   return (
@@ -736,45 +880,25 @@ function SectionCard({
               worst === 'blocker' ? 'chip-block' : worst === 'remark' ? 'chip-warn' : 'chip-muted'
             }
           >
-            {comments.length} {COMMENT_SEVERITY_LABELS[worst]}
-            {comments.length > 1 ? 'а' : ''}
+            {unresolved.length} {COMMENT_SEVERITY_LABELS[worst]}
+            {unresolved.length > 1 ? 'а' : ''}
           </span>
         )}
       </div>
 
       {comments.map((c) => (
-        <div
+        <CommentItem
           key={c.id}
-          className="flex items-start justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 dark:bg-nord-1"
-        >
-          <p className="min-w-0 text-[11px] leading-relaxed text-slate-700 dark:text-nord-4">
-            <span className={`font-extrabold ${SEVERITY_TONE[c.severity]}`}>
-              {COMMENT_SEVERITY_LABELS[c.severity]}
-            </span>{' '}
-            {c.text}
-            <span className="text-slate-400 dark:text-nord-muted">
-              {' '}
-              — {c.author},{' '}
-              {new Date(c.createdAt).toLocaleTimeString('ru-RU', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </span>
-          </p>
-          {canEdit && (
-            <button
-              type="button"
-              onClick={() => onRemove(c.id)}
-              className="shrink-0 text-[10px] font-bold text-slate-400 hover:text-rose-600"
-              title="Удалить комментарий"
-            >
-              ✕
-            </button>
-          )}
-        </div>
+          comment={c}
+          packageVersion={packageVersion}
+          actor={actor}
+          canParticipate={canParticipate}
+          onStatus={onStatus}
+          onReply={onReply}
+        />
       ))}
 
-      {canEdit &&
+      {canAdd &&
         (isAdding ? (
           <div className="space-y-1.5">
             <div className="flex gap-1">
@@ -827,6 +951,350 @@ function SectionCard({
             + Комментарий
           </button>
         ))}
+    </div>
+  );
+}
+
+/** Одно замечание: статус, происхождение, ответы и доступные действия. */
+function CommentItem({
+  comment: c,
+  packageVersion,
+  actor,
+  canParticipate,
+  onStatus,
+  onReply,
+}: {
+  comment: SectionComment;
+  packageVersion: number;
+  actor: ReviewActor;
+  canParticipate: boolean;
+  onStatus: (id: string, action: CommentAction) => Promise<boolean>;
+  onReply: (id: string, text: string) => Promise<boolean>;
+}) {
+  const [replying, setReplying] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const status: CommentStatus = c.status ?? 'open';
+  const fromVersion = c.packageVersion ?? packageVersion;
+  const canAct = canParticipate && !c.legacy;
+  const canResolve =
+    canAct &&
+    canResolveComment(
+      {
+        status,
+        stage: c.stage ?? 'tw',
+        author: c.author,
+        authorId: c.authorId ?? null,
+        packageProjectId: null,
+        packageVersion: fromVersion,
+      },
+      actor,
+    );
+  // «Исправлено» ставится только в более новой версии, чем та, к которой
+  // замечание оставлено: выпущенный комплект не меняется.
+  const canFix = canAct && status === 'open' && fromVersion < packageVersion;
+
+  async function run(action: CommentAction) {
+    setBusy(true);
+    await onStatus(c.id, action);
+    setBusy(false);
+  }
+
+  async function sendReply() {
+    if (!replyText.trim()) return;
+    setBusy(true);
+    if (await onReply(c.id, replyText.trim())) {
+      setReplyText('');
+      setReplying(false);
+    }
+    setBusy(false);
+  }
+
+  const resolved = isCommentResolved(c);
+
+  return (
+    <div
+      className={`space-y-1 rounded-lg px-2.5 py-1.5 ${
+        resolved ? 'bg-slate-50/60 opacity-70 dark:bg-nord-1/60' : 'bg-slate-50 dark:bg-nord-1'
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-1">
+        <span className={STATUS_CHIP[status]}>{COMMENT_STATUS_LABELS[status]}</span>
+        {fromVersion !== packageVersion && <span className="chip-muted">из v{fromVersion}</span>}
+        {c.fixedInVersion != null && (
+          <span className="chip-muted">исправлено в v{c.fixedInVersion}</span>
+        )}
+        {c.legacy && <span className="chip-muted">старый формат</span>}
+      </div>
+      <p className="min-w-0 text-[11px] leading-relaxed text-slate-700 dark:text-nord-4">
+        <span className={`font-extrabold ${SEVERITY_TONE[c.severity]}`}>
+          {COMMENT_SEVERITY_LABELS[c.severity]}
+        </span>{' '}
+        {c.text}
+        <span className="text-slate-400 dark:text-nord-muted">
+          {' '}
+          — {c.author}, {new Date(c.createdAt).toLocaleDateString('ru-RU')}
+        </span>
+      </p>
+      {(c.fixedBy || c.verifiedBy) && (
+        <p className="text-[10px] text-slate-400 dark:text-nord-muted">
+          {c.fixedBy && <>исправил {c.fixedBy}</>}
+          {c.fixedBy && c.verifiedBy && ' · '}
+          {c.verifiedBy && <>проверил {c.verifiedBy}</>}
+        </p>
+      )}
+
+      {(c.replies ?? []).length > 0 && (
+        <div className="space-y-0.5 border-l-2 border-slate-200 pl-2 dark:border-nord-3">
+          {(c.replies ?? []).map((r) => (
+            <p key={r.id} className="text-[10px] leading-relaxed text-slate-600 dark:text-nord-4">
+              {r.text}
+              <span className="text-slate-400 dark:text-nord-muted">
+                {' '}
+                — {r.author}, {new Date(r.createdAt).toLocaleDateString('ru-RU')}
+              </span>
+            </p>
+          ))}
+        </div>
+      )}
+
+      {canAct && (
+        <div className="flex flex-wrap gap-2 pt-0.5 text-[10px] font-bold">
+          {canFix && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run('fix')}
+              className="text-brand-700 hover:underline dark:text-nord-frost2"
+            >
+              Исправлено в v{packageVersion}
+            </button>
+          )}
+          {canResolve && status === 'fixed' && (
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => run('verify')}
+                className="text-emerald-700 hover:underline dark:text-nord-green"
+              >
+                Проверено
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => run('reopen')}
+                className="text-amber-700 hover:underline dark:text-nord-yellow"
+              >
+                Не исправлено
+              </button>
+            </>
+          )}
+          {canResolve && (status === 'open' || status === 'fixed') && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run('reject')}
+              className="text-slate-500 hover:underline dark:text-nord-muted"
+            >
+              Отклонить
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setReplying((v) => !v)}
+            className="text-slate-500 hover:underline dark:text-nord-muted"
+          >
+            Ответить
+          </button>
+        </div>
+      )}
+
+      {replying && (
+        <div className="space-y-1">
+          <textarea
+            rows={2}
+            autoFocus
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            placeholder="Ответ: что исправлено или почему замечание неприменимо"
+            className="input !py-1.5 !text-[11px]"
+          />
+          <button
+            type="button"
+            disabled={busy}
+            onClick={sendReply}
+            className="btn-primary !px-2.5 !py-1 !text-[10px]"
+          >
+            Отправить
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Ответственные по этапам: исполнитель, срок и замещающий. Назначение — это
+ * ответственность, а не право подписи: вердикт выносит роль этапа.
+ */
+function AssignmentsCard({
+  assignments,
+  currentStage,
+  canAssignStages,
+  candidates,
+  onAssign,
+}: {
+  assignments: SerializedAssignment[];
+  currentStage: ReviewStage;
+  canAssignStages: AssignableStage[];
+  candidates: Partial<Record<AssignableStage, AssignCandidate[]>>;
+  onAssign: (
+    stage: AssignableStage,
+    input: { assigneeId: string; deputyId: string; dueAt: string },
+  ) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState<AssignableStage | null>(null);
+  const [assigneeId, setAssigneeId] = useState('');
+  const [deputyId, setDeputyId] = useState('');
+  const [dueAt, setDueAt] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  function startEdit(stage: AssignableStage) {
+    const current = assignments.find((a) => a.stage === stage);
+    setEditing(stage);
+    setAssigneeId(current?.assigneeId ?? '');
+    setDeputyId(current?.deputyId ?? '');
+    setDueAt(current ? current.dueAt.slice(0, 10) : '');
+  }
+
+  async function save() {
+    if (!editing || !assigneeId || !dueAt) return;
+    setBusy(true);
+    // Срок — конец выбранного дня по местному времени.
+    const due = new Date(`${dueAt}T23:59:59`).toISOString();
+    if (await onAssign(editing, { assigneeId, deputyId, dueAt: due })) setEditing(null);
+    setBusy(false);
+  }
+
+  const options = editing ? (candidates[editing] ?? []) : [];
+  const assignee = options.find((u) => u.id === assigneeId);
+  const deputyOptions = options.filter((u) => u.id !== assigneeId && u.role === assignee?.role);
+
+  return (
+    <div className="card-flat space-y-2 p-3.5">
+      <div className="text-xs font-extrabold text-slate-900 dark:text-nord-6">Ответственные</div>
+      {(['tw', 'gap'] as const).map((stage) => {
+        const a = assignments.find((x) => x.stage === stage);
+        const overdue = a && currentStage === stage && isAssignmentOverdue(a.dueAt);
+        return (
+          <div key={stage} className="space-y-0.5 text-[11px]">
+            <div className="flex items-center justify-between gap-2">
+              <span
+                className={`font-semibold ${
+                  currentStage === stage
+                    ? 'text-brand-700 dark:text-nord-frost2'
+                    : 'text-slate-500 dark:text-nord-muted'
+                }`}
+              >
+                {REVIEW_STAGE_LABELS[stage]}
+              </span>
+              {canAssignStages.includes(stage) && editing !== stage && (
+                <button
+                  type="button"
+                  onClick={() => startEdit(stage)}
+                  className="text-[10px] font-bold text-brand-700 hover:underline dark:text-nord-frost2"
+                >
+                  {a ? 'Переназначить' : 'Назначить'}
+                </button>
+              )}
+            </div>
+            {a ? (
+              <div className="text-slate-600 dark:text-nord-4">
+                {a.assigneeName}
+                {a.deputyName && (
+                  <span className="text-slate-400 dark:text-nord-muted">
+                    {' '}
+                    · замещает {a.deputyName}
+                  </span>
+                )}
+                <span
+                  className={
+                    overdue
+                      ? 'ml-1 chip-block'
+                      : 'ml-1 text-[10px] text-slate-400 dark:text-nord-muted'
+                  }
+                >
+                  {overdue ? 'просрочено: ' : 'до '}
+                  {new Date(a.dueAt).toLocaleDateString('ru-RU')}
+                </span>
+              </div>
+            ) : (
+              <div className="text-slate-400 dark:text-nord-muted">не назначен</div>
+            )}
+
+            {editing === stage && (
+              <div className="space-y-1.5 pt-1">
+                <select
+                  value={assigneeId}
+                  onChange={(e) => {
+                    setAssigneeId(e.target.value);
+                    setDeputyId('');
+                  }}
+                  className="input !py-1 !text-[11px]"
+                >
+                  <option value="">Исполнитель…</option>
+                  {options.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.username} ({u.role})
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={deputyId}
+                  onChange={(e) => setDeputyId(e.target.value)}
+                  disabled={!assignee}
+                  className="input !py-1 !text-[11px]"
+                >
+                  <option value="">Без замещающего</option>
+                  {deputyOptions.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.username}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="date"
+                  value={dueAt}
+                  onChange={(e) => setDueAt(e.target.value)}
+                  className="input !py-1 !text-[11px]"
+                />
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    disabled={busy || !assigneeId || !dueAt}
+                    onClick={save}
+                    className="btn-primary !px-2.5 !py-1 !text-[10px]"
+                  >
+                    Сохранить
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(null)}
+                    className="btn-ghost !px-2.5 !py-1 !text-[10px]"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <p className="text-[10px] leading-relaxed text-slate-400 dark:text-nord-muted">
+        Назначение задаёт ответственного и срок, но не право подписи: решение выносит роль этапа.
+      </p>
     </div>
   );
 }

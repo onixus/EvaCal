@@ -6,10 +6,17 @@ import { parsePackageSnapshot } from '@/lib/gost34/diff';
 import {
   canDecideReviewStage,
   parseChecklist,
-  parseComments,
+  REVIEW_STAGE_ROLES,
   SHARE_ALLOWED_STAGES,
   type ReviewStage,
 } from '@/lib/gost34/review/types';
+import { hasReviewerPowers } from '@/lib/appRoles';
+import {
+  loadActiveAssignments,
+  loadAssignmentCandidates,
+  loadReviewComments,
+} from '@/lib/review/store';
+import { actorFromAccess, ASSIGNABLE_STAGES, canAssignReviewStage } from '@/lib/review/workflow';
 import PackageReviewClient, {
   type ReviewQueueItem,
   type SerializedReviewPackage,
@@ -76,6 +83,15 @@ export default async function PackageReviewPage(props: {
       ? Boolean(access.share?.scopes.includes('review')) && SHARE_ALLOWED_STAGES.includes(stage)
       : canDecideReviewStage(role, stage);
 
+  // Вести замечания (ответы, «исправлено», проверка своих) может любой, у кого
+  // есть право review; вердикт — только роль этапа (canReview выше).
+  const canParticipate =
+    access.kind === 'share'
+      ? Boolean(access.share?.scopes.includes('review'))
+      : hasReviewerPowers(role);
+  const actor = actorFromAccess(access);
+  const canAssignStages = ASSIGNABLE_STAGES.filter((s) => canAssignReviewStage(actor, s));
+
   // Очередь того же этапа: ревьювер видит, что ещё ждёт нормоконтроля, а ГАП —
   // что ждёт финального решения.
   const queueRows = await prisma.gostPackage.findMany({
@@ -112,6 +128,19 @@ export default async function PackageReviewPage(props: {
     });
   }
 
+  const [comments, activeAssignments, ...candidateLists] = await Promise.all([
+    loadReviewComments(pkg),
+    loadActiveAssignments(Array.from(new Set([pkg.id, ...queue.map((q) => q.id)]))),
+    ...canAssignStages.map((s) => loadAssignmentCandidates(REVIEW_STAGE_ROLES[s])),
+  ]);
+  const assignCandidates = Object.fromEntries(
+    canAssignStages.map((s, idx) => [s, candidateLists[idx]]),
+  );
+  for (const item of queue) {
+    const a = activeAssignments.get(`${item.id}:${item.stage}`);
+    if (a) item.assignment = { assigneeName: a.assigneeName, dueAt: a.dueAt };
+  }
+
   const serializedPackage: SerializedReviewPackage = {
     id: pkg.id,
     name: pkg.name,
@@ -137,7 +166,10 @@ export default async function PackageReviewPage(props: {
     createdAt: pkg.createdAt.toISOString(),
     snapshot: parsePackageSnapshot(pkg),
     checklist: parseChecklist(pkg.reviewChecklist),
-    comments: parseComments(pkg.reviewComments),
+    comments,
+    assignments: ASSIGNABLE_STAGES.map((s) => activeAssignments.get(`${pkg.id}:${s}`)).filter(
+      (a): a is NonNullable<typeof a> => Boolean(a),
+    ),
     twVersion: pkg.twVersionPath
       ? {
           name: pkg.twVersionName || 'версия тех.писателя.docx',
@@ -154,6 +186,10 @@ export default async function PackageReviewPage(props: {
       queue={queue}
       shareToken={shareToken}
       canReview={canReview}
+      canParticipate={canParticipate}
+      actor={actor}
+      canAssignStages={canAssignStages}
+      assignCandidates={assignCandidates}
     />
   );
 }

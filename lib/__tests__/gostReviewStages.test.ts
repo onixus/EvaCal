@@ -11,7 +11,13 @@ vi.mock('@/lib/audit', () => ({
 }));
 vi.mock('@/lib/changelog', () => ({ recordInternalChangeSafe: vi.fn() }));
 vi.mock('@/lib/prisma', () => ({
-  prisma: { gostPackage: { findUnique: vi.fn(), update: vi.fn() } },
+  prisma: {
+    gostPackage: { findUnique: vi.fn(), update: vi.fn() },
+    // Таблица замечаний пуста — срабатывает резерв из JSON-столбца (#103).
+    reviewComment: { findMany: vi.fn(async () => []) },
+    reviewAssignment: { findMany: vi.fn(async () => []) },
+    user: { findMany: vi.fn(async () => []) },
+  },
 }));
 
 import { requireCalcAccess } from '@/lib/access';

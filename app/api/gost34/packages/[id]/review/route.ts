@@ -6,10 +6,8 @@ import { GostReviewConflictError, reviewGostPackage } from '@/lib/project';
 import { parsePackageSnapshot } from '@/lib/gost34/diff';
 import { handleApiError } from '@/lib/apiHelpers';
 import { recordInternalChangeSafe } from '@/lib/changelog';
+import { countOpenBlockers } from '@/lib/review/store';
 import {
-  openBlockerCount,
-  parseChecklist,
-  parseComments,
   REVIEW_STAGE_LABELS,
   REVIEW_STAGE_ROLES,
   SHARE_ALLOWED_STAGES,
@@ -50,13 +48,6 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const actorDisplayName =
       reviewerName?.trim() || (access.kind === 'staff' ? access.session?.username : access.actorId);
 
-    // Блокеры считаются на сервере из сохранённого состояния ревью, а не берутся
-    // из тела запроса: иначе утверждение мимо UI обошло бы нормоконтроль.
-    const openBlockers = openBlockerCount(
-      parseComments(pkg.reviewComments),
-      parseChecklist(pkg.reviewChecklist),
-    );
-
     const stageBefore = (pkg.reviewStage === 'gap' ? 'gap' : 'tw') as ReviewStage;
 
     // Решение на этапе выносит только та роль, которой этот этап принадлежит:
@@ -81,6 +72,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         { status: 403 },
       );
     }
+
+    // Блокеры считаются на сервере из сохранённого состояния ревью, а не берутся
+    // из тела запроса: иначе утверждение мимо UI обошло бы нормоконтроль.
+    // Персональное назначение на этап (#103) здесь намеренно не участвует:
+    // оно не даёт права подписи, гейт выше — единственный.
+    const openBlockers = decision === 'approve' ? await countOpenBlockers(pkg) : 0;
 
     const updated = await reviewGostPackage({
       packageId: pkg.id,

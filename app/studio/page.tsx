@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { requireRole } from '@/lib/auth';
 import type { ReviewStage } from '@/lib/gost34/review/types';
+import { summarizeReviewBulk } from '@/lib/review/store';
 import StudioPickerClient, { type StudioCalculationItem } from './StudioPickerClient';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +31,7 @@ export default async function StudioPickerPage() {
           id: true,
           name: true,
           version: true,
+          projectId: true,
           status: true,
           reviewStage: true,
           reviewComment: true,
@@ -41,6 +43,8 @@ export default async function StudioPickerPage() {
       },
     },
   });
+
+  const reviewByPackage = await summarizeReviewBulk(rows.flatMap((r) => r.gostPackages));
 
   const calculations: StudioCalculationItem[] = rows.map((r) => ({
     id: r.id,
@@ -60,8 +64,8 @@ export default async function StudioPickerPage() {
           ? 'done'
           : 'tw') as ReviewStage,
       reviewComment: p.reviewComment,
-      reviewComments: p.reviewComments,
-      reviewChecklist: p.reviewChecklist,
+      openBlockers: reviewByPackage.get(p.id)?.openBlockers ?? 0,
+      openComments: reviewByPackage.get(p.id)?.openComments ?? 0,
       updatedAt: p.updatedAt.toISOString(),
       releasedAt: p.releasedAt ? p.releasedAt.toISOString() : null,
     })),
