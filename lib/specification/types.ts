@@ -5,8 +5,24 @@ export const ITEM_KINDS = [
   'license',
   'support',
   'service',
+  'subscription',
+  'bundle',
   'other',
 ] as const;
+export type ItemKind = (typeof ITEM_KINDS)[number];
+/** Single source of Russian labels for item kinds (forms, XLSX, diff views). */
+export const ITEM_KIND_LABELS: Record<ItemKind, string> = {
+  hardware: 'Оборудование',
+  software: 'ПО',
+  license: 'Лицензия',
+  support: 'Поддержка',
+  service: 'Услуга',
+  subscription: 'Подписка',
+  bundle: 'Комплект',
+  other: 'Другое',
+};
+/** Kinds that need a licensing model or right of use before the final gate. */
+export const LICENSED_KINDS: readonly ItemKind[] = ['software', 'license', 'subscription'];
 export const ITEM_DISPOSITIONS = ['supply', 'existing', 'alternative'] as const;
 
 /**
@@ -48,6 +64,12 @@ export interface SpecificationItem {
   currency: string;
   /** Optional note explaining why this row changed in the revision (shown in diff). */
   changeReason?: string;
+  /**
+   * Optional ID of a `bundle` row of the same snapshot this row is a component of.
+   * Components are listed for composition only: their amounts never enter totals,
+   * the bundle row carries the price (see totals.ts, rule 3a).
+   */
+  includedIn?: string;
 }
 
 /**

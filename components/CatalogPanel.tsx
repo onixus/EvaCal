@@ -1,9 +1,13 @@
 'use client';
 import GplComparisonPanel from './catalog/GplComparisonPanel';
 import GplImportPanel from './catalog/GplImportPanel';
+import CatalogRelationsPanel from './catalog/CatalogRelationsPanel';
+import AttributeDefinitionsPanel from './catalog/AttributeDefinitionsPanel';
+import SuggestionQueue from './catalog/SuggestionQueue';
+import { alternativesOf, componentsOf, replacementsOf } from '@/lib/catalog/relations';
 import { useEffect, useState } from 'react';
 import type { Catalog, Product, ProductInput, OfferInput, Vendor } from '@/lib/catalog/types';
-import { ITEM_KINDS } from '@/lib/specification/types';
+import { ITEM_KINDS, ITEM_KIND_LABELS } from '@/lib/specification/types';
 import { parseTaxInput, taxLabel } from '@/lib/catalog/import-values';
 const blankProduct = (): ProductInput => ({
   vendorId: '',
@@ -209,9 +213,9 @@ export default function CatalogPanel() {
               setProduct({ ...product, kind: e.target.value as ProductInput['kind'] })
             }
           >
-            {ITEM_KINDS.map((k, i) => (
+            {ITEM_KINDS.map((k) => (
               <option key={k} value={k}>
-                {['Оборудование', 'ПО', 'Лицензия', 'Поддержка', 'Услуга', 'Другое'][i]}
+                {ITEM_KIND_LABELS[k]}
               </option>
             ))}
           </select>
@@ -372,6 +376,13 @@ export default function CatalogPanel() {
           Сохранить отдельное предложение
         </button>
       </fieldset>
+      <CatalogRelationsPanel catalog={catalog} busy={busy} mutate={mutate} />
+      <AttributeDefinitionsPanel
+        definitions={catalog.attributeDefinitions ?? []}
+        busy={busy}
+        mutate={mutate}
+      />
+      <SuggestionQueue vendors={catalog.vendors} onAccepted={load} />
       <GplImportPanel
         vendors={catalog.vendors}
         onImported={async () => {
@@ -400,6 +411,14 @@ export default function CatalogPanel() {
               {p.archived || p.vendor.archived ? ' · Архив' : ''}
             </p>
             <p>{p.attributes.map((a) => `${a.name}: ${a.value} ${a.unit}`).join('; ')}</p>
+            {Boolean(p.attributeFlags?.length) && (
+              <ul className="list-inside list-disc text-sm text-amber-700">
+                {p.attributeFlags!.map((flag) => (
+                  <li key={flag}>{flag}</li>
+                ))}
+              </ul>
+            )}
+            <RelationSummary catalog={catalog} product={p} />
             {!p.archived && !p.vendor.archived && (
               <div className="flex gap-2">
                 <button
@@ -497,5 +516,39 @@ export default function CatalogPanel() {
           </div>
         ))}
     </div>
+  );
+}
+
+function RelationSummary({ catalog, product }: { catalog: Catalog; product: Product }) {
+  const relations = catalog.relations ?? [];
+  const name = (id: string) => {
+    const p = catalog.products.find((x) => x.id === id);
+    return p ? `${p.vendor.name} · ${p.name} · ${p.sku}` : id;
+  };
+  const replacedBy = replacementsOf(relations, product.id);
+  const replaces = relations.filter(
+    (r) => r.type === 'replaces' && r.fromProductId === product.id && !r.archivedAt,
+  );
+  const alternatives = alternativesOf(relations, product.id);
+  const components = componentsOf(relations, product.id);
+  if (!replacedBy.length && !replaces.length && !alternatives.length && !components.length)
+    return null;
+  return (
+    <ul className="text-sm">
+      {replacedBy.map((r) => (
+        <li key={r.id}>Заменено на: {name(r.fromProductId)}</li>
+      ))}
+      {replaces.map((r) => (
+        <li key={r.id}>Заменяет: {name(r.toProductId)}</li>
+      ))}
+      {alternatives.map((a) => (
+        <li key={a.relation.id}>Альтернатива: {name(a.productId)}</li>
+      ))}
+      {components.map((r) => (
+        <li key={r.id}>
+          В составе: {r.quantity} × {name(r.toProductId)}
+        </li>
+      ))}
+    </ul>
   );
 }

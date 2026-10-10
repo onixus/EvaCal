@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import GplUpdatesPanel from './specification/GplUpdatesPanel';
+import ReplacementsPanel from './specification/ReplacementsPanel';
 import BomImportPanel from './specification/BomImportPanel';
 import SpecificationDiffView from './specification/SpecificationDiffView';
 import CatalogPicker from './CatalogPicker';
@@ -12,7 +13,7 @@ import type {
   SpecificationItem,
   SavedSpecification,
 } from '@/lib/specification/types';
-import { ITEM_KINDS, ITEM_DISPOSITIONS } from '@/lib/specification/types';
+import { ITEM_KINDS, ITEM_DISPOSITIONS, ITEM_KIND_LABELS } from '@/lib/specification/types';
 import { specificationBlockers } from '@/lib/specification/validation';
 import { describeTotal, summarizeSpecification } from '@/lib/specification/totals';
 import { STATUS_LABELS } from '@/lib/specification/sections';
@@ -24,14 +25,7 @@ interface SpecificationPanelProps {
   answers: Record<string, unknown>;
   studioHref?: string;
 }
-const kindLabels = {
-  hardware: 'Оборудование',
-  software: 'ПО',
-  license: 'Лицензия',
-  support: 'Поддержка',
-  service: 'Услуга',
-  other: 'Другое',
-};
+const kindLabels = ITEM_KIND_LABELS;
 const dispositionLabels = {
   supply: 'Поставляем',
   existing: 'Используем имеющееся',
@@ -120,6 +114,7 @@ export default function SpecificationPanel({
   const [canUseCatalog, setCanUseCatalog] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState('');
   const [reload, setReload] = useState(0);
+  const [notice, setNotice] = useState('');
   const answersKey = JSON.stringify(answers);
 
   useEffect(() => {
@@ -264,6 +259,31 @@ export default function SpecificationPanel({
       setBusy(false);
     }
   };
+  // Proposes a saved manual row for the shared catalog; the project row is unchanged.
+  const suggest = async (item: SpecificationItem) => {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const res = await fetch('/api/catalog/suggestions', {
+        method: 'POST',
+        headers: withShareHeaders(calculationId, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          action: 'create',
+          calculationId,
+          version: spec.version,
+          itemId: item.id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Не удалось предложить позицию');
+      setNotice(`«${item.name}» отправлена на рассмотрение в каталог.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка предложения');
+    } finally {
+      setBusy(false);
+    }
+  };
   const blockers = specificationBlockers(spec);
   const totals = summarizeSpecification(spec);
   const historical = Boolean(selectedVersion);
@@ -362,6 +382,11 @@ export default function SpecificationPanel({
             {error}
           </p>
         )}
+        {notice && (
+          <p role="status" className="text-sm text-green-700">
+            {notice}
+          </p>
+        )}
         {spec.status === 'released' && !dirty && (
           <p className="text-sm text-slate-600">
             Редакция выпущена в комплекте ГОСТ 34 и неизменяема. Любая правка сохраняется новой
@@ -414,7 +439,7 @@ export default function SpecificationPanel({
           {canUseCatalog && (
             <CatalogPicker
               disabled={disabled}
-              onAdd={(item) => change({ ...spec, items: [...spec.items, item] })}
+              onAdd={(items) => change({ ...spec, items: [...spec.items, ...items] })}
             />
           )}
           {canWrite && canUseCatalog && (
@@ -429,6 +454,19 @@ export default function SpecificationPanel({
                     ? 'Для обновления загрузите последнюю редакцию спецификации.'
                     : 'Сначала сохраните спецификацию.'
               }
+              onBusy={setUpdateBusy}
+              onApplied={(saved) => {
+                setSpec(saved.snapshot);
+                setDirty(false);
+                setError('');
+              }}
+            />
+          )}
+          {canWrite && canUseCatalog && (
+            <ReplacementsPanel
+              calculationId={calculationId}
+              version={spec.version}
+              enabled={loaded && !loading && !busy && !dirty && !historical && spec.version > 0}
               onBusy={setUpdateBusy}
               onApplied={(saved) => {
                 setSpec(saved.snapshot);
@@ -508,6 +546,13 @@ export default function SpecificationPanel({
                   </label>
                 ))}
               </div>
+              {item.includedIn && (
+                <p className="text-sm text-slate-600">
+                  В составе комплекта «
+                  {spec.items.find((row) => row.id === item.includedIn)?.name || item.includedIn}
+                  »: в итог не входит, стоимость несет строка комплекта.
+                </p>
+              )}
               <PriceOrigin item={item} canUseCatalog={canUseCatalog} />
               {item.sizingRef && (
                 <p className="text-xs text-slate-500">
@@ -531,12 +576,32 @@ export default function SpecificationPanel({
               <div className="flex gap-2">
                 <button
                   className="btn-secondary"
-                  onClick={() =>
-                    change({ ...spec, items: spec.items.filter((i) => i.id !== item.id) })
-                  }
+                  onClick={() => {
+                    const components = spec.items.filter((i) => i.includedIn === item.id);
+                    if (
+                      components.length &&
+                      !window.confirm(
+                        `Удалить комплект вместе с его составом (${components.length} поз.)?`,
+                      )
+                    )
+                      return;
+                    change({
+                      ...spec,
+                      items: spec.items.filter((i) => i.id !== item.id && i.includedIn !== item.id),
+                    });
+                  }}
                 >
                   Удалить
                 </button>
+                {!item.origin && canWrite && !dirty && !historical && spec.version > 0 && (
+                  <button
+                    className="btn-secondary"
+                    disabled={!item.name}
+                    onClick={() => suggest(item)}
+                  >
+                    Предложить в каталог
+                  </button>
+                )}
                 <button
                   className="btn-secondary"
                   onClick={() =>

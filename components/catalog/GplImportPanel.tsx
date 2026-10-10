@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ITEM_KINDS } from '@/lib/specification/types';
+import { ITEM_KINDS, ITEM_KIND_LABELS } from '@/lib/specification/types';
 import {
   IMPORT_FIELDS,
   IMPORT_FIELD_LABELS,
@@ -14,7 +14,7 @@ import { parseImportKind, parseTaxInput, taxLabel } from '@/lib/catalog/import-v
 import type { OfferInput, Vendor } from '@/lib/catalog/types';
 
 const fields = IMPORT_FIELDS.map((key) => [key, IMPORT_FIELD_LABELS[key]] as const);
-const KIND_LABELS = ['Оборудование', 'ПО', 'Лицензия', 'Поддержка', 'Услуга', 'Другое'];
+const KIND_LABELS = ITEM_KINDS.map((kind) => ITEM_KIND_LABELS[kind]);
 type AttributeDraft = { column: string; name: string; unit: string };
 
 export default function GplImportPanel({

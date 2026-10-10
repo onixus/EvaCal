@@ -4,7 +4,8 @@ import type {
   SpecificationSnapshot,
 } from '../specification/types';
 import {
-  lineAmount,
+  isBundleComponent,
+  lineAmount as rawLineAmount,
   subtractDecimal,
   summarizeSpecification,
   toScaled,
@@ -88,13 +89,17 @@ function sameDecimal(a: string, b: string): boolean {
   return toScaled(a) === toScaled(b);
 }
 function multiply(a: string, b: string): string {
-  return lineAmount({ quantity: a, unitPrice: b })!;
+  return rawLineAmount({ quantity: a, unitPrice: b })!;
 }
 function sign(value: string): number {
   return value.startsWith('-') ? -1 : /^0(\.0+)?$/.test(value) ? 0 : 1;
 }
 
 export function evaluateItem(item: SpecificationItem, run: SizingImpactRun): SizingImpactRow {
+  // Totals rule 3a: a bundle component carries no cost of its own (the bundle row does),
+  // so its amounts and cost delta stay null while quantity coverage is still checked.
+  const lineAmount = (row: Pick<SpecificationItem, 'quantity' | 'unitPrice'>) =>
+    isBundleComponent(item) ? null : rawLineAmount(row);
   const ref = item.sizingRef;
   const row: SizingImpactRow = {
     itemId: item.id,

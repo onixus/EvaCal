@@ -8,6 +8,11 @@ import type { SpecificationCurrencyTotal, SpecificationItem, SpecificationSnapsh
  * 2. A line amount is quantity × unit price, computed exactly (≤ 12 fractional digits).
  * 3. A currency total is the exact sum of line amounts of `supply` rows in that currency.
  *    Rows with `existing`/`alternative` disposition are not part of the supply total.
+ * 3a. Bundles: a component row (`includedIn` → a `bundle` row) is never summed — the
+ *    bundle row carries the price of the whole composition, so the hardware complex
+ *    and the software included in it are not counted twice. A component's own price
+ *    is informational. An unknown bundle price makes the total incomplete even when
+ *    the component prices are known.
  * 4. Unknown quantity, unknown price or a missing currency is never treated as 0: the row
  *    is counted in `unknownCount` and the total is flagged `incomplete` (a lower bound).
  *    A price of 0 is a free item and keeps the total complete.
@@ -66,13 +71,18 @@ export function lineAmount(item: Pick<SpecificationItem, 'quantity' | 'unitPrice
   return fromScaled(micro(item.quantity) * micro(item.unitPrice));
 }
 
+/** Component of a bundle row: listed for composition, excluded from totals (rule 3a). */
+export function isBundleComponent(item: Pick<SpecificationItem, 'includedIn'>) {
+  return Boolean(item.includedIn);
+}
+
 /** Per-currency exact totals of supplied rows, sorted by currency code. */
 export function summarizeSpecification(
   snapshot: Pick<SpecificationSnapshot, 'items'>,
 ): SpecificationCurrencyTotal[] {
   const totals = new Map<string, { amount: bigint; unknownCount: number; includedCount: number }>();
   for (const item of snapshot.items) {
-    if (item.disposition !== 'supply') continue;
+    if (item.disposition !== 'supply' || isBundleComponent(item)) continue;
     const sum = totals.get(item.currency) ?? {
       amount: BigInt(0),
       unknownCount: 0,

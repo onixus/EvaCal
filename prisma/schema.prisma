@@ -501,6 +501,9 @@ model CatalogProduct {
   createdBy  String
   createdAt  DateTime       @default(now())
   offers     CatalogOffer[]
+  relationsFrom CatalogProductRelation[] @relation("CatalogRelationFrom")
+  relationsTo   CatalogProductRelation[] @relation("CatalogRelationTo")
+  suggestions   CatalogSuggestion[]
 
   @@index([vendorId, archived])
 }
@@ -1181,4 +1184,62 @@ model SolutionKitVersion {
 
   @@unique([kitId, version])
   @@index([kitId, status])
+}
+
+// ==== #101: catalog relations, attribute definitions, suggestions ====
+// type: replaces (from replaces to: «to заменено на from») | alternative (from ↔ to
+// interchangeable) | bundleComponent (to is a component of bundle from, quantity per
+// bundle). Self-relations and replaces/bundle cycles are rejected; uniqueness of
+// (from, to, type) applies to active rows only (partial unique index in the migration).
+model CatalogProductRelation {
+  id            String         @id @default(cuid())
+  fromProductId String
+  fromProduct   CatalogProduct @relation("CatalogRelationFrom", fields: [fromProductId], references: [id], onDelete: Restrict)
+  toProductId   String
+  toProduct     CatalogProduct @relation("CatalogRelationTo", fields: [toProductId], references: [id], onDelete: Restrict)
+  type          String
+  quantity      Decimal?       @db.Decimal(18, 6) // bundleComponent only
+  note          String         @default("")
+  createdBy     String
+  createdAt     DateTime       @default(now())
+  archivedBy    String?
+  archivedAt    DateTime?
+
+  @@index([fromProductId, type])
+  @@index([toProductId, type])
+}
+
+// Typed attribute definition; product attributes named by key/label are validated
+// against it. Attributes without a definition stay allowed and are flagged.
+model CatalogAttributeDefinition {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  label        String
+  valueType    String // text | number | boolean | enum
+  unit         String?
+  allowedUnits Json?
+  enumValues   Json?
+  archived     Boolean  @default(false)
+  revision     Int      @default(1)
+  createdBy    String
+  createdAt    DateTime @default(now())
+}
+
+// A manual project row proposed for the shared catalog; review never changes the project.
+model CatalogSuggestion {
+  id                   String          @id @default(cuid())
+  calculationId        String
+  specificationVersion Int
+  itemSnapshot         Json
+  status               String          @default("pending") // pending | accepted | rejected
+  createdBy            String
+  createdAt            DateTime        @default(now())
+  reviewer             String?
+  reviewedAt           DateTime?
+  comment              String          @default("")
+  createdProductId     String?
+  createdProduct       CatalogProduct? @relation(fields: [createdProductId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@index([calculationId])
 }

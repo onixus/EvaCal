@@ -16,6 +16,8 @@ const KIND_ALIASES: Record<string, (typeof ITEM_KINDS)[number]> = {
   услуга: 'service',
   услуги: 'service',
   работы: 'service',
+  подписка: 'subscription',
+  комплект: 'bundle',
   другое: 'other',
   прочее: 'other',
 };
@@ -26,7 +28,7 @@ export function parseImportKind(value: string): (typeof ITEM_KINDS)[number] {
   const kind = KIND_ALIASES[key];
   if (!kind)
     throw new SpecificationError(
-      `Тип позиции: «${value}» не распознан (оборудование, ПО, лицензия, поддержка, услуга, другое)`,
+      `Тип позиции: «${value}» не распознан (оборудование, ПО, лицензия, поддержка, услуга, подписка, комплект, другое)`,
     );
   return kind;
 }

@@ -16,7 +16,7 @@
 import { Gost34InputPayload, Gost34Section, Gost34TableData } from '../types';
 import { ContextGap, formatGap } from '../context/types';
 import { parseSpecification } from '../../specification/validation';
-import type { SpecificationItem } from '../../specification/types';
+import { LICENSED_KINDS, type SpecificationItem } from '../../specification/types';
 
 const SPEC_GAP: ContextGap = {
   path: 'specification',
@@ -37,9 +37,7 @@ function confirmedSoftware(payload: Gost34InputPayload): SpecificationItem[] | u
   if (spec.status !== 'confirmed') return undefined;
   return spec.items.filter(
     (item) =>
-      item.confirmed &&
-      item.disposition !== 'alternative' &&
-      (item.kind === 'software' || item.kind === 'license'),
+      item.confirmed && item.disposition !== 'alternative' && LICENSED_KINDS.includes(item.kind),
   );
 }
 

@@ -22,6 +22,8 @@ const KIND_ALIASES: Record<string, SpecificationItem['kind']> = {
   лицензия: 'license',
   поддержка: 'support',
   услуга: 'service',
+  подписка: 'subscription',
+  комплект: 'bundle',
   другое: 'other',
   прочее: 'other',
 };

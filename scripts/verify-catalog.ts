@@ -4,6 +4,7 @@ import { loadCatalog, mutateCatalog } from '../lib/catalog/store';
 import { catalogItem } from '../lib/catalog/snapshot';
 import { saveSpecification, loadSpecification } from '../lib/specification/store';
 import type { Product } from '../lib/catalog/types';
+import { cleanupRelations, verifyRelations } from './verify-catalog-relations';
 // Force the original deadlock schedule: hold Vendor; queue product.update;
 // queue offer.create; release Vendor. The old code took Vendor → Product for
 // the update, while the offer already owned Product and waited for Vendor.
@@ -79,6 +80,7 @@ async function main() {
   const actor = `ci-catalog-${Date.now()}`;
   const template = await prisma.formTemplate.create({ data: { name: actor } });
   try {
+    await verifyRelations(actor, template.id);
     const vendor = await mutateCatalog({ action: 'vendor.create', name: actor }, actor);
     const vendor2 = await mutateCatalog({ action: 'vendor.create', name: `${actor}-other` }, actor);
     const input = {
@@ -209,9 +211,10 @@ async function main() {
       'released snapshot survives catalogue changes and archival',
     );
     console.log(
-      'Catalog PostgreSQL passed: distinct SKU identities, decimal/null/zero, immutable technical history, mixed-operation lock contention without deadlock, retained offers, stale 409, archive gate, immutable released project.',
+      'Catalog PostgreSQL passed: relations (self/cycle/duplicate/concurrent, archived replaced product), typed attributes, bundles without double counting, suggestion accept/reject, explicit replacement draft with released revision unchanged, distinct SKU identities, decimal/null/zero, immutable technical history, mixed-operation lock contention without deadlock, retained offers, stale 409, archive gate, immutable released project.',
     );
   } finally {
+    await cleanupRelations(actor);
     await prisma.calculation.deleteMany({ where: { templateId: template.id } });
     await prisma.formTemplate.delete({ where: { id: template.id } });
     await prisma.catalogOffer.deleteMany({ where: { createdBy: actor } });

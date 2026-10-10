@@ -18,6 +18,7 @@ export const DIFF_FIELDS = [
   'unitPrice',
   'currency',
   'confirmed',
+  'includedIn',
 ] as const;
 export type DiffField = (typeof DIFF_FIELDS)[number];
 
@@ -37,6 +38,7 @@ export const DIFF_FIELD_LABELS: Record<DiffField, string> = {
   unitPrice: 'Цена за единицу',
   currency: 'Валюта',
   confirmed: 'Подтверждение',
+  includedIn: 'Входит в комплект (ID строки)',
 };
 
 export interface FieldChange {
