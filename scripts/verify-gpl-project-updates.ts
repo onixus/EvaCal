@@ -346,10 +346,7 @@ async function main() {
       );
     }
     await rejectArchivedNoOffer('F');
-    await mutateCatalog(
-      { action: 'vendor.archive', id: vendor.id, revision: 1 },
-      actor,
-    );
+    await mutateCatalog({ action: 'vendor.archive', id: vendor.id, revision: 1 }, actor);
     await rejectArchivedNoOffer('B');
     const historicalCopy = copied('F', 'historical-offer');
     const historicalSaved = await saveSpecification(
