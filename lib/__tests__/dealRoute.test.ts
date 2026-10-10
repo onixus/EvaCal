@@ -5,16 +5,25 @@ import { PATCH as patchStage } from '@/app/api/calculations/[id]/stages/[stageId
 
 vi.mock('@/lib/auth', () => ({ requireApiRole: vi.fn() }));
 vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn(), clientIp: vi.fn(() => '127.0.0.1') }));
-vi.mock('@/lib/prisma', () => ({
-  prisma: {
+vi.mock('@/lib/prisma', () => {
+  const prisma = {
     project: { findUnique: vi.fn(), update: vi.fn() },
     calculation: { findUnique: vi.fn() },
-    stage: { findUnique: vi.fn(), update: vi.fn(), count: vi.fn(async () => 0) },
-  },
-}));
+    stage: {
+      findUnique: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
+      update: vi.fn(),
+      count: vi.fn(async () => 0),
+    },
+    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
+  };
+  return { prisma };
+});
+vi.mock('@/lib/actualsLedgerData', () => ({ recordManualStageEdit: vi.fn() }));
 
 import { requireApiRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { recordManualStageEdit } from '@/lib/actualsLedgerData';
 
 const session = (role: string) => ({ userId: 'u1', username: 'x', role, exp: 0 });
 const req = (body: unknown) =>
@@ -112,7 +121,10 @@ describe('PATCH /api/calculations/:id/stages/:stageId — факт', () => {
       id: 's1',
       calculationId: 'c1',
     } as never);
-    vi.mocked(prisma.stage.update).mockResolvedValue({ id: 's1', actualHours: 5 } as never);
+    vi.mocked(prisma.stage.findUniqueOrThrow).mockResolvedValue({
+      id: 's1',
+      actualHours: 5,
+    } as never);
 
     vi.mocked(requireApiRole).mockResolvedValue(session('architect'));
     let res = await patchStage(req({ actualHours: 5 }), {
@@ -125,10 +137,13 @@ describe('PATCH /api/calculations/:id/stages/:stageId — факт', () => {
       params: Promise.resolve({ id: 'c1', stageId: 's1' }),
     });
     expect(res.status).toBe(200);
-    expect(prisma.stage.update).toHaveBeenCalledWith({
-      where: { id: 's1' },
-      data: { actualHours: 5 },
+    // Факт пишется ручной записью журнала, а не прямо в Stage.actualHours.
+    expect(recordManualStageEdit).toHaveBeenCalledWith(prisma, {
+      calculationId: 'c1',
+      stageId: 's1',
+      hours: 5,
     });
+    expect(prisma.stage.update).not.toHaveBeenCalled();
   });
 
   it('статус этапа по-прежнему меняется без проверки факта', async () => {

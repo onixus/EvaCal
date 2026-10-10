@@ -5,6 +5,7 @@
 import { prisma } from '@/lib/prisma';
 import { periodSince, type LeaderboardPeriod } from '@/lib/leaderboard';
 import { projectSchedule } from '@/lib/schedule';
+import { loadLedgerOverview } from '@/lib/actualsLedgerData';
 import {
   accuracyBy,
   accuracyPoints,
@@ -142,6 +143,8 @@ export async function loadActualsSummary(calculationId: string) {
     accuracy,
     margin,
     schedule: isWonVersion ? projectSchedule(calc.stages) : null,
+    // Журнал факта (#103 WP-6a): источники записей и время последней синхронизации.
+    ledger: isWonVersion ? await loadLedgerOverview(calc.id) : null,
   };
 }
 

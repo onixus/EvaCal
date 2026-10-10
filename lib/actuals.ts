@@ -593,10 +593,18 @@ export function accuracyBy(
 // ---------------------------------------------------------------------------
 
 export interface ActualsCsvRow {
+  /** Имя этапа; пустое, если строка привязана к задаче (`task`). */
   stage: string;
   hours: number;
   start?: string;
   end?: string;
+  /** Явный идентификатор записи (worklog id) — ключ идемпотентности. */
+  id?: string;
+  /** Ключ внешней задачи, сопоставляемой с этапом. */
+  task?: string;
+  /** Дата записи (worklog). */
+  date?: string;
+  author?: string;
 }
 
 export interface ActualsImportResult {
@@ -607,10 +615,41 @@ export interface ActualsImportResult {
   ambiguous: string[];
 }
 
+type CsvColumn = 'id' | 'task' | 'stage' | 'hours' | 'date' | 'start' | 'end' | 'author';
+
+const CSV_HEADERS: Record<CsvColumn, string[]> = {
+  id: ['id', 'externalid', 'external id', 'worklog', 'worklog id', 'ид', 'идентификатор'],
+  task: ['task', 'key', 'issue', 'issue key', 'задача', 'ключ', 'ключ задачи'],
+  stage: ['stage', 'этап'],
+  hours: ['hours', 'часы', 'spent', 'time spent', 'трудозатраты'],
+  date: ['date', 'дата'],
+  start: ['start', 'начало'],
+  end: ['end', 'окончание', 'конец'],
+  author: ['author', 'user', 'автор', 'исполнитель'],
+};
+
+function headerColumns(cells: string[]): Partial<Record<CsvColumn, number>> | null {
+  const cols: Partial<Record<CsvColumn, number>> = {};
+  cells.forEach((c, i) => {
+    const k = c.toLowerCase().replace(/\s+/g, ' ').trim();
+    for (const [col, names] of Object.entries(CSV_HEADERS) as [CsvColumn, string[]][]) {
+      if (cols[col] === undefined && names.includes(k)) cols[col] = i;
+    }
+  });
+  if (cols.hours === undefined || (cols.stage === undefined && cols.task === undefined))
+    return null;
+  return cols;
+}
+
 /**
- * Разбирает CSV `этап;часы[;начало;окончание]` (разделитель `;` или `,`,
- * первая строка-заголовок пропускается, если не число во втором столбце) и
- * сопоставляет строки с этапами по имени без учёта регистра и пробелов.
+ * Разбирает CSV факта (разделитель `;` или `,`).
+ *
+ * Без заголовка — старый позиционный формат `этап;часы[;начало;окончание]`.
+ * С заголовком столбцы ищутся по именам: `id`, `задача`/`task`, `этап`/`stage`,
+ * `часы`/`hours`, `дата`/`date`, `начало`/`start`, `окончание`/`end`,
+ * `автор`/`author` — так выгрузку worklog из трекера можно загрузить как есть.
+ * Первая строка без числа во втором столбце, не похожая на заголовок,
+ * пропускается, как и раньше.
  */
 export function parseActualsCsv(text: string): { rows: ActualsCsvRow[]; invalid: string[] } {
   const rows: ActualsCsvRow[] = [];
@@ -619,21 +658,40 @@ export function parseActualsCsv(text: string): { rows: ActualsCsvRow[]; invalid:
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
-  for (const line of lines) {
+  let cols: Partial<Record<CsvColumn, number>> = { stage: 0, hours: 1, start: 2, end: 3 };
+  lines.forEach((line, index) => {
     const sep = line.includes(';') ? ';' : ',';
     const cells = line.split(sep).map((c) => c.trim().replace(/^"|"$/g, ''));
-    const hours = Number(String(cells[1] ?? '').replace(',', '.'));
-    if (!cells[0] || !Number.isFinite(hours)) {
-      if (rows.length === 0 && lines.indexOf(line) === 0) continue; // заголовок
+    if (index === 0) {
+      const header = headerColumns(cells);
+      if (header) {
+        cols = header;
+        return;
+      }
+    }
+    const cell = (c: CsvColumn) => {
+      const i = cols[c];
+      return i === undefined ? undefined : cells[i] || undefined;
+    };
+    const hours = Number(String(cell('hours') ?? '').replace(',', '.'));
+    const stage = cell('stage') ?? '';
+    const task = cell('task');
+    if ((!stage && !task) || !Number.isFinite(hours) || cell('hours') === undefined) {
+      if (index === 0) return; // заголовок в неизвестном формате
       invalid.push(line);
-      continue;
+      return;
     }
     if (hours < 0) {
       invalid.push(line);
-      continue;
+      return;
     }
-    rows.push({ stage: cells[0], hours, start: cells[2] || undefined, end: cells[3] || undefined });
-  }
+    const row: ActualsCsvRow = { stage, hours, start: cell('start'), end: cell('end') };
+    for (const extra of ['id', 'task', 'date', 'author'] as const) {
+      const v = cell(extra);
+      if (v) row[extra] = v;
+    }
+    rows.push(row);
+  });
   return { rows, invalid };
 }
 

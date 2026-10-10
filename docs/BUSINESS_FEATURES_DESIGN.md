@@ -94,15 +94,15 @@ model Calculation {
 
 ### 1.4. API
 
-| Метод   | Путь                                          | Роль             | Что делает                                                                                        |
-| :------ | :-------------------------------------------- | :--------------- | :------------------------------------------------------------------------------------------------ |
-| `PATCH` | `/api/projects/:id/deal`                      | presale, admin   | Исход сделки: статус, причина, сумма, версия                                                      |
-| `PATCH` | `/api/calculations/:id/stages/:stageId`       | architect, admin | Существующий маршрут, добавляются `actualHours`, `actualStartDate`, `actualEndDate`, `actualNote` |
-| `PATCH` | `/api/calculations/:id`                       | architect, admin | Добавляется `actualPmHours`                                                                       |
-| `POST`  | `/api/calculations/:id/actuals/close`         | architect, admin | Закрыть факт (`actualsClosedAt`)                                                                  |
-| `POST`  | `/api/calculations/:id/actuals/import`        | architect, admin | CSV `stage;hours[;start;end]`, сопоставление по имени этапа с отчётом о несовпадениях (фаза 3)    |
-| `GET`   | `/api/analytics/deals?period=`                | staff            | Win rate, причины проигрышей, скидка/исход                                                        |
-| `GET`   | `/api/analytics/accuracy?period=&templateId=` | staff            | Точность по шаблонам, ролям, архитекторам                                                         |
+| Метод   | Путь                                          | Роль             | Что делает                                                                                                 |
+| :------ | :-------------------------------------------- | :--------------- | :--------------------------------------------------------------------------------------------------------- |
+| `PATCH` | `/api/projects/:id/deal`                      | presale, admin   | Исход сделки: статус, причина, сумма, версия                                                               |
+| `PATCH` | `/api/calculations/:id/stages/:stageId`       | architect, admin | Существующий маршрут, добавляются `actualHours`, `actualStartDate`, `actualEndDate`, `actualNote`          |
+| `PATCH` | `/api/calculations/:id`                       | architect, admin | Добавляется `actualPmHours`                                                                                |
+| `POST`  | `/api/calculations/:id/actuals/close`         | architect, admin | Закрыть факт (`actualsClosedAt`)                                                                           |
+| `POST`  | `/api/calculations/:id/actuals/import`        | architect, admin | CSV `stage;hours[;start;end]` или с заголовком; запись через журнал факта (#103, `docs/actuals-ledger.md`) |
+| `GET`   | `/api/analytics/deals?period=`                | staff            | Win rate, причины проигрышей, скидка/исход                                                                 |
+| `GET`   | `/api/analytics/accuracy?period=&templateId=` | staff            | Точность по шаблонам, ролям, архитекторам                                                                  |
 
 Все изменения исхода и факта пишутся в `AuditEvent` (`deal.won`, `deal.lost`, `stage.actual`) и в `InternalChange` расчёта.
 

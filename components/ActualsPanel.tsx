@@ -21,6 +21,58 @@ interface StageView {
   actualNote: string | null;
 }
 
+interface SyncCounts {
+  created: number;
+  updated: number;
+  unchanged: number;
+  deleted: number;
+  skipped: number;
+}
+
+interface LedgerSource {
+  source: string;
+  entries: number;
+  hours: number;
+  unassignedEntries: number;
+  unassignedHours: number;
+  lastSyncedAt: string | null;
+  lastRun: { mode: string; createdAt: string; counts: SyncCounts } | null;
+}
+
+interface ImportPreview {
+  matched: { externalId: string; name: string; hours: number; task?: string }[];
+  unmatched: string[];
+  invalid: string[];
+  ambiguous: string[];
+  unmappedTasks: string[];
+  duplicateIds: string[];
+  counts: SyncCounts;
+  manualResetStages: string[];
+  manualStages: {
+    stageId: string;
+    name: string;
+    manualHours: number | null;
+    adjustmentHours: number | null;
+    rule: 'replace' | 'add';
+  }[];
+}
+
+type ManualHoursMode = 'auto' | 'replace' | 'add';
+
+const SOURCE_LABELS: Record<string, string> = { csv: 'CSV', manual: 'вручную' };
+const sourceLabel = (s: string) => SOURCE_LABELS[s] ?? s;
+
+function fmtDT(iso: string | null): string {
+  return iso
+    ? new Date(iso).toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '—';
+}
+
 interface Summary {
   calculationId: string;
   isWonVersion: boolean;
@@ -32,6 +84,7 @@ interface Summary {
   accuracy: CalculationAccuracy;
   margin: ActualMargin;
   schedule: ProjectSchedule | null;
+  ledger: { sources: LedgerSource[]; stageSources: Record<string, string[]> } | null;
 }
 
 const SCHEDULE_TONE: Record<ProjectSchedule['status'], string> = {
@@ -81,11 +134,10 @@ export default function ActualsPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [csv, setCsv] = useState('');
-  const [importPreview, setImportPreview] = useState<{
-    matched: { name: string; hours: number }[];
-    unmatched: string[];
-    invalid: string[];
-  } | null>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [fullSync, setFullSync] = useState(false);
+  const [manualHoursMode, setManualHoursMode] = useState<ManualHoursMode>('auto');
+  const [taskMappings, setTaskMappings] = useState<Record<string, string>>({});
 
   async function load() {
     const res = await fetch(`/api/calculations/${calculationId}/actuals`, { cache: 'no-store' });
@@ -128,7 +180,14 @@ export default function ActualsPanel({
   }
 
   async function saveStage(stage: StageView) {
-    const raw = drafts[stage.id] ?? '';
+    const raw = (drafts[stage.id] ?? '').trim();
+    // Пустое поле не стирает факт источников: оно убирает только ручные часы
+    // (если они есть), иначе это просто «без изменений».
+    const hasManual = summary?.ledger?.stageSources[stage.id]?.includes('manual') ?? false;
+    if (raw === '' && !hasManual) {
+      setDrafts({ ...drafts, [stage.id]: stage.actualHours?.toString() ?? '' });
+      return;
+    }
     const ok = await call(`/api/calculations/${calculationId}/stages/${stage.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ actualHours: raw === '' ? null : Number(raw) }),
@@ -175,7 +234,13 @@ export default function ActualsPanel({
       const res = await fetch(`/api/calculations/${calculationId}/actuals/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ csv, dryRun }),
+        body: JSON.stringify({
+          csv,
+          dryRun,
+          mode: fullSync ? 'full' : 'incremental',
+          manualHours: manualHoursMode,
+          mappings: Object.fromEntries(Object.entries(taskMappings).filter(([, v]) => v)),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? 'Ошибка импорта');
@@ -183,6 +248,7 @@ export default function ActualsPanel({
       if (!dryRun) {
         setCsv('');
         setImportPreview(null);
+        setTaskMappings({});
         await load();
       }
     } catch (e) {
@@ -292,6 +358,35 @@ export default function ActualsPanel({
         />
       </div>
 
+      {summary.ledger && summary.ledger.sources.length > 0 && (
+        <div
+          className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-nord-4"
+          data-testid="actuals-sources"
+        >
+          <span className="font-semibold">Источники факта:</span>
+          {summary.ledger.sources.map((src) => (
+            <span key={src.source}>
+              {sourceLabel(src.source)} — {src.entries} зап., {src.hours} ч, обновлено{' '}
+              {fmtDT(src.lastSyncedAt)}
+              {src.unassignedEntries > 0 && (
+                <span className="text-amber-700 dark:text-nord-yellow">
+                  {' '}
+                  · без этапа {src.unassignedEntries} зап., {src.unassignedHours} ч
+                </span>
+              )}
+              {src.lastRun && (
+                <span className="text-slate-400 dark:text-nord-muted">
+                  {' '}
+                  ({src.lastRun.mode === 'full' ? 'полная' : 'дельта'}: +
+                  {src.lastRun.counts.created} ~{src.lastRun.counts.updated} −
+                  {src.lastRun.counts.deleted})
+                </span>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead>
@@ -320,6 +415,11 @@ export default function ActualsPanel({
                   <tr key={s.id}>
                     <td className="py-2 pr-4 font-medium text-slate-900 dark:text-nord-5">
                       {s.name}
+                      {(summary.ledger?.stageSources[s.id]?.length ?? 0) > 0 && (
+                        <div className="text-[10px] font-normal text-slate-400 dark:text-nord-muted">
+                          {summary.ledger?.stageSources[s.id].map(sourceLabel).join(' + ')}
+                        </div>
+                      )}
                     </td>
                     <td className="py-2 pr-4 text-xs text-slate-600 dark:text-nord-4">
                       {roleLabel(s.role)}
@@ -405,15 +505,47 @@ export default function ActualsPanel({
       {!locked && (
         <details className="mt-4 text-xs">
           <summary className="cursor-pointer text-slate-600 dark:text-nord-4">
-            Импорт факта из CSV (этап;часы[;начало;окончание])
+            Импорт факта из CSV (этап;часы[;начало;окончание] или выгрузка с заголовком)
           </summary>
           <div className="mt-2 space-y-2">
             <textarea
               className="input h-28 w-full font-mono text-xs"
-              placeholder={'Обследование;12\nПроектирование;40;2026-03-01;2026-03-20'}
+              placeholder={
+                'Обследование;12\nПроектирование;40;2026-03-01;2026-03-20\n\nили\nid;задача;часы;дата;автор\nW-1;PRJ-12;6;2026-03-02;ivanov'
+              }
               value={csv}
-              onChange={(e) => setCsv(e.target.value)}
+              onChange={(e) => {
+                setCsv(e.target.value);
+                setImportPreview(null);
+              }}
             />
+            <label className="flex items-center gap-2 text-slate-600 dark:text-nord-4">
+              <input
+                type="checkbox"
+                checked={fullSync}
+                onChange={(e) => {
+                  setFullSync(e.target.checked);
+                  setImportPreview(null);
+                }}
+              />
+              Полная выгрузка: записи CSV, которых нет в файле, пометить удалёнными
+            </label>
+            <label className="flex items-center gap-2 text-slate-600 dark:text-nord-4">
+              Ручные часы этапов:
+              <select
+                className="input text-xs"
+                value={manualHoursMode}
+                onChange={(e) => {
+                  setManualHoursMode(e.target.value as ManualHoursMode);
+                  setImportPreview(null);
+                }}
+                aria-label="Ручные часы этапов"
+              >
+                <option value="auto">авто: итог этапа заменяет, worklog добавляется</option>
+                <option value="replace">заменить ручные часы</option>
+                <option value="add">добавить к ручным</option>
+              </select>
+            </label>
             <div className="flex gap-2">
               <button
                 className="btn-secondary text-xs"
@@ -434,8 +566,74 @@ export default function ActualsPanel({
               <div className="space-y-1 text-slate-600 dark:text-nord-4">
                 <div>
                   Совпало:{' '}
-                  {importPreview.matched.map((m) => `${m.name} — ${m.hours} ч`).join('; ') || '—'}
+                  {importPreview.matched
+                    .map((m) => `${m.task ? `${m.task} → ` : ''}${m.name} — ${m.hours} ч`)
+                    .join('; ') || '—'}
                 </div>
+                <div data-testid="actuals-import-plan">
+                  Новых записей: {importPreview.counts.created}, исправлено:{' '}
+                  {importPreview.counts.updated}, без изменений: {importPreview.counts.unchanged},
+                  будет удалено: {importPreview.counts.deleted}
+                </div>
+                {importPreview.manualStages.length > 0 && (
+                  <div
+                    className="text-amber-700 dark:text-nord-yellow"
+                    data-testid="actuals-manual-rule"
+                  >
+                    Этапы с ручными часами:{' '}
+                    {importPreview.manualStages
+                      .map(
+                        (m) =>
+                          `${m.name} (${m.manualHours ?? 0}${m.adjustmentHours ? ` ${m.adjustmentHours > 0 ? '+' : '−'} ${Math.abs(m.adjustmentHours)}` : ''} ч) — ${m.rule === 'replace' ? 'заменить данными CSV' : 'добавить CSV к ручным'}`,
+                      )
+                      .join('; ')}
+                  </div>
+                )}
+                {importPreview.manualResetStages.length > 0 && (
+                  <div className="text-amber-700 dark:text-nord-yellow">
+                    Ручные часы будут сброшены: {importPreview.manualResetStages.join(', ')}
+                  </div>
+                )}
+                {importPreview.ambiguous.length > 0 && (
+                  <div className="text-amber-700 dark:text-nord-yellow">
+                    Неоднозначные этапы: {importPreview.ambiguous.join(', ')}
+                  </div>
+                )}
+                {importPreview.duplicateIds.length > 0 && (
+                  <div className="text-amber-700 dark:text-nord-yellow">
+                    Повторяющиеся id (взята последняя строка):{' '}
+                    {importPreview.duplicateIds.join(', ')}
+                  </div>
+                )}
+                {importPreview.unmappedTasks.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-amber-700 dark:text-nord-yellow">
+                      Задачи без этапа — сопоставьте и проверьте снова:
+                    </div>
+                    {importPreview.unmappedTasks.map((task) => (
+                      <label key={task} className="flex items-center gap-2">
+                        <span className="font-mono">{task}</span>
+                        <select
+                          className="input text-xs"
+                          value={taskMappings[task] ?? ''}
+                          onChange={(e) =>
+                            setTaskMappings({ ...taskMappings, [task]: e.target.value })
+                          }
+                          aria-label={`Этап для задачи ${task}`}
+                        >
+                          <option value="">— не загружать —</option>
+                          {summary.stages
+                            .filter((s) => !s.isApprovalTask)
+                            .map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                )}
                 {importPreview.unmatched.length > 0 && (
                   <div className="text-amber-700 dark:text-nord-yellow">
                     Не найдены этапы: {importPreview.unmatched.join(', ')}
