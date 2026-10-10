@@ -1,3 +1,4 @@
+import type { SpecificationCatalogOrigin } from './gpl-update-types';
 export const ITEM_KINDS = [
   'hardware',
   'software',
@@ -10,6 +11,8 @@ export const ITEM_DISPOSITIONS = ['supply', 'existing', 'alternative'] as const;
 
 export interface SpecificationItem {
   id: string;
+  origin?: SpecificationCatalogOrigin;
+  priceOverride?: boolean;
   kind: (typeof ITEM_KINDS)[number];
   disposition: (typeof ITEM_DISPOSITIONS)[number];
   name: string;

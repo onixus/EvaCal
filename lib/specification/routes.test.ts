@@ -99,7 +99,9 @@ describe('Маршруты спецификации и выпуска с реа�
   it('write share сохраняет с аудируемым актором', async () => {
     vi.mocked(saveSpecification).mockResolvedValue({ snapshot } as never);
     expect((await POST(request(snapshot, token(['write'])), props)).status).toBe(201);
-    expect(saveSpecification).toHaveBeenCalledWith('c1', snapshot, 'share:c1');
+    expect(saveSpecification).toHaveBeenCalledWith('c1', snapshot, 'share:c1', {
+      allowNewCatalogOrigins: false,
+    });
   });
   it('preview и экспорт используют запрошенную сохраненную версию, снимок записан в пакет', async () => {
     const share = token(['export']);

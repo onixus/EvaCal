@@ -1,3 +1,8 @@
+import {
+  GPL_UPDATE_FIELDS,
+  type SpecificationCatalogOrigin,
+  type SpecificationImportOrigin,
+} from './gpl-update-types';
 import { ITEM_KINDS, ITEM_DISPOSITIONS, SpecificationItem, SpecificationSnapshot } from './types';
 
 export class SpecificationError extends Error {
@@ -18,6 +23,112 @@ function text(value: unknown, field: string, max = 2000): string {
     throw new SpecificationError(`Некорректное поле «${field}» (до ${max} символов)`);
   }
   return value.trim();
+}
+
+function record(value: unknown, field: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new SpecificationError(`Некорректное поле ${field}`);
+  return value as Record<string, unknown>;
+}
+function onlyKeys(value: Record<string, unknown>, allowed: readonly string[]) {
+  if (Object.keys(value).some((k) => !allowed.includes(k)))
+    throw new SpecificationError('Неизвестное поле происхождения');
+}
+export function parseImportOrigin(input: unknown): SpecificationImportOrigin {
+  const d = record(input, 'GPL');
+  onlyKeys(d, ['importId', 'revision', 'checksum', 'sheet', 'rowNumber']);
+  const importId = text(d.importId, 'GPL ID', 100),
+    sheet = text(d.sheet, 'Лист', 200),
+    checksum = text(d.checksum, 'SHA-256', 64);
+  if (
+    !importId ||
+    !sheet ||
+    !/^[a-f0-9]{64}$/.test(checksum) ||
+    !Number.isSafeInteger(d.revision) ||
+    Number(d.revision) < 1 ||
+    !Number.isSafeInteger(d.rowNumber) ||
+    Number(d.rowNumber) < 1 ||
+    Number(d.rowNumber) > 10001
+  )
+    throw new SpecificationError('Некорректное происхождение GPL');
+  return {
+    importId,
+    revision: Number(d.revision),
+    checksum,
+    sheet,
+    rowNumber: Number(d.rowNumber),
+  };
+}
+export function parseCatalogOrigin(input: unknown): SpecificationCatalogOrigin {
+  const d = record(input, 'Каталог');
+  onlyKeys(d, [
+    'vendorId',
+    'vendorName',
+    'productId',
+    'productRevision',
+    'offerId',
+    'sku',
+    'edition',
+    'import',
+    'baseline',
+    'fieldSources',
+  ]);
+  const vendorId = text(d.vendorId, 'Вендор ID', 100),
+    vendorName = text(d.vendorName, 'Исходное название вендора', 200),
+    productId = text(d.productId, 'Позиция ID', 100),
+    sku = text(d.sku, 'Артикул', 200),
+    edition = text(d.edition, 'Редакция', 200);
+  const offerId = d.offerId === null ? null : text(d.offerId, 'Предложение ID', 100);
+  if (
+    !vendorId ||
+    !vendorName ||
+    !productId ||
+    (offerId !== null && !offerId) ||
+    !Number.isSafeInteger(d.productRevision) ||
+    Number(d.productRevision) < 1
+  )
+    throw new SpecificationError('Некорректное происхождение каталога');
+  const b = record(d.baseline, 'Исходные поля');
+  onlyKeys(b, GPL_UPDATE_FIELDS);
+  if (
+    !(ITEM_KINDS as readonly unknown[]).includes(b.kind) ||
+    (b.unitPrice !== null && !isDecimal(b.unitPrice))
+  )
+    throw new SpecificationError('Некорректная исходная цена или тип');
+  const currency = text(b.currency, 'Исходная валюта', 3);
+  if (currency && !/^[A-Z]{3}$/.test(currency))
+    throw new SpecificationError('Некорректная исходная валюта');
+  const baseline = {
+    name: text(b.name, 'Исходное название'),
+    kind: String(b.kind),
+    unit: text(b.unit, 'Исходная единица', 100),
+    configuration: text(b.configuration, 'Исходные характеристики'),
+    licensing: text(b.licensing, 'Исходное лицензирование'),
+    term: text(b.term, 'Исходный срок'),
+    source: text(b.source, 'Исходный источник'),
+    unitPrice: b.unitPrice as string | null,
+    currency,
+  };
+  let fieldSources: SpecificationCatalogOrigin['fieldSources'];
+  if (d.fieldSources !== undefined) {
+    const fields = record(d.fieldSources, 'Источники полей');
+    onlyKeys(fields, GPL_UPDATE_FIELDS);
+    fieldSources = {};
+    for (const key of GPL_UPDATE_FIELDS)
+      if (fields[key] !== undefined) fieldSources[key] = parseImportOrigin(fields[key]);
+  }
+  return {
+    vendorId,
+    vendorName,
+    productId,
+    productRevision: Number(d.productRevision),
+    offerId,
+    sku,
+    edition,
+    import: d.import === null ? null : parseImportOrigin(d.import),
+    baseline,
+    ...(fieldSources === undefined ? {} : { fieldSources }),
+  };
 }
 
 /** Strict input validation also applies to reloaded snapshots and direct generation. */
@@ -41,6 +152,8 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
       throw new SpecificationError('Некорректная строка');
     }
     const row = raw as Record<string, unknown>;
+    if (row.priceOverride !== undefined && typeof row.priceOverride !== 'boolean')
+      throw new SpecificationError('Ручная цена: требуется логическое значение');
     const id = text(row.id, 'id', 100);
     if (!id || ids.has(id)) throw new SpecificationError('ID строк должны быть уникальными');
     ids.add(id);
@@ -62,6 +175,8 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
       throw new SpecificationError('Валюта: код из 3 букв');
     return {
       id,
+      ...(row.origin === undefined ? {} : { origin: parseCatalogOrigin(row.origin) }),
+      ...(row.priceOverride === undefined ? {} : { priceOverride: row.priceOverride as boolean }),
       kind: row.kind as SpecificationItem['kind'],
       disposition: row.disposition as SpecificationItem['disposition'],
       name: text(row.name, 'Название'),

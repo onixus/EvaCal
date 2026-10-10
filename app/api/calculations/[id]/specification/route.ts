@@ -47,7 +47,10 @@ export async function POST(req: NextRequest, props: Params) {
     const { id } = await props.params;
     const access = await requireCalcAccess(req, id, ['write']);
     if (access instanceof NextResponse) return access;
-    const result = await saveSpecification(id, await req.json(), access.actorId);
+    const result = await saveSpecification(id, await req.json(), access.actorId, {
+      allowNewCatalogOrigins:
+        access.kind === 'staff' && CATALOG_ROLES.includes(access.session?.role || ''),
+    });
     await writeAudit({
       actorType: actorTypeFromAccess(access.kind),
       actorId: access.actorId,
