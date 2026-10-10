@@ -165,6 +165,7 @@ export async function mutateImport(id: string, input: unknown, actorId: string) 
           },
           orderBy: { id: 'asc' },
         });
+        const lockedProductIds = new Set(candidates.map((p) => p.id));
         for (const p of candidates)
           await tx.$queryRaw`SELECT id FROM "CatalogProduct" WHERE id = ${p.id} FOR UPDATE`;
         const vendors = await tx.$queryRaw<
@@ -191,6 +192,14 @@ export async function mutateImport(id: string, input: unknown, actorId: string) 
               409,
             );
           let product = matches[0];
+          // A creation or move into this vendor can appear after the initial
+          // product query. Taking its lock now would invert Product → Vendor;
+          // even inserting an offer needs a conflicting FK KEY SHARE lock.
+          if (product && !lockedProductIds.has(product.id))
+            throw new SpecificationError(
+              'Каталог изменен во время подтверждения. Повторите подтверждение.',
+              409,
+            );
           if (product && JSON.stringify(productInput(product)) !== JSON.stringify(technical))
             throw new SpecificationError(
               `Технические данные ${technical.sku} отличаются. Исправьте строку или создайте новый артикул.`,
