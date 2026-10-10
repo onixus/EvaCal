@@ -18,7 +18,7 @@ export function catalogItem(
       'Для этого предложения не сохранены исторические характеристики. Создайте новое предложение.',
     );
   const technical = offer?.productSnapshot || product;
-  return {
+  const copied: SpecificationItem = {
     id,
     kind: technical.kind,
     disposition: 'supply',
@@ -41,4 +41,34 @@ export function catalogItem(
     unitPrice: offer?.unitPrice ?? null,
     currency: offer?.currency || 'RUB',
   };
+  copied.origin = {
+    vendorId: technical.vendorId,
+    vendorName: technical.vendor.name,
+    productId: product.id,
+    productRevision: technical.revision,
+    offerId: offer?.id ?? null,
+    sku: technical.sku,
+    edition: technical.edition,
+    import: offer?.importProvenance
+      ? {
+          importId: offer.importProvenance.importId,
+          revision: offer.importProvenance.importRevision + 1,
+          checksum: offer.importProvenance.checksum,
+          sheet: offer.importProvenance.sheet,
+          rowNumber: offer.importProvenance.rowNumber,
+        }
+      : null,
+    baseline: {
+      name: copied.name,
+      kind: copied.kind,
+      unit: copied.unit,
+      configuration: copied.configuration,
+      licensing: copied.licensing,
+      term: copied.term,
+      source: copied.source,
+      unitPrice: copied.unitPrice,
+      currency: copied.currency,
+    },
+  };
+  return copied;
 }

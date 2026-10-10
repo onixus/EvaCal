@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import GplUpdatesPanel from './specification/GplUpdatesPanel';
 import CatalogPicker from './CatalogPicker';
 import Link from 'next/link';
 import { withShareHeaders } from '@/lib/shareClient';
@@ -57,6 +58,45 @@ const newItem = (): SpecificationItem => ({
   currency: 'RUB',
 });
 
+function PriceOrigin({ item, canUseCatalog }: { item: SpecificationItem; canUseCatalog: boolean }) {
+  if (!item.origin) return null;
+  const source = item.origin.fieldSources?.unitPrice || item.origin.import;
+  const manual =
+    item.priceOverride ||
+    item.unitPrice !== item.origin.baseline.unitPrice ||
+    item.currency !== item.origin.baseline.currency;
+  return (
+    <details className="text-sm">
+      <summary>Источник цены позиции</summary>
+      <p>
+        Исходная цена: {item.origin.baseline.unitPrice ?? 'неизвестна'}{' '}
+        {item.origin.baseline.currency} ·{' '}
+        {manual ? 'Цена или валюта переопределена вручную' : 'Цена из сохраненного источника'}
+      </p>
+      {source ? (
+        <p>
+          GPL{' '}
+          {canUseCatalog ? (
+            <a
+              className="text-blue-600 underline"
+              href={`/api/catalog/imports/${source.importId}/attachment`}
+            >
+              {source.importId}
+            </a>
+          ) : (
+            source.importId
+          )}{' '}
+          · редакция {source.revision} · лист {source.sheet} · строка {source.rowNumber}
+        </p>
+      ) : (
+        <p>
+          Каталог {item.origin.productId} · предложение {item.origin.offerId || 'не выбрано'}
+        </p>
+      )}
+    </details>
+  );
+}
+
 export default function SpecificationPanel({
   calculationId,
   calculationName,
@@ -67,6 +107,7 @@ export default function SpecificationPanel({
   const [spec, setSpec] = useState<SpecificationSnapshot>(empty);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [updateBusy, setUpdateBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
@@ -123,7 +164,12 @@ export default function SpecificationPanel({
       ...spec,
       items: spec.items.map((i) =>
         i.id === id
-          ? { ...i, [field]: value, confirmed: field === 'confirmed' ? Boolean(value) : false }
+          ? {
+              ...i,
+              [field]: value,
+              ...(field === 'unitPrice' || field === 'currency' ? { priceOverride: true } : {}),
+              confirmed: field === 'confirmed' ? Boolean(value) : false,
+            }
           : i,
       ),
     });
@@ -154,7 +200,7 @@ export default function SpecificationPanel({
     }
   };
   const download = async (draft: boolean) => {
-    if (!loaded || loading || busy || dirty || !canExport) return;
+    if (!loaded || loading || busy || updateBusy || dirty || !canExport) return;
     setBusy(true);
     setError('');
     try {
@@ -185,7 +231,7 @@ export default function SpecificationPanel({
   };
   const blockers = specificationBlockers(spec);
   const historical = Boolean(selectedVersion);
-  const disabled = !loaded || loading || busy || !canWrite || historical;
+  const disabled = !loaded || loading || busy || updateBusy || !canWrite || historical;
   const fields: Array<[keyof SpecificationItem, string]> = [
     ['name', 'Наименование'],
     ['vendor', 'Вендор'],
@@ -224,13 +270,13 @@ export default function SpecificationPanel({
               min="1"
               className="input w-24"
               value={selectedVersion}
-              disabled={busy || dirty}
+              disabled={busy || updateBusy || dirty}
               onChange={(e) => setSelectedVersion(e.target.value)}
             />
           </label>
           <button
             className="btn-secondary"
-            disabled={busy}
+            disabled={busy || updateBusy}
             onClick={() => {
               if (
                 dirty &&
@@ -246,14 +292,16 @@ export default function SpecificationPanel({
           </button>
           <button
             className="btn-secondary"
-            disabled={!loaded || loading || busy || dirty || !canExport}
+            disabled={!loaded || loading || busy || updateBusy || dirty || !canExport}
             onClick={() => download(true)}
           >
             Черновой DOCX
           </button>
           <button
             className="btn-primary"
-            disabled={!loaded || loading || busy || dirty || blockers.length > 0 || !canExport}
+            disabled={
+              !loaded || loading || busy || updateBusy || dirty || blockers.length > 0 || !canExport
+            }
             onClick={() => download(false)}
           >
             Выпустить DOCX
@@ -290,6 +338,26 @@ export default function SpecificationPanel({
             <CatalogPicker
               disabled={disabled}
               onAdd={(item) => change({ ...spec, items: [...spec.items, item] })}
+            />
+          )}
+          {canWrite && canUseCatalog && (
+            <GplUpdatesPanel
+              calculationId={calculationId}
+              snapshot={spec}
+              enabled={loaded && !loading && !busy && !dirty && !historical && spec.version > 0}
+              disabledReason={
+                dirty
+                  ? 'Сохраните несохраненные изменения перед проверкой GPL.'
+                  : historical
+                    ? 'Для обновления загрузите последнюю редакцию спецификации.'
+                    : 'Сначала сохраните спецификацию.'
+              }
+              onBusy={setUpdateBusy}
+              onApplied={(saved) => {
+                setSpec(saved.snapshot);
+                setDirty(false);
+                setError('');
+              }}
             />
           )}
           {spec.items.map((item, index) => (
@@ -345,6 +413,7 @@ export default function SpecificationPanel({
                   </label>
                 ))}
               </div>
+              <PriceOrigin item={item} canUseCatalog={canUseCatalog} />
               <label className="flex gap-2">
                 <input
                   type="checkbox"
