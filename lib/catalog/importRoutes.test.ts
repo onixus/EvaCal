@@ -32,7 +32,7 @@ async function statuses() {
   const req = request();
   req.headers.set('X-Share-Token', 'calculation-share-token');
   return Promise.all([
-    list(),
+    list(new NextRequest('http://localhost/api/catalog/imports')),
     upload(req),
     detail(req, params),
     mutate(req, params),
@@ -75,7 +75,9 @@ describe('GPL import access boundaries', () => {
     'role %s applies with authenticated actor identity',
     async (role) => {
       session(role);
-      expect((await list()).status).toBe(200);
+      expect((await list(new NextRequest('http://localhost/api/catalog/imports'))).status).toBe(
+        200,
+      );
       expect((await detail(request(), params)).status).toBe(200);
       const body = { action: 'confirm', revision: 1, rowIds: ['CSV:2'], actorId: 'forged' };
       const response = await mutate(request(JSON.stringify(body)), params);
