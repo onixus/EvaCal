@@ -3,10 +3,11 @@ import { prisma } from '@/lib/prisma';
 import { requireCalcAccess, type AccessContext } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 import { handleApiError } from '@/lib/apiHelpers';
-import { serializeComment } from '@/lib/review/store';
+import { loadReviewComments, serializeComment } from '@/lib/review/store';
 import {
   actorFromAccess,
   checkCommentTransition,
+  isApprovedPackage,
   COMMENT_ACTION_TARGET,
   COMMENT_ACTIONS,
   type CommentAction,
@@ -17,14 +18,25 @@ import type { CommentStatus } from '@/lib/gost34/review/types';
 type Props = { params: Promise<{ id: string; commentId: string }> };
 
 const COMMENT_INCLUDE = {
-  package: { select: { version: true, projectId: true } },
+  package: {
+    select: {
+      version: true,
+      calculationId: true,
+      documentTypes: true,
+      status: true,
+      reviewStage: true,
+    },
+  },
   replies: { orderBy: { createdAt: 'asc' as const } },
 };
 
 /**
  * Комплект из адреса — контекст, в котором действует пользователь (обычно
  * новая версия), замечание — его или одной из ранних версий той же линии.
- * Доступ проверяется по комплекту из адреса; чужая линия — 404.
+ * Доступ проверяется по комплекту из адреса; замечание должно быть видно в
+ * нём по тем же правилам переноса, что и на экране ревью, иначе — 404.
+ * Неизменяемость проверяется и для комплекта из адреса, и для собственного
+ * комплекта замечания.
  */
 async function load(
   req: NextRequest,
@@ -45,14 +57,12 @@ async function load(
   if (access instanceof NextResponse) return access;
 
   const comment = await findComment(commentId);
-  const sameLineage =
-    comment &&
-    (comment.packageId === pkg.id ||
-      (pkg.projectId !== null && comment.package.projectId === pkg.projectId));
-  if (!comment || !sameLineage) {
+  const visible =
+    comment && (await loadReviewComments(pkg)).some((c) => c.id === comment.id && !c.legacy);
+  if (!comment || !visible) {
     return NextResponse.json({ error: 'Замечание не найдено' }, { status: 404 });
   }
-  if (pkg.status === 'approved' || pkg.reviewStage === 'done') {
+  if (isApprovedPackage(pkg) || isApprovedPackage(comment.package)) {
     return NextResponse.json({ error: 'Утверждённый комплект неизменяем' }, { status: 409 });
   }
   return { access, pkg, comment };
@@ -96,8 +106,9 @@ export async function PATCH(req: NextRequest, props: Props) {
       stage: comment.stage === 'gap' ? 'gap' : 'tw',
       author: comment.author,
       authorId: comment.authorId,
-      packageProjectId: comment.package.projectId,
       packageVersion: comment.package.version,
+      packageLine: comment.package,
+      legacy: comment.legacy,
     };
     const rule = checkCommentTransition({ subject, action, actor, fixedIn });
     if (!rule.ok) return NextResponse.json({ error: rule.error }, { status: rule.status });

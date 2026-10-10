@@ -5,7 +5,7 @@ import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 import { handleApiError } from '@/lib/apiHelpers';
 import type { CommentSeverity } from '@/lib/gost34/review/types';
 import { loadReviewComments, serializeComment } from '@/lib/review/store';
-import { actorFromAccess } from '@/lib/review/workflow';
+import { actorFromAccess, isApprovedPackage, isSupersededPackage } from '@/lib/review/workflow';
 
 const SEVERITIES: CommentSeverity[] = ['blocker', 'remark', 'suggestion'];
 
@@ -39,8 +39,20 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const access = await requireCalcAccess(req, pkg.calculationId, ['review']);
     if (access instanceof NextResponse) return access;
 
-    if (pkg.status === 'approved' || pkg.reviewStage === 'done') {
+    if (isApprovedPackage(pkg)) {
       return NextResponse.json({ error: 'Утверждённый комплект неизменяем' }, { status: 409 });
+    }
+    // Замечание пишется только к актуальной версии линии: к заменённой оно
+    // ушло бы мимо текущего ревью (переход в новые версии ограничен барьером).
+    const line = await prisma.gostPackage.findMany({
+      where: { calculationId: pkg.calculationId },
+      select: { id: true, calculationId: true, documentTypes: true, version: true, status: true },
+    });
+    if (isSupersededPackage(pkg, line)) {
+      return NextResponse.json(
+        { error: 'Комплект заменён более новой версией: замечание оставляется к ней' },
+        { status: 409 },
+      );
     }
 
     const body = await req.json().catch(() => ({}));

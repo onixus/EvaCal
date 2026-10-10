@@ -614,6 +614,9 @@ model ReviewComment {
   fixedInVersion   Int?
   verifiedBy       String?
   verifiedAt       DateTime?
+  // Перенесено из JSON-столбца миграцией: такие замечания действуют только в
+  // своём комплекте и в новые версии не переходят.
+  legacy           Boolean              @default(false)
   replies          ReviewCommentReply[]
 
   @@index([packageId, status])

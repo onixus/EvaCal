@@ -128,14 +128,78 @@ const ALLOWED_FROM: Record<CommentAction, CommentStatus[]> = {
   reopen: ['fixed'],
 };
 
+/**
+ * Линия комплекта: версии одного расчёта с одним и тем же составом документов.
+ * Только внутри линии замечания переходят из версии в версию и только в ней
+ * фиксируется исправление. Другой расчёт проекта или другой состав
+ * документов — отдельная линия.
+ */
+export interface LinePackage {
+  id: string;
+  calculationId: string;
+  documentTypes: string;
+  version: number;
+  status: string;
+  reviewStage?: string | null;
+}
+
+export function sameLine(
+  a: Pick<LinePackage, 'calculationId' | 'documentTypes'>,
+  b: Pick<LinePackage, 'calculationId' | 'documentTypes'>,
+): boolean {
+  return a.calculationId === b.calculationId && a.documentTypes === b.documentTypes;
+}
+
+/** Утверждённая версия закрывает историю: всё, что было до неё, уже принято. */
+export function isApprovedPackage(p: Pick<LinePackage, 'status' | 'reviewStage'>): boolean {
+  return p.status === 'approved' || p.reviewStage === 'done';
+}
+
+/** Выпущенная версия, участвующая в ревью: не черновик и не архив. */
+export function isReviewedPackage(p: Pick<LinePackage, 'status'>): boolean {
+  return p.status !== 'draft' && p.status !== 'archived';
+}
+
+/**
+ * Версии, незакрытые замечания которых переходят в `target`: более ранние
+ * версии той же линии после последней утверждённой (барьер), кроме
+ * черновиков и архивных. Перенесённые из JSON (legacy) замечания не
+ * переходят никогда — это проверяет запрос.
+ */
+export function carrySourceIds(target: LinePackage, line: LinePackage[]): string[] {
+  const earlier = line.filter(
+    (p) => p.id !== target.id && sameLine(p, target) && p.version < target.version,
+  );
+  const barrier = Math.max(0, ...earlier.filter(isApprovedPackage).map((p) => p.version));
+  return earlier
+    .filter((p) => p.version > barrier && isReviewedPackage(p) && !isApprovedPackage(p))
+    .map((p) => p.id);
+}
+
+/**
+ * Комплект заменён более новой выпущенной версией той же линии: новые
+ * замечания к нему не принимаются — они ушли бы мимо текущего ревью.
+ */
+export function isSupersededPackage(target: LinePackage, line: LinePackage[]): boolean {
+  return line.some(
+    (p) =>
+      p.id !== target.id &&
+      sameLine(p, target) &&
+      p.version > target.version &&
+      isReviewedPackage(p),
+  );
+}
+
 export interface CommentRuleSubject {
   status: CommentStatus;
   stage: AssignableStage;
   author: string;
   authorId: string | null;
   /** Комплект, к которому оставлено замечание. */
-  packageProjectId: string | null;
   packageVersion: number;
+  packageLine?: Pick<LinePackage, 'calculationId' | 'documentTypes'> | null;
+  /** Перенесено из JSON: этап неизвестен, закрыть может роль любого этапа. */
+  legacy?: boolean;
 }
 
 /**
@@ -154,7 +218,25 @@ export function isCommentAuthor(subject: CommentRuleSubject, actor: ReviewActor)
  */
 export function canResolveComment(subject: CommentRuleSubject, actor: ReviewActor): boolean {
   if (isCommentAuthor(subject, actor)) return true;
-  return actor.kind === 'staff' && canDecideReviewStage(actor.role, subject.stage);
+  if (actor.kind !== 'staff') return false;
+  if (subject.legacy) {
+    return ASSIGNABLE_STAGES.some((stage) => canDecideReviewStage(actor.role, stage));
+  }
+  return canDecideReviewStage(actor.role, subject.stage);
+}
+
+/**
+ * Отметить замечание исправленным вправе автор, архитектор/админ (они
+ * выпускают исправленную версию) и роли этапов ревью. Рецензент и гость по
+ * ссылке чужое замечание исправленным не отмечают.
+ */
+export function canMarkCommentFixed(subject: CommentRuleSubject, actor: ReviewActor): boolean {
+  if (isCommentAuthor(subject, actor)) return true;
+  if (actor.kind !== 'staff') return false;
+  return (
+    hasArchitectPowers(actor.role) ||
+    ASSIGNABLE_STAGES.some((stage) => canDecideReviewStage(actor.role, stage))
+  );
 }
 
 /**
@@ -168,7 +250,7 @@ export function checkCommentTransition(input: {
   subject: CommentRuleSubject;
   action: CommentAction;
   actor: ReviewActor;
-  fixedIn?: { projectId: string | null; version: number } | null;
+  fixedIn?: Pick<LinePackage, 'calculationId' | 'documentTypes' | 'version' | 'status'> | null;
 }): RuleResult {
   const { subject, action, actor } = input;
   if (!ALLOWED_FROM[action].includes(subject.status)) {
@@ -179,10 +261,17 @@ export function checkCommentTransition(input: {
   }
   if (action === 'fix') {
     const target = input.fixedIn;
+    if (!canMarkCommentFixed(subject, actor)) {
+      return deny(
+        403,
+        'Отметить исправление может автор замечания, архитектор, администратор или роль этапа.',
+      );
+    }
     if (!target) return deny(400, 'Укажите версию комплекта, в которой исправлено замечание');
     if (
-      !subject.packageProjectId ||
-      target.projectId !== subject.packageProjectId ||
+      !subject.packageLine ||
+      !sameLine(target, subject.packageLine) ||
+      !isReviewedPackage(target) ||
       target.version <= subject.packageVersion
     ) {
       return deny(

@@ -12,7 +12,7 @@ vi.mock('@/lib/audit', () => ({
 vi.mock('@/lib/changelog', () => ({ recordInternalChangeSafe: vi.fn() }));
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    gostPackage: { findUnique: vi.fn(), update: vi.fn() },
+    gostPackage: { findUnique: vi.fn(), findMany: vi.fn(async () => []), update: vi.fn() },
     // Таблица замечаний пуста — срабатывает резерв из JSON-столбца (#103).
     reviewComment: { findMany: vi.fn(async () => []) },
     reviewAssignment: { findMany: vi.fn(async () => []) },

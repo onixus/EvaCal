@@ -102,14 +102,27 @@ export async function POST(req: NextRequest, props: Props) {
     });
     if (!rule.ok) return NextResponse.json({ error: rule.error }, { status: rule.status });
 
-    const assignment = await assignReviewStage({
-      packageId: pkg.id,
-      stage,
-      assigneeId: assignee!.id,
-      deputyId: deputy?.id ?? null,
-      dueAt: dueAt!,
-      assignedBy: actor.actorId,
-    });
+    let assignment;
+    try {
+      assignment = await assignReviewStage({
+        packageId: pkg.id,
+        stage,
+        assigneeId: assignee!.id,
+        deputyId: deputy?.id ?? null,
+        dueAt: dueAt!,
+        assignedBy: actor.actorId,
+      });
+    } catch (err) {
+      // Параллельное назначение на тот же этап упирается в частичный
+      // уникальный индекс — это конфликт, а не сбой сервера.
+      if ((err as { code?: string })?.code === 'P2002') {
+        return NextResponse.json(
+          { error: 'Этап только что назначен другим пользователем, обновите страницу' },
+          { status: 409 },
+        );
+      }
+      throw err;
+    }
 
     await writeAudit({
       actorType: actorTypeFromAccess(access.kind),

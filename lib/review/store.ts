@@ -6,9 +6,12 @@
  * подхватывается, лишь когда у комплекта нет ни одной строки (например,
  * комментарий записан старым кодом уже после миграции).
  *
- * Незакрытые замечания переходят по линии комплекта: замечание к v1, не
- * проверенное и не отклонённое, видно и блокирует утверждение v2, пока роль
- * этапа или автор не закроет его — иначе новая версия «обнуляла» бы блокеры.
+ * Незакрытые замечания переходят по линии комплекта (тот же расчёт и тот же
+ * состав документов): замечание к v1, не проверенное и не отклонённое, видно
+ * и блокирует утверждение v2, пока роль этапа или автор не закроет его.
+ * Переход ограничен барьером — последней утверждённой версией линии: то, что
+ * было до неё, уже принято. Черновики, архивные версии и перенесённые из JSON
+ * (legacy) замечания не переходят никогда.
  */
 import { prisma } from '@/lib/prisma';
 import {
@@ -20,12 +23,9 @@ import {
   type CommentStatus,
   type SectionComment,
 } from '@/lib/gost34/review/types';
-import type { AssignableStage } from './workflow';
+import { carrySourceIds, type AssignableStage, type LinePackage } from './workflow';
 
-export interface ReviewPackageRef {
-  id: string;
-  projectId: string | null;
-  version: number;
+export interface ReviewPackageRef extends LinePackage {
   reviewComments?: string | null;
   reviewChecklist?: string | null;
 }
@@ -47,6 +47,7 @@ interface CommentRow {
   fixedInVersion: number | null;
   verifiedBy: string | null;
   verifiedAt: Date | null;
+  legacy?: boolean;
   package?: { version: number } | null;
   replies?: { id: string; text: string; author: string; createdAt: Date }[];
 }
@@ -72,6 +73,7 @@ export function serializeComment(row: CommentRow): SectionComment {
     fixedInVersion: row.fixedInVersion,
     verifiedBy: row.verifiedBy,
     verifiedAt: iso(row.verifiedAt),
+    ...(row.legacy ? { migrated: true } : {}),
     replies: (row.replies ?? []).map((r) => ({
       id: r.id,
       text: r.text,
@@ -81,23 +83,51 @@ export function serializeComment(row: CommentRow): SectionComment {
   };
 }
 
+const LINE_SELECT = {
+  id: true,
+  calculationId: true,
+  documentTypes: true,
+  version: true,
+  status: true,
+  reviewStage: true,
+} as const;
+
+/** Все версии линий, к которым относятся комплекты (для барьера и переноса). */
+async function loadLines(packages: LinePackage[]): Promise<LinePackage[]> {
+  const calculationIds = Array.from(new Set(packages.map((p) => p.calculationId)));
+  return prisma.gostPackage.findMany({
+    where: { calculationId: { in: calculationIds } },
+    select: LINE_SELECT,
+  });
+}
+
 /**
- * Условие «замечания, относящиеся к комплекту»: свои — все, из более ранних
- * версий линии — незакрытые и те, что исправлены именно в этом комплекте.
+ * Условие «замечания, относящиеся к комплекту»: свои — все, исправленные
+ * именно в этом комплекте, и незакрытые не-legacy замечания версий из
+ * `carrySourceIds`.
  */
-function lineageWhere(pkg: ReviewPackageRef) {
-  const own = { packageId: pkg.id };
-  if (!pkg.projectId) return own;
+function relatedWhere(ownIds: string[], carryIds: string[]) {
   return {
     OR: [
-      own,
-      { fixedInPackageId: pkg.id },
-      {
-        status: { in: ['open', 'fixed'] },
-        package: { projectId: pkg.projectId, version: { lt: pkg.version } },
-      },
+      { packageId: { in: ownIds } },
+      { fixedInPackageId: { in: ownIds } },
+      ...(carryIds.length
+        ? [{ packageId: { in: carryIds }, status: { in: ['open', 'fixed'] }, legacy: false }]
+        : []),
     ],
   };
+}
+
+function isRelated(
+  row: { packageId: string; fixedInPackageId: string | null; status: string; legacy?: boolean },
+  pkgId: string,
+  carry: Set<string>,
+): boolean {
+  return (
+    row.packageId === pkgId ||
+    row.fixedInPackageId === pkgId ||
+    (carry.has(row.packageId) && !row.legacy && (row.status === 'open' || row.status === 'fixed'))
+  );
 }
 
 function legacyFallback(pkg: ReviewPackageRef): SectionComment[] {
@@ -111,10 +141,11 @@ function legacyFallback(pkg: ReviewPackageRef): SectionComment[] {
   }));
 }
 
-/** Замечания комплекта с ответами, включая перенесённые из ранних версий. */
+/** Замечания комплекта с ответами, включая перенесённые из ранних версий линии. */
 export async function loadReviewComments(pkg: ReviewPackageRef): Promise<SectionComment[]> {
+  const carry = carrySourceIds(pkg, await loadLines([pkg]));
   const rows = (await prisma.reviewComment.findMany({
-    where: lineageWhere(pkg),
+    where: relatedWhere([pkg.id], carry),
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     include: {
       package: { select: { version: true } },
@@ -140,7 +171,7 @@ export interface ReviewSummary {
 }
 
 /**
- * Сводка ревью для списка комплектов (доска, студия) — одним запросом,
+ * Сводка ревью для списка комплектов (доска, студия) — двумя запросами,
  * по тем же правилам, что и при утверждении.
  */
 export async function summarizeReviewBulk(
@@ -148,38 +179,24 @@ export async function summarizeReviewBulk(
 ): Promise<Map<string, ReviewSummary>> {
   const result = new Map<string, ReviewSummary>();
   if (packages.length === 0) return result;
-  const ids = packages.map((p) => p.id);
-  const projectIds = Array.from(
-    new Set(packages.map((p) => p.projectId).filter((v): v is string => Boolean(v))),
-  );
+  const line = await loadLines(packages);
+  const carryById = new Map(packages.map((p) => [p.id, new Set(carrySourceIds(p, line))]));
+  const allCarry = Array.from(new Set(Array.from(carryById.values()).flatMap((s) => [...s])));
   const rows = await prisma.reviewComment.findMany({
-    where: {
-      OR: [
-        { packageId: { in: ids } },
-        { fixedInPackageId: { in: ids } },
-        ...(projectIds.length
-          ? [{ status: { in: ['open', 'fixed'] }, package: { projectId: { in: projectIds } } }]
-          : []),
-      ],
-    },
+    where: relatedWhere(
+      packages.map((p) => p.id),
+      allCarry,
+    ),
     select: {
       packageId: true,
       severity: true,
       status: true,
+      legacy: true,
       fixedInPackageId: true,
-      package: { select: { projectId: true, version: true } },
     },
   });
   for (const pkg of packages) {
-    const related = rows.filter(
-      (r) =>
-        r.packageId === pkg.id ||
-        r.fixedInPackageId === pkg.id ||
-        (pkg.projectId &&
-          r.package.projectId === pkg.projectId &&
-          r.package.version < pkg.version &&
-          (r.status === 'open' || r.status === 'fixed')),
-    );
+    const related = rows.filter((r) => isRelated(r, pkg.id, carryById.get(pkg.id)!));
     const hasOwn = related.some((r) => r.packageId === pkg.id);
     const comments: Pick<SectionComment, 'severity' | 'status'>[] = [
       ...related.map((r) => ({

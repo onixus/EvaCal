@@ -21,6 +21,7 @@ import {
 } from '@/lib/gost34/review/types';
 import type { SerializedAssignment } from '@/lib/review/store';
 import {
+  canMarkCommentFixed,
   canResolveComment,
   isAssignmentOverdue,
   type AssignableStage,
@@ -978,22 +979,22 @@ function CommentItem({
   const status: CommentStatus = c.status ?? 'open';
   const fromVersion = c.packageVersion ?? packageVersion;
   const canAct = canParticipate && !c.legacy;
-  const canResolve =
-    canAct &&
-    canResolveComment(
-      {
-        status,
-        stage: c.stage ?? 'tw',
-        author: c.author,
-        authorId: c.authorId ?? null,
-        packageProjectId: null,
-        packageVersion: fromVersion,
-      },
-      actor,
-    );
+  const subject = {
+    status,
+    stage: c.stage ?? ('tw' as const),
+    author: c.author,
+    authorId: c.authorId ?? null,
+    packageVersion: fromVersion,
+    legacy: c.migrated,
+  };
+  const canResolve = canAct && canResolveComment(subject, actor);
   // «Исправлено» ставится только в более новой версии, чем та, к которой
   // замечание оставлено: выпущенный комплект не меняется.
-  const canFix = canAct && status === 'open' && fromVersion < packageVersion;
+  const canFix =
+    canAct &&
+    status === 'open' &&
+    fromVersion < packageVersion &&
+    canMarkCommentFixed(subject, actor);
 
   async function run(action: CommentAction) {
     setBusy(true);

@@ -143,8 +143,8 @@ async function main() {
       prisma.reviewAssignment.create({
         data: { packageId: v2.id, stage: 'gap', assigneeId: gap.id, dueAt: due, assignedBy: 'ci' },
       }),
-      constraint,
-      'partial unique index allows one active assignment per stage',
+      (err: unknown) => (err as { code?: string }).code === 'P2002',
+      'partial unique index allows one active assignment per stage (P2002 → 409 in the route)',
     );
     await assert.rejects(
       prisma.reviewAssignment.create({
@@ -170,6 +170,81 @@ async function main() {
     });
     assert.equal(approved.status, 'approved');
 
+    // Репро ревью PR: v1 отклонён с блокером, v2 утверждён, v3 на ревью —
+    // утверждённая v2 служит барьером, блокер v1 до v3 не доходит.
+    await prisma.reviewComment.create({
+      data: {
+        packageId: v1.id,
+        stage: 'gap',
+        sectionId: '5',
+        severity: 'blocker',
+        text: 'Исторический блокер до утверждённой версии',
+        author: gap.username,
+        authorId: gap.id,
+      },
+    });
+    const v3 = await prisma.gostPackage.create({
+      data: { ...base, name: 'v3', version: 3, status: 'under_review', reviewStage: 'tw' },
+    });
+    assert.equal(await countOpenBlockers(v3), 0, 'approved v2 is a carry-forward barrier');
+    assert.equal(await countOpenBlockers(v1), 1, 'blocker still counts for its own package');
+
+    // Перенесённые миграцией (legacy) замечания не переходят в новые версии;
+    // другой состав документов и архивные версии — не та линия переноса.
+    const calc2 = await prisma.calculation.create({
+      data: {
+        templateId: template.id,
+        projectId: project.id,
+        name: 'Ревью 2',
+        customer: 'CI',
+        answers: '{}',
+      },
+    });
+    const line2 = { ...base, calculationId: calc2.id };
+    const w1 = await prisma.gostPackage.create({
+      data: { ...line2, name: 'w1', version: 1, status: 'rejected', reviewStage: 'gap' },
+    });
+    const w2 = await prisma.gostPackage.create({
+      data: { ...line2, name: 'w2', version: 2, status: 'archived', reviewStage: 'gap' },
+    });
+    const otherDocs = await prisma.gostPackage.create({
+      data: {
+        ...line2,
+        documentTypes: '["pmi"]',
+        name: 'pmi',
+        version: 3,
+        status: 'rejected',
+        reviewStage: 'tw',
+      },
+    });
+    const w4 = await prisma.gostPackage.create({
+      data: { ...line2, name: 'w4', version: 4, status: 'under_review', reviewStage: 'tw' },
+    });
+    const blockerOn = (packageId: string, legacy: boolean) =>
+      prisma.reviewComment.create({
+        data: {
+          packageId,
+          stage: 'tw',
+          sectionId: '1',
+          severity: 'blocker',
+          text: 'b',
+          author: 'reviewer',
+          legacy,
+        },
+      });
+    await blockerOn(w1.id, true);
+    await blockerOn(w2.id, false);
+    await blockerOn(otherDocs.id, false);
+    assert.equal(
+      await countOpenBlockers(w4),
+      0,
+      'legacy, archived and other-docs blockers stay put',
+    );
+    assert.equal(await countOpenBlockers(w1), 1, 'legacy blocker counts for its own package');
+    await blockerOn(w1.id, false);
+    assert.equal(await countOpenBlockers(w4), 1, 'regular open blocker of w1 carries to w4');
+    assert.equal((await summarizeReviewBulk([w1, w2, otherDocs, w4])).get(w4.id)?.openBlockers, 1);
+
     // Резерв: комплект без строк замечаний читает старый JSON-столбец.
     const legacy = await prisma.gostPackage.create({
       data: {
@@ -194,7 +269,7 @@ async function main() {
     assert.equal(await prisma.reviewCommentReply.count({ where: { commentId: blocker.id } }), 0);
 
     console.log(
-      'Review workflow integration passed: carried-over blockers, fixed-unverified blocks approval, status CHECKs, one active assignment per stage, deputy check, JSON fallback, cascades.',
+      'Review workflow integration passed: carried-over blockers, approved-version barrier, legacy/archived/other-docs not carried, fixed-unverified blocks approval, status CHECKs, one active assignment per stage (P2002), deputy check, JSON fallback, cascades.',
     );
   } finally {
     await prisma.gostPackage.deleteMany({ where: { calculation: { templateId: template.id } } });

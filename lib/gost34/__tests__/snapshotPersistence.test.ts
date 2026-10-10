@@ -21,6 +21,7 @@ vi.mock('@/lib/prisma', () => ({
     },
     gostPackage: {
       findFirst: vi.fn(),
+      findMany: vi.fn(async () => []),
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),

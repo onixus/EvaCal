@@ -34,6 +34,7 @@ CREATE TABLE "ReviewComment" (
     "fixedInVersion" INTEGER,
     "verifiedBy" TEXT,
     "verifiedAt" TIMESTAMP(3),
+    "legacy" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "ReviewComment_pkey" PRIMARY KEY ("id")
 );
@@ -99,7 +100,10 @@ ALTER TABLE "ReviewComment" ADD CONSTRAINT "ReviewComment_fixed_ref_check"
 ALTER TABLE "ReviewComment" ADD CONSTRAINT "ReviewComment_verified_check"
   CHECK ("status" <> 'verified' OR ("verifiedBy" IS NOT NULL AND "verifiedAt" IS NOT NULL));
 
--- Перенос замечаний из JSON GostPackage.reviewComments. Столбец не удаляется:
+-- Перенос замечаний из JSON GostPackage.reviewComments. Этап, на котором
+-- оставлено старое замечание, неизвестен: stage проставляется по текущему
+-- этапу комплекта, а закрыть такое замечание вправе роль любого этапа.
+-- Столбец не удаляется:
 -- он остаётся резервом только для чтения. Битый JSON пропускается, а не роняет
 -- миграцию: старый парсер тоже трактовал его как «замечаний нет».
 CREATE FUNCTION pg_temp.evacal_try_jsonb(raw TEXT) RETURNS JSONB LANGUAGE plpgsql AS $$
@@ -119,7 +123,8 @@ END;
 $$;
 
 INSERT INTO "ReviewComment" (
-  "id", "packageId", "stage", "sectionId", "severity", "text", "author", "createdAt", "status"
+  "id", "packageId", "stage", "sectionId", "severity", "text", "author", "createdAt", "status",
+  "legacy"
 )
 SELECT
   'rcmig_' || md5(p."id" || ':' || c.ord::TEXT),
@@ -131,7 +136,11 @@ SELECT
   left(btrim(c.elem->>'text'), 2000),
   COALESCE(NULLIF(c.elem->>'author', ''), 'reviewer'),
   COALESCE(pg_temp.evacal_try_ts(c.elem->>'createdAt'), p."updatedAt"),
-  'open'
+  'open',
+  -- Перенесённые замечания действуют только в своём комплекте: в новые версии
+  -- они не переходят, иначе исторические блокеры давно отклонённых версий
+  -- остановили бы текущее ревью.
+  true
 FROM "GostPackage" p
 CROSS JOIN LATERAL (SELECT pg_temp.evacal_try_jsonb(p."reviewComments") AS doc) j
 CROSS JOIN LATERAL jsonb_array_elements(

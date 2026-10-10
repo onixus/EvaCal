@@ -12,8 +12,13 @@ vi.mock('@/lib/audit', () => ({
 vi.mock('@/lib/changelog', () => ({ recordInternalChangeSafe: vi.fn() }));
 vi.mock('@/lib/prisma', () => {
   const prisma = {
-    gostPackage: { findUnique: vi.fn(), update: vi.fn() },
-    reviewComment: { findMany: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
+    gostPackage: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn() },
+    reviewComment: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      updateMany: vi.fn(),
+      create: vi.fn(),
+    },
     reviewCommentReply: { create: vi.fn() },
     reviewAssignment: { findMany: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
     user: { findMany: vi.fn() },
@@ -28,10 +33,14 @@ import { prisma } from '@/lib/prisma';
 import { POST as decide } from '@/app/api/gost34/packages/[id]/review/route';
 import { POST as assign } from '@/app/api/gost34/packages/[id]/assignments/route';
 import { PATCH as changeComment } from '@/app/api/gost34/packages/[id]/comments/[commentId]/route';
+import { POST as postComment } from '@/app/api/gost34/packages/[id]/comments/route';
+import { countOpenBlockers } from './store';
 import { openBlockerCount, type SectionComment } from '@/lib/gost34/review/types';
 import {
   canResolveComment,
+  carrySourceIds,
   checkCommentTransition,
+  isSupersededPackage,
   validateAssignment,
   type CommentRuleSubject,
 } from './workflow';
@@ -54,6 +63,7 @@ const pkg = (over: Record<string, unknown> = {}) => ({
   id: 'p2',
   calculationId: 'c1',
   projectId: 'prj1',
+  documentTypes: '["tz"]',
   name: 'Комплект',
   version: 2,
   status: 'under_review',
@@ -86,10 +96,33 @@ const commentRow = (over: Record<string, unknown> = {}) => ({
   fixedInVersion: null,
   verifiedBy: null,
   verifiedAt: null,
-  package: { version: 1, projectId: 'prj1' },
+  package: {
+    version: 1,
+    calculationId: 'c1',
+    documentTypes: '["tz"]',
+    status: 'rejected',
+    reviewStage: 'gap',
+  },
   replies: [],
   ...over,
 });
+
+const linePkg = (id: string, version: number, status: string, over: object = {}) => ({
+  id,
+  calculationId: 'c1',
+  documentTypes: '["tz"]',
+  version,
+  status,
+  reviewStage: status === 'approved' ? 'done' : 'gap',
+  ...over,
+});
+const line = [linePkg('p1', 1, 'rejected'), linePkg('p2', 2, 'under_review')];
+
+/** Замечание существует и видно в комплекте из адреса. */
+function stubComment(row: ReturnType<typeof commentRow>) {
+  db.reviewComment.findUnique.mockResolvedValue(row as never);
+  db.reviewComment.findMany.mockResolvedValue([row] as never);
+}
 
 const req = (body: unknown) =>
   new NextRequest('http://localhost/x', {
@@ -104,6 +137,7 @@ beforeEach(() => {
   vi.stubEnv('SESSION_SECRET', 'review-assignment-tests-secret-32b');
   db.gostPackage.findUnique.mockResolvedValue(pkg() as never);
   db.reviewComment.findMany.mockResolvedValue([]);
+  db.gostPackage.findMany.mockResolvedValue(line as never);
   db.reviewAssignment.findMany.mockResolvedValue([]);
   db.user.findMany.mockImplementation((async (args: { where: { id: { in: string[] } } }) =>
     args.where.id.in.map((id) => users[id]).filter(Boolean)) as never);
@@ -248,7 +282,7 @@ describe('Жизненный цикл замечания', () => {
     stage: 'gap',
     author: 'gap1',
     authorId: 'gap1',
-    packageProjectId: 'prj1',
+    packageLine: { calculationId: 'c1', documentTypes: '["tz"]' },
     packageVersion: 1,
     ...over,
   });
@@ -266,7 +300,7 @@ describe('Жизненный цикл замечания', () => {
         subject: subject(),
         action: 'fix',
         actor,
-        fixedIn: { projectId: 'prj1', version: 1 },
+        fixedIn: { calculationId: 'c1', documentTypes: '["tz"]', version: 1, status: 'rejected' },
       }),
     ).toMatchObject({ ok: false, status: 400 });
     expect(
@@ -274,7 +308,7 @@ describe('Жизненный цикл замечания', () => {
         subject: subject(),
         action: 'fix',
         actor,
-        fixedIn: { projectId: 'other', version: 5 },
+        fixedIn: { calculationId: 'c2', documentTypes: '["tz"]', version: 5, status: 'rejected' },
       }),
     ).toMatchObject({ ok: false, status: 400 });
     expect(
@@ -282,7 +316,12 @@ describe('Жизненный цикл замечания', () => {
         subject: subject(),
         action: 'fix',
         actor,
-        fixedIn: { projectId: 'prj1', version: 2 },
+        fixedIn: {
+          calculationId: 'c1',
+          documentTypes: '["tz"]',
+          version: 2,
+          status: 'under_review',
+        },
       }),
     ).toEqual({ ok: true });
   });
@@ -316,7 +355,7 @@ describe('Жизненный цикл замечания', () => {
 
   it('маршрут: отметка «исправлено» в той же версии отклоняется', async () => {
     db.gostPackage.findUnique.mockResolvedValue(pkg({ id: 'p1', version: 1 }) as never);
-    db.reviewComment.findUnique.mockResolvedValue(commentRow() as never);
+    stubComment(commentRow());
     loginAs('arch');
 
     const res = await changeComment(req({ action: 'fix' }), {
@@ -328,7 +367,7 @@ describe('Жизненный цикл замечания', () => {
   });
 
   it('маршрут: архитектор отмечает исправление в новой версии со ссылкой на неё', async () => {
-    db.reviewComment.findUnique.mockResolvedValue(commentRow() as never);
+    stubComment(commentRow());
     db.reviewComment.updateMany.mockResolvedValue({ count: 1 } as never);
     loginAs('arch');
 
@@ -348,9 +387,7 @@ describe('Жизненный цикл замечания', () => {
   });
 
   it('маршрут: тех.писатель не проверяет чужое замечание этапа ГАП', async () => {
-    db.reviewComment.findUnique.mockResolvedValue(
-      commentRow({ status: 'fixed', fixedInPackageId: 'p2', fixedInVersion: 2 }) as never,
-    );
+    stubComment(commentRow({ status: 'fixed', fixedInPackageId: 'p2', fixedInVersion: 2 }));
     loginAs('tw1');
 
     const res = await changeComment(req({ action: 'verify' }), {
@@ -359,6 +396,161 @@ describe('Жизненный цикл замечания', () => {
 
     expect(res.status).toBe(403);
     expect(db.reviewComment.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('Перенос замечаний по линии комплекта', () => {
+  it('утверждённая версия — барьер: блокер v1 не доходит до v3 после утверждённой v2', () => {
+    const v3 = linePkg('p3', 3, 'under_review');
+    const lineV = [linePkg('p1', 1, 'rejected'), linePkg('p2', 2, 'approved'), v3];
+    expect(carrySourceIds(v3, lineV)).toEqual([]);
+  });
+
+  it('переносятся только выпущенные версии той же линии после барьера', () => {
+    const v5 = linePkg('p5', 5, 'under_review');
+    const lineV = [
+      linePkg('p1', 1, 'approved'),
+      linePkg('p2', 2, 'rejected'),
+      linePkg('p3', 3, 'archived'),
+      linePkg('p4', 4, 'rejected', { documentTypes: '["pmi"]' }),
+      linePkg('px', 2, 'rejected', { calculationId: 'c2' }),
+      v5,
+    ];
+    expect(carrySourceIds(v5, lineV)).toEqual(['p2']);
+  });
+
+  it('запрос не берёт перенос из-за барьера и никогда не переносит legacy', async () => {
+    db.gostPackage.findMany.mockResolvedValue([
+      linePkg('p1', 1, 'rejected'),
+      linePkg('p2', 2, 'approved'),
+      linePkg('p3', 3, 'under_review'),
+      linePkg('p4', 4, 'under_review'),
+    ] as never);
+    await countOpenBlockers(pkg({ id: 'p3', version: 3 }) as never);
+    expect(db.reviewComment.findMany.mock.calls[0][0]?.where?.OR).toHaveLength(2);
+
+    await countOpenBlockers(pkg({ id: 'p4', version: 4 }) as never);
+    expect(db.reviewComment.findMany.mock.calls[1][0]?.where?.OR?.[2]).toEqual({
+      packageId: { in: ['p3'] },
+      status: { in: ['open', 'fixed'] },
+      legacy: false,
+    });
+  });
+
+  it('черновик не заменяет комплект, выпущенная новая версия — заменяет', () => {
+    const v1 = linePkg('p1', 1, 'under_review');
+    expect(isSupersededPackage(v1, [v1, linePkg('d', 2, 'draft')])).toBe(false);
+    expect(isSupersededPackage(v1, [v1, linePkg('p2', 2, 'under_review')])).toBe(true);
+  });
+
+  it('маршрут: замечание к заменённой версии — 409', async () => {
+    db.gostPackage.findUnique.mockResolvedValue(
+      pkg({ id: 'p1', version: 1, status: 'rejected' }) as never,
+    );
+    loginAs('gap1');
+    const res = await postComment(req({ sectionId: '1', text: 'x', severity: 'blocker' }), {
+      params: Promise.resolve({ id: 'p1' }),
+    });
+    expect(res.status).toBe(409);
+    expect(db.reviewComment.create).not.toHaveBeenCalled();
+  });
+
+  it('маршрут: замечание вне видимой линии — 404', async () => {
+    db.reviewComment.findUnique.mockResolvedValue(commentRow() as never);
+    db.reviewComment.findMany.mockResolvedValue([]);
+    loginAs('gap1');
+    const res = await changeComment(req({ action: 'reject' }), {
+      params: Promise.resolve({ id: 'p2', commentId: 'rc1' }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('маршрут: замечание утверждённого комплекта неизменяемо', async () => {
+    stubComment(
+      commentRow({
+        package: { ...commentRow().package, status: 'approved', reviewStage: 'done' },
+      }),
+    );
+    loginAs('gap1');
+    const res = await changeComment(req({ action: 'reject' }), {
+      params: Promise.resolve({ id: 'p2', commentId: 'rc1' }),
+    });
+    expect(res.status).toBe(409);
+    expect(db.reviewComment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('маршрут: гонка назначений (P2002) — 409', async () => {
+    loginAs('arch');
+    db.reviewAssignment.create.mockRejectedValue(
+      Object.assign(new Error('unique'), { code: 'P2002' }),
+    );
+    const res = await assign(
+      req({ stage: 'gap', assigneeId: 'gap1', dueAt: '2026-10-20T00:00:00Z' }),
+      props,
+    );
+    expect(res.status).toBe(409);
+  });
+});
+
+describe('Права на переходы', () => {
+  const staff = (id: string, role: string) => ({
+    kind: 'staff' as const,
+    actorId: id,
+    username: id,
+    role,
+  });
+  const base: CommentRuleSubject = {
+    status: 'open',
+    stage: 'gap',
+    author: 'gap1',
+    authorId: 'gap1',
+    packageVersion: 1,
+    packageLine: { calculationId: 'c1', documentTypes: '["tz"]' },
+  };
+  const target = {
+    calculationId: 'c1',
+    documentTypes: '["tz"]',
+    version: 2,
+    status: 'under_review',
+  };
+
+  it('перенесённое из JSON замечание закрывает роль любого этапа', () => {
+    const migrated = { ...base, status: 'fixed' as const, authorId: 'x', legacy: true };
+    expect(canResolveComment(migrated, staff('tw1', 'techwriter'))).toBe(true);
+    expect(canResolveComment({ ...migrated, legacy: false }, staff('tw1', 'techwriter'))).toBe(
+      false,
+    );
+    expect(canResolveComment(migrated, staff('rev', 'reviewer'))).toBe(false);
+  });
+
+  it('«исправлено» не ставят рецензент и гость по ссылке', () => {
+    for (const actor of [
+      staff('rev', 'reviewer'),
+      { kind: 'share' as const, actorId: 'share:c1' },
+    ]) {
+      expect(
+        checkCommentTransition({ subject: base, action: 'fix', actor, fixedIn: target }),
+      ).toMatchObject({ ok: false, status: 403 });
+    }
+    expect(
+      checkCommentTransition({
+        subject: base,
+        action: 'fix',
+        actor: staff('tw1', 'techwriter'),
+        fixedIn: target,
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it('исправление не фиксируется в черновике', () => {
+    expect(
+      checkCommentTransition({
+        subject: base,
+        action: 'fix',
+        actor: staff('arch', 'architect'),
+        fixedIn: { ...target, status: 'draft' },
+      }),
+    ).toMatchObject({ ok: false, status: 400 });
   });
 });
 

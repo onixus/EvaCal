@@ -35,6 +35,7 @@ export default async function BoardPage() {
         name: true,
         version: true,
         projectId: true,
+        documentTypes: true,
         status: true,
         reviewStage: true,
         reviewComment: true,
