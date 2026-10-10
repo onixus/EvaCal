@@ -9,6 +9,139 @@ import {
   loadImport,
   importAttachment,
 } from '../lib/catalog/import-store';
+import { listImportProfiles, mutateImportProfile } from '../lib/catalog/import-profiles';
+// Save a profile from the first file, then reuse it on a second file whose columns
+// are reordered and renamed in part: header matching follows the move and reports
+// the missing column; new fields persist on confirmed offers as confirmed prices.
+async function verifyProfiles(actor: string, vendorId: string) {
+  const first = await createImport(
+    Buffer.from(
+      'Название;Артикул;Ед.;Цена;Дата прайса;Действует до;НДС;Тип;RAM\n' +
+        'Сервер;PRF-1;шт;100,5;01.10.2026;31.12.2026;20%;Оборудование;64\n',
+    ),
+    'profile-1.csv',
+    {
+      vendorId,
+      delimiter: ';',
+      decimalSeparator: ',',
+      mapping: {
+        name: 0,
+        sku: 1,
+        unit: 2,
+        unitPrice: 3,
+        priceDate: 4,
+        validUntil: 5,
+        taxRate: 6,
+        kind: 7,
+      },
+      attributes: [{ column: 8, name: 'Память', unit: 'ГБ' }],
+    },
+    actor,
+  );
+  assert.deepEqual(first.rows[0].errors, []);
+  const saved = await mutateImportProfile(
+    { action: 'create', name: 'Основной CSV', importId: first.id },
+    actor,
+  );
+  await assert.rejects(
+    mutateImportProfile({ action: 'create', name: 'Основной CSV', importId: first.id }, actor),
+    (e: { statusCode?: number }) => e.statusCode === 409,
+  );
+  assert.equal((await listImportProfiles(vendorId)).length, 1);
+  const second = await createImport(
+    Buffer.from(
+      'RAM;Тип;Артикул;Цена;Название;Ед.;Дата прайса;Ставка НДС\n' +
+        '128;ПО;PRF-2;;Сервер 2;шт;;\n' +
+        '256;гаджет;PRF-3;7;Сервер 3;шт;2026-13-01;\n',
+    ),
+    'profile-2.csv',
+    { vendorId, savedProfileId: saved.id, savedProfileRevision: saved.revision },
+    actor,
+  );
+  assert.equal(second.profileApplication?.profileId, saved.id);
+  assert.deepEqual(second.profile.mapping, {
+    name: 4,
+    sku: 2,
+    unit: 5,
+    unitPrice: 3,
+    priceDate: 6,
+    kind: 1,
+  });
+  assert.deepEqual(second.profile.attributes, [{ column: 0, name: 'Память', unit: 'ГБ' }]);
+  assert.deepEqual(second.profileApplication?.mismatches, [
+    'Действует до: колонка «Действует до» не найдена в файле',
+    'НДС, %: колонка «НДС» не найдена в файле',
+  ]);
+  assert.deepEqual(second.profileApplication?.added, ['Ставка НДС']);
+  const [unknown, bad] = second.rows;
+  assert.deepEqual(unknown.errors, []);
+  assert.equal(unknown.normalized?.offer.unitPrice, null, 'missing price is unknown');
+  assert.equal(unknown.normalized?.offer.priceDate, null, 'missing date is unknown');
+  assert.equal(unknown.normalized?.product.kind, 'software');
+  assert.match(bad.errors.join(), /Тип позиции: «гаджет»/);
+  assert.match(bad.errors.join(), /Дата цены: «2026-13-01»/);
+  // Stale profile revision is refused.
+  await mutateImportProfile(
+    { action: 'update', id: saved.id, revision: saved.revision, importId: first.id },
+    actor,
+  );
+  await assert.rejects(
+    createImport(
+      Buffer.from('Артикул;Название\nX;Y\n'),
+      'profile-3.csv',
+      { vendorId, savedProfileId: saved.id, savedProfileRevision: saved.revision },
+      actor,
+    ),
+    (e: { statusCode?: number }) => e.statusCode === 409,
+  );
+  const confirmed = await mutateImport(
+    first.id,
+    { action: 'confirm', revision: first.revision, rowIds: [first.rows[0].id] },
+    actor,
+  );
+  assert.equal(confirmed.status, 'confirmed');
+  const product = await prisma.catalogProduct.findFirstOrThrow({
+    where: { vendorId, sku: 'PRF-1' },
+    include: { offers: true },
+  });
+  assert.deepEqual(product.attributes, [{ name: 'Память', value: '64', unit: 'ГБ' }]);
+  const offer = product.offers[0];
+  assert.equal(offer.taxRate?.toString(), '20');
+  assert.equal(offer.priceDate, '2026-10-01');
+  assert.equal(offer.validUntil, '2026-12-31');
+  assert.equal(offer.confirmationStatus, 'confirmed');
+  assert.equal(offer.confirmedBy, actor);
+  // A manual offer stays unconfirmed until the explicit, single confirmation action.
+  const manual = await mutateCatalog(
+    {
+      action: 'offer.create',
+      id: product.id,
+      revision: product.revision,
+      offer: {
+        source: 'Ручной ввод',
+        unitPrice: null,
+        currency: 'RUB',
+        region: '',
+        terms: '',
+        priceDate: null,
+        validUntil: null,
+        taxRate: null,
+        discountCategory: '',
+        confirmationStatus: 'confirmed',
+      },
+    },
+    actor,
+  );
+  assert.equal((manual as { confirmationStatus: string }).confirmationStatus, 'unconfirmed');
+  await mutateCatalog({ action: 'offer.confirm', id: product.id, offerId: manual.id }, actor);
+  await assert.rejects(
+    mutateCatalog({ action: 'offer.confirm', id: product.id, offerId: manual.id }, actor),
+    (e: { statusCode?: number }) => e.statusCode === 409,
+  );
+  const after = await prisma.catalogOffer.findUniqueOrThrow({ where: { id: manual.id } });
+  assert.equal(after.confirmationStatus, 'confirmed');
+  assert.equal(after.unitPrice, null, 'confirmation does not invent a price');
+}
 // Hold a newly inserted product uncommitted behind Vendor. The import first
 // sees no candidate, queues on Vendor, and only sees the product after release.
 async function verifyProductAppearance(
@@ -201,8 +334,9 @@ async function main() {
     assert.equal(corrected.rows[0].status, 'ready');
     assert.deepEqual(corrected.rows[0].raw, bad.rows[0].raw);
     await verifyProductAppearance(actor, profile);
+    await verifyProfiles(actor, vendor.id);
     console.log(
-      'GPL PostgreSQL passed: persistence, attachment SHA256, concurrent upload idempotency, selected confirmation, raw correction history, null/zero/decimal, immutable old prices, concurrent confirmation conflict, newly appeared product 409 with zero writes and successful retry.',
+      'GPL PostgreSQL passed: persistence, attachment SHA256, concurrent upload idempotency, selected confirmation, raw correction history, null/zero/decimal, immutable old prices, concurrent confirmation conflict, newly appeared product 409 with zero writes and successful retry, saved profile reuse on reordered columns with mismatch report, extended fields and offer confirmation status.',
     );
   } finally {
     await prisma.catalogOffer.deleteMany({ where: { createdBy: actor } });
@@ -215,6 +349,7 @@ async function main() {
       where: { importId: { in: batches.map((b) => b.id) } },
     });
     await prisma.catalogImport.deleteMany({ where: { createdBy: actor } });
+    await prisma.catalogImportProfile.deleteMany({ where: { createdBy: actor } });
     await prisma.catalogVendor.deleteMany({ where: { createdBy: actor } });
     await prisma.$disconnect();
   }

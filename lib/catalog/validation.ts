@@ -49,6 +49,14 @@ export function productInput(input: unknown): ProductInput {
     attributes,
   };
 }
+/** VAT/tax percent: 0–100 with up to 4 decimals; null means unknown, never 0. */
+export function isTaxRate(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^(0|[1-9]\d{0,2})(\.\d{1,4})?$/.test(value) &&
+    Number(value) <= 100
+  );
+}
 function date(value: unknown): string | null {
   if (value === null) return null;
   if (
@@ -70,6 +78,10 @@ export function offerInput(input: unknown): OfferInput {
   const validUntil = date(d.validUntil);
   if (priceDate && validUntil && priceDate > validUntil)
     throw new SpecificationError('Срок действия раньше даты цены');
+  // Legacy rows predate tax/discount fields: absent means unknown/not set.
+  const taxRate = d.taxRate === undefined ? null : d.taxRate;
+  if (taxRate !== null && !isTaxRate(taxRate))
+    throw new SpecificationError('НДС: процент 0–100 (до 4 знаков после точки) или неизвестно');
   return {
     source: text(d.source, 'Источник', 500, true),
     unitPrice: d.unitPrice as string | null,
@@ -78,5 +90,8 @@ export function offerInput(input: unknown): OfferInput {
     terms: text(d.terms, 'Условия', 1000),
     priceDate,
     validUntil,
+    taxRate,
+    discountCategory:
+      d.discountCategory === undefined ? '' : text(d.discountCategory, 'Скидочная категория', 100),
   };
 }

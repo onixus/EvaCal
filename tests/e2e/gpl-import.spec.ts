@@ -77,3 +77,66 @@ test('GPL: map raw CSV, correct an error and import only selected confirmed rows
   ).toHaveCount(0);
   await expect(panel.getByLabel('Подтверждаю строку 2', { exact: true })).toBeDisabled();
 });
+
+test('GPL: saved import profile is reused on a file with reordered columns', async ({ page }) => {
+  test.skip(!E2E_PASSWORD, 'E2E_ARCHITECT_PASSWORD не задан');
+  await loginAs(page, 'architect', E2E_PASSWORD!);
+  await page.goto('/catalog');
+  const vendor = `GPL profile ${Date.now()}`;
+  await page.getByLabel('Название вендора', { exact: true }).fill(vendor);
+  await page.getByRole('button', { name: 'Сохранить вендора', exact: true }).click();
+  await expect(
+    page.getByLabel('Вендор позиции').getByRole('option', { name: vendor, exact: true }),
+  ).toHaveCount(1);
+  await page.reload();
+  const panel = page.getByRole('region', { name: 'Импорт вендорского GPL', exact: true });
+  await panel
+    .getByRole('combobox', { name: 'Вендор GPL', exact: true })
+    .selectOption({ label: vendor });
+  await panel.getByLabel('Файл GPL (XLSX / CSV)').setInputFiles({
+    name: 'first.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(
+      'Название;Артикул;Цена;Единица;Дата прайса;НДС\nСервер;PRF-1;10,5;шт.;01.10.2026;20%\n',
+    ),
+  });
+  await panel.getByRole('button', { name: 'Загрузить черновик GPL' }).click();
+  for (const [label, column] of [
+    ['Наименование', '0'],
+    ['Партномер', '1'],
+    ['Цена', '2'],
+    ['Единица', '3'],
+    ['Дата цены', '4'],
+    ['НДС, %', '5'],
+  ])
+    await panel
+      .getByRole('combobox', { name: `Колонка: ${label}`, exact: true })
+      .selectOption(column);
+  await panel.getByRole('button', { name: 'Применить настройки и проверить строки' }).click();
+  await expect(panel.getByLabel('Подтверждаю строку 2', { exact: true })).toBeEnabled();
+  await expect(panel.getByText(/Дата цены 2026-10-01/)).toBeVisible();
+  await panel.getByLabel('Название профиля', { exact: true }).fill('E2E профиль');
+  await panel.getByRole('button', { name: 'Сохранить как новый профиль' }).click();
+  await expect(panel.getByRole('combobox', { name: 'Профиль импорта', exact: true })).toHaveValue(
+    /.+/,
+  );
+  // Second file: columns reordered, the tax column renamed, a new region column.
+  await panel.getByLabel('Файл GPL (XLSX / CSV)').setInputFiles({
+    name: 'second.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(
+      'Единица;Цена;Артикул;Регион;Название;Дата прайса;Ставка\nшт.;12;PRF-2;RU;Сервер 2;02.10.2026;20\n',
+    ),
+  });
+  await panel.getByRole('button', { name: 'Загрузить черновик GPL' }).click();
+  const report = panel.getByRole('group', { name: 'Применение профиля' });
+  await expect(report).toContainText('Применен профиль «E2E профиль»');
+  await expect(report).toContainText('Расхождение: НДС, %: колонка «НДС» не найдена в файле');
+  await expect(report).toContainText('Новые колонки файла: Регион, Ставка');
+  await expect(panel.getByRole('combobox', { name: 'Колонка: Цена', exact: true })).toHaveValue(
+    '1',
+  );
+  await expect(panel.getByLabel('Подтверждаю строку 2', { exact: true })).toBeEnabled();
+  await expect(panel.getByText(/Дата цены 2026-10-02/)).toBeVisible();
+  await expect(panel.getByText(/НДС неизвестен/)).toBeVisible();
+});

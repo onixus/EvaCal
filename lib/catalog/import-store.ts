@@ -3,9 +3,9 @@ import { prisma } from '../prisma';
 import { SpecificationError } from '../specification/validation';
 import { object, text, revision, productInput, offerInput } from './validation';
 import { analyzeImport, importProfile } from './import-parser';
+import { analyzeWithSavedProfile, type Analysis } from './import-profile-analysis';
 import type { ImportDraft, ImportRow } from './import-types';
 import type { Prisma } from '../generated/prisma/client';
-type Analysis = ReturnType<typeof analyzeImport>;
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 export async function loadImport(id: string, historicalRevision?: number): Promise<ImportDraft> {
   const batch = await prisma.catalogImport.findUnique({
@@ -76,8 +76,13 @@ export async function createImport(
   actorId: string,
 ) {
   filename = text(filename.replace(/^.*[\\/]/, ''), 'Имя файла', 200, true);
-  const profile = importProfile(input),
-    data = analyzeImport(bytes, filename, profile);
+  const d = object(input);
+  // A saved profile is resolved against this file's headers; otherwise the explicit mapping is used.
+  const data: Analysis =
+    d.savedProfileId !== undefined
+      ? await analyzeWithSavedProfile(bytes, filename, d)
+      : analyzeImport(bytes, filename, importProfile(input));
+  const profile = data.profile;
   await matchDiagnostics(data);
   const checksum = createHash('sha256').update(bytes).digest('hex');
   const batch = await prisma.$transaction(async (tx) => {
@@ -124,10 +129,14 @@ export async function mutateImport(id: string, input: unknown, actorId: string) 
         throw new SpecificationError('Импорт уже изменен или подтвержден. Обновите страницу.', 409);
       let data = batch.revisions[0].data as unknown as Analysis;
       if (d.action === 'analyze') {
-        const profile = importProfile(d.profile);
-        if (profile.vendorId !== batch.vendorId)
-          throw new SpecificationError('Вендор импорта неизменяем');
-        data = analyzeImport(batch.file, batch.filename, profile);
+        if (d.savedProfileId !== undefined) {
+          data = await analyzeWithSavedProfile(batch.file, batch.filename, d, batch.vendorId, tx);
+        } else {
+          const profile = importProfile(d.profile);
+          if (profile.vendorId !== batch.vendorId)
+            throw new SpecificationError('Вендор импорта неизменяем');
+          data = analyzeImport(batch.file, batch.filename, profile);
+        }
       } else if (d.action === 'correct') {
         const rowId = text(d.rowId, 'Строка', 300, true),
           normalized = object(d.normalized);
@@ -229,6 +238,10 @@ export async function mutateImport(id: string, input: unknown, actorId: string) 
                 revision: product.revision,
                 vendor: { id: vendor.id, name: vendor.name, revision: vendor.revision },
               }),
+              // The explicit GPL confirmation is the confirmation of these offers.
+              confirmationStatus: 'confirmed',
+              confirmedBy: actorId,
+              confirmedAt: new Date(),
               importProvenance: {
                 importId: id,
                 importRevision: expected,

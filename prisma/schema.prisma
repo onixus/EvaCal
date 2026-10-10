@@ -445,14 +445,15 @@ model SpecificationVersion {
 
 // Technical identity is independent from price offers and project snapshots.
 model CatalogVendor {
-  id        String           @id @default(cuid())
-  name      String
-  revision  Int              @default(1)
-  archived  Boolean          @default(false)
-  createdBy String
-  createdAt DateTime         @default(now())
-  products  CatalogProduct[]
-  imports   CatalogImport[]
+  id             String                 @id @default(cuid())
+  name           String
+  revision       Int                    @default(1)
+  archived       Boolean                @default(false)
+  createdBy      String
+  createdAt      DateTime               @default(now())
+  products       CatalogProduct[]
+  imports        CatalogImport[]
+  importProfiles CatalogImportProfile[]
 }
 
 model CatalogProduct {
@@ -477,21 +478,27 @@ model CatalogProduct {
 
 // Append-only offers; missing price/dates have no implied value or validity.
 model CatalogOffer {
-  id               String         @id @default(cuid())
-  productId        String
-  productRevision  Int
-  importProvenance Json? // Original attachment, sheet and row identity.
-  productSnapshot  Json? // Immutable technical identity at offer creation; null marks legacy unknown.
-  product          CatalogProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
-  source           String
-  unitPrice        Decimal?       @db.Decimal(18, 6)
-  currency         String
-  region           String
-  terms            String
-  priceDate        String?
-  validUntil       String?
-  createdBy        String
-  createdAt        DateTime       @default(now())
+  id                 String         @id @default(cuid())
+  productId          String
+  productRevision    Int
+  importProvenance   Json? // Original attachment, sheet and row identity.
+  productSnapshot    Json? // Immutable technical identity at offer creation; null marks legacy unknown.
+  product            CatalogProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  source             String
+  unitPrice          Decimal?       @db.Decimal(18, 6)
+  currency           String
+  region             String
+  terms              String
+  priceDate          String?
+  validUntil         String?
+  taxRate            Decimal?       @db.Decimal(7, 4) // Percent; null is unknown, not 0.
+  discountCategory   String         @default("")
+  // unconfirmed | confirmed. GPL offers are confirmed only by the explicit import confirmation.
+  confirmationStatus String         @default("unconfirmed")
+  confirmedBy        String?
+  confirmedAt        DateTime?
+  createdBy          String
+  createdAt          DateTime       @default(now())
 
   @@index([productId, createdAt])
 }
@@ -710,4 +717,23 @@ model ExternalTaskMapping {
   updatedAt       DateTime    @updatedAt
 
   @@unique([calculationId, source, externalTaskKey])
+}
+
+// Reusable column mapping per vendor/format. Applying it to a new file matches
+// columns by header name; mismatches are reported, never silently guessed.
+model CatalogImportProfile {
+  id        String        @id @default(cuid())
+  vendor    CatalogVendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  vendorId  String
+  name      String
+  format    String // csv | xlsx
+  profile   Json
+  revision  Int           @default(1)
+  archived  Boolean       @default(false)
+  createdBy String
+  createdAt DateTime      @default(now())
+  updatedBy String
+  updatedAt DateTime      @default(now())
+
+  @@unique([vendorId, format, name])
 }

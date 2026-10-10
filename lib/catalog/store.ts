@@ -23,7 +23,11 @@ export async function loadCatalog() {
     vendors,
     products: rows.map((p) => ({
       ...p,
-      offers: p.offers.map((o) => ({ ...o, unitPrice: o.unitPrice?.toString() ?? null })),
+      offers: p.offers.map((o) => ({
+        ...o,
+        unitPrice: o.unitPrice?.toString() ?? null,
+        taxRate: o.taxRate?.toString() ?? null,
+      })),
     })),
   };
 }
@@ -121,7 +125,27 @@ export async function mutateCatalog(input: unknown, actorId: string) {
           createdBy: actorId,
         },
       });
-      return { ...offer, unitPrice: offer.unitPrice?.toString() ?? null };
+      return {
+        ...offer,
+        unitPrice: offer.unitPrice?.toString() ?? null,
+        taxRate: offer.taxRate?.toString() ?? null,
+      };
+    }
+    if (d.action === 'offer.confirm') {
+      // Price/terms stay immutable; only the explicit confirmation is recorded once.
+      const offerId = text(d.offerId, 'Предложение', 100, true);
+      const result = await tx.catalogOffer.updateMany({
+        where: { id: offerId, productId: id, confirmationStatus: 'unconfirmed' },
+        data: { confirmationStatus: 'confirmed', confirmedBy: actorId, confirmedAt: new Date() },
+      });
+      if (!result.count)
+        throw new SpecificationError('Предложение уже подтверждено или не найдено', 409);
+      const offer = await tx.catalogOffer.findUniqueOrThrow({ where: { id: offerId } });
+      return {
+        ...offer,
+        unitPrice: offer.unitPrice?.toString() ?? null,
+        taxRate: offer.taxRate?.toString() ?? null,
+      };
     }
     throw new SpecificationError('Неизвестное действие каталога');
   });

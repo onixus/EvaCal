@@ -33,6 +33,8 @@ const fieldNames: Record<ComparisonField, string> = {
   terms: 'Условия',
   priceDate: 'Дата цены',
   validUntil: 'Действует до',
+  taxRate: 'НДС, %',
+  discountCategory: 'Скидочная категория',
 };
 const kindNames: Record<string, string> = {
   hardware: 'Оборудование',
@@ -145,7 +147,11 @@ function SourceRows({ rows, source }: { rows: ImportRow[]; source: ComparisonSou
                   Условия: {normalized.offer.terms || 'не заданы'} · регион{' '}
                   {normalized.offer.region || 'не задан'} · дата цены{' '}
                   {normalized.offer.priceDate || 'неизвестна'} · действует до{' '}
-                  {normalized.offer.validUntil || 'неизвестно'}
+                  {normalized.offer.validUntil || 'неизвестно'} · НДС{' '}
+                  {normalized.offer.taxRate == null ? 'неизвестен' : `${normalized.offer.taxRate}%`}
+                  {normalized.offer.discountCategory
+                    ? ` · скидочная категория ${normalized.offer.discountCategory}`
+                    : ''}
                 </p>
               </details>
             )}

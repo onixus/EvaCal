@@ -22,6 +22,8 @@ const blankOffer = (): OfferInput => ({
   terms: '',
   priceDate: null,
   validUntil: null,
+  taxRate: null,
+  discountCategory: '',
 });
 export default function CatalogPanel() {
   const [importRefresh, setImportRefresh] = useState(0);
@@ -84,13 +86,16 @@ export default function CatalogPanel() {
     ['terms', 'Условия / срок поставки'],
     ['priceDate', 'Дата цены'],
     ['validUntil', 'Действует до'],
+    ['taxRate', 'НДС, %: пусто — неизвестно'],
+    ['discountCategory', 'Скидочная категория'],
   ];
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-500">
         Технические позиции и ценовые предложения ведутся отдельно. Новая цена сохраняется отдельным
-        предложением. Архивирование сохраняет историю. Проект получает копию только после явного
-        выбора.
+        неподтвержденным предложением; подтверждение фиксируется отдельным действием, а цены из GPL
+        подтверждаются при явном подтверждении строк импорта. Архивирование сохраняет историю.
+        Проект получает копию только после явного выбора.
       </p>
       {error && (
         <p role="alert" className="text-red-600">
@@ -331,7 +336,9 @@ export default function CatalogPanel() {
                     ...offer,
                     [key]:
                       e.target.value ||
-                      (['unitPrice', 'priceDate', 'validUntil'].includes(key) ? null : ''),
+                      (['unitPrice', 'priceDate', 'validUntil', 'taxRate'].includes(key)
+                        ? null
+                        : ''),
                   })
                 }
               />
@@ -445,10 +452,35 @@ export default function CatalogPanel() {
                     </p>
                   )}
                   <p>
+                    Статус цены:{' '}
+                    {o.confirmationStatus === 'confirmed'
+                      ? `подтверждена ${o.confirmedBy ?? ''} · ${o.confirmedAt ?? ''}`
+                      : 'не подтверждена'}
+                    {o.confirmationStatus !== 'confirmed' && !o.importProvenance && (
+                      <button
+                        className="btn-secondary ml-2"
+                        disabled={busy}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              'Подтвердить цену? Значение, валюта и даты не изменятся; фиксируется автор и время подтверждения.',
+                            )
+                          )
+                            mutate({ action: 'offer.confirm', id: p.id, offerId: o.id });
+                        }}
+                      >
+                        Подтвердить цену
+                      </button>
+                    )}
+                  </p>
+                  <p>
                     Ред. позиции {o.productRevision} · {o.unitPrice ?? 'Цена неизвестна'}{' '}
                     {o.currency} · {o.source} · {o.region || 'Регион не задан'} · дата цены{' '}
-                    {o.priceDate || 'неизвестна'} · действует до {o.validUntil || 'неизвестно'} ·{' '}
-                    {o.terms} · добавлено {o.createdAt} · {o.createdBy}
+                    {o.priceDate || 'неизвестна'} · действует до {o.validUntil || 'неизвестно'} ·
+                    НДС {o.taxRate == null ? 'неизвестен' : `${o.taxRate}%`}
+                    {o.discountCategory
+                      ? ` · скидочная категория ${o.discountCategory}`
+                      : ''} · {o.terms} · добавлено {o.createdAt} · {o.createdBy}
                   </p>
                 </div>
               ))}

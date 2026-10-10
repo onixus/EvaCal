@@ -2,8 +2,8 @@ import * as XLSX from 'xlsx';
 import { xml2js, type Element } from 'xml-js';
 import { posix } from 'node:path';
 import { inflateRawSync } from 'node:zlib';
-import { SpecificationError } from '../specification/validation';
-import { object, text, productInput, offerInput } from './validation';
+import { SpecificationError, isDecimal } from '../specification/validation';
+import { object, text, productInput, offerInput, isTaxRate } from './validation';
 import { IMPORT_FIELDS, type ImportProfile, type ImportRow } from './import-types';
 import { ITEM_KINDS } from '../specification/types';
 export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
@@ -38,6 +38,24 @@ export function importProfile(input: unknown): ImportProfile {
     throw new SpecificationError('Некорректный тип');
   const currency = text(d.currency ?? 'RUB', 'Валюта', 3, true);
   if (!/^[A-Z]{3}$/.test(currency)) throw new SpecificationError('Валюта: 3 заглавные буквы');
+  const rawAttributes = d.attributes ?? [];
+  if (!Array.isArray(rawAttributes) || rawAttributes.length > 30)
+    throw new SpecificationError('До 30 колонок характеристик');
+  const attributeNames = new Set<string>();
+  const attributes = rawAttributes.map((raw) => {
+    const a = object(raw);
+    if (!Number.isSafeInteger(a.column) || Number(a.column) < 0 || Number(a.column) > 99)
+      throw new SpecificationError('Колонка характеристики: 0–99');
+    const name = text(a.name, 'Название характеристики', 100, true);
+    if (attributeNames.has(name.toLowerCase()))
+      throw new SpecificationError('Названия колонок характеристик должны быть уникальными');
+    attributeNames.add(name.toLowerCase());
+    return {
+      column: Number(a.column),
+      name,
+      unit: text(a.unit ?? '', 'Единица характеристики', 30),
+    };
+  });
   return {
     vendorId: text(d.vendorId, 'Вендор', 100, true),
     sheet: text(d.sheet ?? '', 'Лист'),
@@ -49,7 +67,60 @@ export function importProfile(input: unknown): ImportProfile {
     currency,
     kind: kind as ImportProfile['kind'],
     mapping,
+    attributes,
   };
+}
+const KIND_ALIASES: Record<string, (typeof ITEM_KINDS)[number]> = {
+  оборудование: 'hardware',
+  железо: 'hardware',
+  по: 'software',
+  'программное обеспечение': 'software',
+  лицензия: 'license',
+  поддержка: 'support',
+  'техническая поддержка': 'support',
+  услуга: 'service',
+  услуги: 'service',
+  работы: 'service',
+  другое: 'other',
+  прочее: 'other',
+};
+/** Per-row kind: code (hardware…) or Russian label; empty means the profile default. */
+export function parseImportKind(value: string): (typeof ITEM_KINDS)[number] {
+  const key = value.trim().toLowerCase().replace(/\s+/g, ' ');
+  if ((ITEM_KINDS as readonly string[]).includes(key)) return key as (typeof ITEM_KINDS)[number];
+  const kind = KIND_ALIASES[key];
+  if (!kind)
+    throw new SpecificationError(
+      `Тип позиции: «${value}» не распознан (оборудование, ПО, лицензия, поддержка, услуга, другое)`,
+    );
+  return kind;
+}
+/** Text dates: ГГГГ-ММ-ДД or ДД.ММ.ГГГГ. Empty means unknown — never "today". */
+export function parseImportDate(value: string, label: string): string | null {
+  const v = value.trim();
+  if (!v) return null;
+  let iso = '';
+  const ru = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(v);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) iso = v;
+  else if (ru) iso = `${ru[3]}-${ru[2].padStart(2, '0')}-${ru[1].padStart(2, '0')}`;
+  if (!iso || !Number.isFinite(Date.parse(iso)) || new Date(iso).toISOString().slice(0, 10) !== iso)
+    throw new SpecificationError(
+      `${label}: «${v}» — ожидается дата ГГГГ-ММ-ДД или ДД.ММ.ГГГГ; пусто — неизвестно`,
+    );
+  return iso;
+}
+/** Tax percent: «20», «20%», «20,5 %», «0»; empty means unknown, not zero. */
+export function parseImportTaxRate(value: string, decimalSeparator: '.' | ','): string | null {
+  const v = value.trim();
+  if (!v) return null;
+  const normalized = v.replace(/[\s ]/g, '').replace(/%$/, '').replace(decimalSeparator, '.');
+  const match = /^(\d{1,3})(?:\.(\d{1,4}))?$/.exec(normalized);
+  const result = match
+    ? `${String(Number(match[1]))}${match[2] && /[1-9]/.test(match[2]) ? `.${match[2].replace(/0+$/, '')}` : ''}`
+    : '';
+  if (!isTaxRate(result))
+    throw new SpecificationError(`НДС: «${v}» — ожидается процент 0–100, например 20 или 20%`);
+  return result;
 }
 function csvRows(content: string, delimiter: string): string[][] {
   const rows: string[][] = [];
@@ -97,6 +168,11 @@ export function analyzeImport(bytes: Uint8Array, filename: string, profile: Impo
   const formulas = new Set<number>();
   const cellErrors = new Map<number, string[]>();
   let numericPrices = new Map<number, { raw: string; error?: string }>();
+  // Typed XLSX values (dates, tax percents) keyed by "row:column"; raw keeps the display.
+  const typed = new Map<string, string>();
+  const dateColumns = new Set(
+    [profile.mapping.priceDate, profile.mapping.validUntil].filter((c) => c !== undefined),
+  );
   if (/\.csv$/i.test(filename)) {
     sheets = ['CSV'];
     cells = csvRows(
@@ -139,6 +215,9 @@ export function analyzeImport(bytes: Uint8Array, filename: string, profile: Impo
     // Text identities use Excel's displayed formatting; monetary values use
     // the numeric source value, independently of display rounding.
     cells = [];
+    const date1904 = Boolean(
+      (workbook.Workbook as { WBProps?: { date1904?: boolean } } | undefined)?.WBProps?.date1904,
+    );
     for (let r = 0; r <= physicalRange.e.r; r++) {
       const row: string[] = [];
       for (let c = 0; c <= physicalRange.e.c; c++) {
@@ -151,6 +230,25 @@ export function analyzeImport(bytes: Uint8Array, filename: string, profile: Impo
           errors.push(`${address}: ${token}`);
           cellErrors.set(r, errors);
           row.push(token);
+        } else if (
+          cell?.t === 'n' &&
+          dateColumns.has(c) &&
+          XLSX.SSF.is_date(String(cell.z ?? ''))
+        ) {
+          // Typed date: use the serial value, not a locale-dependent display (m/d/yy).
+          const parsed = XLSX.SSF.parse_date_code(cell.v, { date1904 }) as
+            { y: number; m: number; d: number } | undefined;
+          if (parsed && parsed.y >= 1900 && parsed.y <= 9999)
+            typed.set(
+              `${r}:${c}`,
+              `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`,
+            );
+          row.push(XLSX.utils.format_cell(cell));
+        } else if (cell?.t === 'n' && c === profile.mapping.taxRate) {
+          // Percent-formatted cells hold fractions (0.2 → 20 %); round to the stored 4 decimals.
+          const value = Number(cell.v) * (String(cell.z ?? '').includes('%') ? 100 : 1);
+          typed.set(`${r}:${c}`, Number.isFinite(value) ? String(Number(value.toFixed(4))) : '');
+          row.push(XLSX.utils.format_cell(cell));
         } else if (cell?.t === 'n' && c === profile.mapping.unitPrice) {
           if (!numericPrices.has(r))
             numericPrices.set(r, {
@@ -190,57 +288,95 @@ export function analyzeImport(bytes: Uint8Array, filename: string, profile: Impo
       continue;
     const get = (f: (typeof IMPORT_FIELDS)[number]) =>
       profile.mapping[f] === undefined ? '' : (raw[profile.mapping[f]!] ?? '').trim();
+    const getTyped = (f: (typeof IMPORT_FIELDS)[number]) =>
+      profile.mapping[f] === undefined ? '' : (typed.get(`${i}:${profile.mapping[f]}`) ?? get(f));
     const errors: string[] = [];
     let normalized: ImportRow['normalized'] = null;
-    try {
-      const numericPrice = numericPrices.get(i);
-      if (numericPrice?.error) throw new SpecificationError(numericPrice.error);
-      if (cellErrors.has(i))
-        throw new SpecificationError(
-          `Строка содержит ошибку XLSX (${cellErrors.get(i)!.join('; ')}): требуется явное исправление значений`,
-        );
-      if (formulas.has(i))
-        throw new SpecificationError(
-          'Строка содержит формулу: требуется явное исправление значений',
-        );
-      const priceRaw = get('unitPrice');
-      const price = numericPrice
+    // Field-level parsing collects every problem of the row before the catalog validators.
+    const field = <T>(parse: () => T, fallback: T): T => {
+      try {
+        return parse();
+      } catch (e) {
+        errors.push((e as Error).message);
+        return fallback;
+      }
+    };
+    const kindValue = field(
+      () => (get('kind') ? parseImportKind(get('kind')) : profile.kind),
+      profile.kind,
+    );
+    const priceDate = field(() => parseImportDate(getTyped('priceDate'), 'Дата цены'), null);
+    const validUntil = field(() => parseImportDate(getTyped('validUntil'), 'Действует до'), null);
+    const taxRate = field(
+      () => parseImportTaxRate(getTyped('taxRate'), profile.decimalSeparator),
+      null,
+    );
+    const attributes = [
+      ...(get('description') ? [{ name: 'Описание', value: get('description'), unit: '' }] : []),
+      ...(get('manufacturer')
+        ? [{ name: 'Производитель', value: get('manufacturer'), unit: '' }]
+        : []),
+      // Empty characteristic cells are unknown and are not stored as values.
+      ...(profile.attributes ?? [])
+        .map((a) => ({ name: a.name, value: (raw[a.column] ?? '').trim(), unit: a.unit }))
+        .filter((a) => a.value),
+    ];
+    const numericPrice = numericPrices.get(i);
+    // Structural XLSX problems come first: they require explicit source correction.
+    if (numericPrice?.error) errors.unshift(numericPrice.error);
+    if (cellErrors.has(i))
+      errors.unshift(
+        `Строка содержит ошибку XLSX (${cellErrors.get(i)!.join('; ')}): требуется явное исправление значений`,
+      );
+    if (formulas.has(i))
+      errors.unshift('Строка содержит формулу: требуется явное исправление значений');
+    const priceRaw = get('unitPrice');
+    const price = field(() => {
+      const value = numericPrice
         ? numericPrice.raw
           ? exactNumericPrice(numericPrice.raw)
           : null
         : priceRaw
           ? priceRaw.replace(/[\s\u00a0]/g, '').replace(profile.decimalSeparator, '.')
           : null;
-      const product = productInput({
-        vendorId: profile.vendorId,
-        name: get('name'),
-        sku: get('sku'),
-        edition: get('edition'),
-        kind: profile.kind,
-        unit: get('unit'),
-        licensing: get('licensing'),
-        attributes: get('description')
-          ? [{ name: 'Описание', value: get('description'), unit: '' }]
-          : [],
-      });
-      if (!product.sku) throw new SpecificationError('Артикул обязателен для сопоставления GPL');
-      const identity = JSON.stringify([product.sku, product.edition]);
-      if (seen.has(identity))
-        throw new SpecificationError('Дублирующийся артикул в выбранном диапазоне');
-      seen.add(identity);
-      const offer = offerInput({
-        source: `${filename} · ${sheet} · строка ${i + 1}`,
-        unitPrice: price,
-        currency: get('currency') || profile.currency,
-        region: '',
-        terms: get('terms'),
-        priceDate: null,
-        validUntil: null,
-      });
-      normalized = { product, offer };
-    } catch (e) {
-      errors.push((e as Error).message);
-    }
+      if (value !== null && !isDecimal(value))
+        throw new SpecificationError(
+          `Цена: «${priceRaw}» — ожидается неотрицательное число (до 12 целых и 6 дробных знаков); пусто — неизвестно`,
+        );
+      return value;
+    }, null);
+    if (!errors.length)
+      try {
+        const product = productInput({
+          vendorId: profile.vendorId,
+          name: get('name'),
+          sku: get('sku'),
+          edition: get('edition'),
+          kind: kindValue,
+          unit: get('unit'),
+          licensing: get('licensing'),
+          attributes,
+        });
+        if (!product.sku) throw new SpecificationError('Артикул обязателен для сопоставления GPL');
+        const identity = JSON.stringify([product.sku, product.edition]);
+        if (seen.has(identity))
+          throw new SpecificationError('Дублирующийся артикул в выбранном диапазоне');
+        seen.add(identity);
+        const offer = offerInput({
+          source: `${filename} · ${sheet} · строка ${i + 1}`,
+          unitPrice: price,
+          currency: get('currency') || profile.currency,
+          region: get('region'),
+          terms: get('terms'),
+          priceDate,
+          validUntil,
+          taxRate,
+          discountCategory: get('discountCategory'),
+        });
+        normalized = { product, offer };
+      } catch (e) {
+        errors.push((e as Error).message);
+      }
     rows.push({
       id: `${sheet}:${i + 1}`,
       sheet,

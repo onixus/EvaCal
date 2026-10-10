@@ -92,6 +92,12 @@ describe('GPL confirmation locks', () => {
     mocks.products.mockResolvedValueOnce([product]).mockResolvedValueOnce([product]);
     await mutateImport('b', { action: 'confirm', revision: 1, rowIds: ['GPL:2'] }, 'u');
     expect(mocks.offer).toHaveBeenCalledOnce();
+    // The explicit GPL confirmation is recorded as the offer confirmation.
+    expect(mocks.offer.mock.calls[0][0].data).toMatchObject({
+      confirmationStatus: 'confirmed',
+      confirmedBy: 'u',
+      confirmedAt: expect.any(Date),
+    });
     expect(mocks.revision).toHaveBeenCalledOnce();
     const sql = mocks.query.mock.calls.map((args) => args[0].join(''));
     expect(sql[1]).toContain('CatalogProduct');

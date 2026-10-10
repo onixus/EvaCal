@@ -365,3 +365,152 @@ describe('GPL source analysis', () => {
     },
   );
 });
+
+describe('GPL extended column mapping', () => {
+  const extended = importProfile({
+    vendorId: 'v',
+    delimiter: ';',
+    decimalSeparator: ',',
+    kind: 'hardware',
+    mapping: {
+      name: 0,
+      sku: 1,
+      unit: 2,
+      unitPrice: 3,
+      priceDate: 4,
+      validUntil: 5,
+      region: 6,
+      kind: 7,
+      manufacturer: 8,
+      taxRate: 9,
+      discountCategory: 10,
+    },
+    attributes: [
+      { column: 11, name: 'Память', unit: 'ГБ' },
+      { column: 12, name: 'Форм-фактор', unit: '' },
+    ],
+  });
+  const header = 'n;sku;u;price;date;until;region;kind;maker;vat;disc;ram;ff';
+  const parse = (...rows: string[]) =>
+    analyzeImport(Buffer.from([header, ...rows].join('\n')), 'gpl.csv', extended).rows;
+  it('maps dates, region, per-row kind, manufacturer, tax, discount and characteristics', () => {
+    const [a, b] = parse(
+      'Server;S1;шт;10;2026-10-01;31.12.2026;RU;ПО;Yadro;20%;A;64;1U',
+      'Support;S2;шт;5;;;;;;;;;',
+    );
+    expect(a.errors).toEqual([]);
+    expect(a.normalized?.offer).toMatchObject({
+      priceDate: '2026-10-01',
+      validUntil: '2026-12-31',
+      region: 'RU',
+      taxRate: '20',
+      discountCategory: 'A',
+    });
+    expect(a.normalized?.product.kind).toBe('software');
+    expect(a.normalized?.product.attributes).toEqual([
+      { name: 'Производитель', value: 'Yadro', unit: '' },
+      { name: 'Память', value: '64', unit: 'ГБ' },
+      { name: 'Форм-фактор', value: '1U', unit: '' },
+    ]);
+    // Missing date/tax are unknown, never today or zero; empty kind uses the profile default.
+    expect(b.normalized?.offer).toMatchObject({
+      priceDate: null,
+      validUntil: null,
+      taxRate: null,
+      region: '',
+    });
+    expect(b.normalized?.product.kind).toBe('hardware');
+    expect(b.normalized?.product.attributes).toEqual([]);
+  });
+  it.each([
+    ['support', 'support'],
+    ['Услуга', 'service'],
+    ['лицензия', 'license'],
+    ['  Программное   обеспечение ', 'software'],
+  ])('accepts per-row kind %s', (value, expected) => {
+    const [row] = parse(`A;A;шт;1;;;;${value};;;;;`);
+    expect(row.normalized?.product.kind).toBe(expected);
+  });
+  it.each([
+    ['20', '20'],
+    ['20 %', '20'],
+    ['10,5', '10.5'],
+    ['0', '0'],
+    ['12,0000', '12'],
+  ])('normalizes tax %s', (value, expected) => {
+    const [row] = parse(`A;A;шт;1;;;;;;${value};;;`);
+    expect(row.normalized?.offer.taxRate).toBe(expected);
+  });
+  it('reports every invalid field of a row with the field name and source value', () => {
+    const [row] = parse('A;A;шт;abc;2026-02-30;завтра;;гаджет;;120;;;');
+    expect(row.status).toBe('error');
+    expect(row.normalized).toBeNull();
+    const text = row.errors.join('\n');
+    expect(text).toContain('Тип позиции: «гаджет»');
+    expect(text).toContain('Дата цены: «2026-02-30»');
+    expect(text).toContain('Действует до: «завтра»');
+    expect(text).toContain('НДС: «120»');
+    expect(text).toContain('Цена: «abc»');
+    expect(row.errors).toHaveLength(5);
+  });
+  it('rejects validity before the price date and a negative price', () => {
+    const [late, negative] = parse('A;A;шт;1;2026-10-02;2026-10-01;;;;;;;', 'B;B;шт;-5;;;;;;;;;');
+    expect(late.errors.join()).toMatch(/Срок действия раньше даты цены/);
+    expect(negative.errors.join()).toMatch(/Цена: «-5»/);
+  });
+  it('rejects a characteristic column whose name collides with the manufacturer', () => {
+    const p = importProfile({
+      ...extended,
+      attributes: [{ column: 11, name: 'Производитель', unit: '' }],
+    });
+    const rows = analyzeImport(
+      Buffer.from(`${header}\nA;A;шт;1;;;;;Yadro;;;X;`),
+      'gpl.csv',
+      p,
+    ).rows;
+    expect(rows[0].errors.join()).toMatch(/уникальными/);
+  });
+  it('validates characteristic column settings', () => {
+    expect(() =>
+      importProfile({ vendorId: 'v', attributes: [{ column: 100, name: 'A', unit: '' }] }),
+    ).toThrow(/0–99/);
+    expect(() =>
+      importProfile({
+        vendorId: 'v',
+        attributes: [
+          { column: 1, name: 'RAM', unit: '' },
+          { column: 2, name: 'ram', unit: '' },
+        ],
+      }),
+    ).toThrow(/уникальными/);
+    expect(() =>
+      importProfile({ vendorId: 'v', attributes: [{ column: 1, name: ' ' }] }),
+    ).toThrow();
+    expect(importProfile({ vendorId: 'v' }).attributes).toEqual([]);
+  });
+  it('reads typed XLSX dates and percent tax cells instead of locale display', () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['n', 'sku', 'unit', 'price', 'date', 'until', 'vat'],
+      ['A', 'A', 'шт', 1, 46296, '31.12.2026', 0.2],
+      ['B', 'B', 'шт', 1, 46296, '', 20],
+    ]);
+    ws.E2.z = 'm/d/yy';
+    ws.E3.z = '0';
+    ws.G2.z = '0%';
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, ws, 'GPL');
+    const parsed = analyzeImport(XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }), 'x.xlsx', {
+      ...profile,
+      decimalSeparator: '.',
+      mapping: { name: 0, sku: 1, unit: 2, unitPrice: 3, priceDate: 4, validUntil: 5, taxRate: 6 },
+    });
+    expect(parsed.rows[0].errors).toEqual([]);
+    expect(parsed.rows[0].normalized?.offer).toMatchObject({
+      priceDate: '2026-10-01',
+      validUntil: '2026-12-31',
+      taxRate: '20',
+    });
+    // A bare serial number without a date format is not guessed as a date.
+    expect(parsed.rows[1].errors.join()).toContain('Дата цены: «46296»');
+  });
+});
