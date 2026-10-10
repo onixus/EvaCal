@@ -100,7 +100,9 @@ function addBusinessDays(start: Date, days: number, config: ScheduleConfig): Dat
     if (workHoursOn(cursor, config) > 0) count++;
     if (++guard > MAX_SKIPPED_DAYS + days) throw new Error('Календарь не содержит рабочих дней');
   }
-  return cursor;
+  // Срок не может выпасть за рабочее окно дня: у сокращённого дня оно кончается раньше.
+  const end = dayEnd(cursor, config);
+  return cursor.getTime() > end.getTime() ? end : cursor;
 }
 
 export interface PrimaryStageInput {

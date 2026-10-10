@@ -16,6 +16,23 @@ export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
 const fail = <T>(error: string): Parsed<T> => ({ ok: false, error });
 
+/**
+ * Гонка двух «сделать основным»: частичный уникальный индекс
+ * WorkCalendar_single_default_key отклоняет второй. Это конфликт (409), не 500.
+ */
+export function isSingleDefaultViolation(error: unknown): boolean {
+  const e = error as { code?: unknown; message?: unknown; meta?: unknown } | null;
+  if (!e || typeof e !== 'object') return false;
+  const text = `${String(e.message ?? '')} ${JSON.stringify(e.meta ?? {})}`;
+  return (
+    (e.code === 'P2002' || e.code === '23505' || text.includes('23505')) &&
+    (text.includes('WorkCalendar_single_default_key') || text.includes('isDefault'))
+  );
+}
+
+export const SINGLE_DEFAULT_CONFLICT =
+  'Основной календарь одновременно меняет другой администратор — обновите страницу';
+
 export interface CalendarInput {
   name?: string;
   weekendDays?: string;

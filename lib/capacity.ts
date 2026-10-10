@@ -447,8 +447,15 @@ export function buildCapacityMatrix(opts: CapacityOptions): CapacityMatrix {
         const a = acc.get(role)?.get(week) ?? { firm: 0, weighted: 0, items: [] };
         const weekDate = new Date(week);
         const cap = capacityFor(role, weekDate, opts.capacities, capacityCtx);
+        // Показываем вычтенный резерв, а не заявленный: больше базовой ёмкости вычесть нельзя.
+        const base =
+          cap === null
+            ? null
+            : capacityFor(role, weekDate, opts.capacities, { calendar: opts.calendar });
         const reserved =
-          cap === null ? 0 : reservedHoursFor(role, weekDate, opts.reservations, opts.calendar);
+          base === null
+            ? 0
+            : Math.min(base, reservedHoursFor(role, weekDate, opts.reservations, opts.calendar));
         const firmUtil = cap && cap > 0 ? round2(a.firm / cap) : null;
         const weightedUtil = cap && cap > 0 ? round2(a.weighted / cap) : null;
         const signal = signalFor(weightedUtil);

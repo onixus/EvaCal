@@ -12,6 +12,7 @@ import { rebuildStages, scheduleConfigFromTemplate } from '../lib/calc';
 import { loadCapacityMatrix } from '../lib/capacityData';
 import { scheduleItems, expandWithApprovals } from '../lib/scheduling';
 import { weekStart } from '../lib/capacity';
+import { isSingleDefaultViolation } from '../lib/calendarAdmin';
 
 async function rejects(label: string, action: () => Promise<unknown>) {
   await assert.rejects(action, `${label}: database must reject`);
@@ -23,10 +24,16 @@ async function main() {
   // 1. Миграция создала ровно один основной календарь.
   const defaults = await prisma.workCalendar.findMany({ where: { isDefault: true } });
   assert.equal(defaults.length, 1, 'exactly one default calendar after migration/seed');
-  await rejects('second default calendar', () =>
-    prisma.workCalendar.create({
-      data: { name: `dup-default-${marker}`, isDefault: true, createdBy: 'ci' },
-    }),
+  const duplicate = await prisma.workCalendar
+    .create({ data: { name: `dup-default-${marker}`, isDefault: true, createdBy: 'ci' } })
+    .then(
+      () => null,
+      (error: unknown) => error,
+    );
+  assert(duplicate, 'second default calendar: database must reject');
+  assert(
+    isSingleDefaultViolation(duplicate),
+    `single-default violation is recognised for a 409: ${String(duplicate)}`,
   );
 
   const calendar = await prisma.workCalendar.create({

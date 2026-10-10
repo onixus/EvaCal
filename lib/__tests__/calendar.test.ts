@@ -146,6 +146,20 @@ describe('Гант по календарю (UTC)', () => {
     const [s] = scheduleItems([stage(12)], at('2026-03-06T09:00:00'), config(cal));
     expect(s.endDate.toISOString()).toBe('2026-03-07T15:00:00.000Z');
   });
+
+  it('срок согласования не выходит за окно сокращённого дня', () => {
+    // Этап 2 ч с пн 12:00 → пн 14:00; +1 рабочий день → вт 14:00, но вт сокращён
+    // до 4 из 8 ч (окно 09:00–12:00) — срок прижимается к концу окна.
+    const cal = buildWorkCalendar({
+      exceptions: [{ date: '2026-03-03', kind: 'short', hours: 4 }],
+    });
+    const items = expandWithApprovals([{ name: 'ТЗ', role: 'analyst', hours: 2, approvalDays: 1 }]);
+    const start = at('2026-03-02T12:00:00');
+    const withShort = scheduleItems(items, start, config(cal))[1];
+    expect(withShort.dueDate?.toISOString()).toBe('2026-03-03T12:00:00.000Z');
+    const plain = scheduleItems(items, start, config())[1];
+    expect(plain.dueDate?.toISOString()).toBe('2026-03-03T14:00:00.000Z');
+  });
 });
 
 describe('Гант и ресурсный план согласованы', () => {
@@ -249,6 +263,22 @@ describe('резервы ролей', () => {
       [40, 8],
       [60, 0],
     ]);
+  });
+
+  it('резерв больше ёмкости: в ячейке показан вычтенный резерв, а не заявленный', () => {
+    const reservations = [
+      { role: 'engineer', from: d('2026-03-02'), to: d('2026-03-08'), hoursPerWeek: 100 },
+    ];
+    const m = buildCapacityMatrix({
+      calcs: [],
+      capacities: caps,
+      from: d('2026-03-02'),
+      weeks: 1,
+      calendar: holidayWed,
+      reservations,
+    });
+    // База 60 × 0.8 = 48, заявлено 100 × 0.8 = 80 → вычтено 48, ёмкость 0.
+    expect([m.roles[0].cells[0].capacityHours, m.roles[0].cells[0].reservedHours]).toEqual([0, 48]);
   });
 });
 

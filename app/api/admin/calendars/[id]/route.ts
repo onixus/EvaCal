@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
-import { parseCalendarInput } from '@/lib/calendarAdmin';
+import {
+  isSingleDefaultViolation,
+  parseCalendarInput,
+  SINGLE_DEFAULT_CONFLICT,
+} from '@/lib/calendarAdmin';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,15 +29,24 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       { status: 409 },
     );
   }
-  const row = await prisma.$transaction(async (tx) => {
-    if (isDefault && !existing.isDefault) {
-      await tx.workCalendar.updateMany({ where: { NOT: { id } }, data: { isDefault: false } });
-    }
-    return tx.workCalendar.update({
-      where: { id },
-      data: { ...fields, ...(isDefault ? { isDefault: true } : {}) },
+  let row;
+  try {
+    // Снятие признака с прежнего основного и назначение нового — одной транзакцией.
+    row = await prisma.$transaction(async (tx) => {
+      if (isDefault && !existing.isDefault) {
+        await tx.workCalendar.updateMany({ where: { NOT: { id } }, data: { isDefault: false } });
+      }
+      return tx.workCalendar.update({
+        where: { id },
+        data: { ...fields, ...(isDefault ? { isDefault: true } : {}) },
+      });
     });
-  });
+  } catch (error) {
+    if (isSingleDefaultViolation(error)) {
+      return NextResponse.json({ error: SINGLE_DEFAULT_CONFLICT }, { status: 409 });
+    }
+    throw error;
+  }
   await writeAudit({
     actorType: 'user',
     actorId: auth.userId,

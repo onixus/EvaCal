@@ -110,6 +110,36 @@ describe('календари: маршруты админки', () => {
     expect(prisma.workCalendar.delete).not.toHaveBeenCalled();
   });
 
+  it('гонка за основной календарь — 409, а не 500', async () => {
+    const violation = Object.assign(new Error('Unique constraint failed'), {
+      code: 'P2002',
+      meta: { target: 'WorkCalendar_single_default_key' },
+    });
+    vi.mocked(prisma.$transaction).mockRejectedValueOnce(violation);
+    vi.mocked(prisma.workCalendar.findUnique).mockResolvedValue({
+      id: 'c2',
+      isDefault: false,
+      name: 'Филиал',
+    } as never);
+    const patched = await patchCalendar(
+      req('/api/admin/calendars/c2', 'PATCH', { isDefault: true }),
+      params('c2'),
+    );
+    expect(patched.status).toBe(409);
+
+    vi.mocked(prisma.$transaction).mockRejectedValueOnce(violation);
+    const created = await createCalendar(
+      req('/api/admin/calendars', 'POST', { name: 'Б', isDefault: true }),
+    );
+    expect(created.status).toBe(409);
+
+    // Посторонняя ошибка не маскируется под конфликт.
+    vi.mocked(prisma.$transaction).mockRejectedValueOnce(new Error('connection lost'));
+    await expect(
+      createCalendar(req('/api/admin/calendars', 'POST', { name: 'В', isDefault: true })),
+    ).rejects.toThrow('connection lost');
+  });
+
   it('назначение основным снимает признак с других в той же транзакции', async () => {
     vi.mocked(prisma.workCalendar.findUnique).mockResolvedValue({
       id: 'c2',
