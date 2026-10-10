@@ -3,7 +3,11 @@ import 'dotenv/config';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma';
-import { saveSpecification, loadSpecification } from '../lib/specification/store';
+import {
+  saveSpecification,
+  loadSpecification,
+  markSpecificationReleased,
+} from '../lib/specification/store';
 import { prepareGost34Document } from '../lib/gost34/generation/prepareDocument';
 
 async function main() {
@@ -57,6 +61,73 @@ async function main() {
       metadataOverride: { docType: 'SPEC' },
     });
     assert.equal(document.diagnostics.issues.length, 0);
+    // Lifecycle: confirmed → review → confirmed → released → new draft edition.
+    const review = await saveSpecification(
+      calculation.id,
+      { ...confirmed.snapshot, status: 'review' },
+      'presale',
+    );
+    assert.equal(review.snapshot.status, 'review');
+    assert.equal(
+      await markSpecificationReleased(calculation.id, review.snapshot.version),
+      0,
+      'review revision is never released',
+    );
+    const approved = await saveSpecification(
+      calculation.id,
+      { ...review.snapshot, status: 'confirmed' },
+      'architect',
+    );
+    const rawBefore = await prisma.specificationVersion.findUniqueOrThrow({
+      where: {
+        calculationId_version: {
+          calculationId: calculation.id,
+          version: approved.snapshot.version,
+        },
+      },
+    });
+    assert.equal(await markSpecificationReleased(calculation.id, approved.snapshot.version), 1);
+    assert.equal(
+      await markSpecificationReleased(calculation.id, approved.snapshot.version),
+      0,
+      'release is idempotent',
+    );
+    const released = await loadSpecification(calculation.id, approved.snapshot.version);
+    assert.equal(released?.snapshot.status, 'released');
+    const rawAfter = await prisma.specificationVersion.findUniqueOrThrow({
+      where: { id: rawBefore.id },
+    });
+    assert.equal(rawAfter.data, rawBefore.data, 'released revision data is immutable');
+    assert.equal(
+      (await loadSpecification(calculation.id, review.snapshot.version))?.snapshot.status,
+      'review',
+    );
+    await assert.rejects(
+      saveSpecification(calculation.id, released!.snapshot, 'architect'),
+      (e: { statusCode?: number }) => e.statusCode === 400,
+      'editors cannot assign released',
+    );
+    await assert.rejects(
+      saveSpecification(
+        calculation.id,
+        { ...released!.snapshot, status: 'confirmed', emptySupplyReason: '' },
+        'architect',
+      ),
+      (e: { statusCode?: number }) => e.statusCode === 409,
+      'confirmation gate still applies',
+    );
+    const edition = await saveSpecification(
+      calculation.id,
+      { ...released!.snapshot, status: 'draft' },
+      'presale',
+    );
+    assert.equal(edition.snapshot.version, approved.snapshot.version + 1);
+    assert.equal(edition.snapshot.status, 'draft');
+    assert.equal(
+      (await loadSpecification(calculation.id, approved.snapshot.version))?.snapshot.status,
+      'released',
+      'new edition leaves the released revision untouched',
+    );
     await prisma.calculation.delete({ where: { id: calculation.id } });
     assert.equal(
       await prisma.specificationVersion.count({ where: { calculationId: calculation.id } }),
@@ -64,7 +135,7 @@ async function main() {
       'FK cascade',
     );
     console.log(
-      'Specification integration passed: serialized concurrent writes, stale 409, immutable historical revision, roundtrip, export gate, cascade.',
+      'Specification integration passed: serialized concurrent writes, stale 409, immutable historical revision, roundtrip, export gate, draft→review→confirmed→released lifecycle, cascade.',
     );
   } finally {
     await prisma.calculation.deleteMany({ where: { templateId: template.id } });

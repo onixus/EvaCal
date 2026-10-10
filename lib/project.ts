@@ -2,6 +2,7 @@ import type { TzAuthorState } from './gost34/llm/tzAuthor/types';
 import { prisma } from './prisma';
 import { storePackageArtifact } from './gost34/storage';
 import { countOpenBlockers } from './review/store';
+import { releasedSpecificationVersion, withSpecificationRelease } from './specification/store';
 
 export interface CreateProjectInput {
   name: string;
@@ -61,6 +62,11 @@ export interface CreateGostPackageInput {
   releasedBy?: string;
   releasedAt?: Date;
   projectId?: string;
+  /**
+   * The issued package contains the SPEC: mark its pinned confirmed BOM revision
+   * released. Off by default so TZ-only or legacy downloads never freeze the BOM.
+   */
+  releaseSpecification?: boolean;
 }
 
 /**
@@ -282,26 +288,34 @@ export async function createGostPackageVersion(input: CreateGostPackageInput) {
         ? input.snapshot
         : null;
 
-  const pkg = await prisma.gostPackage.create({
-    data: {
-      projectId,
-      calculationId: calculation.id,
-      name: input.name || `Комплект ГОСТ 34 v${nextVersion}`,
-      version: nextVersion,
-      status: input.status || 'draft',
-      standardProfileId: input.standardProfileId,
-      standardProfileVersion: input.standardProfileVersion,
-      generatorVersion: input.generatorVersion,
-      documentTypes: docTypesJson,
-      metadata: metadataJson,
-      snapshot: snapshotJson,
-      artifactPath: input.artifactPath || null,
-      checksum: input.checksum || null,
-      releasedAt: input.releasedAt || null,
-      releasedBy: input.releasedBy || null,
-      createdBy: input.createdBy || 'architect',
-    },
-  });
+  // An issued package freezes the confirmed BOM revision it was built from;
+  // the package row and the revision status are written atomically.
+  const specificationVersion =
+    input.releasedAt && input.releaseSpecification
+      ? releasedSpecificationVersion(input.snapshot)
+      : null;
+  const pkg = await withSpecificationRelease(calculation.id, specificationVersion, (db) =>
+    db.gostPackage.create({
+      data: {
+        projectId,
+        calculationId: calculation.id,
+        name: input.name || `Комплект ГОСТ 34 v${nextVersion}`,
+        version: nextVersion,
+        status: input.status || 'draft',
+        standardProfileId: input.standardProfileId,
+        standardProfileVersion: input.standardProfileVersion,
+        generatorVersion: input.generatorVersion,
+        documentTypes: docTypesJson,
+        metadata: metadataJson,
+        snapshot: snapshotJson,
+        artifactPath: input.artifactPath || null,
+        checksum: input.checksum || null,
+        releasedAt: input.releasedAt || null,
+        releasedBy: input.releasedBy || null,
+        createdBy: input.createdBy || 'architect',
+      },
+    }),
+  );
 
   // Update calculation binding stamps
   await prisma.calculation.update({
@@ -450,6 +464,8 @@ export async function releaseGostPackage(input: {
   snapshot: GostWizardSnapshot | string;
   zipBuffer: Buffer | Uint8Array;
   actorId?: string;
+  /** The package contains SPEC (DOCX or SPEC.xlsx): release its pinned BOM revision. */
+  releaseSpecification?: boolean;
 }) {
   const calculation = await prisma.calculation.findUnique({
     where: { id: input.calculationId },
@@ -508,13 +524,20 @@ export async function releaseGostPackage(input: {
 
   try {
     const stored = await storePackageArtifact(projectId, pkg.id, input.zipBuffer);
-    const updatedPkg = await prisma.gostPackage.update({
-      where: { id: pkg.id },
-      data: {
-        artifactPath: stored.artifactPath,
-        checksum: stored.checksum,
-      },
-    });
+    // Finalizing the package and releasing its BOM revision commit together; on any
+    // failure the package is deleted below and the revision keeps its status.
+    const updatedPkg = await withSpecificationRelease(
+      calculation.id,
+      input.releaseSpecification ? releasedSpecificationVersion(input.snapshot) : null,
+      (db) =>
+        db.gostPackage.update({
+          where: { id: pkg.id },
+          data: {
+            artifactPath: stored.artifactPath,
+            checksum: stored.checksum,
+          },
+        }),
+    );
 
     await prisma.calculation.update({
       where: { id: calculation.id },

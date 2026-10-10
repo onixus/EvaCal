@@ -3,7 +3,14 @@ import {
   type SpecificationCatalogOrigin,
   type SpecificationImportOrigin,
 } from './gpl-update-types';
-import { ITEM_KINDS, ITEM_DISPOSITIONS, SpecificationItem, SpecificationSnapshot } from './types';
+import {
+  ITEM_KINDS,
+  ITEM_DISPOSITIONS,
+  SPECIFICATION_STATUSES,
+  FINAL_SPECIFICATION_STATUSES,
+  SpecificationItem,
+  SpecificationSnapshot,
+} from './types';
 
 export class SpecificationError extends Error {
   constructor(
@@ -140,7 +147,7 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
   if (!Number.isSafeInteger(data.version) || Number(data.version) < 0) {
     throw new SpecificationError('Некорректная версия');
   }
-  if (data.status !== 'draft' && data.status !== 'confirmed') {
+  if (!(SPECIFICATION_STATUSES as readonly unknown[]).includes(data.status)) {
     throw new SpecificationError('Некорректный статус');
   }
   if (!Array.isArray(data.items) || data.items.length > 500) {
@@ -173,6 +180,8 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
     const currency = text(row.currency, 'Валюта', 3);
     if (currency && !/^[A-Z]{3}$/.test(currency))
       throw new SpecificationError('Валюта: код из 3 букв');
+    const changeReason =
+      row.changeReason === undefined ? '' : text(row.changeReason, 'Причина изменения', 1000);
     return {
       id,
       ...(row.origin === undefined ? {} : { origin: parseCatalogOrigin(row.origin) }),
@@ -192,11 +201,12 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
       confirmed: row.confirmed,
       unitPrice: row.unitPrice as string | null,
       currency,
+      ...(changeReason ? { changeReason } : {}),
     };
   });
   return {
     version: Number(data.version),
-    status: data.status,
+    status: data.status as SpecificationSnapshot['status'],
     emptySupplyReason: text(data.emptySupplyReason, 'Причина отсутствия поставки'),
     items,
   };
@@ -205,7 +215,8 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
 export function specificationBlockers(spec?: SpecificationSnapshot): string[] {
   if (!spec) return ['Состав поставки не задан. Создайте и подтвердите спецификацию.'];
   const problems: string[] = [];
-  if (spec.status !== 'confirmed') problems.push('Версия спецификации не подтверждена.');
+  if (!FINAL_SPECIFICATION_STATUSES.includes(spec.status))
+    problems.push('Версия спецификации не подтверждена.');
   if (spec.items.length === 0 && !spec.emptySupplyReason) {
     problems.push('Подтвердите отсутствие поставки с указанием причины.');
   }

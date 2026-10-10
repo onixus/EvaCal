@@ -3,7 +3,6 @@ import {
   type GplUpdateField,
   type GplUpdatePreview,
   type GplUpdateSelection,
-  type GplCurrencyTotal,
 } from './gpl-update-types';
 import type { SpecificationSnapshot } from './types';
 import { parseSpecification, SpecificationError } from './validation';
@@ -95,35 +94,5 @@ export function applyGplUpdateSelections(
     items,
   });
 }
-const SCALE = BigInt(1_000_000);
-function scaled(value: string): bigint {
-  const [whole, fraction = ''] = value.split('.');
-  return BigInt(whole) * SCALE + BigInt(fraction.padEnd(6, '0'));
-}
-export function summarizeSpecification(snapshot: SpecificationSnapshot): GplCurrencyTotal[] {
-  const totals = new Map<string, { amount: bigint; unknownCount: number; includedCount: number }>();
-  for (const item of snapshot.items) {
-    if (item.disposition !== 'supply') continue;
-    const sum = totals.get(item.currency) ?? {
-      amount: BigInt(0),
-      unknownCount: 0,
-      includedCount: 0,
-    };
-    sum.includedCount++;
-    if (item.quantity === null || item.unitPrice === null || !item.currency) sum.unknownCount++;
-    else sum.amount += scaled(item.quantity) * scaled(item.unitPrice);
-    totals.set(item.currency, sum);
-  }
-  return [...totals.entries()]
-    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
-    .map(([currency, sum]) => {
-      const denominator = SCALE * SCALE,
-        fraction = (sum.amount % denominator).toString().padStart(12, '0').replace(/0+$/, '');
-      return {
-        currency,
-        total: `${sum.amount / denominator}${fraction ? '.' + fraction : ''}`,
-        unknownCount: sum.unknownCount,
-        includedCount: sum.includedCount,
-      };
-    });
-}
+// Totals moved to ./totals; re-exported for existing callers.
+export { summarizeSpecification } from './totals';

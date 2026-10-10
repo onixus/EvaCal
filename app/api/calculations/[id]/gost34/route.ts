@@ -24,6 +24,7 @@ import {
 import { requireCalcAccess } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 import { handleApiError } from '@/lib/apiHelpers';
+import { renderSpecificationXlsx } from '@/lib/specification/xlsx';
 import {
   createGostPackageVersion,
   releaseGostPackage,
@@ -41,6 +42,7 @@ async function recordRelease(
   metadata?: Record<string, unknown>,
   snapshot?: GostWizardSnapshot,
   actorId?: string,
+  releaseSpecification = false,
 ) {
   const binding = buildBindingUpdate(standardProfileId);
   await prisma.calculation.update({
@@ -61,6 +63,7 @@ async function recordRelease(
     releasedAt: new Date(),
     releasedBy: actorId || 'architect',
     createdBy: actorId || 'architect',
+    releaseSpecification,
   });
 }
 
@@ -269,6 +272,15 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       for (const doc of generatedDocs) {
         zip.file(doc.filename, doc.buffer);
       }
+      // The pinned BOM revision travels with the package as an editable spreadsheet.
+      if (calc.specification)
+        zip.file(
+          'SPEC.xlsx',
+          renderSpecificationXlsx(calc.specification, {
+            calculationName: calc.name,
+            customer: calc.customer,
+          }),
+        );
 
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
       const zipFilename = `GOST34_Full_Package_${safeFileName(calc.name)}.zip`;
@@ -303,6 +315,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         snapshot,
         zipBuffer,
         actorId: access.actorId,
+        // The ZIP carries SPEC.xlsx (and SPEC DOCX when the profile has it).
+        releaseSpecification:
+          Boolean(calc.specification) || zipEntries.some((e) => e.docType === 'SPEC'),
       });
 
       await writeAudit({
@@ -382,6 +397,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       },
       singleSnapshot,
       access.actorId,
+      // Only an explicitly issued SPEC freezes the BOM revision (POST, not GET).
+      docType === 'SPEC',
     );
 
     await writeAudit({

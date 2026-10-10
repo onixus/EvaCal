@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import GplUpdatesPanel from './specification/GplUpdatesPanel';
+import BomImportPanel from './specification/BomImportPanel';
+import SpecificationDiffView from './specification/SpecificationDiffView';
 import CatalogPicker from './CatalogPicker';
 import Link from 'next/link';
 import { withShareHeaders } from '@/lib/shareClient';
@@ -12,6 +14,8 @@ import type {
 } from '@/lib/specification/types';
 import { ITEM_KINDS, ITEM_DISPOSITIONS } from '@/lib/specification/types';
 import { specificationBlockers } from '@/lib/specification/validation';
+import { describeTotal, summarizeSpecification } from '@/lib/specification/totals';
+import { STATUS_LABELS } from '@/lib/specification/sections';
 
 interface SpecificationPanelProps {
   calculationId: string;
@@ -168,7 +172,13 @@ export default function SpecificationPanel({
               ...i,
               [field]: value,
               ...(field === 'unitPrice' || field === 'currency' ? { priceOverride: true } : {}),
-              confirmed: field === 'confirmed' ? Boolean(value) : false,
+              // A change note documents the edit; it does not alter the confirmed facts.
+              confirmed:
+                field === 'confirmed'
+                  ? Boolean(value)
+                  : field === 'changeReason'
+                    ? i.confirmed
+                    : false,
             }
           : i,
       ),
@@ -195,6 +205,31 @@ export default function SpecificationPanel({
       setDirty(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const downloadXlsx = async () => {
+    if (!loaded || loading || busy || updateBusy || dirty || !canExport || !spec.version) return;
+    setBusy(true);
+    setError('');
+    try {
+      const res = await fetch(
+        `/api/calculations/${calculationId}/specification/xlsx?version=${spec.version}`,
+        { headers: withShareHeaders(calculationId) },
+      );
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Ошибка выгрузки XLSX');
+      }
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Спецификация_${calculationName.replace(/\s+/g, '_')}_v${spec.version}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка выгрузки XLSX');
     } finally {
       setBusy(false);
     }
@@ -230,6 +265,7 @@ export default function SpecificationPanel({
     }
   };
   const blockers = specificationBlockers(spec);
+  const totals = summarizeSpecification(spec);
   const historical = Boolean(selectedVersion);
   const disabled = !loaded || loading || busy || updateBusy || !canWrite || historical;
   const fields: Array<[keyof SpecificationItem, string]> = [
@@ -245,6 +281,7 @@ export default function SpecificationPanel({
     ['rationale', 'Основание количества / выбора'],
     ['unitPrice', 'Цена за единицу (пусто — неизвестно; 0 — бесплатно)'],
     ['currency', 'Валюта'],
+    ['changeReason', 'Причина изменения в этой редакции'],
   ];
 
   return (
@@ -253,13 +290,9 @@ export default function SpecificationPanel({
         <h2 className="text-lg font-bold">Спецификация — {customerName}</h2>
         <p className="text-sm text-slate-500">
           Версия {spec.version || 'не сохранена'} ·{' '}
-          {dirty
-            ? 'Есть несохраненные изменения'
-            : spec.status === 'confirmed'
-              ? 'Подтверждена'
-              : 'Черновик'}
-          . Состав вводится вручную или копируется из каталога. Ответы опросника не добавляют
-          товары. Реестры автоматически не проверяются.
+          {dirty ? 'Есть несохраненные изменения' : STATUS_LABELS[spec.status]}. Состав вводится
+          вручную или копируется из каталога. Ответы опросника не добавляют товары. Реестры
+          автоматически не проверяются.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <label>
@@ -292,6 +325,15 @@ export default function SpecificationPanel({
           </button>
           <button
             className="btn-secondary"
+            disabled={
+              !loaded || loading || busy || updateBusy || dirty || !canExport || !spec.version
+            }
+            onClick={downloadXlsx}
+          >
+            XLSX редакции
+          </button>
+          <button
+            className="btn-secondary"
             disabled={!loaded || loading || busy || updateBusy || dirty || !canExport}
             onClick={() => download(true)}
           >
@@ -316,6 +358,38 @@ export default function SpecificationPanel({
           <p role="alert" className="whitespace-pre-line text-red-600">
             {error}
           </p>
+        )}
+        {spec.status === 'released' && !dirty && (
+          <p className="text-sm text-slate-600">
+            Редакция выпущена в комплекте ГОСТ 34 и неизменяема. Любая правка сохраняется новой
+            черновой редакцией.
+          </p>
+        )}
+        {!loading && (
+          <div className="text-sm" data-testid="specification-totals">
+            <p className="font-semibold">Итого по поставляемым позициям</p>
+            {totals.length ? (
+              <ul className="list-inside list-disc">
+                {totals.map((t) => (
+                  <li key={t.currency}>{describeTotal(t)}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>Поставляемых позиций нет.</p>
+            )}
+            <p className="text-slate-500">
+              Суммы точные, раздельно по валютам; при показе округляются до 0,01 (половина вверх).
+              Неизвестная цена не равна нулю: такой итог помечен как неполный.
+            </p>
+          </div>
+        )}
+        {loaded && spec.version > 0 && (
+          <SpecificationDiffView
+            key={`${spec.version}-${selectedVersion}`}
+            calculationId={calculationId}
+            current={spec}
+            disabled={loading || busy || updateBusy || dirty}
+          />
         )}
         {loading ? (
           <p>Загрузка…</p>
@@ -354,6 +428,24 @@ export default function SpecificationPanel({
               }
               onBusy={setUpdateBusy}
               onApplied={(saved) => {
+                setSpec(saved.snapshot);
+                setDirty(false);
+                setError('');
+              }}
+            />
+          )}
+          {canWrite && (
+            <BomImportPanel
+              calculationId={calculationId}
+              snapshot={spec}
+              enabled={loaded && !loading && !busy && !updateBusy && !dirty && !historical}
+              disabledReason={
+                dirty
+                  ? 'Сохраните несохраненные изменения перед импортом.'
+                  : 'Для импорта загрузите последнюю редакцию спецификации.'
+              }
+              onBusy={setUpdateBusy}
+              onSaved={(saved) => {
                 setSpec(saved.snapshot);
                 setDirty(false);
                 setError('');
@@ -487,14 +579,18 @@ export default function SpecificationPanel({
               <button className="btn-secondary" disabled={disabled} onClick={() => save('draft')}>
                 Сохранить новую редакцию
               </button>
+              <button className="btn-secondary" disabled={disabled} onClick={() => save('review')}>
+                Отправить на согласование
+              </button>
               <button className="btn-primary" disabled={disabled} onClick={() => save('confirmed')}>
                 Подтвердить и сохранить
               </button>
             </div>
             <p className="text-sm text-slate-500">
-              Сохранение создает новую неизменяемую редакцию. Изменение строки снимает ее
-              подтверждение. Цены сохраняются в спецификации; связь с расчетом стоимости КП
-              выполняется отдельно.
+              Сохранение создает новую неизменяемую редакцию: черновик, на согласовании или
+              подтвержденную. Статус «Выпущена» присваивается подтвержденной редакции при выпуске
+              комплекта ГОСТ 34. Изменение строки снимает ее подтверждение. Цены сохраняются в
+              спецификации; связь с расчетом стоимости КП выполняется отдельно.
             </p>
           </div>
         </>

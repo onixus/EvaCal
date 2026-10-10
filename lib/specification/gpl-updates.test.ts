@@ -150,8 +150,12 @@ describe('selected GPL project updates', () => {
     expect(next.items[0].origin?.import).toEqual(originalSource);
     expect(current).toEqual(savedOriginal);
     expect(preview.totals).toEqual({
-      before: [{ currency: 'RUB', total: '20', unknownCount: 0, includedCount: 1 }],
-      after: [{ currency: 'RUB', total: '40', unknownCount: 0, includedCount: 1 }],
+      before: [
+        { currency: 'RUB', total: '20', unknownCount: 0, includedCount: 1, incomplete: false },
+      ],
+      after: [
+        { currency: 'RUB', total: '40', unknownCount: 0, includedCount: 1, incomplete: false },
+      ],
     });
   });
   it.each(['marker', 'value', 'currency'] as const)(
@@ -323,8 +327,9 @@ describe('selected GPL project updates', () => {
         total: '999999999999999998000000.000000000001',
         unknownCount: 0,
         includedCount: 1,
+        incomplete: false,
       },
-      { currency: 'USD', total: '0', unknownCount: 1, includedCount: 2 },
+      { currency: 'USD', total: '0', unknownCount: 1, includedCount: 2, incomplete: true },
     ]);
   });
   it('rejects duplicate items, unknown fields, impossible choices and stale previews', async () => {

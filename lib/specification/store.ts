@@ -1,4 +1,5 @@
 import { prisma } from '../prisma';
+import type { Prisma } from '../generated/prisma/client';
 import {
   parseSpecification,
   requireConfirmedSpecification,
@@ -7,6 +8,7 @@ import {
 import { catalogItem } from '../catalog/snapshot';
 import type { Product } from '../catalog/types';
 import type { SavedSpecification } from './types';
+import { clearStaleChangeReasons } from './diff';
 
 export async function loadSpecification(
   calculationId: string,
@@ -17,9 +19,12 @@ export async function loadSpecification(
     orderBy: { version: 'desc' },
   });
   if (!row) return null;
+  const snapshot = parseSpecification(JSON.parse(row.data));
+  // The revision data stays byte-for-byte immutable; release is tracked in the row status.
+  if (row.status === 'released') snapshot.status = 'released';
   return {
     id: row.id,
-    snapshot: parseSpecification(JSON.parse(row.data)),
+    snapshot,
     createdAt: row.createdAt.toISOString(),
     createdBy: row.createdBy,
   };
@@ -33,6 +38,10 @@ export async function saveSpecification(
   options: { allowOriginUpdates?: boolean; allowNewCatalogOrigins?: boolean } = {},
 ) {
   const snapshot = parseSpecification(input);
+  if (snapshot.status === 'released')
+    throw new SpecificationError(
+      'Статус «выпущена» присваивается только при выпуске комплекта ГОСТ 34. Новая редакция сохраняется как черновик, на согласовании или подтвержденная.',
+    );
   if (snapshot.status === 'confirmed') requireConfirmedSpecification(snapshot);
   return prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<Array<{ id: string }>>`
@@ -114,7 +123,10 @@ export async function saveSpecification(
           );
       }
     }
-    const next = { ...snapshot, version: snapshot.version + 1 };
+    const next = {
+      ...clearStaleChangeReasons(previous, snapshot),
+      version: snapshot.version + 1,
+    };
     const row = await tx.specificationVersion.create({
       data: {
         calculationId,
@@ -130,5 +142,65 @@ export async function saveSpecification(
       createdAt: row.createdAt.toISOString(),
       createdBy: row.createdBy,
     };
+  });
+}
+
+/**
+ * Marks a confirmed revision as released when a GOST package is issued from it.
+ * Drafts and revisions under review are never promoted; the revision data is untouched,
+ * so the next edit necessarily creates a new draft revision.
+ */
+export async function markSpecificationReleased(
+  calculationId: string,
+  version: number,
+  db: Pick<Prisma.TransactionClient, 'specificationVersion'> = prisma,
+) {
+  const result = await db.specificationVersion.updateMany({
+    where: { calculationId, version, status: 'confirmed' },
+    data: { status: 'released' },
+  });
+  return result.count;
+}
+
+/** Extracts the pinned, final revision number from a GOST package snapshot. */
+export function releasedSpecificationVersion(snapshot: unknown): number | null {
+  let data = snapshot;
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      return null;
+    }
+  }
+  if (!data || typeof data !== 'object') return null;
+  const { specificationVersion, specification } = data as {
+    specificationVersion?: unknown;
+    specification?: { status?: unknown; version?: unknown } | null;
+  };
+  const version = Number.isSafeInteger(specificationVersion)
+    ? Number(specificationVersion)
+    : Number.isSafeInteger(specification?.version)
+      ? Number(specification?.version)
+      : null;
+  if (version === null || version < 1) return null;
+  return specification?.status === 'confirmed' || specification?.status === 'released'
+    ? version
+    : null;
+}
+
+/**
+ * Runs a package write and, when the package pins a final BOM revision, marks that
+ * revision released in the same transaction: either both are stored or neither.
+ */
+export async function withSpecificationRelease<T>(
+  calculationId: string,
+  version: number | null,
+  write: (db: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  if (version === null) return write(prisma);
+  return prisma.$transaction(async (tx) => {
+    const result = await write(tx);
+    await markSpecificationReleased(calculationId, version, tx);
+    return result;
   });
 }
