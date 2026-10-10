@@ -7,6 +7,7 @@ import PipelineStepper from '@/components/lifecycle/PipelineStepper';
 import type { LifecycleState } from '@/lib/lifecycle';
 import CalculationsTab from './project-detail/CalculationsTab';
 import PackagesTab from './project-detail/PackagesTab';
+import AcceptanceChecksModal from './project-detail/AcceptanceChecksModal';
 import CommercialTab from './project-detail/CommercialTab';
 import ChangeRequestsTab from './project-detail/ChangeRequestsTab';
 import { canEditChangeRequests } from '@/lib/changeRequests/workflow';
@@ -54,6 +55,7 @@ export default function ProjectDetailClient({
   const [versionCalculation, setVersionCalculation] = useState<SerializedCalculation | null>(null);
   const [reviewRequest, setReviewRequest] = useState<ReviewRequest | null>(null);
   const [sharePackage, setSharePackage] = useState<SerializedGostPackage | null>(null);
+  const [acceptancePackage, setAcceptancePackage] = useState<SerializedGostPackage | null>(null);
   const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
 
   const latestCalculation = project.calculations[0] ?? null;
@@ -182,6 +184,7 @@ export default function ProjectDetailClient({
           onCompare={() => setIsDiffModalOpen(true)}
           onShare={setSharePackage}
           onReview={(pkg, decision) => setReviewRequest({ pkg, decision })}
+          onAcceptance={setAcceptancePackage}
         />
       )}
 
@@ -216,6 +219,10 @@ export default function ProjectDetailClient({
           initialDecision={reviewRequest.decision}
           onClose={() => setReviewRequest(null)}
         />
+      )}
+
+      {acceptancePackage && (
+        <AcceptanceChecksModal pkg={acceptancePackage} onClose={() => setAcceptancePackage(null)} />
       )}
 
       {sharePackage && (

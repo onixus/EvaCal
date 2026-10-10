@@ -285,3 +285,20 @@ export async function loadStoredFile(
 ): Promise<{ buffer: Buffer; checksum: string } | null> {
   return loadPackageArtifact(relativePath);
 }
+
+/**
+ * Сохраняет вложение к результату проверки приёмки (#103 WP-4a) по заранее
+ * построенному ключу `acceptance/<package>/<check>/<file>`. Вложения
+ * неизменяемы: каждый файл получает новый ключ, перезаписи нет.
+ */
+export async function storeAcceptanceEvidence(
+  key: string,
+  buffer: Buffer | Uint8Array,
+): Promise<StoredArtifactInfo> {
+  const safeKey = assertSafeKey(key);
+  if (!safeKey.startsWith('acceptance/')) {
+    throw new Error('Acceptance evidence key must live under acceptance/');
+  }
+  await getBackend().put(safeKey, buffer);
+  return { artifactPath: safeKey, checksum: calculateChecksum(buffer), sizeBytes: buffer.length };
+}

@@ -34,7 +34,8 @@
     "test:calendars:postgres": "tsx scripts/verify-calendars.ts",
     "test:review:postgres": "tsx scripts/verify-review-workflow.ts",
     "test:actuals-sync:postgres": "tsx scripts/verify-actuals-sync.ts",
-    "test:change-requests:postgres": "tsx scripts/verify-change-requests.ts"
+    "test:change-requests:postgres": "tsx scripts/verify-change-requests.ts",
+    "test:acceptance:postgres": "tsx scripts/verify-acceptance.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1131.0",

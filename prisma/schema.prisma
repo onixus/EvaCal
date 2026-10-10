@@ -292,6 +292,9 @@ model GostPackage {
   // #103 WP-3a: back-relations для назначений и замечаний ревью
   reviewAssignments ReviewAssignment[]
   reviewCommentRows ReviewComment[]
+
+  // #103 WP-4a: проверки приёмки конкретной редакции комплекта
+  acceptanceChecks AcceptanceCheck[]
 }
 
 // A stage on the Gantt chart. Approval tasks (auto-inserted whenever a stage's
@@ -799,4 +802,70 @@ model ChangeRequestEvent {
   at            DateTime      @default(now())
 
   @@index([crId, at])
+}
+
+// ==== #103 WP-4a: acceptance checks ====
+// Проверка приёмки — требование конкретной утверждённой редакции комплекта,
+// у которого в снимке есть критерий приёмки или метод проверки. Результаты
+// только дописываются (UPDATE запрещён триггером): текущее состояние — это
+// последний результат, а без результатов проверка «не проводилась».
+model AcceptanceCheck {
+  id              String             @id @default(cuid())
+  packageId       String
+  package         GostPackage        @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  // Денормализовано из комплекта для выборок по расчёту; источник истины — packageId.
+  calculationId   String
+  requirementId   String
+  requirementCode String
+  title           String
+  method          String? // INSPECTION | ANALYSIS | DEMONSTRATION | TEST
+  criteria        String[]
+  order           Int
+  createdBy       String
+  createdAt       DateTime           @default(now())
+  results         AcceptanceResult[]
+  remarks         AcceptanceRemark[]
+
+  @@unique([packageId, requirementId])
+  @@index([calculationId])
+}
+
+model AcceptanceResult {
+  id           String          @id @default(cuid())
+  checkId      String
+  check        AcceptanceCheck @relation(fields: [checkId], references: [id], onDelete: Cascade)
+  status       String // not_run | passed | failed | blocked
+  executorName String?
+  executorId   String?
+  executedAt   DateTime?
+  actualResult String?
+  /// Ссылки на вложения: [{ key, name, size, mime, checksum, uploadedAt, uploadedBy }].
+  evidence     Json            @default("[]")
+  recordedBy   String
+  createdAt    DateTime        @default(now())
+
+  remarks       AcceptanceRemark[] @relation("AcceptanceRemarkResult")
+  retestRemarks AcceptanceRemark[] @relation("AcceptanceRemarkRetest")
+
+  @@index([checkId, createdAt])
+}
+
+model AcceptanceRemark {
+  id             String            @id @default(cuid())
+  checkId        String
+  check          AcceptanceCheck   @relation(fields: [checkId], references: [id], onDelete: Cascade)
+  resultId       String?
+  result         AcceptanceResult? @relation("AcceptanceRemarkResult", fields: [resultId], references: [id], onDelete: SetNull)
+  text           String
+  status         String            @default("open") // open | resolved | verified
+  retestResultId String?
+  retestResult   AcceptanceResult? @relation("AcceptanceRemarkRetest", fields: [retestResultId], references: [id], onDelete: SetNull)
+  createdBy      String
+  createdAt      DateTime          @default(now())
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  verifiedBy     String?
+  verifiedAt     DateTime?
+
+  @@index([checkId, status])
 }

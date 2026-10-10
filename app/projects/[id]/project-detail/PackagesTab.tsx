@@ -21,6 +21,7 @@ export default function PackagesTab({
   onCompare,
   onShare,
   onReview,
+  onAcceptance,
 }: {
   packages: SerializedGostPackage[];
   latestCalculation: SerializedCalculation | null;
@@ -28,6 +29,8 @@ export default function PackagesTab({
   onCompare: () => void;
   onShare: (pkg: SerializedGostPackage) => void;
   onReview: (pkg: SerializedGostPackage, decision: 'approve' | 'reject') => void;
+  /** Испытания и приёмка: только для утверждённой редакции. */
+  onAcceptance: (pkg: SerializedGostPackage) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -186,6 +189,16 @@ export default function PackagesTab({
                       >
                         Поделиться
                       </button>
+                      {pkg.status === 'approved' && (
+                        <button
+                          type="button"
+                          onClick={() => onAcceptance(pkg)}
+                          className="btn-secondary text-xs font-bold"
+                          title="Проверки по требованиям этой редакции: результаты, замечания, история"
+                        >
+                          Испытания
+                        </button>
+                      )}
                       {pkg.status === 'rejected' && pkg.calculation && (
                         <Link
                           href={`/calculations/${pkg.calculation.id}/studio`}
