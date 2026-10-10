@@ -36,7 +36,7 @@ test('catalog: new vendor, attributes, price history and mixed immutable project
   await createProject(page, `${name} Проект`, 'Заказчик каталога');
   const id = await createCalculationViaWizard(page);
   await page.goto(`/calculations/${id}`);
-  await page.getByRole('button', { name: 'Спецификация', exact: true }).click();
+  await page.getByRole('button', { name: 'Спецификация ПАК и ПО', exact: true }).click();
   await page.getByRole('button', { name: 'Загрузить каталог' }).click();
   await page.getByLabel('Каталожная позиция').selectOption(catalogProductId);
   await page.getByLabel('Ценовое предложение').selectOption({ index: 1 });
@@ -86,7 +86,7 @@ test('catalog: new vendor, attributes, price history and mixed immutable project
   ).specification.snapshot;
   expect(after).toEqual(before);
   await page.reload();
-  await page.getByRole('button', { name: 'Спецификация', exact: true }).click();
+  await page.getByRole('button', { name: 'Спецификация ПАК и ПО', exact: true }).click();
   await expect(
     page
       .getByRole('group', { name: 'Позиция 1', exact: true })
