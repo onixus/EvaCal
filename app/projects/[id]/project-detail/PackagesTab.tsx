@@ -7,6 +7,7 @@ import {
   REVIEW_STAGE_LABELS,
   type ReviewStage,
 } from '@/lib/gost34/review/types';
+import { isPackageEligibleForChecks } from '@/lib/acceptance/rules';
 import { PackageStatusBadge } from './StatusBadges';
 import type { SerializedCalculation, SerializedGostPackage } from './types';
 
@@ -21,6 +22,7 @@ export default function PackagesTab({
   onCompare,
   onShare,
   onReview,
+  onAcceptance,
 }: {
   packages: SerializedGostPackage[];
   latestCalculation: SerializedCalculation | null;
@@ -28,6 +30,8 @@ export default function PackagesTab({
   onCompare: () => void;
   onShare: (pkg: SerializedGostPackage) => void;
   onReview: (pkg: SerializedGostPackage, decision: 'approve' | 'reject') => void;
+  /** Испытания и приёмка: по тому же правилу, что и сервер (`isPackageEligibleForChecks`). */
+  onAcceptance: (pkg: SerializedGostPackage) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -186,6 +190,16 @@ export default function PackagesTab({
                       >
                         Поделиться
                       </button>
+                      {isPackageEligibleForChecks(pkg) && (
+                        <button
+                          type="button"
+                          onClick={() => onAcceptance(pkg)}
+                          className="btn-secondary text-xs font-bold"
+                          title="Проверки по требованиям этой редакции: результаты, замечания, история"
+                        >
+                          Испытания
+                        </button>
+                      )}
                       {pkg.status === 'rejected' && pkg.calculation && (
                         <Link
                           href={`/calculations/${pkg.calculation.id}/studio`}
