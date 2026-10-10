@@ -1,4 +1,5 @@
 import type { TzAuthorState } from './gost34/llm/tzAuthor/types';
+import type { Prisma } from './generated/prisma/client';
 import { prisma } from './prisma';
 import { storePackageArtifact } from './gost34/storage';
 import { countOpenBlockers } from './review/store';
@@ -115,8 +116,13 @@ export async function getOrCreateProject(input: CreateProjectInput) {
  * Creates a new version (N+1) of an existing Calculation inside its project,
  * deeply cloning stages and risks while linking parentCalculationId.
  */
-export async function createCalculationVersion(input: CreateCalculationVersionInput) {
-  const source = await prisma.calculation.findUnique({
+export async function createCalculationVersion(
+  input: CreateCalculationVersionInput,
+  // Клиент или транзакция: принятие запроса на изменение создаёт версию
+  // атомарно вместе с остальными записями (lib/changeRequests/decisions.ts).
+  db: Prisma.TransactionClient = prisma,
+) {
+  const source = await db.calculation.findUnique({
     where: { id: input.parentCalculationId },
     include: {
       stages: { orderBy: { order: 'asc' } },
@@ -139,14 +145,14 @@ export async function createCalculationVersion(input: CreateCalculationVersionIn
     });
     projectId = project.id;
     // Link source to the project if not linked
-    await prisma.calculation.update({
+    await db.calculation.update({
       where: { id: source.id },
       data: { projectId },
     });
   }
 
   // Determine highest version number in this project
-  const latestInProject = await prisma.calculation.findFirst({
+  const latestInProject = await db.calculation.findFirst({
     where: { projectId },
     orderBy: { version: 'desc' },
     select: { version: true },
@@ -161,7 +167,7 @@ export async function createCalculationVersion(input: CreateCalculationVersionIn
         ? input.answers
         : source.answers;
 
-  const newCalculation = await prisma.calculation.create({
+  const newCalculation = await db.calculation.create({
     data: {
       name: input.name || source.name,
       customer: source.customer,
@@ -193,7 +199,7 @@ export async function createCalculationVersion(input: CreateCalculationVersionIn
   // Deep clone stages
   if (source.stages.length > 0) {
     for (const stage of source.stages) {
-      await prisma.stage.create({
+      await db.stage.create({
         data: {
           calculationId: newCalculation.id,
           name: stage.name,
@@ -217,7 +223,7 @@ export async function createCalculationVersion(input: CreateCalculationVersionIn
   // Deep clone risks
   if (source.risks.length > 0) {
     for (const risk of source.risks) {
-      await prisma.risk.create({
+      await db.risk.create({
         data: {
           calculationId: newCalculation.id,
           description: risk.description,
@@ -228,13 +234,58 @@ export async function createCalculationVersion(input: CreateCalculationVersionIn
     }
   }
 
-  return prisma.calculation.findUnique({
+  return db.calculation.findUnique({
     where: { id: newCalculation.id },
     include: {
       stages: { orderBy: { order: 'asc' } },
       risks: { orderBy: { order: 'asc' } },
       project: true,
       parentCalculation: true,
+    },
+  });
+}
+
+export interface CreateDraftPackageVersionInput {
+  projectId: string;
+  calculationId: string;
+  name: string;
+  standardProfileId: string;
+  standardProfileVersion: string;
+  generatorVersion: string;
+  documentTypes: string[];
+  metadata: string | null;
+  snapshot: GostWizardSnapshot;
+  createdBy: string;
+}
+
+/**
+ * Черновая версия комплекта N+1 в переданной транзакции: без артефакта,
+ * выпуска и отметки спецификации. Используется принятием запроса на изменение,
+ * где версия расчёта, комплект и журнал пишутся атомарно.
+ */
+export async function createDraftPackageVersion(
+  db: Prisma.TransactionClient,
+  input: CreateDraftPackageVersionInput,
+) {
+  const latestPackage = await db.gostPackage.findFirst({
+    where: { projectId: input.projectId },
+    orderBy: { version: 'desc' },
+    select: { version: true },
+  });
+  return db.gostPackage.create({
+    data: {
+      projectId: input.projectId,
+      calculationId: input.calculationId,
+      name: input.name,
+      version: (latestPackage?.version ?? 0) + 1,
+      status: 'draft',
+      standardProfileId: input.standardProfileId,
+      standardProfileVersion: input.standardProfileVersion,
+      generatorVersion: input.generatorVersion,
+      documentTypes: JSON.stringify(input.documentTypes),
+      metadata: input.metadata,
+      snapshot: JSON.stringify(input.snapshot),
+      createdBy: input.createdBy,
     },
   });
 }

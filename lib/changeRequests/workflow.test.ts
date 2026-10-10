@@ -3,11 +3,18 @@ import { CHANGE_REQUEST_STATUSES } from './types';
 import {
   CHANGE_REQUEST_TRANSITIONS,
   ChangeRequestError,
+  canDecideChangeRequests,
   canEditChangeRequests,
   canEditContent,
   canEstimate,
   canEstimateChangeRequests,
+  canSubmit,
+  decisionError,
+  estimateOnReopen,
+  formatChangeLabel,
   formatChangeRequestNumber,
+  isDecision,
+  parseDecisionComment,
   parseDraftInput,
   parseEstimateInput,
   transitionError,
@@ -119,4 +126,46 @@ describe('parseEstimateInput — оценку вводят явно', () => {
 it('номер запроса', () => {
   expect(formatChangeRequestNumber(3)).toBe('ЗИ-03');
   expect(formatChangeRequestNumber(120)).toBe('ЗИ-120');
+});
+
+describe('решения (WP-2b)', () => {
+  it('принять/отклонить/отложить — из «на оценке», вернуть — из «отложен»', () => {
+    const ok = { hasEstimate: true, estimateMatchesBase: true };
+    expect(decisionError('accept', 'submitted', ok)).toBeNull();
+    expect(decisionError('reject', 'submitted', ok)).toBeNull();
+    expect(decisionError('defer', 'submitted', ok)).toBeNull();
+    expect(decisionError('reopen', 'deferred', ok)).toBeNull();
+    expect(decisionError('accept', 'draft', ok)).not.toBeNull();
+    expect(decisionError('accept', 'deferred', ok)).not.toBeNull();
+    expect(decisionError('reopen', 'submitted', ok)).not.toBeNull();
+    expect(decisionError('reopen', 'rejected', ok)).not.toBeNull();
+    expect(decisionError('reject', 'accepted', ok)).not.toBeNull();
+  });
+  it('принятие требует оценки, сделанной по текущей базе', () => {
+    expect(decisionError('accept', 'submitted', { hasEstimate: false })).toMatch(/оценк/);
+    expect(
+      decisionError('accept', 'submitted', { hasEstimate: true, estimateMatchesBase: false }),
+    ).toMatch(/переоцен/);
+    // отклонить можно и без оценки
+    expect(decisionError('reject', 'submitted', { hasEstimate: false })).toBeNull();
+  });
+  it('причина обязательна для «отклонить» и «отложить»', () => {
+    expect(() => parseDecisionComment('reject', '  ')).toThrow(/причину/);
+    expect(() => parseDecisionComment('defer', undefined)).toThrow(/причину/);
+    expect(parseDecisionComment('accept', undefined)).toBeNull();
+    expect(parseDecisionComment('reopen', ' ок ')).toBe('ок');
+  });
+  it('политика оценки при возврате', () => {
+    expect(estimateOnReopen(false, false)).toBe('none');
+    expect(estimateOnReopen(true, true)).toBe('keep');
+    expect(estimateOnReopen(true, false)).toBe('clear');
+  });
+  it('передать можно только черновик; решения — архитектор/админ', () => {
+    expect(CHANGE_REQUEST_STATUSES.filter(canSubmit)).toEqual(['draft']);
+    expect(['architect', 'admin'].every(canDecideChangeRequests)).toBe(true);
+    expect(['presale', 'gap', null].some(canDecideChangeRequests)).toBe(false);
+    expect(isDecision('accept')).toBe(true);
+    expect(isDecision('submit')).toBe(false);
+    expect(formatChangeLabel(7)).toBe('ИЗМ-07');
+  });
 });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { changeRequestErrorResponse } from '@/lib/changeRequests/http';
+import { decideChangeRequest } from '@/lib/changeRequests/decisions';
 import {
   getChangeRequest,
   recordEstimate,
@@ -11,7 +12,10 @@ import {
 import {
   CHANGE_REQUEST_EDIT_ROLES,
   ChangeRequestError,
+  canDecideChangeRequests,
   canEstimateChangeRequests,
+  isDecision,
+  parseDecisionComment,
   parseDraftInput,
   parseEstimateInput,
 } from '@/lib/changeRequests/workflow';
@@ -31,8 +35,8 @@ export async function GET(_req: NextRequest, props: Props) {
 
 /**
  * Действия над запросом: `update` (черновик целиком), `submit` (на оценку),
- * `estimate` (часы/стоимость/срок специалиста). Решения принять/отклонить/
- * отложить и создание новой версии — следующий этап (WP-2b).
+ * `estimate` (часы/стоимость/срок специалиста) и решения `accept` | `reject` |
+ * `defer` | `reopen` (архитектор/админ; см. lib/changeRequests/decisions.ts).
  */
 export async function PATCH(req: NextRequest, props: Props) {
   const auth = await requireApiRole(CHANGE_REQUEST_EDIT_ROLES);
@@ -66,6 +70,19 @@ export async function PATCH(req: NextRequest, props: Props) {
         );
       }
       result = await recordEstimate(id, crId, parseEstimateInput(body), auth.username);
+    } else if (isDecision(action)) {
+      if (!canDecideChangeRequests(auth.role)) {
+        return NextResponse.json(
+          { error: 'Решение по запросу принимает архитектор или администратор' },
+          { status: 403 },
+        );
+      }
+      result = await decideChangeRequest(id, crId, {
+        decision: action,
+        actor: auth.username,
+        role: auth.role,
+        comment: parseDecisionComment(action, body?.comment),
+      });
     } else {
       throw new ChangeRequestError('Неизвестное действие', 400);
     }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCalcAccess } from '@/lib/access';
 import { handleApiError } from '@/lib/apiHelpers';
 import { listInternalChanges, recordInternalChange, type ChangeSource } from '@/lib/changelog';
-import { CHANGE_SOURCE_LABELS } from '@/lib/changelog';
+import { CHANGE_SOURCE_LABELS, SYSTEM_CHANGE_SOURCES } from '@/lib/changelog';
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   try {
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         { status: 400 },
       );
     }
-    if (!(source in CHANGE_SOURCE_LABELS)) {
+    if (!(source in CHANGE_SOURCE_LABELS) || SYSTEM_CHANGE_SOURCES.has(source)) {
       return NextResponse.json({ error: 'Неизвестный источник изменения' }, { status: 400 });
     }
 

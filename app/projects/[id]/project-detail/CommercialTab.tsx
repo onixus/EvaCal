@@ -1,11 +1,15 @@
 import Link from 'next/link';
 import { calculateCommercialSummary, formatCurrency, PRICING_MODE_LABELS } from '@/lib/commercial';
+import type { ChangeSummary } from '@/lib/changeRequests/totals';
+import ChangeSummaryPanel from './ChangeSummaryPanel';
 import type { SerializedCalculation } from './types';
 
 export default function CommercialTab({
   calculation,
+  changeSummary,
 }: {
   calculation: SerializedCalculation | null;
+  changeSummary?: ChangeSummary;
 }) {
   const commercial = calculation
     ? calculateCommercialSummary(calculation.stages, calculation.pmHours, calculation.risks, {
@@ -22,6 +26,7 @@ export default function CommercialTab({
 
   return (
     <div className="space-y-4">
+      {changeSummary && <ChangeSummaryPanel summary={changeSummary} />}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-bold text-slate-900 dark:text-nord-6">

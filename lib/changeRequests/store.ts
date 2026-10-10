@@ -1,6 +1,7 @@
 import type { Prisma } from '../generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { safeJsonParse } from '@/lib/json';
+import { computeBaseFingerprint } from './apply';
 import {
   computeChangeImpact,
   requirementsFromSnapshot,
@@ -18,9 +19,52 @@ import {
   ChangeRequestError,
   canEditContent,
   canEstimate,
+  canSubmit,
   transitionError,
   type ChangeRequestDraftInput,
 } from './workflow';
+
+/** Отпечаток текущего состояния базы запроса; null — база удалена. */
+export async function loadBaseFingerprint(
+  db: Prisma.TransactionClient,
+  cr: { baseCalculationId: string; basePackageId: string | null },
+): Promise<string | null> {
+  const calculation = await db.calculation.findUnique({
+    where: { id: cr.baseCalculationId },
+    select: {
+      pmHours: true,
+      currency: true,
+      pricingMode: true,
+      roleRates: true,
+      overheadPercent: true,
+      marginPercent: true,
+      discountPercent: true,
+      vatPercent: true,
+      includeVat: true,
+      stages: {
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          hours: true,
+          order: true,
+          isApprovalTask: true,
+          requirements: true,
+        },
+      },
+      risks: { select: { description: true, hours: true, order: true } },
+    },
+  });
+  if (!calculation) return null;
+  const basePackage = cr.basePackageId
+    ? await db.gostPackage.findUnique({
+        where: { id: cr.basePackageId },
+        select: { snapshot: true, documentTypes: true },
+      })
+    : null;
+  if (cr.basePackageId && !basePackage) return null;
+  return computeBaseFingerprint({ calculation, basePackage });
+}
 
 /**
  * Хранилище запросов на изменение. Всё, что здесь пишется, — только строки
@@ -64,9 +108,14 @@ export interface ChangeRequestDto {
   createdAt: string;
   updatedAt: string;
   events?: ChangeRequestEventDto[];
+  /**
+   * Только в карточке: оценка сделана по текущему состоянию базы. null — оценки
+   * нет или запрос уже решён; false — база изменилась, нужна переоценка.
+   */
+  estimateMatchesBase?: boolean | null;
 }
 
-type ChangeRequestRow = Prisma.ChangeRequestGetPayload<object>;
+export type ChangeRequestRow = Prisma.ChangeRequestGetPayload<object>;
 type EventRow = Prisma.ChangeRequestEventGetPayload<object>;
 
 function iso(value: Date | null | undefined): string | null {
@@ -254,7 +303,14 @@ export async function getChangeRequest(projectId: string, crId: string): Promise
     include: { events: { orderBy: { at: 'asc' } } },
   });
   if (!row) throw new ChangeRequestError('Запрос на изменение не найден', 404);
-  return toChangeRequestDto(row);
+  const dto = toChangeRequestDto(row);
+  if (row.estimatedAt && (row.status === 'submitted' || row.status === 'deferred')) {
+    const hash = await loadBaseFingerprint(prisma, row);
+    dto.estimateMatchesBase = !!hash && hash === row.estimateBaseHash;
+  } else {
+    dto.estimateMatchesBase = null;
+  }
+  return dto;
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -304,7 +360,13 @@ export async function createChangeRequest(
 async function current(projectId: string, crId: string) {
   const row = await prisma.changeRequest.findFirst({
     where: { id: crId, projectId },
-    select: { id: true, status: true, estimatedAt: true },
+    select: {
+      id: true,
+      status: true,
+      estimatedAt: true,
+      baseCalculationId: true,
+      basePackageId: true,
+    },
   });
   if (!row) throw new ChangeRequestError('Запрос на изменение не найден', 404);
   return { ...row, status: row.status as ChangeRequestStatus };
@@ -322,7 +384,7 @@ interface GuardOptions {
  * от гонки с параллельным переходом или правкой — если запрос уже изменился,
  * ничего не пишется и возвращается 409.
  */
-async function guardedUpdate(
+export async function guardedUpdate(
   projectId: string,
   crId: string,
   expected: ChangeRequestStatus,
@@ -406,7 +468,10 @@ export async function submitChangeRequest(
   comment: string | null,
 ): Promise<ChangeRequestDto> {
   const cr = await current(projectId, crId);
-  const error = transitionError(cr.status, 'submitted', { hasEstimate: !!cr.estimatedAt });
+  // Отложенный запрос возвращают решением reopen (архитектор/админ), не передачей.
+  const error = canSubmit(cr.status)
+    ? transitionError(cr.status, 'submitted', { hasEstimate: !!cr.estimatedAt })
+    : 'Передать на оценку можно только черновик';
   if (error) throw new ChangeRequestError(error, 409);
   // Непустоту проверяем внутри той же транзакции, что и переход: правка
   // черновика между проверкой и переходом не проскочит.
@@ -415,7 +480,7 @@ export async function submitChangeRequest(
     crId,
     cr.status,
     { status: 'submitted' },
-    { action: cr.status === 'deferred' ? 'reopened' : 'submitted', actor, comment },
+    { action: 'submitted', actor, comment },
     { validate: assertHasContent },
   );
 }
@@ -434,6 +499,10 @@ export async function recordEstimate(
   if (!canEstimate(cr.status)) {
     throw new ChangeRequestError('Оценку вносят только для запроса на оценке', 409);
   }
+  // Оценка привязывается к состоянию базы: если база изменится, принять запрос
+  // без переоценки нельзя (decisions.ts).
+  const baseHash = await loadBaseFingerprint(prisma, cr);
+  if (!baseHash) throw new ChangeRequestError('Базовый расчёт или комплект удалён', 409);
   return guardedUpdate(
     projectId,
     crId,
@@ -445,6 +514,7 @@ export async function recordEstimate(
       estimateComment: estimate.comment,
       estimatedBy: actor,
       estimatedAt: new Date(),
+      estimateBaseHash: baseHash,
     },
     {
       action: 'estimated',

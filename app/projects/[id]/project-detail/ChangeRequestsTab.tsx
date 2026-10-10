@@ -10,7 +10,9 @@ import {
 } from '@/lib/changeRequests/types';
 import {
   canEditChangeRequests,
+  canDecideChangeRequests,
   canEstimateChangeRequests,
+  formatChangeLabel,
   formatChangeRequestNumber,
 } from '@/lib/changeRequests/workflow';
 import type { ChangeRequestDto } from '@/lib/changeRequests/store';
@@ -497,12 +499,100 @@ function EstimateForm({
   );
 }
 
+const DECISION_LABELS = {
+  accept: 'Принять',
+  reject: 'Отклонить',
+  defer: 'Отложить',
+  reopen: 'Вернуть на оценку',
+} as const;
+
+function DecisionPanel({
+  projectId,
+  cr,
+  onDone,
+}: {
+  projectId: string;
+  cr: ChangeRequestDto;
+  onDone: (cr: ChangeRequestDto) => void;
+}) {
+  const [comment, setComment] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const decisions: (keyof typeof DECISION_LABELS)[] =
+    cr.status === 'deferred' ? ['reopen'] : ['accept', 'defer', 'reject'];
+  const acceptBlocked = !cr.estimatedAt
+    ? 'Нужна оценка специалиста'
+    : cr.estimateMatchesBase === false
+      ? 'База изменилась после оценки — переоцените'
+      : null;
+
+  const decide = async (action: keyof typeof DECISION_LABELS) => {
+    setBusy(true);
+    setError(null);
+    try {
+      onDone(
+        await api<ChangeRequestDto>(`/api/projects/${projectId}/change-requests/${cr.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ action, comment }),
+        }),
+      );
+      setComment('');
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded border border-slate-100 p-3 dark:border-nord-3">
+      <p className={sectionTitle}>Решение</p>
+      {cr.status === 'submitted' && (
+        <p className="text-[11px] text-slate-500 dark:text-nord-muted">
+          Принятие создаёт новую версию расчёта от исходной с отдельной строкой{' '}
+          {formatChangeLabel(cr.seq)} на подтверждённые часы
+          {cr.basePackageId ? ' и черновую версию комплекта с правками требований' : ''}. Исходная
+          база не меняется.
+        </p>
+      )}
+      {error && <p className="text-xs font-medium text-rose-600">{error}</p>}
+      <textarea
+        className="input text-sm"
+        rows={2}
+        placeholder="Комментарий (для «Отклонить» и «Отложить» обязателен)"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+      />
+      <div className="flex flex-wrap gap-2">
+        {decisions.map((d) => (
+          <button
+            key={d}
+            type="button"
+            disabled={busy || (d === 'accept' && !!acceptBlocked)}
+            title={d === 'accept' && acceptBlocked ? acceptBlocked : undefined}
+            className={
+              d === 'accept' || d === 'reopen' ? 'btn-primary text-xs' : 'btn-secondary text-xs'
+            }
+            onClick={() => decide(d)}
+          >
+            {DECISION_LABELS[d]}
+          </button>
+        ))}
+      </div>
+      {acceptBlocked && cr.status === 'submitted' && (
+        <p className="text-[11px] text-slate-500">Принять: {acceptBlocked.toLowerCase()}.</p>
+      )}
+    </div>
+  );
+}
+
 function ChangeRequestDetail({
   projectId,
   cr,
   calculations,
   canEdit,
   canEstimateRole,
+  canDecideRole,
   onChanged,
   onEdit,
 }: {
@@ -511,6 +601,7 @@ function ChangeRequestDetail({
   calculations: SerializedCalculation[];
   canEdit: boolean;
   canEstimateRole: boolean;
+  canDecideRole: boolean;
   onChanged: (cr: ChangeRequestDto) => void;
   onEdit: (cr: ChangeRequestDto) => void;
 }) {
@@ -687,7 +778,33 @@ function ChangeRequestDetail({
             {cr.estimatedBy}, {fmtDate(cr.estimatedAt)}
             {cr.estimateComment ? ` — ${cr.estimateComment}` : ''}
           </p>
+          {cr.estimateMatchesBase === false && (
+            <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+              База изменилась после оценки — перед принятием нужна переоценка.
+            </p>
+          )}
         </div>
+      )}
+
+      {cr.status === 'accepted' && cr.resultCalculationId && (
+        <div className="rounded bg-emerald-50 p-3 dark:bg-emerald-950/30">
+          <p className={sectionTitle}>Результат принятия</p>
+          <p className="text-slate-800 dark:text-nord-5">
+            <a
+              className="text-brand-700 hover:underline dark:text-nord-frost3"
+              href={`/calculations/${cr.resultCalculationId}`}
+            >
+              Новая версия расчёта
+            </a>{' '}
+            с изменением {formatChangeLabel(cr.seq)}
+            {cr.resultPackageId ? ' и черновая версия комплекта с правками требований' : ''}.
+            Исходная база не изменена.
+          </p>
+        </div>
+      )}
+
+      {canDecideRole && (cr.status === 'submitted' || cr.status === 'deferred') && (
+        <DecisionPanel projectId={projectId} cr={cr} onDone={onChanged} />
       )}
 
       {cr.status === 'submitted' && canEstimateRole && (
@@ -736,6 +853,7 @@ export default function ChangeRequestsTab({
 }) {
   const canEdit = canEditChangeRequests(sessionRole);
   const canEstimateRole = canEstimateChangeRequests(sessionRole);
+  const canDecideRole = canDecideChangeRequests(sessionRole);
   const [items, setItems] = useState<ChangeRequestDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -879,6 +997,7 @@ export default function ChangeRequestsTab({
                     calculations={calculations}
                     canEdit={canEdit}
                     canEstimateRole={canEstimateRole}
+                    canDecideRole={canDecideRole}
                     onChanged={changed}
                     onEdit={(d) => setForm({ initial: formFromCr(d), editingId: d.id })}
                   />

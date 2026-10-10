@@ -5,6 +5,7 @@ import { projectSchedule } from '@/lib/schedule';
 import { tryProfitForecast } from '@/lib/actuals';
 import { resolveLifecycle } from '@/lib/lifecycle';
 import { lifecycleInputFromRow, loadLifecycleReviewContext } from '@/lib/lifecycleData';
+import { loadChangeSummary } from '@/lib/changeRequests/summaryData';
 import ProjectDetailClient from './ProjectDetailClient';
 import type { SerializedProject } from './project-detail/types';
 
@@ -18,6 +19,8 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     notFound();
   }
   const canEditDeal = ['presale', 'architect', 'admin'].includes(session?.role ?? '');
+  // Первоначальная база и согласованные изменения (#103 §1.4).
+  const changeSummary = await loadChangeSummary(project);
 
   const serializedProject: SerializedProject = {
     id: project.id,
@@ -29,6 +32,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
     createdBy: project.createdBy,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
+    changeSummary,
     deal: {
       id: project.id,
       dealStatus: project.dealStatus,

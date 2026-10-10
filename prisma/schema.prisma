@@ -156,6 +156,9 @@ model Project {
   contractCurrency String?
   wonCalculationId String? // версия расчёта, по которой подписан договор
   actualsClosedAt  DateTime? // факт закрыт: этапы дальше правит только админ
+  // Первоначальная договорная база (#103 WP-2b): фиксируется при первом
+  // принятом запросе на изменение; пусто — берётся wonCalculationId.
+  baselineCalculationId String?
 
   calculations Calculation[]
   packages     GostPackage[]
@@ -797,6 +800,9 @@ model ChangeRequest {
   estimateComment       String?
   estimatedBy           String?
   estimatedAt           DateTime?
+  // Отпечаток базы (расчёт + комплект) на момент оценки: принять можно, только
+  // если база не менялась после оценки (lib/changeRequests/fingerprint.ts).
+  estimateBaseHash      String?
   // Решение и результат (WP-2b): кто решил и какие версии появились.
   decidedBy             String?
   decidedAt             DateTime?
@@ -810,6 +816,9 @@ model ChangeRequest {
   @@unique([projectId, seq])
   @@index([projectId, status])
   @@index([baseCalculationId])
+  @@index([resultCalculationId])
+  @@index([basePackageId])
+  @@index([resultPackageId])
 }
 
 // Журнал согласования запроса: только добавление, записи не правятся.

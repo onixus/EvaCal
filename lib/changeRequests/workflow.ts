@@ -16,8 +16,9 @@ export class ChangeRequestError extends Error {
 }
 
 /**
- * Допустимые переходы. Решения (accepted/rejected/deferred) уже описаны здесь,
- * чтобы WP-2b добавил только действия, а не перекраивал жизненный цикл.
+ * Допустимые переходы. `draft → submitted` — передача на оценку; решения
+ * `submitted → accepted | rejected | deferred` и возврат отложенного
+ * `deferred → submitted` (reopen) принимает архитектор или админ.
  */
 export const CHANGE_REQUEST_TRANSITIONS: Record<ChangeRequestStatus, ChangeRequestStatus[]> = {
   draft: ['submitted'],
@@ -33,6 +34,11 @@ export function isChangeRequestStatus(value: unknown): value is ChangeRequestSta
 
 export interface TransitionContext {
   hasEstimate: boolean;
+  /**
+   * Оценка сделана по текущему состоянию базы. Если база изменилась после
+   * оценки, принимать нельзя — нужна переоценка (политика в docs/change-requests.md).
+   */
+  estimateMatchesBase?: boolean;
 }
 
 /** Причина отказа в переходе или null, если переход допустим. */
@@ -47,7 +53,70 @@ export function transitionError(
   if (to === 'accepted' && !ctx.hasEstimate) {
     return 'Принять можно только запрос с подтверждённой оценкой специалиста';
   }
+  if (to === 'accepted' && ctx.estimateMatchesBase === false) {
+    return 'База изменилась после оценки — специалист должен переоценить запрос';
+  }
   return null;
+}
+
+/** Решение по запросу и статус, в который оно переводит. */
+export const DECISION_TARGETS = {
+  accept: 'accepted',
+  reject: 'rejected',
+  defer: 'deferred',
+  reopen: 'submitted',
+} as const satisfies Record<string, ChangeRequestStatus>;
+export type ChangeRequestDecision = keyof typeof DECISION_TARGETS;
+
+export function isDecision(value: unknown): value is ChangeRequestDecision {
+  return typeof value === 'string' && value in DECISION_TARGETS;
+}
+
+/** Из какого статуса допустимо решение: reopen — только для отложенного. */
+export function decisionError(
+  decision: ChangeRequestDecision,
+  from: ChangeRequestStatus,
+  ctx: TransitionContext,
+): string | null {
+  if (decision === 'reopen' && from !== 'deferred') {
+    return 'Вернуть на оценку можно только отложенный запрос';
+  }
+  if (decision !== 'reopen' && from !== 'submitted') {
+    return 'Решение принимается только по запросу на оценке';
+  }
+  return transitionError(from, DECISION_TARGETS[decision], ctx);
+}
+
+/**
+ * Комментарий решения: для «отклонить» и «отложить» обязателен — причина
+ * должна остаться в истории согласования.
+ */
+export function parseDecisionComment(
+  decision: ChangeRequestDecision,
+  value: unknown,
+): string | null {
+  const comment = optionalText(value, 'Комментарий к решению', 4000);
+  if ((decision === 'reject' || decision === 'defer') && !comment) {
+    throw new ChangeRequestError('Укажите причину решения');
+  }
+  return comment;
+}
+
+/**
+ * Политика оценки при возврате отложенного запроса: оценка сохраняется, если
+ * база не менялась с момента оценки, иначе сбрасывается и требуется заново.
+ */
+export function estimateOnReopen(
+  hasEstimate: boolean,
+  estimateMatchesBase: boolean,
+): 'keep' | 'clear' | 'none' {
+  if (!hasEstimate) return 'none';
+  return estimateMatchesBase ? 'keep' : 'clear';
+}
+
+/** Передать на оценку можно только черновик; отложенный возвращают решением reopen. */
+export function canSubmit(status: ChangeRequestStatus): boolean {
+  return status === 'draft';
 }
 
 /** Правка содержания — только черновик: после передачи на оценку база и состав зафиксированы. */
@@ -203,6 +272,8 @@ export function formatChangeRequestNumber(seq: number): string {
  */
 export const CHANGE_REQUEST_EDIT_ROLES = ['presale', 'architect', 'admin'];
 export const CHANGE_REQUEST_ESTIMATE_ROLES = ['architect', 'admin'];
+/** Решения (принять/отклонить/отложить/вернуть) — те же роли, что и оценка. */
+export const CHANGE_REQUEST_DECISION_ROLES = CHANGE_REQUEST_ESTIMATE_ROLES;
 
 export function canEditChangeRequests(role: string | null | undefined): boolean {
   return !!role && CHANGE_REQUEST_EDIT_ROLES.includes(role);
@@ -210,4 +281,13 @@ export function canEditChangeRequests(role: string | null | undefined): boolean 
 
 export function canEstimateChangeRequests(role: string | null | undefined): boolean {
   return !!role && CHANGE_REQUEST_ESTIMATE_ROLES.includes(role);
+}
+
+export function canDecideChangeRequests(role: string | null | undefined): boolean {
+  return !!role && CHANGE_REQUEST_DECISION_ROLES.includes(role);
+}
+
+/** Метка изменения в новой версии расчёта: «ИЗМ-01» для ЗИ-01. */
+export function formatChangeLabel(seq: number): string {
+  return `ИЗМ-${String(seq).padStart(2, '0')}`;
 }
