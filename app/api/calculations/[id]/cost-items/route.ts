@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import {
   loadCostItems,
   parseCostItemInput,
   requireEditableCalculation,
+  withCommercialLock,
 } from '@/lib/commercialContourData';
 import {
   COMMERCIAL_EDIT_ROLES,
@@ -30,9 +30,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   if (auth instanceof NextResponse) return auth;
   const { id } = await props.params;
   try {
-    const calc = await requireEditableCalculation(id);
-    const data = parseCostItemInput(await req.json().catch(() => null), calc.currency);
-    const created = await prisma.costItem.create({ data: { ...data, calculationId: id } });
+    const body = await req.json().catch(() => null);
+    const { created, data } = await withCommercialLock(id, async (tx) => {
+      const calc = await requireEditableCalculation(id, tx);
+      const data = parseCostItemInput(body, calc.currency);
+      const created = await tx.costItem.create({ data: { ...data, calculationId: id } });
+      return { created, data };
+    });
     await writeAudit({
       actorType: 'user',
       actorId: auth.userId,

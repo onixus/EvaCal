@@ -100,7 +100,11 @@ async function main() {
       /Calculation_targetMargin_check|constraint/i,
     );
     // #103 §4.2–4.3 / #101 §3: поставка, статьи затрат, курсы и порог маржи.
-    assert.equal(original.supply, null, 'historical proposal has no supply section');
+    assert.equal(
+      (await loadCalculationForExport(source.id, undefined, { withSupply: true }))!.supply,
+      null,
+      'historical proposal has no supply section',
+    );
     await prisma.specificationVersion.create({
       data: {
         calculationId: version.id,
@@ -179,7 +183,9 @@ async function main() {
     assert.equal(total.incomplete, false);
     assert.equal(contour.gate.requiresApproval, true, 'margin 20.08% below 30% threshold');
     assert.equal(contour.gate.approved, false);
-    const withSupply = (await loadCalculationForExport(version.id))!;
+    const withSupply = (await loadCalculationForExport(version.id, undefined, {
+      withSupply: true,
+    }))!;
     const contourBook = XLSX.read(renderCalculationXlsx(withSupply), { type: 'buffer' });
     const contourRows = XLSX.utils.sheet_to_json<unknown[]>(contourBook.Sheets['Смета КП'], {
       header: 1,
@@ -193,6 +199,7 @@ async function main() {
         requestedPercent: 0,
         resultingMargin: contour.gate.margin,
         minMarginPercent: 30,
+        termsFingerprint: contour.fingerprint,
         status: 'approved',
         requestedBy: 'presale',
         decidedBy: 'architect',
@@ -200,6 +207,45 @@ async function main() {
       },
     });
     assert.equal((await loadCommercialState(version.id))!.gate.approved, true);
+    // Любое изменение условий снимает согласование: статья с неизвестной
+    // стоимостью делает маржу неопределённой и меняет отпечаток.
+    const unknownCost = await prisma.costItem.create({
+      data: {
+        calculationId: version.id,
+        kind: 'other',
+        description: 'Неизвестная статья',
+        quantity: '1',
+        currency: 'RUB',
+        order: 5,
+      },
+    });
+    const changed = (await loadCommercialState(version.id))!;
+    assert.equal(changed.gate.state, 'unknown');
+    assert.equal(changed.gate.approved, false, 'approval bound to the old terms fingerprint');
+    await prisma.discountApproval.create({
+      data: {
+        calculationId: version.id,
+        requestedPercent: 0,
+        resultingMargin: null,
+        minMarginPercent: 30,
+        termsFingerprint: changed.fingerprint,
+        status: 'approved',
+        requestedBy: 'presale',
+        decidedBy: 'architect',
+        decidedAt: new Date(),
+      },
+    });
+    assert.equal((await loadCommercialState(version.id))!.gate.approved, true);
+    await prisma.costItem.update({
+      where: { id: unknownCost.id },
+      data: { description: 'Неизвестная статья (уточнено)' },
+    });
+    assert.equal(
+      (await loadCommercialState(version.id))!.gate.approved,
+      false,
+      'unknown-margin approval does not survive a change of terms',
+    );
+    await prisma.costItem.delete({ where: { id: unknownCost.id } });
 
     const copy = await createCalculationVersion({ parentCalculationId: version.id });
     assert(copy);
@@ -242,6 +288,7 @@ async function main() {
           calculationId: version.id,
           requestedPercent: 5,
           minMarginPercent: 30,
+          termsFingerprint: 'f'.repeat(64),
           status: 'approved',
           requestedBy: 'presale',
         },

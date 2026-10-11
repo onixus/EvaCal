@@ -13,6 +13,8 @@ import {
   type SupplyBreakdown,
 } from '@/lib/supply';
 import { marginGate, type MarginGate } from '@/lib/discountApproval';
+import { offerFingerprint } from '@/lib/offerFingerprint';
+import { lockCalculationLedger } from '@/lib/actualsLedgerData';
 import { parseSpecification, isDecimal, RATE_RE } from '@/lib/specification/validation';
 import { normalizeDecimal } from '@/lib/specification/totals';
 import { FINAL_SPECIFICATION_STATUSES } from '@/lib/specification/types';
@@ -35,8 +37,14 @@ export function decimalString(value: DecimalLike): string | null {
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
-export async function loadCostItems(calculationId: string): Promise<CostItemInput[]> {
-  const rows = await prisma.costItem.findMany({
+/** Клиент БД: общий или транзакция (утверждение читает контур под блокировкой). */
+type Db = Prisma.TransactionClient;
+
+export async function loadCostItems(
+  calculationId: string,
+  db: Db = prisma,
+): Promise<CostItemInput[]> {
+  const rows = await db.costItem.findMany({
     where: { calculationId },
     orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
   });
@@ -59,9 +67,10 @@ export async function loadCostItems(calculationId: string): Promise<CostItemInpu
 export async function loadPinnedSpecification(
   calculationId: string,
   version: number | null | undefined,
+  db: Db = prisma,
 ) {
   if (version === null || version === undefined) return null;
-  const row = await prisma.specificationVersion.findUnique({
+  const row = await db.specificationVersion.findUnique({
     where: { calculationId_version: { calculationId, version } },
   });
   if (!row || !(FINAL_SPECIFICATION_STATUSES as readonly string[]).includes(row.status)) {
@@ -86,9 +95,13 @@ interface SupplyCalc {
  * Поставка и статьи КП. null — ни спецификация не закреплена, ни статей нет:
  * КП считается только по труду, как исторические расчёты.
  */
-export async function loadSupply(calc: SupplyCalc): Promise<SupplyBreakdown | null> {
-  const costItems = await loadCostItems(calc.id);
-  const specification = await loadPinnedSpecification(calc.id, calc.pinnedSpecificationVersion);
+export async function loadSupply(
+  calc: SupplyCalc,
+  db: Db = prisma,
+  preloadedCostItems?: CostItemInput[],
+): Promise<SupplyBreakdown | null> {
+  const costItems = preloadedCostItems ?? (await loadCostItems(calc.id, db));
+  const specification = await loadPinnedSpecification(calc.id, calc.pinnedSpecificationVersion, db);
   if (!specification && costItems.length === 0) return null;
   return buildSupply({
     currency: calc.currency,
@@ -102,6 +115,10 @@ export async function loadSupply(calc: SupplyCalc): Promise<SupplyBreakdown | nu
 export interface CommercialState {
   calculationId: string;
   status: string;
+  /** Метка версии строки расчёта: утверждение обновляет его, только если она не изменилась. */
+  updatedAt: string;
+  /** Отпечаток условий КП (lib/offerFingerprint.ts). */
+  fingerprint: string;
   pinnedSpecificationVersion: number | null;
   minMarginPercent: number | null;
   discountPercent: number;
@@ -126,8 +143,11 @@ export interface CommercialState {
   error: string | null;
 }
 
-export async function loadCommercialState(calculationId: string): Promise<CommercialState | null> {
-  const calc = await prisma.calculation.findUnique({
+export async function loadCommercialState(
+  calculationId: string,
+  db: Db = prisma,
+): Promise<CommercialState | null> {
+  const calc = await db.calculation.findUnique({
     where: { id: calculationId },
     include: {
       stages: { orderBy: { order: 'asc' } },
@@ -140,8 +160,9 @@ export async function loadCommercialState(calculationId: string): Promise<Commer
   let summary: CommercialSummary;
   let error: string | null = null;
   let supply: SupplyBreakdown | null = null;
+  const costItems = await loadCostItems(calc.id, db);
   try {
-    supply = await loadSupply(calc);
+    supply = await loadSupply(calc, db, costItems);
   } catch (e) {
     error = e instanceof Error ? e.message : 'Не удалось загрузить поставку';
   }
@@ -160,16 +181,35 @@ export async function loadCommercialState(calculationId: string): Promise<Commer
       supply,
     });
   }
+  const fingerprint = offerFingerprint(
+    {
+      pinnedSpecificationVersion: calc.pinnedSpecificationVersion,
+      costItems,
+      pricingMode: calc.pricingMode,
+      marginPercent: calc.marginPercent,
+      overheadPercent: calc.overheadPercent,
+      discountPercent: calc.discountPercent,
+      vatPercent: calc.vatPercent,
+      includeVat: calc.includeVat,
+      currency: calc.currency,
+      roleRates: calc.roleRates,
+      error,
+    },
+    summary,
+  );
   const gate = marginGate({
     minMarginPercent: calc.minMarginPercent,
     marginPercent: error ? null : summary.total.marginPercent,
     incomplete: Boolean(error) || summary.total.incomplete,
     discountPercent: calc.discountPercent,
+    fingerprint,
     approvals: calc.discountApprovals,
   });
   return {
     calculationId: calc.id,
     status: calc.status,
+    updatedAt: calc.updatedAt.toISOString(),
+    fingerprint,
     pinnedSpecificationVersion: calc.pinnedSpecificationVersion,
     minMarginPercent: calc.minMarginPercent,
     discountPercent: calc.discountPercent,
@@ -272,8 +312,8 @@ export function parseCostItemInput(
 }
 
 /** Коммерческие условия меняются только у неутверждённого расчёта. */
-export async function requireEditableCalculation(calculationId: string) {
-  const calc = await prisma.calculation.findUnique({
+export async function requireEditableCalculation(calculationId: string, db: Db = prisma) {
+  const calc = await db.calculation.findUnique({
     where: { id: calculationId },
     select: { id: true, status: true, currency: true, discountPercent: true },
   });
@@ -284,4 +324,23 @@ export async function requireEditableCalculation(calculationId: string) {
       409,
     );
   return calc;
+}
+
+/**
+ * Запись контура КП под блокировкой расчёта — той же, что у перестройки
+ * этапов и журнала факта. Утверждение, заявки, решения, статьи и закрепление
+ * спецификации выполняются последовательно: проверка условий и запись не
+ * разделяются чужой правкой.
+ */
+export function withCommercialLock<T>(
+  calculationId: string,
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  return prisma.$transaction(
+    async (tx) => {
+      await lockCalculationLedger(tx, calculationId);
+      return fn(tx);
+    },
+    { timeout: 30_000, maxWait: 10_000 },
+  );
 }

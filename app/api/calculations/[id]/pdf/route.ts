@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const access = await requireCalcAccess(req, params.id, ['export']);
   if (access instanceof NextResponse) return access;
 
-  const calc = await loadCalculationForExport(params.id);
+  const calc = await loadCalculationForExport(params.id, undefined, { withSupply: true });
   if (!calc) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
   const doc = renderCalculationPdf(calc);

@@ -1305,6 +1305,9 @@ model DiscountApproval {
   /// Маржа КП при запрошенной скидке; null — не определена (неполные данные).
   resultingMargin  Float?
   minMarginPercent Float
+  /// Отпечаток условий КП на момент заявки (lib/offerFingerprint.ts): согласование
+  /// действует только при тех же условиях.
+  termsFingerprint String
   status           String      @default("pending") // pending | approved | rejected | withdrawn
   requestedBy      String
   comment          String?

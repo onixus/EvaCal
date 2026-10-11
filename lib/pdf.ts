@@ -251,6 +251,15 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
       doc.text(text, 40, doc.y, { width: 515 });
     }
   }
+  if (calc.supplyError) {
+    doc.moveDown(0.3);
+    doc
+      .font('bold')
+      .fontSize(10)
+      .text(`Поставка и статьи затрат не рассчитаны: ${calc.supplyError}`, 40, doc.y, {
+        width: 515,
+      });
+  }
   doc
     .font('bold')
     .fontSize(11)

@@ -376,6 +376,12 @@ export default function CommercialProposalPanel({
           <div className="card p-5">
             <h2 className="border-b border-slate-100 pb-3 text-base font-semibold text-slate-900 dark:border-nord-3 dark:text-nord-6">
               2. Финансовые параметры и маржа
+              <span
+                className="ml-2 rounded bg-amber-50 px-1.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/30 dark:text-nord-yellow"
+                data-testid="labour-only-label"
+              >
+                без учёта поставки и прочих затрат
+              </span>
             </h2>
 
             <div className="mt-4 space-y-4">

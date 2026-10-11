@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import {
@@ -7,6 +6,7 @@ import {
   loadCommercialState,
   loadPinnedSpecification,
   requireEditableCalculation,
+  withCommercialLock,
 } from '@/lib/commercialContourData';
 import {
   COMMERCIAL_EDIT_ROLES,
@@ -43,12 +43,14 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     const raw = body.pinnedSpecificationVersion;
     if (raw !== null && (!Number.isSafeInteger(raw) || (raw as number) < 1))
       throw new CommercialContourError('Редакция спецификации: целое число ≥ 1 или null');
-    await requireEditableCalculation(id);
     const version = raw as number | null;
-    await loadPinnedSpecification(id, version);
-    await prisma.calculation.update({
-      where: { id },
-      data: { pinnedSpecificationVersion: version },
+    await withCommercialLock(id, async (tx) => {
+      await requireEditableCalculation(id, tx);
+      await loadPinnedSpecification(id, version, tx);
+      await tx.calculation.update({
+        where: { id },
+        data: { pinnedSpecificationVersion: version },
+      });
     });
     await writeAudit({
       actorType: 'user',

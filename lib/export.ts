@@ -53,12 +53,17 @@ export interface CalculationForExport {
   includeVat?: boolean;
   /** #103 §4.2: поставка и статьи затрат КП; null/undefined — только труд. */
   supply?: SupplyBreakdown | null;
+  /** Поставку не удалось рассчитать (например, закреплённая редакция недоступна). */
+  supplyError?: string | null;
 }
 
 /** Shared shape/query for the PDF, XLSX and JSON export routes. */
 export async function loadCalculationForExport(
   id: string,
   specificationVersion?: number | null,
+  // Поставка и статьи нужны только КП (PDF/XLSX); JSON и комплекты ГОСТ 34 их не
+  // читают и не должны ломаться из-за ошибок коммерческого контура.
+  options: { withSupply?: boolean } = {},
 ): Promise<CalculationForExport | null> {
   const calculation = await prisma.calculation.findUnique({
     where: { id },
@@ -98,8 +103,19 @@ export async function loadCalculationForExport(
     discountPercent: calculation.discountPercent,
     vatPercent: calculation.vatPercent,
     includeVat: calculation.includeVat,
-    supply: await loadSupply(calculation),
+    ...(options.withSupply ? await supplyForExport(calculation) : {}),
   };
+}
+
+async function supplyForExport(calculation: Parameters<typeof loadSupply>[0]) {
+  try {
+    return { supply: await loadSupply(calculation), supplyError: null };
+  } catch (error) {
+    return {
+      supply: null,
+      supplyError: error instanceof Error ? error.message : 'Поставка не рассчитана',
+    };
+  }
 }
 
 export { safeFileName, responseBody, contentDisposition } from './exportResponse';

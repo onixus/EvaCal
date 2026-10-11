@@ -4,8 +4,10 @@
  * Порог — минимальная маржа КП (% от выручки без НДС, с поставкой), копируется
  * из шаблона в расчёт при создании. Расчёт с маржой ниже порога (или с
  * неопределённой маржой: неполные данные, нулевая выручка) утверждается только
- * при согласованной скидке: одобренная заявка должна соответствовать текущей
- * скидке и марже не выше текущей. Любое изменение условий требует новой заявки.
+ * при согласованной скидке: отпечаток условий КП одобренной заявки
+ * (lib/offerFingerprint.ts) должен совпадать с текущим. Любое изменение условий
+ * — спецификации, статей, процентов, скидки, известных сумм, списка неполных
+ * данных — требует новой заявки, и при известной, и при неопределённой марже.
  */
 
 export const DISCOUNT_APPROVAL_STATUSES = ['pending', 'approved', 'rejected', 'withdrawn'] as const;
@@ -26,6 +28,7 @@ export interface ApprovalRow {
   status: string;
   requestedPercent: number;
   resultingMargin: number | null;
+  termsFingerprint: string;
 }
 
 export interface MarginGateInput {
@@ -35,6 +38,8 @@ export interface MarginGateInput {
   /** Итог КП неполный (неизвестные цены/себестоимость/курсы). */
   incomplete: boolean;
   discountPercent: number;
+  /** Отпечаток текущих условий КП. */
+  fingerprint: string;
   approvals: ApprovalRow[];
 }
 
@@ -55,15 +60,9 @@ export interface MarginGate {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const EPS = 1e-9;
 
-/** Одобренная заявка подходит, если скидка та же, а маржа не хуже согласованной. */
-export function approvalMatches(
-  a: ApprovalRow,
-  discountPercent: number,
-  margin: number | null,
-): boolean {
-  if (a.status !== 'approved' || Math.abs(a.requestedPercent - discountPercent) > EPS) return false;
-  if (a.resultingMargin === null) return margin === null;
-  return margin !== null && margin + EPS >= round2(a.resultingMargin);
+/** Одобренная заявка подходит только при тех же условиях КП (тот же отпечаток). */
+export function approvalMatches(a: ApprovalRow, fingerprint: string): boolean {
+  return a.status === 'approved' && a.termsFingerprint === fingerprint;
 }
 
 export function marginGate(input: MarginGateInput): MarginGate {
@@ -90,7 +89,7 @@ export function marginGate(input: MarginGateInput): MarginGate {
       message: `Маржа ${effective}% не ниже порога ${min}%.`,
     };
   }
-  const match = input.approvals.find((a) => approvalMatches(a, input.discountPercent, effective));
+  const match = input.approvals.find((a) => approvalMatches(a, input.fingerprint));
   const state: MarginGateState = effective === null ? 'unknown' : 'below';
   const reason =
     state === 'unknown'

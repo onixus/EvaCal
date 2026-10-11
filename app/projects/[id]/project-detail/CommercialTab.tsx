@@ -21,8 +21,15 @@ export default function CommercialTab({
         discountPercent: calculation.discountPercent,
         vatPercent: calculation.vatPercent,
         includeVat: calculation.includeVat,
+        // #103 §4.2: поставка и статьи затрат, рассчитанные сервером по закреплённой
+        // спецификации и статьям расчёта.
+        supply: calculation.supply ?? null,
       })
     : null;
+  const money = (v: number) =>
+    formatCurrency(v, commercial?.currency ?? 'RUB', {
+      decimals: commercial?.pricingMode === 'legacy_markup' ? 0 : 2,
+    });
 
   return (
     <div className="space-y-4">
@@ -128,25 +135,56 @@ export default function CommercialTab({
                   </span>
                 </div>
               )}
-              {commercial.vatAmount > 0 && (
+              {commercial.costItemsCost > 0 && (
                 <div className="flex justify-between py-2">
                   <span className="text-slate-600 dark:text-nord-4">
-                    НДС ({commercial.vatPercent}%)
+                    Дополнительные статьи затрат (в себестоимости услуг)
                   </span>
-                  <span className="font-mono">
-                    {formatCurrency(commercial.vatAmount, commercial.currency, {
-                      decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2,
-                    })}
+                  <span className="font-mono">{money(commercial.costItemsCost)}</span>
+                </div>
+              )}
+              {commercial.supply && (
+                <>
+                  <div className="flex justify-between py-2">
+                    <span className="text-slate-600 dark:text-nord-4">
+                      Поставка без НДС
+                      {commercial.supply.specificationVersion !== null &&
+                        ` (спецификация v${commercial.supply.specificationVersion})`}
+                    </span>
+                    <span className="font-mono">{money(commercial.supply.supplyPrice)}</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span>Прибыль / маржа итого (услуги + поставка)</span>
+                    <span>
+                      {money(commercial.total.profit)} /{' '}
+                      {commercial.total.marginPercent === null
+                        ? '—'
+                        : `${commercial.total.marginPercent.toFixed(2)}%`}
+                    </span>
+                  </div>
+                </>
+              )}
+              {calculation?.supplyError && (
+                <div className="py-2 text-xs text-rose-700 dark:text-rose-300">
+                  Поставка и статьи затрат не рассчитаны: {calculation.supplyError}
+                </div>
+              )}
+              {commercial.total.incomplete && (
+                <div className="py-2 text-xs text-amber-700 dark:text-nord-yellow">
+                  Сумма неполная (не считается нулём): {commercial.supply?.problems.join('; ')}
+                </div>
+              )}
+              {commercial.total.vat > 0 && (
+                <div className="flex justify-between py-2">
+                  <span className="text-slate-600 dark:text-nord-4">
+                    НДС{commercial.supply ? ' (услуги и поставка)' : ` (${commercial.vatPercent}%)`}
                   </span>
+                  <span className="font-mono">{money(commercial.total.vat)}</span>
                 </div>
               )}
               <div className="flex justify-between py-3 font-extrabold text-lg bg-emerald-50 px-3 rounded text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
                 <span>Итоговое КП для заказчика</span>
-                <span className="font-mono">
-                  {formatCurrency(commercial.grandTotal, commercial.currency, {
-                    decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2,
-                  })}
-                </span>
+                <span className="font-mono">{money(commercial.total.grandTotal)}</span>
               </div>
             </div>
           </div>

@@ -3,6 +3,7 @@ import { getProjectDetails } from '@/lib/project';
 import { getSession } from '@/lib/auth';
 import { projectSchedule } from '@/lib/schedule';
 import { tryProfitForecast } from '@/lib/actuals';
+import { loadSupply } from '@/lib/commercialContourData';
 import { resolveLifecycle } from '@/lib/lifecycle';
 import { lifecycleInputFromRow, loadLifecycleReviewContext } from '@/lib/lifecycleData';
 import { loadChangeSummary } from '@/lib/changeRequests/summaryData';
@@ -26,6 +27,17 @@ export default async function ProjectDetailPage(props: {
   const canEditDeal = ['presale', 'architect', 'admin'].includes(session?.role ?? '');
   // Первоначальная база и согласованные изменения (#103 §1.4).
   const changeSummary = await loadChangeSummary(project);
+
+  const latestCalculation = project.calculations[0];
+  const latestSupply = latestCalculation
+    ? await loadSupply(latestCalculation).then(
+        (supply) => ({ supply, supplyError: null }),
+        (error: unknown) => ({
+          supply: null,
+          supplyError: error instanceof Error ? error.message : 'Поставка не рассчитана',
+        }),
+      )
+    : {};
 
   const serializedProject: SerializedProject = {
     id: project.id,
@@ -104,7 +116,7 @@ export default async function ProjectDetailPage(props: {
           .length,
       })),
     },
-    calculations: project.calculations.map((c) => ({
+    calculations: project.calculations.map((c, index) => ({
       id: c.id,
       name: c.name,
       customer: c.customer,
@@ -145,6 +157,8 @@ export default async function ProjectDetailPage(props: {
       standardProfileId: c.standardProfileId,
       standardProfileVersion: c.standardProfileVersion,
       generatorVersion: c.generatorVersion,
+      // #103 §4.2: поставка и статьи — только у текущей версии (коммерческая сводка).
+      ...(index === 0 ? latestSupply : {}),
     })),
     packages: project.packages.map((p) => ({
       id: p.id,

@@ -3,6 +3,7 @@ import { CalculationForExport } from './export';
 import { roleLabel, STATUS_LABELS } from './roles';
 import { totalLaborHours } from './scheduling';
 import { risksTotalHours } from './totals';
+import { roundDecimal } from './specification/totals';
 import {
   calculateCommercialSummary,
   PRICING_MODE_LABELS,
@@ -108,8 +109,8 @@ function supplyRows(commercial: CommercialSummary): (string | number)[][] {
       l.quantity ?? 'неизвестно',
       l.unitSale === null ? 'неизвестно' : `${l.unitSale} ${l.currency}`,
       l.discountPercent ?? '',
-      l.sale === null ? 'неизвестно' : Number(l.sale),
-      l.cost === null ? 'неизвестно' : Number(l.cost),
+      l.sale === null ? 'неизвестно' : Number(roundDecimal(l.sale, 2)),
+      l.cost === null ? 'неизвестно' : Number(roundDecimal(l.cost, 2)),
       l.rate ? `${l.rate.rate} (${l.rate.date}, ${l.rate.source})` : l.problems.join('; '),
     ]);
   }
@@ -120,7 +121,7 @@ function supplyRows(commercial: CommercialSummary): (string | number)[][] {
       c.unitCost === null ? 'неизвестно' : `${c.unitCost} ${c.currency}`,
       '',
       '',
-      c.amount === null ? 'неизвестно' : Number(c.amount),
+      c.amount === null ? 'неизвестно' : Number(roundDecimal(c.amount, 2)),
       c.state === 'linked'
         ? 'себестоимость строки поставки'
         : c.state === 'orphan'
@@ -286,6 +287,7 @@ export function renderCalculationXlsx(
       commercial.vatAmount,
     ],
     ...supplyRows(commercial),
+    ...(calc.supplyError ? [['Поставка и статьи затрат не рассчитаны', calc.supplyError]] : []),
     ['ИТОГО К ОПЛАТЕ', '', commercial.total.grandTotal],
     [],
     [

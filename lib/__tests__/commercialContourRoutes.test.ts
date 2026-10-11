@@ -5,7 +5,7 @@ vi.mock('@/lib/auth', () => ({ requireApiRole: vi.fn() }));
 vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn(), clientIp: vi.fn(() => '127.0.0.1') }));
 vi.mock('@/lib/prisma', () => {
   const prisma = {
-    calculation: { findUnique: vi.fn(), update: vi.fn() },
+    calculation: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     costItem: { findMany: vi.fn(async () => []), create: vi.fn(), findUnique: vi.fn() },
     specificationVersion: { findUnique: vi.fn() },
     discountApproval: {
@@ -16,6 +16,7 @@ vi.mock('@/lib/prisma', () => {
     },
     exchangeRate: { findUnique: vi.fn(), findMany: vi.fn(async () => []), create: vi.fn() },
     $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
+    $executeRaw: vi.fn(async () => 1),
   };
   return { prisma };
 });
@@ -47,10 +48,13 @@ const req = (body: unknown, method = 'POST') =>
 const params = { params: Promise.resolve({ id: 'c1' }) };
 const approvalParams = { params: Promise.resolve({ id: 'c1', approvalId: 'a1' }) };
 
+const FP = 'f'.repeat(64);
 const state = (gate: Record<string, unknown>, over: Record<string, unknown> = {}) =>
   ({
     calculationId: 'c1',
     status: 'draft',
+    updatedAt: '2026-10-11T10:00:00.000Z',
+    fingerprint: FP,
     minMarginPercent: 15,
     discountPercent: 10,
     gate: {
@@ -76,15 +80,30 @@ describe('утверждение расчёта и порог маржи', () =>
     const res = await approve(req({}), params);
     expect(res.status).toBe(409);
     expect((await res.json()).error).toContain('ниже порога');
-    expect(prisma.calculation.update).not.toHaveBeenCalled();
+    expect(prisma.calculation.updateMany).not.toHaveBeenCalled();
   });
 
-  it('с согласованной скидкой — утверждается', async () => {
+  it('с согласованной скидкой — утверждается под блокировкой и только при неизменной строке', async () => {
     vi.mocked(requireApiRole).mockResolvedValue(session('architect'));
     vi.mocked(loadCommercialState).mockResolvedValue(state({ approved: true, approvalId: 'a1' }));
-    vi.mocked(prisma.calculation.update).mockResolvedValue({ id: 'c1' } as never);
+    vi.mocked(prisma.calculation.updateMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(prisma.calculation.findUnique).mockResolvedValue({ id: 'c1' } as never);
     expect((await approve(req({}), params)).status).toBe(200);
-    expect(prisma.calculation.update).toHaveBeenCalled();
+    expect(prisma.$executeRaw).toHaveBeenCalled(); // pg_advisory_xact_lock
+    expect(vi.mocked(prisma.calculation.updateMany).mock.calls[0][0].where).toEqual({
+      id: 'c1',
+      updatedAt: new Date('2026-10-11T10:00:00.000Z'),
+    });
+    expect(loadCommercialState).toHaveBeenCalledWith('c1', prisma);
+  });
+
+  it('расчёт изменился между чтением условий и записью — 409', async () => {
+    vi.mocked(requireApiRole).mockResolvedValue(session('architect'));
+    vi.mocked(loadCommercialState).mockResolvedValue(state({ requiresApproval: false }));
+    vi.mocked(prisma.calculation.updateMany).mockResolvedValue({ count: 0 } as never);
+    const res = await approve(req({}), params);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toContain('изменился');
   });
 });
 
@@ -104,6 +123,7 @@ describe('согласование скидки', () => {
       requestedPercent: 10,
       resultingMargin: 8.5,
       minMarginPercent: 15,
+      termsFingerprint: FP,
       requestedBy: 'ivanov',
       comment: 'стратегический клиент',
     });
@@ -125,6 +145,7 @@ describe('согласование скидки', () => {
       status: 'pending',
       requestedPercent: 10,
       resultingMargin: 8.5,
+      termsFingerprint: FP,
       requestedBy: 'ivanov',
     } as never);
     vi.mocked(requireApiRole).mockResolvedValue(session('architect', 'ivanov'));
@@ -136,7 +157,8 @@ describe('согласование скидки', () => {
       (await decideDiscount(req({ decision: 'approved' }, 'PATCH'), approvalParams)).status,
     ).toBe(403);
     vi.mocked(requireApiRole).mockResolvedValue(session('architect', 'petrov'));
-    vi.mocked(loadCommercialState).mockResolvedValue(state({ margin: 7 }));
+    // Та же маржа, но условия другие (например, изменились статьи) — отпечаток не совпал.
+    vi.mocked(loadCommercialState).mockResolvedValue(state({}, { fingerprint: 'e'.repeat(64) }));
     expect(
       (await decideDiscount(req({ decision: 'approved' }, 'PATCH'), approvalParams)).status,
     ).toBe(409);

@@ -65,6 +65,7 @@ CREATE TABLE "DiscountApproval" (
  "requestedPercent" DOUBLE PRECISION NOT NULL,
  "resultingMargin" DOUBLE PRECISION,
  "minMarginPercent" DOUBLE PRECISION NOT NULL,
+ "termsFingerprint" TEXT NOT NULL,
  "status" TEXT NOT NULL DEFAULT 'pending',
  "requestedBy" TEXT NOT NULL,
  "comment" TEXT,
@@ -75,6 +76,7 @@ CREATE TABLE "DiscountApproval" (
  CONSTRAINT "DiscountApproval_pkey" PRIMARY KEY ("id"),
  CONSTRAINT "DiscountApproval_status_check"
   CHECK ("status" IN ('pending', 'approved', 'rejected', 'withdrawn')),
+ CONSTRAINT "DiscountApproval_fingerprint_check" CHECK ("termsFingerprint" ~ '^[0-9a-f]{64}$'),
  CONSTRAINT "DiscountApproval_percent_check"
   CHECK ("requestedPercent" >= 0 AND "requestedPercent" <= 100),
  CONSTRAINT "DiscountApproval_decision_check"

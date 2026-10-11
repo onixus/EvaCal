@@ -821,6 +821,13 @@ function ForecastBlock({ forecast: f }: { forecast: ProfitForecast }) {
         />
         <Stat title="Прибыль по КП" value={cur(f.plannedProfit)} hint="план версии после скидки" />
       </div>
+      <p
+        className="text-[11px] text-amber-800 dark:text-nord-yellow"
+        data-testid="labour-only-label"
+      >
+        Прогноз — без учёта поставки и прочих затрат: выручка и затраты только по услугам (труд);
+        поставка и статьи затрат КП в прогноз пока не входят.
+      </p>
       {f.partial && (
         <div
           className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-nord-yellow"

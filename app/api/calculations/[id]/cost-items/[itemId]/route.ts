@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import {
   CommercialContourError,
   parseCostItemInput,
   requireEditableCalculation,
+  withCommercialLock,
 } from '@/lib/commercialContourData';
+import type { Prisma } from '@/lib/generated/prisma/client';
 import { COMMERCIAL_EDIT_ROLES, contourError } from '@/lib/commercialContourHttp';
 
 type Params = { params: Promise<{ id: string; itemId: string }> };
 
-async function requireItem(calculationId: string, itemId: string) {
-  const item = await prisma.costItem.findUnique({ where: { id: itemId } });
+async function requireItem(calculationId: string, itemId: string, db: Prisma.TransactionClient) {
+  const item = await db.costItem.findUnique({ where: { id: itemId } });
   if (!item || item.calculationId !== calculationId)
     throw new CommercialContourError('Статья не найдена', 404);
   return item;
@@ -24,10 +25,13 @@ export async function PUT(req: NextRequest, props: Params) {
   if (auth instanceof NextResponse) return auth;
   const { id, itemId } = await props.params;
   try {
-    const calc = await requireEditableCalculation(id);
-    await requireItem(id, itemId);
-    const data = parseCostItemInput(await req.json().catch(() => null), calc.currency);
-    await prisma.costItem.update({ where: { id: itemId }, data });
+    const body = await req.json().catch(() => null);
+    await withCommercialLock(id, async (tx) => {
+      const calc = await requireEditableCalculation(id, tx);
+      await requireItem(id, itemId, tx);
+      const data = parseCostItemInput(body, calc.currency);
+      await tx.costItem.update({ where: { id: itemId }, data });
+    });
     await writeAudit({
       actorType: 'user',
       actorId: auth.userId,
@@ -48,9 +52,12 @@ export async function DELETE(req: NextRequest, props: Params) {
   if (auth instanceof NextResponse) return auth;
   const { id, itemId } = await props.params;
   try {
-    await requireEditableCalculation(id);
-    const item = await requireItem(id, itemId);
-    await prisma.costItem.delete({ where: { id: itemId } });
+    const item = await withCommercialLock(id, async (tx) => {
+      await requireEditableCalculation(id, tx);
+      const item = await requireItem(id, itemId, tx);
+      await tx.costItem.delete({ where: { id: itemId } });
+      return item;
+    });
     await writeAudit({
       actorType: 'user',
       actorId: auth.userId,

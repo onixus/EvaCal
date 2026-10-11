@@ -12,6 +12,8 @@ import {
 } from '@/lib/offerCompare';
 import { parseSpecification } from '@/lib/specification/validation';
 import { FINAL_SPECIFICATION_STATUSES } from '@/lib/specification/types';
+import { loadSupply } from '@/lib/commercialContourData';
+import type { SupplyBreakdown } from '@/lib/supply';
 
 export class OfferCompareError extends Error {
   constructor(
@@ -68,6 +70,7 @@ export async function loadOfferComparison(
       discountPercent: true,
       vatPercent: true,
       includeVat: true,
+      pinnedSpecificationVersion: true,
       stages: {
         orderBy: { order: 'asc' },
         select: {
@@ -92,6 +95,22 @@ export async function loadOfferComparison(
   }
 
   const byId = new Map(calcs.map((c) => [c.id, c]));
+  // #103 §4.2: поставка и статьи затрат каждой версии; ошибка одной версии
+  // показывается в её колонке, остальные считаются.
+  const supplies = new Map<
+    string,
+    { supply: SupplyBreakdown | null; supplyError: string | null }
+  >();
+  for (const c of calcs) {
+    try {
+      supplies.set(c.id, { supply: await loadSupply(c), supplyError: null });
+    } catch (error) {
+      supplies.set(c.id, {
+        supply: null,
+        supplyError: error instanceof Error ? error.message : 'Поставка не рассчитана',
+      });
+    }
+  }
   const inputs: OfferVersionInput[] = ids.map((id) => {
     const c = byId.get(id)!;
     const latest = c.specifications[0] ?? null;
@@ -136,6 +155,7 @@ export async function loadOfferComparison(
       risks: c.risks,
       specification,
       latestSpecification: latest ? { version: latest.version, status: latest.status } : null,
+      ...supplies.get(c.id),
     };
   });
   return compareOffers(inputs);
