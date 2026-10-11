@@ -5,7 +5,7 @@ import { BUILTIN_SIZING_PROFILES } from './builtin';
 import { parseRules } from './engine';
 
 const sql = readFileSync(
-  path.join(__dirname, '../../prisma/migrations/20261030100000_sizing/migration.sql'),
+  path.join(__dirname, '../../prisma/migrations/20261108100000_sizing/migration.sql'),
   'utf8',
 );
 
