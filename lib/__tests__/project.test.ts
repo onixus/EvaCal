@@ -26,6 +26,11 @@ vi.mock('@/lib/prisma', () => ({
       update: vi.fn(),
     },
     stage: {
+      create: vi.fn(async ({ data }: { data: { name: string } }) => ({ id: `new_${data.name}` })),
+      update: vi.fn(),
+    },
+    stageDependency: {
+      findMany: vi.fn(async () => []),
       create: vi.fn(),
     },
     risk: {
@@ -214,6 +219,62 @@ describe('lib/project', () => {
       });
 
       expect(result).toBeDefined();
+    });
+
+    it('переводит согласование и зависимости этапов на id клонов', async () => {
+      const stage = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
+        id,
+        name,
+        role: 'analyst',
+        hours: 8,
+        order: 1,
+        startDate: new Date('2026-09-01'),
+        endDate: new Date('2026-09-02'),
+        isApprovalTask: false,
+        approvalForStageId: null,
+        dueDate: null,
+        requirements: null,
+        parallel: false,
+        approvalDays: null,
+        ...extra,
+      });
+      vi.mocked(prisma.calculation.findUnique).mockResolvedValueOnce({
+        id: 'calc_1',
+        name: 'Расчёт',
+        customer: 'Банк',
+        projectId: 'proj_1',
+        version: 1,
+        stages: [
+          stage('st_a', 'А'),
+          stage('st_b', 'Б'),
+          stage('st_ap', 'Согл', { isApprovalTask: true, approvalForStageId: 'st_a' }),
+        ],
+        risks: [],
+      } as any);
+      vi.mocked(prisma.calculation.findFirst).mockResolvedValue({ version: 1 } as any);
+      vi.mocked(prisma.calculation.create).mockResolvedValue({ id: 'calc_2' } as any);
+      vi.mocked(prisma.stageDependency.findMany).mockResolvedValueOnce([
+        { fromStageId: 'st_a', toStageId: 'st_b', type: 'FS', lagDays: 2 },
+      ] as any);
+
+      await createCalculationVersion({ parentCalculationId: 'calc_1' });
+
+      expect(prisma.stage.create).not.toHaveBeenCalledWith({
+        data: expect.objectContaining({ approvalForStageId: 'st_a' }),
+      });
+      expect(prisma.stage.update).toHaveBeenCalledWith({
+        where: { id: 'new_Согл' },
+        data: { approvalForStageId: 'new_А' },
+      });
+      expect(prisma.stageDependency.create).toHaveBeenCalledWith({
+        data: {
+          calculationId: 'calc_2',
+          fromStageId: 'new_А',
+          toStageId: 'new_Б',
+          type: 'FS',
+          lagDays: 2,
+        },
+      });
     });
   });
 

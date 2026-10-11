@@ -196,28 +196,55 @@ export async function createCalculationVersion(
     },
   });
 
-  // Deep clone stages
-  if (source.stages.length > 0) {
-    for (const stage of source.stages) {
-      await db.stage.create({
-        data: {
-          calculationId: newCalculation.id,
-          name: stage.name,
-          role: stage.role,
-          hours: stage.hours,
-          order: stage.order,
-          startDate: stage.startDate,
-          endDate: stage.endDate,
-          isApprovalTask: stage.isApprovalTask,
-          approvalForStageId: stage.approvalForStageId,
-          status: 'planned',
-          dueDate: stage.dueDate,
-          requirements: stage.requirements,
-          parallel: stage.parallel,
-          approvalDays: stage.approvalDays,
-        },
+  // Deep clone stages. Ссылки между этапами (согласование → этап, явные
+  // зависимости) переводятся на id клонов: id исходной версии в новой версии
+  // указывали бы на чужой расчёт.
+  const stageIdMap = new Map<string, string>();
+  for (const stage of source.stages) {
+    const created = await db.stage.create({
+      data: {
+        calculationId: newCalculation.id,
+        name: stage.name,
+        role: stage.role,
+        hours: stage.hours,
+        order: stage.order,
+        startDate: stage.startDate,
+        endDate: stage.endDate,
+        isApprovalTask: stage.isApprovalTask,
+        status: 'planned',
+        dueDate: stage.dueDate,
+        requirements: stage.requirements,
+        parallel: stage.parallel,
+        approvalDays: stage.approvalDays,
+      },
+    });
+    stageIdMap.set(stage.id, created.id);
+  }
+  for (const stage of source.stages) {
+    const target = stage.approvalForStageId ? stageIdMap.get(stage.approvalForStageId) : null;
+    if (target) {
+      await db.stage.update({
+        where: { id: stageIdMap.get(stage.id) },
+        data: { approvalForStageId: target },
       });
     }
+  }
+  const dependencies = await db.stageDependency.findMany({
+    where: { calculationId: source.id },
+  });
+  for (const dep of dependencies) {
+    const fromStageId = stageIdMap.get(dep.fromStageId);
+    const toStageId = stageIdMap.get(dep.toStageId);
+    if (!fromStageId || !toStageId) continue;
+    await db.stageDependency.create({
+      data: {
+        calculationId: newCalculation.id,
+        fromStageId,
+        toStageId,
+        type: dep.type,
+        lagDays: dep.lagDays,
+      },
+    });
   }
 
   // Deep clone risks
