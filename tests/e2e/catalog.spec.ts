@@ -16,7 +16,7 @@ test('catalog: new vendor, attributes, price history and mixed immutable project
   await page.getByLabel('Вендор позиции').selectOption({ label: name });
   await page.getByLabel('Наименование', { exact: true }).fill(`${name} Товар`);
   await page.getByLabel('Партномер', { exact: true }).fill('SKU-1');
-  await page.getByRole('button', { name: 'Добавить характеристику' }).click();
+  await page.getByRole('button', { name: 'Добавить характеристику', exact: true }).click();
   await page.getByLabel('Название характеристики 1', { exact: true }).fill('CPU');
   await page.getByLabel('Значение характеристики 1', { exact: true }).fill('4');
   await page.getByLabel('Единица характеристики 1', { exact: true }).fill('ядра');
