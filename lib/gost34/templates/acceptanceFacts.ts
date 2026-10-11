@@ -107,17 +107,25 @@ export function protocolGaps(facts: Gost34AcceptanceFacts | undefined): ContextG
       },
     ];
   }
+  const gaps: ContextGap[] = [];
+  if (facts.newerApprovedVersion && facts.newerApprovedVersion > facts.packageVersion) {
+    gaps.push({
+      path: 'acceptance.edition',
+      label: `Факты испытаний взяты из редакции v${facts.packageVersion}, а последняя утверждённая — v${facts.newerApprovedVersion}`,
+      severity: 'major',
+      hint: 'Сформируйте проверки и запишите результаты по последней утверждённой редакции или явно выберите редакцию для протокола.',
+    });
+  }
   const notRun = facts.checks.filter((c) => c.status === 'not_run').length;
-  return notRun > 0
-    ? [
-        {
-          path: 'acceptance.notRun',
-          label: `Проверки без результата: ${notRun}`,
-          severity: 'minor',
-          hint: 'В протоколе они отмечены как «не проводилась».',
-        },
-      ]
-    : [];
+  if (notRun > 0) {
+    gaps.push({
+      path: 'acceptance.notRun',
+      label: `Проверки без результата: ${notRun}`,
+      severity: 'minor',
+      hint: 'В протоколе они отмечены как «не проводилась».',
+    });
+  }
+  return gaps;
 }
 
 /** Пробелы, связанные с решением комиссии (ПСИ и акт). */

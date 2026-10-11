@@ -292,4 +292,9 @@ export interface Gost34AcceptanceFacts {
   decision: Gost34AcceptanceDecisionFact | null;
   /** Последнее решение устарело (после него менялись результаты). */
   decisionStale?: boolean;
+  /**
+   * Версия последней утверждённой редакции расчёта, если она новее редакции
+   * фактов: протокол печатается по более старой редакции — это пробел.
+   */
+  newerApprovedVersion?: number;
 }

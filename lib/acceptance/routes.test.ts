@@ -368,7 +368,14 @@ describe('Маршруты проверок приёмки', () => {
           value: expect.objectContaining({
             decision: 'rejected',
             checksSnapshot: [
-              { checkId: 'c1', requirementCode: 'ТР-01', status: 'failed', resultId: 'r1' },
+              {
+                checkId: 'c1',
+                requirementCode: 'ТР-01',
+                status: 'failed',
+                resultId: 'r1',
+                openRemarks: 0,
+                needsReview: false,
+              },
             ],
           }),
         }),

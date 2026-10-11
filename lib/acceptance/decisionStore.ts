@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import type { Gost34AcceptanceFacts } from '@/lib/gost34/types';
 import {
   currentDecision,
+  decisionInputs,
   type CommissionMember,
   type DecisionException,
   type DecisionKind,
@@ -51,10 +52,9 @@ export async function loadDecisionState(
   });
   const { decision, stale } = currentDecision(
     rows,
-    checks.map((c) => ({
-      id: c.id,
-      latestResultId: c.latest?.id ?? null,
-      latestResultAt: c.latest?.createdAt ?? null,
+    decisionInputs(checks).map((input, i) => ({
+      ...input,
+      latestResultAt: checks[i].latest?.createdAt ?? null,
     })),
   );
   return {
@@ -128,6 +128,15 @@ export async function loadAcceptanceFacts(input: {
   const checks = await listChecksWithFlags(pkg);
   if (checks.length === 0) return undefined;
   const state = await loadDecisionState(pkg.id, checks);
+  // Новее ли последняя утверждённая редакция расчёта (с проверками или без).
+  const newest = await prisma.gostPackage.findFirst({
+    where: {
+      calculationId: pkg.calculationId,
+      OR: [{ status: 'approved' }, { reviewStage: 'done', status: { not: 'archived' } }],
+    },
+    orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
+    select: { version: true },
+  });
   return {
     packageId: pkg.id,
     packageVersion: pkg.version,
@@ -157,6 +166,7 @@ export async function loadAcceptanceFacts(input: {
         }
       : null,
     decisionStale: state.stale,
+    ...(newest && newest.version > pkg.version ? { newerApprovedVersion: newest.version } : {}),
   };
 }
 

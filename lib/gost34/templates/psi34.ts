@@ -41,6 +41,8 @@ export function buildPSI34Document(payload: Gost34InputPayload): {
   const citations = payload.standardProfile.citations;
   const facts = payload.acceptance;
   const hasFacts = Boolean(facts && facts.checks.length > 0);
+  // Хотя бы одна проверка действительно проводилась (есть результат).
+  const hasResults = hasFacts && facts!.checks.some((c) => c.status !== 'not_run');
 
   const reqs = payload.customRequirements || [];
   const reqsV2: Gost34RequirementV2[] =
@@ -102,9 +104,10 @@ export function buildPSI34Document(payload: Gost34InputPayload): {
       paragraphs: [
         `1.1 Объект испытаний: Автоматизированная система «${meta.systemName}» (далее — Система).`,
         `1.2 Настоящий протокол фиксирует фактические результаты приемо-сдаточных испытаний (ПСИ) по стандарту ${citations.testing}.`,
-        `1.3 Испытания проводились в соответствии с Программой и методикой испытаний (ПМИ)${
-          hasFacts ? ` редакции v${facts!.packageVersion} комплекта документации` : ''
-        }.`,
+        // Утверждение о проведении испытаний — только при записанных фактах.
+        hasResults
+          ? `1.3 Испытания проводились в соответствии с Программой и методикой испытаний (ПМИ) редакции v${facts!.packageVersion} комплекта документации.`
+          : `1.3 Программа и методика испытаний (ПМИ), редакция: ${BLANK} (заполняется комиссией).`,
       ],
     },
     {

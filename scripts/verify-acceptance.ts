@@ -497,6 +497,93 @@ async function main() {
     );
     checks = await listChecks(pkg.id);
 
+    // M2: запрос на изменение и замечание после решения делают его устаревшим.
+    await prisma.changeRequest.updateMany({
+      where: { projectId: project.id },
+      data: { status: 'rejected', decidedBy: 'gap', decidedAt: new Date() },
+    });
+    const clean = await listChecksWithFlags(pkg);
+    const cleanRule = validateDecisionInput(
+      { decision: 'accepted', commission, basis: 'Протокол №2' },
+      decisionInputs(clean),
+    );
+    assert.ok(cleanRule.ok, 'all checks clean → accepted is allowed');
+    const accepted = await recordDecision({
+      packageId: pkg.id,
+      value: cleanRule.value,
+      decidedBy: 'gap',
+      decidedById: 'u-gap',
+    });
+    assert.equal((await loadDecisionState(pkg.id, clean)).current?.id, accepted.id);
+
+    const cr2 = await prisma.changeRequest.create({
+      data: {
+        projectId: project.id,
+        seq: 2,
+        title: 'Изменить отчёт',
+        initiator: 'Заказчик',
+        reason: 'Новый формат',
+        status: 'submitted',
+        baseCalculationId: calc.id,
+        basePackageId: pkg.id,
+        affectedRequirements: [{ id: 'r1', code: 'ТР-Ф-01', text: 'Отчёт' }],
+        createdBy: 'architect',
+      },
+    });
+    assert.equal(
+      (await loadDecisionState(pkg.id, await listChecksWithFlags(pkg))).stale,
+      true,
+      'change request submitted after the decision makes it stale',
+    );
+    await prisma.changeRequest.update({
+      where: { id: cr2.id },
+      data: { status: 'rejected', decidedBy: 'gap', decidedAt: new Date() },
+    });
+
+    await prisma.acceptanceRemark.create({
+      data: { checkId: c1.id, text: 'Замечание после приёмки', createdBy: 'gap' },
+    });
+    facts = await loadAcceptanceFacts({ calculationId: calc.id });
+    assert.equal(facts?.decision, null, 'open remark after "accepted" makes the decision stale');
+    assert.equal(facts?.decisionStale, true);
+    for (const docType of ['PSI', 'ACT'] as const) {
+      const body = prepareGost34Document({
+        calculation: { name: 'Приёмка', customer: 'CI' },
+        acceptance: facts,
+        metadataOverride: { docType },
+      })
+        .ast.sections.flatMap((s) => s.paragraphs)
+        .join('\n');
+      assert.ok(!body.includes('принять'), `${docType}: no stale conclusion`);
+      assert.ok(!body.includes('не зафиксировано'), `${docType}: no "no remarks" claim`);
+    }
+
+    // L5: более новая утверждённая редакция без проверок — пробел в протоколе.
+    await prisma.gostPackage.create({
+      data: {
+        calculationId: calc.id,
+        projectId: project.id,
+        name: 'v2',
+        version: 2,
+        status: 'approved',
+        reviewStage: 'done',
+        standardProfileId: 'ru-gost34-current',
+        standardProfileVersion: '1',
+        generatorVersion: '1',
+        documentTypes: '["tz","pmi"]',
+      },
+    });
+    facts = await loadAcceptanceFacts({ calculationId: calc.id });
+    assert.equal(facts?.packageId, pkg.id, 'facts still come from the edition with checks');
+    assert.equal(facts?.newerApprovedVersion, 2);
+    assert.ok(
+      prepareGost34Document({
+        calculation: { name: 'Приёмка', customer: 'CI' },
+        acceptance: facts,
+        metadataOverride: { docType: 'PSI' },
+      }).diagnostics.gaps.some((g) => g.path === 'acceptance.edition'),
+    );
+
     // Каскад: удаление комплекта удаляет проверки и решения, несмотря на запрет UPDATE.
     await prisma.gostPackage.delete({ where: { id: pkg.id } });
     assert.equal(await prisma.acceptanceCheck.count({ where: { packageId: pkg.id } }), 0);

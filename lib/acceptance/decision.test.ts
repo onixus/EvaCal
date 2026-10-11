@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { currentDecision, validateDecisionInput, type DecisionCheckInput } from './decision';
+import {
+  currentDecision,
+  validateDecisionInput,
+  type DecisionCheckInput,
+  type DecisionCheckState,
+} from './decision';
 import { affectedRequirementIds, reviewFlagsByRequirement, targetsPackage } from './review';
 
 const passed = (id: string, over: Partial<DecisionCheckInput> = {}): DecisionCheckInput => ({
@@ -128,37 +133,73 @@ describe('правила решения комиссии', () => {
 });
 
 describe('действующее решение', () => {
-  const decision = (id: string, at: string, snapshot: [string, string | null][]) => ({
-    id,
-    decidedAt: at,
-    checksSnapshot: snapshot.map(([checkId, resultId]) => ({ checkId, resultId })),
+  const state = (over: Partial<DecisionCheckState> = {}): DecisionCheckState => ({
+    ...passed('a', { latestResultId: 'r1' }),
+    latestResultAt: '2026-10-01T00:00:00Z',
+    ...over,
   });
+  const snap = (over: Record<string, unknown> = {}) => ({
+    checkId: 'a',
+    resultId: 'r1',
+    openRemarks: 0,
+    needsReview: false,
+    ...over,
+  });
+  const decision = (
+    id: string,
+    at: string,
+    entries: Record<string, unknown>[],
+    kind = 'accepted_with_remarks',
+  ) => ({ id, decision: kind, decidedAt: at, checksSnapshot: entries });
 
   it('последнее решение действует, пока факты не менялись', () => {
-    const checks = [{ id: 'a', latestResultId: 'r1', latestResultAt: '2026-10-01T00:00:00Z' }];
     const res = currentDecision(
       [
-        decision('d1', '2026-10-02T00:00:00Z', [['a', 'r0']]),
-        decision('d2', '2026-10-03T00:00:00Z', [['a', 'r1']]),
+        decision('d1', '2026-10-02T00:00:00Z', [snap({ resultId: 'r0' })]),
+        decision('d2', '2026-10-03T00:00:00Z', [snap()]),
       ],
-      checks,
+      [state()],
     );
     expect(res.decision?.id).toBe('d2');
     expect(res.stale).toBe(false);
   });
 
   it('новый результат или новая проверка после решения делают его устаревшим', () => {
-    const d = [decision('d1', '2026-10-03T00:00:00Z', [['a', 'r1']])];
-    const newer = currentDecision(d, [
-      { id: 'a', latestResultId: 'r2', latestResultAt: '2026-10-04T00:00:00Z' },
-    ]);
-    expect(newer).toMatchObject({ decision: null, stale: true });
-    const added = currentDecision(d, [
-      { id: 'a', latestResultId: 'r1', latestResultAt: '2026-10-01T00:00:00Z' },
-      { id: 'b', latestResultId: null, latestResultAt: null },
-    ]);
-    expect(added).toMatchObject({ decision: null, stale: true });
+    const d = [decision('d1', '2026-10-03T00:00:00Z', [snap()])];
+    expect(
+      currentDecision(d, [state({ latestResultId: 'r2', latestResultAt: '2026-10-04T00:00:00Z' })]),
+    ).toMatchObject({ decision: null, stale: true });
+    expect(
+      currentDecision(d, [
+        state(),
+        state({ id: 'b', latestResultId: null, latestResultAt: null, status: 'not_run' }),
+      ]),
+    ).toMatchObject({ decision: null, stale: true });
     expect(currentDecision([], [])).toMatchObject({ decision: null, stale: false });
+  });
+
+  it('открытое замечание после решения делает его устаревшим', () => {
+    const d = [decision('d1', '2026-10-03T00:00:00Z', [snap()], 'accepted')];
+    expect(currentDecision(d, [state({ openRemarks: 1 })])).toMatchObject({
+      decision: null,
+      stale: true,
+    });
+  });
+
+  it('запрос на изменение, поданный после решения, делает его устаревшим', () => {
+    const d = [decision('d1', '2026-10-03T00:00:00Z', [snap()])];
+    expect(currentDecision(d, [state({ needsReview: true })])).toMatchObject({
+      decision: null,
+      stale: true,
+    });
+  });
+
+  it('«принять» устаревает, если проверка сейчас не чистая, даже при совпадающем снимке', () => {
+    const outstanding = [state({ status: 'failed' })];
+    const d = [decision('d1', '2026-10-03T00:00:00Z', [snap()], 'accepted')];
+    expect(currentDecision(d, outstanding)).toMatchObject({ decision: null, stale: true });
+    const remarks = [decision('d1', '2026-10-03T00:00:00Z', [snap()])];
+    expect(currentDecision(remarks, outstanding).stale).toBe(false);
   });
 });
 

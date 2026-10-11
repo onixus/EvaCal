@@ -49,6 +49,9 @@ const FORBIDDEN = [
   'принята',
   'не выявлено',
   'не зафиксировано',
+  'проводились',
+  'включает',
+  'выполненных разработчиком',
   'в полном объеме',
 ];
 
@@ -233,5 +236,44 @@ describe('Акт приёмки', () => {
     expect(body).toContain('петров, ао «заказчик»');
     expect(body).toContain('гарантийные обязательства');
     expect(body).toContain('пройдено — 1');
+  });
+});
+
+describe('устаревшее решение и редакция фактов', () => {
+  it.each(['PSI', 'ACT'] as const)(
+    '%s: замечание после решения «принять» — ни «принять», ни «замечаний не зафиксировано»',
+    (doc) => {
+      // Решение устарело (lib/acceptance/decision.ts), поэтому в факты не попало.
+      const stale = facts({
+        checks: [
+          check({
+            status: 'passed',
+            actualResult: 'ok',
+            executorName: 'И',
+            executedAt: '2026-10-28T00:00:00Z',
+            openRemarks: 1,
+          }),
+        ],
+        decision: null,
+        decisionStale: true,
+      });
+      const { ast, diagnostics } = render(doc, stale);
+      const body = text(ast.sections);
+      expect(body).not.toContain('принять');
+      expect(body).not.toContain('не зафиксировано');
+      expect(diagnostics.gaps.find((g) => g.path === 'acceptance.decision')?.label).toBe(
+        'Решение комиссии устарело',
+      );
+    },
+  );
+
+  it('факты из редакции старше последней утверждённой — пробел диагностики', () => {
+    const { diagnostics } = render('PSI', facts({ newerApprovedVersion: 4 }));
+    const gap = diagnostics.gaps.find((g) => g.path === 'acceptance.edition');
+    expect(gap?.label).toContain('v3');
+    expect(gap?.label).toContain('v4');
+    expect(
+      render('ACT', facts({ newerApprovedVersion: 3 })).diagnostics.gaps.map((g) => g.path),
+    ).not.toContain('acceptance.edition');
   });
 });

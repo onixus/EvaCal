@@ -62,6 +62,8 @@ export interface NormalizedDecision {
     requirementCode: string;
     status: AcceptanceStatus;
     resultId: string | null;
+    openRemarks: number;
+    needsReview: boolean;
   }[];
 }
 
@@ -171,6 +173,8 @@ export function validateDecisionInput(
         requirementCode: c.requirementCode,
         status: c.status,
         resultId: c.latestResultId,
+        openRemarks: c.openRemarks,
+        needsReview: c.needsReview,
       })),
     },
   };
@@ -178,34 +182,57 @@ export function validateDecisionInput(
 
 export interface DecisionLike {
   id: string;
+  decision: string;
   decidedAt: Date | string;
   checksSnapshot: unknown;
+}
+
+/** Текущее состояние проверки для сверки со снимком решения. */
+export interface DecisionCheckState extends DecisionCheckInput {
+  latestResultAt: Date | string | null;
+}
+
+interface SnapshotEntry {
+  checkId: string;
+  resultId: string | null;
+  openRemarks?: number;
+  needsReview?: boolean;
 }
 
 const ts = (d: Date | string) => (d instanceof Date ? d.getTime() : new Date(d).getTime());
 
 /**
- * Действующее решение и признак устаревания. Устарело, если после решения
- * записан результат или набор проверок изменился (новая проверка).
+ * Действующее решение и признак устаревания. Решение устарело, если факты
+ * разошлись со снимком: по проверке записан новый результат, изменилось
+ * число открытых замечаний или пометка пересмотра по запросу на изменение,
+ * появилась новая проверка. Решение «принять» устаревает и тогда, когда
+ * хотя бы одна проверка сейчас не «чистая» (не пройдена, есть замечание или
+ * пересмотр) — даже если снимок формально совпадает.
  */
 export function currentDecision<T extends DecisionLike>(
   decisions: T[],
-  checks: { id: string; latestResultId: string | null; latestResultAt: Date | string | null }[],
+  checks: DecisionCheckState[],
 ): { decision: T | null; stale: boolean; latest: T | null } {
   const latest =
     [...decisions].sort((a, b) => ts(b.decidedAt) - ts(a.decidedAt) || (a.id < b.id ? 1 : -1))[0] ??
     null;
   if (!latest) return { decision: null, stale: false, latest: null };
   const snapshot = Array.isArray(latest.checksSnapshot)
-    ? (latest.checksSnapshot as { checkId: string; resultId: string | null }[])
+    ? (latest.checksSnapshot as SnapshotEntry[])
     : [];
-  const snap = new Map(snapshot.map((s) => [s.checkId, s.resultId]));
-  const stale = checks.some(
-    (c) =>
-      !snap.has(c.id) ||
-      snap.get(c.id) !== c.latestResultId ||
-      (c.latestResultAt !== null && ts(c.latestResultAt) > ts(latest.decidedAt)),
-  );
+  const snap = new Map(snapshot.map((s) => [s.checkId, s]));
+  const stale =
+    checks.some((c) => {
+      const s = snap.get(c.id);
+      return (
+        !s ||
+        s.resultId !== c.latestResultId ||
+        (s.openRemarks ?? 0) !== c.openRemarks ||
+        (s.needsReview ?? false) !== c.needsReview ||
+        (c.latestResultAt !== null && ts(c.latestResultAt) > ts(latest.decidedAt))
+      );
+    }) ||
+    (latest.decision === 'accepted' && checks.some(isOutstanding));
   return { decision: stale ? null : latest, stale, latest };
 }
 
