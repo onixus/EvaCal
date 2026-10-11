@@ -1,6 +1,164 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+  Tailwind CSS 4: конфигурация живёт здесь (CSS-first), tailwind.config.ts больше нет.
+
+  Классы ищутся только в app/ и components/ — как и в content-глобах v3. Без
+  source(none) v4 сканировал бы весь репозиторий и генерировал бы классы из
+  lib/, docs/ и тестов, которых в v3 не было.
+*/
+@import 'tailwindcss' source(none);
+@source '../app';
+@source '../components';
+
+/* darkMode: 'class' из v3: тёмная тема включается классом .dark на <html>. */
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /*
+    Шрифтовой стек v3. С 4.3 Tailwind по умолчанию перечисляет шрифты явно
+    (-apple-system, Segoe UI, Roboto…) без system-ui, и на Linux интерфейс
+    съезжал на Noto Sans/Arial вместо системного шрифта.
+  */
+  --font-sans:
+    ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
+
+  /*
+    Межстрочные интервалы text-* в rem, как в v3. В v4 они безразмерные
+    (1.4286 у text-sm), и дочерний элемент со своим кеглем наследует уже
+    коэффициент, а не 20px: поля внутри <label class="text-sm"> становились ниже.
+  */
+  --text-xs--line-height: 1rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #d9e6ff;
+  --color-brand-200: #b8cdfa;
+  --color-brand-500: #3f6fdb;
+  --color-brand-600: #3159c2;
+  --color-brand-700: #28479a;
+  --color-brand-800: #1f3777;
+
+  --color-nord-0: #2e3440;
+  --color-nord-1: #3b4252;
+  --color-nord-2: #434c5e;
+  --color-nord-3: #4c566a;
+  --color-nord-4: #d8dee9;
+  --color-nord-5: #e5e9f0;
+  --color-nord-6: #eceff4;
+  --color-nord-muted: #b6c0ce;
+  --color-nord-frost1: #8fbcbb;
+  --color-nord-frost2: #88c0d0;
+  --color-nord-frost3: #81a1c1;
+  --color-nord-frost4: #5e81ac;
+  --color-nord-red: #bf616a;
+  --color-nord-redText: #e5a0a8;
+  --color-nord-orange: #d08770;
+  --color-nord-yellow: #ebcb8b;
+  --color-nord-green: #a3be8c;
+  --color-nord-purple: #b48ead;
+}
+
+/*
+  Совместимость с базовыми стилями v3 (см. официальный upgrade guide):
+  - бордер по умолчанию в v4 — currentcolor, в v3 был gray-200;
+  - плейсхолдер в v4 — currentcolor 50%, в v3 был gray-400;
+  - кнопки в v4 получают cursor: default, в v3 — pointer.
+  Без этого слоя каждое место, полагавшееся на умолчания, изменило бы вид.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /*
+    Preflight v4 ставит контролам opacity: 1 и выравнивает внутренности полей
+    даты; v3 этого не делал. Возвращаем умолчания браузера: отключённый select
+    остаётся приглушённым, а поля даты — прежней высоты.
+  */
+  button,
+  input,
+  select,
+  optgroup,
+  textarea,
+  ::file-selector-button {
+    opacity: revert;
+  }
+
+  /* Кнопка выбора файла: v3 её не сбрасывал, v4 снимает рамку, фон и отступы. */
+  ::file-selector-button {
+    margin: revert;
+    padding: revert;
+    border: revert;
+    border-radius: revert;
+    background-color: revert;
+    color: revert;
+  }
+
+  ::-webkit-date-and-time-value {
+    min-height: revert;
+    text-align: revert;
+  }
+
+  ::-webkit-datetime-edit {
+    display: revert;
+  }
+
+  ::-webkit-datetime-edit-fields-wrapper {
+    padding: revert;
+  }
+
+  ::-webkit-datetime-edit,
+  ::-webkit-datetime-edit-year-field,
+  ::-webkit-datetime-edit-month-field,
+  ::-webkit-datetime-edit-day-field,
+  ::-webkit-datetime-edit-hour-field,
+  ::-webkit-datetime-edit-minute-field,
+  ::-webkit-datetime-edit-second-field,
+  ::-webkit-datetime-edit-millisecond-field,
+  ::-webkit-datetime-edit-meridiem-field {
+    padding-block: revert;
+  }
+}
+
+/*
+  space-y-* в семантике v3: отступ сверху у каждого видимого соседа, начиная со
+  второго. В v4 вместо этого отступ снизу у всех, кроме последнего, — и экраны
+  поехали: строчный <label> перед блоком теряет зазор (отступ у inline не
+  работает), а скрытый последний ребёнок оставляет лишний зазор у карточки.
+
+  Встроенное правило v4 (нулевая специфичность, :where) не выключить, поэтому
+  его margin-block-* обнуляются через собственную переменную: значение none
+  делает calc() недействительным, и margin откатывается к 0. Собственные
+  отступы ребёнка (mt-N, mb-N) специфичнее :where и работают, как в v3.
+*/
+@utility space-y-* {
+  & > :not(:last-child) {
+    --tw-space-y-reverse: none;
+  }
+  & > :not([hidden]) ~ :not([hidden]) {
+    margin-top: --spacing(--value(number));
+  }
+}
 
 /* =========================================================================
    КАРКАС И ПЛОТНОСТЬ
@@ -59,7 +217,7 @@ body {
    ПОВЕРХНОСТИ
    ========================================================================= */
 .card {
-  @apply rounded-xl border border-slate-200 bg-white shadow-sm dark:border-nord-3 dark:bg-nord-2;
+  @apply rounded-xl border border-slate-200 bg-white shadow-xs dark:border-nord-3 dark:bg-nord-2;
 }
 
 .card-flat {
@@ -72,7 +230,7 @@ body {
 }
 
 .card-interactive {
-  @apply card transition-all duration-150 hover:border-slate-300 hover:shadow-md dark:hover:border-nord-4/30;
+  @apply rounded-xl border border-slate-200 bg-white shadow-xs dark:border-nord-3 dark:bg-nord-2 transition-all duration-150 hover:border-slate-300 hover:shadow-md dark:hover:border-nord-4/30;
 }
 
 /* Шапка карточки: заголовок раздела и действия справа. */
@@ -100,19 +258,19 @@ body {
 }
 
 .btn-primary {
-  @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:scale-[0.98] dark:bg-nord-frost4 dark:text-white dark:hover:bg-nord-frost3;
+  @apply inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 bg-brand-600 text-white shadow-xs hover:bg-brand-700 active:scale-[0.98] dark:bg-nord-frost4 dark:text-white dark:hover:bg-nord-frost3;
 }
 
 .btn-secondary {
-  @apply btn border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 active:scale-[0.98] dark:border-nord-3 dark:bg-nord-2 dark:text-nord-4 dark:hover:bg-nord-3 dark:hover:text-nord-6;
+  @apply inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 border border-slate-200 bg-white text-slate-700 shadow-xs hover:bg-slate-50 hover:text-slate-900 active:scale-[0.98] dark:border-nord-3 dark:bg-nord-2 dark:text-nord-4 dark:hover:bg-nord-3 dark:hover:text-nord-6;
 }
 
 .btn-ghost {
-  @apply btn text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-nord-4 dark:hover:bg-nord-3;
+  @apply inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-nord-4 dark:hover:bg-nord-3;
 }
 
 .btn-danger {
-  @apply btn border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-nord-red/40 dark:bg-nord-red/20 dark:text-nord-redText dark:hover:bg-nord-red/30;
+  @apply inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-nord-red/40 dark:bg-nord-red/20 dark:text-nord-redText dark:hover:bg-nord-red/30;
 }
 
 /* =========================================================================
@@ -120,7 +278,7 @@ body {
    ========================================================================= */
 .input {
   @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[13px] text-slate-900 transition-colors placeholder:text-slate-400
-    focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20
+    focus:border-brand-500 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20
     disabled:bg-slate-100
     dark:border-nord-3 dark:bg-nord-1 dark:text-nord-6 dark:focus:border-nord-frost2 dark:focus:ring-nord-frost2/20 dark:disabled:bg-nord-2;
 }
@@ -146,7 +304,7 @@ body {
 }
 
 .filter-chip-count {
-  @apply nums rounded-full bg-black/10 px-1.5 text-[10px] font-bold;
+  @apply tabular-nums rounded-full bg-black/10 px-1.5 text-[10px] font-bold;
 }
 
 /* =========================================================================
@@ -159,23 +317,23 @@ body {
 }
 
 .chip-ok {
-  @apply chip border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-nord-green/40 dark:bg-nord-green/15 dark:text-nord-green;
+  @apply inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-px text-[10px] font-bold border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-nord-green/40 dark:bg-nord-green/15 dark:text-nord-green;
 }
 
 .chip-warn {
-  @apply chip border-amber-200 bg-amber-50 text-amber-700 dark:border-nord-yellow/40 dark:bg-nord-yellow/15 dark:text-nord-yellow;
+  @apply inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-px text-[10px] font-bold border-amber-200 bg-amber-50 text-amber-700 dark:border-nord-yellow/40 dark:bg-nord-yellow/15 dark:text-nord-yellow;
 }
 
 .chip-block {
-  @apply chip border-rose-200 bg-rose-50 text-rose-700 dark:border-nord-red/40 dark:bg-nord-red/15 dark:text-nord-redText;
+  @apply inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-px text-[10px] font-bold border-rose-200 bg-rose-50 text-rose-700 dark:border-nord-red/40 dark:bg-nord-red/15 dark:text-nord-redText;
 }
 
 .chip-info {
-  @apply chip border-brand-100 bg-brand-50 text-brand-700 dark:border-nord-frost4/40 dark:bg-nord-frost4/15 dark:text-nord-frost2;
+  @apply inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-px text-[10px] font-bold border-brand-100 bg-brand-50 text-brand-700 dark:border-nord-frost4/40 dark:bg-nord-frost4/15 dark:text-nord-frost2;
 }
 
 .chip-muted {
-  @apply chip border-slate-200 bg-slate-100 text-slate-500 dark:border-nord-3 dark:bg-nord-1 dark:text-nord-muted;
+  @apply inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-px text-[10px] font-bold border-slate-200 bg-slate-100 text-slate-500 dark:border-nord-3 dark:bg-nord-1 dark:text-nord-muted;
 }
 
 /* Точка статуса шага в рельсе студии и в списке проверок выпуска. */
@@ -205,7 +363,7 @@ body {
 @keyframes fieldFlash {
   0%,
   60% {
-    box-shadow: 0 0 0 3px theme('colors.brand.500 / 35%');
+    box-shadow: 0 0 0 3px --alpha(var(--color-brand-500) / 35%);
   }
   100% {
     box-shadow: 0 0 0 3px transparent;
@@ -239,17 +397,8 @@ body {
     animation: none;
   }
   .field-flash {
-    box-shadow: 0 0 0 3px theme('colors.brand.500 / 35%');
+    box-shadow: 0 0 0 3px --alpha(var(--color-brand-500) / 35%);
   }
-}
-
-/* Мелкие утилиты, которых нет в Tailwind 3, но которые уже разошлись по экранам. */
-.shadow-xs {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-}
-
-.backdrop-blur-xs {
-  backdrop-filter: blur(2px);
 }
 
 /* =========================================================================
@@ -302,29 +451,29 @@ body {
    в палитру Nord одним слоем правил, а не дублированием dark: на каждом узле.
    ========================================================================= */
 .dark .text-slate-900 {
-  color: theme('colors.nord.6');
+  color: var(--color-nord-6);
 }
 .dark .text-slate-700,
 .dark .text-slate-600 {
-  color: theme('colors.nord.4');
+  color: var(--color-nord-4);
 }
 .dark .text-slate-500,
 .dark .text-slate-400 {
-  color: theme('colors.nord.muted');
+  color: var(--color-nord-muted);
 }
 .dark .bg-slate-50 {
-  background-color: theme('colors.nord.0');
+  background-color: var(--color-nord-0);
 }
 .dark .bg-slate-100,
 .dark .hover\:bg-slate-100:hover,
 .dark .hover\:bg-slate-50:hover {
-  background-color: theme('colors.nord.3');
+  background-color: var(--color-nord-3);
 }
 .dark .border-slate-100,
 .dark .border-slate-200,
 .dark .border-slate-300 {
-  border-color: theme('colors.nord.3');
+  border-color: var(--color-nord-3);
 }
 .dark .text-brand-700 {
-  color: theme('colors.nord.frost2');
+  color: var(--color-nord-frost2);
 }

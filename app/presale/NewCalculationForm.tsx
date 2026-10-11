@@ -469,14 +469,14 @@ export default function NewCalculationForm({
           <button
             type="button"
             onClick={() => setStep((s) => Math.max(1, s - 1) as 1 | 2 | 3)}
-            className={`btn-secondary !text-xs ${step === 1 ? 'invisible' : ''}`}
+            className={`btn-secondary text-xs! ${step === 1 ? 'invisible' : ''}`}
           >
             ← Назад
           </button>
 
           <button
             type="submit"
-            className="btn-primary !text-xs"
+            className="btn-primary text-xs!"
             disabled={submitting || (step === 1 && !canLeaveStep1)}
             title={
               step === 1 && !canLeaveStep1

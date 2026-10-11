@@ -114,7 +114,7 @@ export default function TraceabilityStep({
         )}
 
         {requirements.length > 0 && (
-          <div className={`max-h-[26rem] overflow-y-auto ${SUBPANEL_CLASS}`}>
+          <div className={`max-h-104 overflow-y-auto ${SUBPANEL_CLASS}`}>
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100 dark:bg-nord-3 text-slate-900 dark:text-nord-6 sticky top-0 border-b border-slate-300 dark:border-nord-3">
                 <tr>
@@ -139,7 +139,7 @@ export default function TraceabilityStep({
                       <td className="p-3 font-mono font-bold text-brand-700 dark:text-nord-frost2">
                         {req.code}
                       </td>
-                      <td className="p-3 text-slate-900 dark:text-nord-6 break-words">
+                      <td className="p-3 text-slate-900 dark:text-nord-6 wrap-break-word">
                         <div className="font-semibold text-slate-900 dark:text-nord-6">
                           {req.title}
                         </div>
@@ -151,7 +151,7 @@ export default function TraceabilityStep({
                         <select
                           value={link?.targetId || ''}
                           onChange={(e) => setManualLink(req.id, e.target.value)}
-                          className="w-full bg-white dark:bg-nord-2 border border-slate-300 dark:border-nord-3 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-nord-6 focus:border-brand-500 focus:outline-none"
+                          className="w-full bg-white dark:bg-nord-2 border border-slate-300 dark:border-nord-3 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-nord-6 focus:border-brand-500 focus:outline-hidden"
                         >
                           <option value="">[НЕ РАСПРЕДЕЛЕНО]</option>
                           {stages.map((stage) => (

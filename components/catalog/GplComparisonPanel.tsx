@@ -61,7 +61,7 @@ function fieldValue(field: ComparisonField, value: string | null) {
 }
 function SourceSummary({ source, title }: { source: ComparisonSource; title: string }) {
   return (
-    <div className="space-y-1 break-words">
+    <div className="space-y-1 wrap-break-word">
       <h3 className="font-semibold">
         {title}: {source.filename}
       </h3>

@@ -174,7 +174,7 @@ export default function TraceabilityMatrixView({
   return (
     <div className="space-y-6">
       {/* Coverage & Metric Summary Header */}
-      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-nord-3 dark:bg-nord-1/60">
+      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs dark:border-nord-3 dark:bg-nord-1/60">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-base font-bold text-slate-900 dark:text-nord-6">
@@ -228,7 +228,7 @@ export default function TraceabilityMatrixView({
       </div>
 
       {/* Filter and Search Controls */}
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-nord-3 dark:bg-nord-1/60 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-nord-3 dark:bg-nord-1/60 sm:flex-row sm:items-center sm:justify-between">
         {/* Search input */}
         <div className="relative sm:w-80">
           <input
@@ -248,7 +248,7 @@ export default function TraceabilityMatrixView({
               onClick={() => setStatusFilter('all')}
               className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
                 statusFilter === 'all'
-                  ? 'bg-white text-slate-900 shadow-sm dark:bg-nord-3 dark:text-nord-6'
+                  ? 'bg-white text-slate-900 shadow-xs dark:bg-nord-3 dark:text-nord-6'
                   : 'text-slate-500 hover:text-slate-900 dark:text-nord-muted dark:hover:text-nord-4'
               }`}
             >
@@ -258,7 +258,7 @@ export default function TraceabilityMatrixView({
               onClick={() => setStatusFilter('covered')}
               className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
                 statusFilter === 'covered'
-                  ? 'bg-white text-emerald-700 shadow-sm dark:bg-nord-3 dark:text-nord-frost3'
+                  ? 'bg-white text-emerald-700 shadow-xs dark:bg-nord-3 dark:text-nord-frost3'
                   : 'text-slate-500 hover:text-slate-900 dark:text-nord-muted dark:hover:text-nord-4'
               }`}
             >
@@ -268,7 +268,7 @@ export default function TraceabilityMatrixView({
               onClick={() => setStatusFilter('unmapped')}
               className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-all ${
                 statusFilter === 'unmapped'
-                  ? 'bg-white text-amber-700 shadow-sm dark:bg-nord-3 dark:text-nord-yellow'
+                  ? 'bg-white text-amber-700 shadow-xs dark:bg-nord-3 dark:text-nord-yellow'
                   : 'text-slate-500 hover:text-slate-900 dark:text-nord-muted dark:hover:text-nord-4'
               }`}
             >
@@ -329,7 +329,7 @@ export default function TraceabilityMatrixView({
                     <td className="px-3.5 py-3 align-top">
                       {item.sourceQuestion ? (
                         <div className="space-y-1">
-                          <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-nord-frost2/20 dark:text-nord-frost2">
+                          <span className="rounded-sm bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-nord-frost2/20 dark:text-nord-frost2">
                             {item.sourceQuestion.fieldKey}
                           </span>
                           <div className="font-medium text-slate-800 dark:text-nord-5">
@@ -341,7 +341,7 @@ export default function TraceabilityMatrixView({
                         </div>
                       ) : (
                         <div className="space-y-1">
-                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-nord-2 dark:text-nord-muted">
+                          <span className="rounded-sm bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-nord-2 dark:text-nord-muted">
                             Нормативный профиль
                           </span>
                           <div className="text-[11px] text-slate-500 dark:text-nord-muted dark:text-nord-muted">
@@ -374,7 +374,7 @@ export default function TraceabilityMatrixView({
                     {/* 3. GOST 34 Section */}
                     <td className="px-3.5 py-3 align-top">
                       <div className="space-y-1">
-                        <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700 dark:bg-nord-3 dark:text-nord-4">
+                        <span className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700 dark:bg-nord-3 dark:text-nord-4">
                           п. {item.gostSection.code} ТЗ
                         </span>
                         <div className="font-medium text-slate-800 dark:text-nord-5">
@@ -387,7 +387,7 @@ export default function TraceabilityMatrixView({
                     <td className="px-3.5 py-3 align-top">
                       <div className="space-y-1">
                         <div className="flex items-center gap-1">
-                          <span className="rounded bg-purple-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-purple-700 dark:bg-nord-purple/20 dark:text-nord-purple">
+                          <span className="rounded-sm bg-purple-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-purple-700 dark:bg-nord-purple/20 dark:text-nord-purple">
                             {item.pmiTest.testCode}
                           </span>
                         </div>

@@ -311,7 +311,7 @@ export default function DocumentPreviewStep({
         type: 'manual' as const,
         label: 'изменён вручную',
         className:
-          'text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 dark:bg-nord-2 dark:text-nord-4 font-medium',
+          'text-[10px] px-1.5 py-0.5 rounded-sm bg-slate-200 text-slate-700 dark:bg-nord-2 dark:text-nord-4 font-medium',
         dotClass: 'bg-slate-400',
       };
     }
@@ -611,20 +611,20 @@ export default function DocumentPreviewStep({
             {hasComments && <span className="chip-block text-[10px]">требует правок</span>}
           </div>
 
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             {isEditing ? (
               <>
                 <button
                   type="button"
                   onClick={() => saveSectionEdit(sec.title)}
-                  className="btn-primary text-xs !px-2.5 !py-1"
+                  className="btn-primary text-xs px-2.5! py-1!"
                 >
                   Сохранить
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditingSectionTitle(null)}
-                  className="btn-secondary text-xs !px-2.5 !py-1"
+                  className="btn-secondary text-xs px-2.5! py-1!"
                 >
                   Отмена
                 </button>
@@ -741,7 +741,7 @@ export default function DocumentPreviewStep({
               placeholder="Поиск по разделам ТЗ..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="input !py-1 text-xs w-48 sm:w-60"
+              className="input py-1! text-xs w-48 sm:w-60"
             />
           </div>
         </div>
@@ -755,7 +755,7 @@ export default function DocumentPreviewStep({
                   <span>✨</span>
                   <span>ИИ-автор ТЗ:</span>
                 </span>
-                <span className="font-mono text-slate-600 dark:text-nord-4 bg-white dark:bg-nord-2 px-2 py-0.5 rounded border border-slate-200 dark:border-nord-3 text-[11px]">
+                <span className="font-mono text-slate-600 dark:text-nord-4 bg-white dark:bg-nord-2 px-2 py-0.5 rounded-sm border border-slate-200 dark:border-nord-3 text-[11px]">
                   {llmProviderId
                     ? `${llmProviderId}${llmSelectedModel ? ` / ${llmSelectedModel}` : ''}`
                     : 'провайдер по умолчанию'}
@@ -775,7 +775,7 @@ export default function DocumentPreviewStep({
                   {llmAvailable ? 'Готов к работе' : 'Сервер недоступен'}
                 </span>
                 {acceptedCount > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 font-medium">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 font-medium">
                     Принято: {acceptedCount}
                   </span>
                 )}
@@ -789,7 +789,7 @@ export default function DocumentPreviewStep({
                     disabled={
                       !llmAvailable || draftableNodes.length === 0 || generatingNodeId !== null
                     }
-                    className="btn-primary !py-1 !px-3 text-xs flex items-center gap-1.5 font-semibold bg-brand-600 text-white hover:bg-brand-700 shadow-sm disabled:opacity-50"
+                    className="btn-primary py-1! px-3! text-xs flex items-center gap-1.5 font-semibold bg-brand-600 text-white hover:bg-brand-700 shadow-xs disabled:opacity-50"
                     title="Последовательно сформировать черновики ИИ для всех разделов ТЗ"
                   >
                     <span>✨</span>
@@ -803,7 +803,7 @@ export default function DocumentPreviewStep({
                   <button
                     type="button"
                     onClick={batch.cancelBatch}
-                    className="btn-secondary !py-1 !px-3 text-xs flex items-center gap-1.5 font-semibold text-rose-700 border-rose-300 bg-white hover:bg-rose-50 dark:border-rose-800 dark:bg-nord-2 dark:text-rose-300"
+                    className="btn-secondary py-1! px-3! text-xs flex items-center gap-1.5 font-semibold text-rose-700 border-rose-300 bg-white hover:bg-rose-50 dark:border-rose-800 dark:bg-nord-2 dark:text-rose-300"
                   >
                     <span>⏹️</span>
                     <span>
@@ -815,7 +815,7 @@ export default function DocumentPreviewStep({
                 <button
                   type="button"
                   onClick={() => setShowLlmSettings(!showLlmSettings)}
-                  className="btn-secondary !py-1 !px-2.5 text-xs flex items-center gap-1 font-medium text-slate-700 dark:text-nord-4"
+                  className="btn-secondary py-1! px-2.5! text-xs flex items-center gap-1 font-medium text-slate-700 dark:text-nord-4"
                 >
                   <span>⚙️</span>
                   <span>{showLlmSettings ? 'Скрыть настройки' : 'Настройки'}</span>
@@ -940,14 +940,14 @@ export default function DocumentPreviewStep({
                   }}
                   className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors flex items-center justify-between gap-1.5 ${
                     isActive
-                      ? 'bg-brand-600 text-white font-medium shadow-sm'
+                      ? 'bg-brand-600 text-white font-medium shadow-xs'
                       : 'text-slate-700 dark:text-nord-4 hover:bg-slate-100 dark:hover:bg-nord-3'
                   } ${level > 1 ? 'pl-5 text-[11px]' : ''}`}
                 >
                   <span className="truncate">{section.title}</span>
                   {badge && (
                     <span
-                      className={`w-2 h-2 rounded-full flex-shrink-0 ${badge.dotClass}`}
+                      className={`w-2 h-2 rounded-full shrink-0 ${badge.dotClass}`}
                       title={badge.label}
                     />
                   )}

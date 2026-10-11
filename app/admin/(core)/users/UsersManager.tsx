@@ -100,7 +100,7 @@ export default function UsersManager({ users }: { users: User[] }) {
           </p>
           <p className="mt-1">
             Пароль:{' '}
-            <code className="rounded bg-white px-1.5 py-0.5 dark:bg-nord-2">
+            <code className="rounded-sm bg-white px-1.5 py-0.5 dark:bg-nord-2">
               {created.password}
             </code>{' '}
             — показывается один раз, сохраните и передайте пользователю. При первом входе стоит

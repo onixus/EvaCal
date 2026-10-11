@@ -107,7 +107,7 @@ export default function PackagesTab({
                       {docTypes.map((dt) => (
                         <span
                           key={dt}
-                          className="rounded bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase text-slate-700 dark:bg-nord-1 dark:text-nord-4"
+                          className="rounded-sm bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase text-slate-700 dark:bg-nord-1 dark:text-nord-4"
                         >
                           {dt}
                         </span>
@@ -151,7 +151,7 @@ export default function PackagesTab({
                     {pkg.checksum && (
                       <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400 dark:text-nord-muted">
                         <span>SHA-256:</span>
-                        <span className="truncate max-w-md bg-slate-100 px-1.5 py-0.5 rounded dark:bg-nord-1">
+                        <span className="truncate max-w-md bg-slate-100 px-1.5 py-0.5 rounded-sm dark:bg-nord-1">
                           {pkg.checksum}
                         </span>
                       </div>
@@ -203,7 +203,7 @@ export default function PackagesTab({
                       {pkg.status === 'rejected' && pkg.calculation && (
                         <Link
                           href={`/calculations/${pkg.calculation.id}/studio`}
-                          className="btn-primary !bg-rose-600 hover:!bg-rose-700 dark:!bg-nord-red text-xs font-bold"
+                          className="btn-primary bg-rose-600! hover:bg-rose-700! dark:bg-nord-red! text-xs font-bold"
                         >
                           Исправить в Студии
                         </Link>

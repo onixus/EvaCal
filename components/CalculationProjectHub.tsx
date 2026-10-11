@@ -113,7 +113,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-3">
                 {calculation.version && (
-                  <span className="rounded bg-slate-900 px-2 py-0.5 font-mono text-xs font-bold text-white dark:bg-nord-frost4 dark:text-nord-0">
+                  <span className="rounded-sm bg-slate-900 px-2 py-0.5 font-mono text-xs font-bold text-white dark:bg-nord-frost4 dark:text-nord-0">
                     v{calculation.version}
                   </span>
                 )}

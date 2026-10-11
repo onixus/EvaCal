@@ -343,7 +343,7 @@ export default function ProjectsListClient({
 
       {/* Create Project Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[2px]">
           <div className="card animate-in w-full max-w-lg overflow-hidden shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5 dark:border-nord-3 dark:bg-nord-1/60">
               <div>

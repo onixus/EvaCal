@@ -52,7 +52,7 @@ export default function PackageDiffModal({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-[2px] p-4">
       <div className="card w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
         <div className="border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/60 flex items-center justify-between shrink-0">
           <div>
@@ -198,7 +198,7 @@ export default function PackageDiffModal({
                     {diffResult.requirements.added.map((req) => (
                       <div
                         key={req.id}
-                        className="p-2 rounded bg-white dark:bg-nord-1 text-xs border border-emerald-100 dark:border-emerald-900/40"
+                        className="p-2 rounded-sm bg-white dark:bg-nord-1 text-xs border border-emerald-100 dark:border-emerald-900/40"
                       >
                         <div className="font-semibold text-slate-800 dark:text-nord-5">
                           {req.originalText}
@@ -221,7 +221,7 @@ export default function PackageDiffModal({
                     {diffResult.requirements.removed.map((req) => (
                       <div
                         key={req.id}
-                        className="p-2 rounded bg-white dark:bg-nord-1 text-xs border border-rose-100 dark:border-rose-900/40"
+                        className="p-2 rounded-sm bg-white dark:bg-nord-1 text-xs border border-rose-100 dark:border-rose-900/40"
                       >
                         <div className="line-through text-slate-500 dark:text-nord-muted">
                           {req.originalText}
@@ -241,7 +241,7 @@ export default function PackageDiffModal({
                     {diffResult.requirements.modified.map((item) => (
                       <div
                         key={item.id}
-                        className="p-2 rounded bg-white dark:bg-nord-1 text-xs border border-amber-100 dark:border-amber-900/40"
+                        className="p-2 rounded-sm bg-white dark:bg-nord-1 text-xs border border-amber-100 dark:border-amber-900/40"
                       >
                         <div className="text-slate-400 line-through text-[11px]">
                           {item.from.originalText}
@@ -267,7 +267,7 @@ export default function PackageDiffModal({
                     {diffResult.sections.overrides.map((section, index) => (
                       <div
                         key={index}
-                        className="text-xs p-2 rounded bg-slate-50 dark:bg-nord-1 flex items-center justify-between"
+                        className="text-xs p-2 rounded-sm bg-slate-50 dark:bg-nord-1 flex items-center justify-between"
                       >
                         <span className="font-mono text-slate-700 dark:text-nord-4">
                           {section.sectionKey}

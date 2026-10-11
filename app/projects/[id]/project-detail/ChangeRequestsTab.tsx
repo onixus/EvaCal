@@ -28,7 +28,7 @@ const STATUS_CLASSES: Record<ChangeRequestStatus, string> = {
 
 function StatusBadge({ status }: { status: ChangeRequestStatus }) {
   return (
-    <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${STATUS_CLASSES[status]}`}>
+    <span className={`rounded-sm px-2 py-0.5 text-[11px] font-bold ${STATUS_CLASSES[status]}`}>
       {CHANGE_REQUEST_STATUS_LABELS[status] ?? status}
     </span>
   );
@@ -311,7 +311,7 @@ function ChangeRequestForm({
                 return (
                   <li
                     key={r.id}
-                    className="rounded border border-slate-100 p-2 text-xs dark:border-nord-3"
+                    className="rounded-sm border border-slate-100 p-2 text-xs dark:border-nord-3"
                   >
                     <label className="flex cursor-pointer items-start gap-2">
                       <input type="checkbox" checked={!!sel} onChange={() => toggle(r.id)} />
@@ -445,7 +445,7 @@ function EstimateForm({
   return (
     <form
       onSubmit={submit}
-      className="space-y-2 rounded border border-slate-100 p-3 dark:border-nord-3"
+      className="space-y-2 rounded-sm border border-slate-100 p-3 dark:border-nord-3"
     >
       <p className={sectionTitle}>Оценка специалиста</p>
       <p className="text-[11px] text-slate-500 dark:text-nord-muted">
@@ -560,7 +560,7 @@ function DecisionPanel({
   };
 
   return (
-    <div className="space-y-2 rounded border border-slate-100 p-3 dark:border-nord-3">
+    <div className="space-y-2 rounded-sm border border-slate-100 p-3 dark:border-nord-3">
       <p className={sectionTitle}>Решение</p>
       {cr.status === 'submitted' && (
         <p className="text-[11px] text-slate-500 dark:text-nord-muted">
@@ -816,7 +816,7 @@ function ChangeRequestDetail({
       )}
 
       {cr.estimatedAt && (
-        <div className="rounded bg-slate-50 p-3 dark:bg-nord-1/40">
+        <div className="rounded-sm bg-slate-50 p-3 dark:bg-nord-1/40">
           <p className={sectionTitle}>Подтверждённая оценка</p>
           <p className="text-slate-800 dark:text-nord-5">
             {signed(cr.confirmedHours)} ч · {signed(cr.confirmedCost)}{' '}
@@ -835,7 +835,7 @@ function ChangeRequestDetail({
       )}
 
       {cr.status === 'accepted' && cr.resultCalculationId && (
-        <div className="rounded bg-emerald-50 p-3 dark:bg-emerald-950/30">
+        <div className="rounded-sm bg-emerald-50 p-3 dark:bg-emerald-950/30">
           <p className={sectionTitle}>Результат принятия</p>
           <p className="text-slate-800 dark:text-nord-5">
             <a

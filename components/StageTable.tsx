@@ -81,7 +81,7 @@ export default function StageTable({ stages }: { stages: StageRow[] }) {
                     )}
                     {stage.parallel && (
                       <span
-                        className="mt-0.5 rounded bg-sky-100 px-1 py-0.2 text-[10px] font-bold text-sky-700 dark:bg-nord-frost4/30 dark:text-nord-frost2"
+                        className="mt-0.5 rounded-sm bg-sky-100 px-1 py-0.2 text-[10px] font-bold text-sky-700 dark:bg-nord-frost4/30 dark:text-nord-frost2"
                         title="Выполняется параллельно"
                       >
                         ∥

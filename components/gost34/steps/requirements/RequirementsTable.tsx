@@ -70,7 +70,7 @@ export default function RequirementsTable({
                 onClick={() => setCategoryFilter(cat.id)}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                   categoryFilter === cat.id
-                    ? 'bg-brand-600 text-white shadow-sm'
+                    ? 'bg-brand-600 text-white shadow-xs'
                     : 'bg-white dark:bg-nord-1 text-slate-600 dark:text-nord-4 hover:bg-slate-50 dark:hover:bg-nord-3 border border-slate-200 dark:border-nord-3'
                 }`}
               >
@@ -118,12 +118,12 @@ export default function RequirementsTable({
                     </td>
                     <td className="p-3 align-top">
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${catBadge.style}`}
+                        className={`px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase border ${catBadge.style}`}
                       >
                         {catBadge.label}
                       </span>
                     </td>
-                    <td className="p-3 text-slate-900 dark:text-nord-6 break-words align-top space-y-1.5">
+                    <td className="p-3 text-slate-900 dark:text-nord-6 wrap-break-word align-top space-y-1.5">
                       <div className="font-semibold text-slate-900 dark:text-nord-6">
                         {req.title}
                       </div>
@@ -135,7 +135,7 @@ export default function RequirementsTable({
                       {findings.map((finding, idx) => (
                         <div
                           key={idx}
-                          className={`text-[10px] rounded border px-2 py-1 ${SEVERITY_STYLES[finding.severity]}`}
+                          className={`text-[10px] rounded-sm border px-2 py-1 ${SEVERITY_STYLES[finding.severity]}`}
                         >
                           <span className="font-bold uppercase mr-1">{finding.rule}</span>
                           {finding.message}
@@ -146,7 +146,7 @@ export default function RequirementsTable({
                       <div className="truncate">{req.sourceFile || '—'}</div>
                       {req.normalizedBy && (
                         <div
-                          className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30 text-[10px]"
+                          className="inline-block px-1.5 py-0.5 rounded-sm bg-amber-50 text-amber-900 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30 text-[10px]"
                           title={
                             req.originalText
                               ? `Исходная формулировка: ${req.originalText}`
@@ -161,7 +161,7 @@ export default function RequirementsTable({
                       <button
                         type="button"
                         onClick={() => onDeleteRequirement(req.id)}
-                        className="text-red-400 hover:text-red-300 font-bold text-sm px-2 py-0.5 rounded bg-red-500/10 hover:bg-red-500/20 transition-colors cursor-pointer"
+                        className="text-red-400 hover:text-red-300 font-bold text-sm px-2 py-0.5 rounded-sm bg-red-500/10 hover:bg-red-500/20 transition-colors cursor-pointer"
                         title="Удалить требование"
                       >
                         ✕

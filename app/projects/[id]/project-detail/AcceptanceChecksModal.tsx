@@ -21,7 +21,7 @@ const STATUS_STYLES: Record<AcceptanceStatus, string> = {
 
 function StatusBadge({ status }: { status: AcceptanceStatus }) {
   return (
-    <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${STATUS_STYLES[status]}`}>
+    <span className={`rounded-sm px-2 py-0.5 text-[11px] font-bold ${STATUS_STYLES[status]}`}>
       {ACCEPTANCE_STATUS_LABELS[status]}
     </span>
   );
@@ -229,7 +229,7 @@ function ResultForm({
         {evidence.map((ev) => (
           <span
             key={ev.id}
-            className="rounded bg-slate-100 px-2 py-0.5 dark:bg-nord-1"
+            className="rounded-sm bg-slate-100 px-2 py-0.5 dark:bg-nord-1"
             title={`SHA-256 ${ev.checksum}`}
           >
             {ev.name}{' '}
@@ -368,7 +368,7 @@ function CheckCard({
             <StatusBadge status={check.status} />
             {check.needsReview.length > 0 && (
               <span
-                className="rounded bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                className="rounded-sm bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
                 title={check.needsReview.map((f) => `${f.label}: ${f.title}`).join('\n')}
               >
                 Требует пересмотра:{' '}
@@ -458,7 +458,7 @@ function CheckCard({
       )}
 
       {check.remarks.length > 0 && (
-        <ul className="mt-2 space-y-1 rounded bg-amber-50 p-2 dark:bg-amber-950/20">
+        <ul className="mt-2 space-y-1 rounded-sm bg-amber-50 p-2 dark:bg-amber-950/20">
           {check.remarks.map((r) => (
             <RemarkRow
               key={r.id}
@@ -527,7 +527,7 @@ export default function AcceptanceChecksModal({
 
   const summary = data?.summary;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px] p-4">
       <div className="card flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-nord-3 dark:bg-nord-1/60">
           <div>
@@ -550,7 +550,7 @@ export default function AcceptanceChecksModal({
 
         <div className="space-y-3 overflow-y-auto p-6">
           {error && (
-            <p className="rounded bg-rose-50 p-2 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+            <p className="rounded-sm bg-rose-50 p-2 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
               {error}
             </p>
           )}
@@ -590,7 +590,7 @@ export default function AcceptanceChecksModal({
             />
           )}
           {data && data.canRecord && data.pendingSeeds > 0 && (
-            <div className="flex items-center justify-between rounded border border-dashed border-slate-300 p-3 text-xs dark:border-nord-3">
+            <div className="flex items-center justify-between rounded-sm border border-dashed border-slate-300 p-3 text-xs dark:border-nord-3">
               <span>
                 Требований с критериями приёмки без проверки: <strong>{data.pendingSeeds}</strong>
               </span>

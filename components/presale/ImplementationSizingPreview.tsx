@@ -21,7 +21,7 @@ export default function ImplementationSizingPreview({
               {sizing.summary}
             </div>
           </div>
-          <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase text-slate-500 shadow-sm dark:bg-nord-2 dark:text-nord-4">
+          <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase text-slate-500 shadow-xs dark:bg-nord-2 dark:text-nord-4">
             проектная оценка
           </span>
         </div>

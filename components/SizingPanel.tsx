@@ -661,7 +661,7 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
         <h3 className="font-semibold text-slate-900 dark:text-nord-6">Прогоны расчета</h3>
         {runs.length === 0 ? <p className="text-sm text-slate-500">Прогонов нет.</p> : null}
         {runs.map((r) => (
-          <details key={r.id} className="rounded border border-slate-200 p-3 dark:border-nord-3">
+          <details key={r.id} className="rounded-sm border border-slate-200 p-3 dark:border-nord-3">
             <summary className="text-sm">
               {r.profile ? `${r.profile.name} v${r.profile.version}` : 'Ручной сайзинг'} ·{' '}
               {new Date(r.createdAt).toLocaleString('ru-RU')}
@@ -727,7 +727,7 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
           </details>
         ))}
         {linkForm ? (
-          <div className="space-y-2 rounded border border-slate-200 p-3 text-sm dark:border-nord-3">
+          <div className="space-y-2 rounded-sm border border-slate-200 p-3 text-sm dark:border-nord-3">
             <div>
               Связь метрики <b>{linkForm.metric}</b> (сценарий {linkForm.scenario}) с позицией
             </div>

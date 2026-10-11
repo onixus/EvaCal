@@ -114,7 +114,7 @@ export default function TzDraftReviewPanel({
                 type="checkbox"
                 checked={speculate}
                 onChange={(e) => setSpeculate(e.target.checked)}
-                className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-nord-3 dark:bg-nord-1"
+                className="rounded-sm border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-nord-3 dark:bg-nord-1"
                 disabled={disabled || isGenerating}
               />
               <span title="Разрешить модели делать предположения при недостатке контекста">
@@ -126,7 +126,7 @@ export default function TzDraftReviewPanel({
               type="button"
               onClick={handleGenerate}
               disabled={disabled || isGenerating}
-              className="btn-secondary !py-1 !px-3 text-xs flex items-center gap-1.5 font-semibold text-brand-700 border-brand-300 bg-white hover:bg-brand-50 dark:border-brand-500/40 dark:bg-nord-2 dark:text-brand-300 dark:hover:bg-nord-3"
+              className="btn-secondary py-1! px-3! text-xs flex items-center gap-1.5 font-semibold text-brand-700 border-brand-300 bg-white hover:bg-brand-50 dark:border-brand-500/40 dark:bg-nord-2 dark:text-brand-300 dark:hover:bg-nord-3"
             >
               {isGenerating ? (
                 <>
@@ -148,7 +148,7 @@ export default function TzDraftReviewPanel({
         </div>
 
         {actionError && (
-          <div className="mt-2 text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded p-2">
+          <div className="mt-2 text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-sm p-2">
             {actionError}
           </div>
         )}
@@ -189,12 +189,12 @@ export default function TzDraftReviewPanel({
             <span className="chip-ok text-[10px] font-bold">принят с правкой</span>
           )}
           {proposal.speculate && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300 font-mono">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300 font-mono">
               гипотезы вкл.
             </span>
           )}
           {!proposal.usedLlm && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 dark:bg-nord-2 dark:text-nord-4 font-mono">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-slate-200 text-slate-700 dark:bg-nord-2 dark:text-nord-4 font-mono">
               схема (гэпы)
             </span>
           )}
@@ -348,7 +348,7 @@ export default function TzDraftReviewPanel({
             type="button"
             onClick={handleReset}
             disabled={disabled || isSubmitting}
-            className="btn-secondary text-xs !py-1 !px-2.5 text-rose-700 border-rose-200 hover:bg-rose-50 dark:border-nord-red/40 dark:text-nord-redText dark:hover:bg-nord-red/10"
+            className="btn-secondary text-xs py-1! px-2.5! text-rose-700 border-rose-200 hover:bg-rose-50 dark:border-nord-red/40 dark:text-nord-redText dark:hover:bg-nord-red/10"
             title="Сбросить раздел к базовому тексту схемы"
           >
             Сбросить к схеме
@@ -358,7 +358,7 @@ export default function TzDraftReviewPanel({
             type="button"
             onClick={handleGenerate}
             disabled={disabled || isGenerating || isSubmitting}
-            className="btn-ghost text-xs !py-1 !px-2.5 text-slate-600 hover:text-slate-900 dark:text-nord-4"
+            className="btn-ghost text-xs py-1! px-2.5! text-slate-600 hover:text-slate-900 dark:text-nord-4"
             title="Перегенерировать черновик модели"
           >
             Перегенерировать
@@ -375,7 +375,7 @@ export default function TzDraftReviewPanel({
                   setEditText(proposal.paragraphs.join('\n\n'));
                 }}
                 disabled={disabled || isSubmitting}
-                className="btn-secondary text-xs !py-1 !px-2.5"
+                className="btn-secondary text-xs py-1! px-2.5!"
               >
                 Отмена
               </button>
@@ -384,7 +384,7 @@ export default function TzDraftReviewPanel({
                 type="button"
                 onClick={handleAccept}
                 disabled={disabled || isSubmitting}
-                className="btn-primary text-xs !py-1 !px-3 font-semibold"
+                className="btn-primary text-xs py-1! px-3! font-semibold"
               >
                 {isSubmitting ? 'Сохранение…' : 'Принять с правкой'}
               </button>
@@ -394,7 +394,7 @@ export default function TzDraftReviewPanel({
               type="button"
               onClick={handleAccept}
               disabled={disabled || hasHard || isSubmitting}
-              className="btn-primary text-xs !py-1 !px-4 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary text-xs py-1! px-4! font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               title={
                 hasHard
                   ? 'Принятие заблокировано: устраните критические замечания'

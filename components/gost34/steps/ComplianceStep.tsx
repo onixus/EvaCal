@@ -118,7 +118,7 @@ export default function ComplianceStep({
                   <button
                     type="button"
                     onClick={() => onGoToIssue(primaryIssue)}
-                    className="btn-secondary shrink-0 !px-2.5 !py-1 !text-[11px] !font-bold"
+                    className="btn-secondary shrink-0 px-2.5! py-1! text-[11px]! font-bold!"
                   >
                     Исправить →
                   </button>
@@ -173,7 +173,7 @@ export default function ComplianceStep({
             onClick={onExportDocument}
             disabled={!canExport || isExporting}
             title={canExport ? undefined : 'Устраните блокирующие замечания на предыдущих шагах'}
-            className="btn-primary !text-xs"
+            className="btn-primary text-xs!"
           >
             {isExporting ? 'Формирование…' : `${docType} (.docx)`}
           </button>
@@ -183,7 +183,7 @@ export default function ComplianceStep({
             onClick={onExportZip}
             disabled={!canExport || isExporting}
             title={canExport ? undefined : 'Устраните блокирующие замечания на предыдущих шагах'}
-            className="btn bg-emerald-600 !text-xs text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+            className="btn bg-emerald-600 text-xs! text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50"
           >
             Весь комплект (ZIP)
           </button>

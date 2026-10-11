@@ -634,7 +634,7 @@ export default function BoardClient({
                   </span>
                 </div>
                 {col.id === 'rejected' && card.reviewComment && (
-                  <p className="line-clamp-2 rounded border-l-2 border-rose-400 bg-rose-50/60 px-2 py-1 text-[11px] italic text-rose-900 dark:bg-nord-red/15 dark:text-nord-redText">
+                  <p className="line-clamp-2 rounded-sm border-l-2 border-rose-400 bg-rose-50/60 px-2 py-1 text-[11px] italic text-rose-900 dark:bg-nord-red/15 dark:text-nord-redText">
                     {card.reviewComment}
                   </p>
                 )}
@@ -675,7 +675,7 @@ export default function BoardClient({
           role="dialog"
           aria-modal="true"
           aria-labelledby="board-move-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[2px]"
         >
           <div className="card animate-in w-full max-w-md overflow-hidden shadow-2xl">
             <div className="border-b border-slate-200 bg-slate-50 px-5 py-3.5 dark:border-nord-3 dark:bg-nord-1/60">

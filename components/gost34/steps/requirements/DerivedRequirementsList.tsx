@@ -50,7 +50,7 @@ export default function DerivedRequirementsList({
               {findings.map((finding, idx) => (
                 <div
                   key={idx}
-                  className={`text-[10px] rounded border px-2 py-1 ${SEVERITY_STYLES[finding.severity]}`}
+                  className={`text-[10px] rounded-sm border px-2 py-1 ${SEVERITY_STYLES[finding.severity]}`}
                 >
                   <span className="font-bold uppercase mr-1">{finding.rule}</span>
                   {finding.message}

@@ -141,21 +141,21 @@ export default function DeviationChart({
       <div className="mt-1 flex gap-4 text-[10px] text-slate-500 dark:text-nord-muted">
         <span>
           <i
-            className="inline-block h-2.5 w-2.5 rounded align-middle"
+            className="inline-block h-2.5 w-2.5 rounded-sm align-middle"
             style={{ background: '#e11d48' }}
           />{' '}
           перерасход
         </span>
         <span>
           <i
-            className="inline-block h-2.5 w-2.5 rounded align-middle"
+            className="inline-block h-2.5 w-2.5 rounded-sm align-middle"
             style={{ background: '#0284c7' }}
           />{' '}
           недорасход
         </span>
         <span>
-          <i className="inline-block h-2.5 w-2.5 rounded bg-slate-300 align-middle" /> в допуске ±
-          {Math.round(tolerance * 100)}%
+          <i className="inline-block h-2.5 w-2.5 rounded-sm bg-slate-300 align-middle" /> в допуске
+          ±{Math.round(tolerance * 100)}%
         </span>
         <span>* мало данных</span>
       </div>

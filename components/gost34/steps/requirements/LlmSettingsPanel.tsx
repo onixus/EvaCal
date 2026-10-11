@@ -69,7 +69,7 @@ export default function LlmSettingsPanel({
               setLlmSelectedModel('');
             }}
             disabled={llmProviders.length === 0}
-            className="w-full bg-white dark:bg-nord-2 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-1.5 text-slate-900 dark:text-nord-6 font-bold focus:border-purple-400 focus:outline-none disabled:opacity-50"
+            className="w-full bg-white dark:bg-nord-2 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-1.5 text-slate-900 dark:text-nord-6 font-bold focus:border-purple-400 focus:outline-hidden disabled:opacity-50"
           >
             {llmProviders.length === 0 && <option value="">Нет настроенных провайдеров</option>}
             {llmProviders.map((p) => (
@@ -88,7 +88,7 @@ export default function LlmSettingsPanel({
             <select
               value={llmSelectedModel}
               onChange={(e) => setLlmSelectedModel(e.target.value)}
-              className="w-full bg-white dark:bg-nord-2 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-1.5 text-slate-900 dark:text-nord-6 font-bold focus:border-purple-400 focus:outline-none"
+              className="w-full bg-white dark:bg-nord-2 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-1.5 text-slate-900 dark:text-nord-6 font-bold focus:border-purple-400 focus:outline-hidden"
             >
               {llmModels.map((m) => (
                 <option key={m} value={m}>
@@ -102,7 +102,7 @@ export default function LlmSettingsPanel({
               value={llmSelectedModel}
               onChange={(e) => setLlmSelectedModel(e.target.value)}
               placeholder="llama3.2 / qwen2.5 / local-model"
-              className="w-full bg-white dark:bg-nord-2 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-1.5 text-slate-900 dark:text-nord-6 focus:border-purple-400 focus:outline-none"
+              className="w-full bg-white dark:bg-nord-2 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-1.5 text-slate-900 dark:text-nord-6 focus:border-purple-400 focus:outline-hidden"
             />
           )}
         </div>

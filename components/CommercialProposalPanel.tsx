@@ -144,7 +144,7 @@ export default function CommercialProposalPanel({
       {/* Top Financial KPI Metrics */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {/* 1. Прямая себестоимость */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-nord-3 dark:bg-nord-1/60">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-nord-3 dark:bg-nord-1/60">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-nord-muted">
             Себестоимость труда
           </div>
@@ -164,7 +164,7 @@ export default function CommercialProposalPanel({
         </div>
 
         {/* 2. Накладные и Полная себестоимость */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-nord-3 dark:bg-nord-1/60">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-nord-3 dark:bg-nord-1/60">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-nord-muted">
               Полная себестоимость
@@ -184,7 +184,7 @@ export default function CommercialProposalPanel({
         </div>
 
         {/* 3. Прибыль после скидки */}
-        <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4 shadow-sm dark:border-nord-frost3/40 dark:bg-nord-1/60">
+        <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4 shadow-xs dark:border-nord-frost3/40 dark:bg-nord-1/60">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800 dark:text-nord-frost3">
               Прибыль после скидки
@@ -207,7 +207,7 @@ export default function CommercialProposalPanel({
         </div>
 
         {/* 4. Итоговая сумма к оплате */}
-        <div className="rounded-xl border border-sky-300 bg-gradient-to-br from-sky-50 to-indigo-50/50 p-4 shadow-sm dark:border-nord-frost2/40 dark:from-nord-1 dark:to-nord-2">
+        <div className="rounded-xl border border-sky-300 bg-linear-to-br/srgb from-sky-50 to-indigo-50/50 p-4 shadow-xs dark:border-nord-frost2/40 dark:from-nord-1 dark:to-nord-2">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-900 dark:text-nord-frost2">
               Итого к оплате
@@ -261,7 +261,7 @@ export default function CommercialProposalPanel({
                       <span className="text-sm font-medium text-slate-800 dark:text-nord-5">
                         {r.roleLabel}
                       </span>
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-nord-2 dark:text-nord-muted">
+                      <span className="rounded-sm bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-nord-2 dark:text-nord-muted">
                         {r.hours} ч
                       </span>
                     </div>
@@ -302,7 +302,7 @@ export default function CommercialProposalPanel({
                       <span className="text-sm font-medium text-slate-800 dark:text-nord-5">
                         Управление (РП)
                       </span>
-                      <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-nord-purple/20 dark:text-nord-purple">
+                      <span className="rounded-sm bg-indigo-50 px-1.5 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-nord-purple/20 dark:text-nord-purple">
                         {summary.pmHours} ч
                       </span>
                     </div>
@@ -343,7 +343,7 @@ export default function CommercialProposalPanel({
                       <span className="text-sm font-medium text-slate-800 dark:text-nord-5">
                         Резерв на риски
                       </span>
-                      <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-nord-auroraRed/20 dark:text-nord-auroraRed">
+                      <span className="rounded-sm bg-rose-50 px-1.5 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-nord-auroraRed/20 dark:text-nord-auroraRed">
                         {summary.riskHours} ч
                       </span>
                     </div>
@@ -377,7 +377,7 @@ export default function CommercialProposalPanel({
             <h2 className="border-b border-slate-100 pb-3 text-base font-semibold text-slate-900 dark:border-nord-3 dark:text-nord-6">
               2. Финансовые параметры и маржа
               <span
-                className="ml-2 rounded bg-amber-50 px-1.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/30 dark:text-nord-yellow"
+                className="ml-2 rounded-sm bg-amber-50 px-1.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/30 dark:text-nord-yellow"
                 data-testid="labour-only-label"
               >
                 без учёта поставки и прочих затрат
@@ -526,7 +526,7 @@ export default function CommercialProposalPanel({
                       disabled={!canEdit}
                       checked={includeVat}
                       onChange={(e) => setIncludeVat(e.target.checked)}
-                      className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                      className="rounded-sm border-slate-300 text-sky-600 focus:ring-sky-500"
                     />
                     <span>НДС ({vatPercent}%) включён в итоговую цену</span>
                   </label>

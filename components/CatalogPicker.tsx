@@ -137,7 +137,7 @@ export default function CatalogPicker({
             </label>
           )}
           {product && replacedBy.length > 0 && (
-            <div role="status" className="rounded border border-amber-300 p-2 text-sm">
+            <div role="status" className="rounded-sm border border-amber-300 p-2 text-sm">
               {replacedBy.map((r) => (
                 <p key={r.id}>
                   Заменено на {label(r.fromProductId)}

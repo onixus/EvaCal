@@ -79,7 +79,7 @@ export default function OfferCompareModal({
   const variants = result?.variants ?? [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-[2px]">
       <div
         className="card flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden shadow-2xl"
         role="dialog"
@@ -110,7 +110,7 @@ export default function OfferCompareModal({
             {ordered.map((c) => (
               <label
                 key={c.id}
-                className="flex items-center gap-1.5 rounded border border-slate-200 px-2 py-1 text-xs dark:border-nord-3"
+                className="flex items-center gap-1.5 rounded-sm border border-slate-200 px-2 py-1 text-xs dark:border-nord-3"
               >
                 <input
                   type="checkbox"
@@ -163,14 +163,14 @@ export default function OfferCompareModal({
                     Показатель
                   </th>
                   {variants.map((v) => (
-                    <th key={v.id} className="min-w-[14rem] py-2 pr-3 align-top">
+                    <th key={v.id} className="min-w-56 py-2 pr-3 align-top">
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-slate-900 dark:text-nord-6">
                           v{v.version}
                         </span>
                         <StatusBadge status={v.status} />
                         {v.id === result?.baselineId && (
-                          <span className="rounded bg-slate-100 px-1.5 text-[10px] font-semibold text-slate-600 dark:bg-nord-3 dark:text-nord-4">
+                          <span className="rounded-sm bg-slate-100 px-1.5 text-[10px] font-semibold text-slate-600 dark:bg-nord-3 dark:text-nord-4">
                             база
                           </span>
                         )}
@@ -429,7 +429,7 @@ function StageDelta({
 
 function Explain({ text }: { text: string }) {
   return (
-    <div className="mt-1 rounded bg-slate-50 p-1.5 text-[11px] leading-snug text-slate-500 dark:bg-nord-1/50 dark:text-nord-muted">
+    <div className="mt-1 rounded-sm bg-slate-50 p-1.5 text-[11px] leading-snug text-slate-500 dark:bg-nord-1/50 dark:text-nord-muted">
       {text}
     </div>
   );

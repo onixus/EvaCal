@@ -126,7 +126,7 @@ export default function NormProposalsPanel({ templateId }: { templateId: string 
       )}
       <div className="space-y-3">
         {openProposals.map((p) => (
-          <div key={p.id} className="rounded border border-slate-200 p-3 dark:border-slate-700">
+          <div key={p.id} className="rounded-sm border border-slate-200 p-3 dark:border-slate-700">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{p.stageTemplate.name}</span>
               <span className="text-xs text-slate-500">{p.stageTemplate.role}</span>
