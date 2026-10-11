@@ -13,10 +13,12 @@ async function signReview(
   username: string,
   password: string,
   reviewerName: string,
+  customer: string,
 ): Promise<void> {
   await loginAs(page, username, password);
   await page.goto('/review');
-  await page.locator('a[href^="/review/"]').first().click();
+  // Other scenarios also issue packages: open this customer's package, not the first in the queue.
+  await page.locator('a[href^="/review/"]').filter({ hasText: customer }).first().click();
   await page.waitForURL(/\/review\/[a-z0-9]+/i, { timeout: 20000 });
 
   await page.getByPlaceholder('ФИО и должность').fill(reviewerName);
@@ -239,7 +241,7 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     // Пароль у всех сидированных учёток один (SEED_DEFAULT_PASSWORD в пайплайне).
     // После его решения комплект уходит на финальный этап, где его утверждает
     // Заказчик по share-ссылке (ниже) либо ГАП в системе.
-    await signReview(page, 'techwriter', password, 'Васильева Е.И. (нормоконтроль)');
+    await signReview(page, 'techwriter', password, 'Васильева Е.И. (нормоконтроль)', CUSTOMER_NAME);
 
     // Возврат в роль архитектора: share-ссылку выпускает он.
     await loginAs(page, 'architect', architectPassword);

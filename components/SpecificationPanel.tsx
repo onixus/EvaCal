@@ -21,6 +21,7 @@ import { STATUS_LABELS } from '@/lib/specification/sections';
 import { syncBundleComponents } from '@/lib/catalog/relations';
 import { evidenceText, itemEvidence } from '@/lib/catalog/compliance';
 import { businessDate } from '@/lib/catalog/business-date';
+import { newRowId } from '@/lib/rowId';
 
 interface SpecificationPanelProps {
   calculationId: string;
@@ -42,7 +43,7 @@ const empty = (): SpecificationSnapshot => ({
   items: [],
 });
 const newItem = (): SpecificationItem => ({
-  id: crypto.randomUUID(),
+  id: newRowId(),
   kind: 'other',
   disposition: 'supply',
   name: '',
@@ -655,10 +656,7 @@ export default function SpecificationPanel({
                   onClick={() =>
                     change({
                       ...spec,
-                      items: [
-                        ...spec.items,
-                        { ...item, id: crypto.randomUUID(), confirmed: false },
-                      ],
+                      items: [...spec.items, { ...item, id: newRowId(), confirmed: false }],
                     })
                   }
                 >
