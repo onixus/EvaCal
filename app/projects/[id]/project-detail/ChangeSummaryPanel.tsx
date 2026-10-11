@@ -97,7 +97,8 @@ export default function ChangeSummaryPanel({
             <tr>
               <th className="py-1 font-semibold">Изменение</th>
               <th className="py-1 font-semibold">Часы</th>
-              <th className="py-1 font-semibold">Стоимость</th>
+              <th className="py-1 font-semibold">Стоимость (подтверждено)</th>
+              <th className="py-1 font-semibold">Цена версии по ставкам</th>
               <th className="py-1 font-semibold">Срок</th>
               <th className="py-1 font-semibold">Трассировка</th>
             </tr>
@@ -110,6 +111,9 @@ export default function ChangeSummaryPanel({
                 </td>
                 <td className="py-1">{signed(c.hours)}</td>
                 <td className="py-1">{signedMoney(c.cost, currency)}</td>
+                <td className="py-1">
+                  {c.resultPriceExVat !== null ? money(c.resultPriceExVat, currency) : '—'}
+                </td>
                 <td className="py-1">{signed(c.scheduleDays)} дн.</td>
                 <td className="py-1">
                   {formatChangeRequestNumber(c.seq)} · v{c.baseVersion ?? '?'} →{' '}
@@ -129,6 +133,18 @@ export default function ChangeSummaryPanel({
             ))}
           </tbody>
         </table>
+      )}
+      {summary.changes.length > 0 && (
+        <p className="text-[11px] text-slate-500 dark:text-nord-muted">
+          Итоги считаются по подтверждённой специалистом стоимости изменения. В новой версии расчёта
+          изменение — строка ИЗМ-NN в рисках, и её цена по ставкам ролей (колонка «Цена версии по
+          ставкам», вся версия без НДС) может отличаться от согласованной суммы.
+        </p>
+      )}
+      {summary.offChain > 0 && (
+        <p className="text-[11px] text-amber-700 dark:text-amber-300">
+          Принятых изменений вне цепочки от базы: {summary.offChain} — в итоги не входят.
+        </p>
       )}
     </div>
   );

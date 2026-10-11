@@ -20,11 +20,16 @@ CREATE INDEX "ChangeRequest_resultCalculationId_idx" ON "ChangeRequest"("resultC
 CREATE INDEX "ChangeRequest_basePackageId_idx" ON "ChangeRequest"("basePackageId");
 CREATE INDEX "ChangeRequest_resultPackageId_idx" ON "ChangeRequest"("resultPackageId");
 
--- База и результат запроса — часть истории договора: их удаление (в том числе
--- каскадом комплекта при удалении расчёта) запрещено на уровне СУБД. API
--- проверяет то же заранее и отвечает 409.
+-- База и результат поданного, отложенного или принятого запроса — часть
+-- истории договора: их удаление (в том числе каскадом комплекта при удалении
+-- расчёта) запрещено на уровне СУБД. Черновики и отклонённые запросы,
+-- ссылающиеся на удаляемую строку, удаляются вместе с ней. API проверяет то же
+-- заранее и отвечает 409.
 CREATE FUNCTION "ChangeRequest_protect_calculation"() RETURNS trigger AS $$
 BEGIN
+  DELETE FROM "ChangeRequest"
+  WHERE "status" IN ('draft', 'rejected')
+    AND ("baseCalculationId" = OLD."id" OR "resultCalculationId" = OLD."id");
   IF EXISTS (
     SELECT 1 FROM "ChangeRequest"
     WHERE "baseCalculationId" = OLD."id" OR "resultCalculationId" = OLD."id"
@@ -42,6 +47,9 @@ CREATE TRIGGER "Calculation_change_request_guard"
 
 CREATE FUNCTION "ChangeRequest_protect_package"() RETURNS trigger AS $$
 BEGIN
+  DELETE FROM "ChangeRequest"
+  WHERE "status" IN ('draft', 'rejected')
+    AND ("basePackageId" = OLD."id" OR "resultPackageId" = OLD."id");
   IF EXISTS (
     SELECT 1 FROM "ChangeRequest"
     WHERE "basePackageId" = OLD."id" OR "resultPackageId" = OLD."id"

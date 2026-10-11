@@ -153,7 +153,9 @@ function ChangeRequestForm({
   const [saving, setSaving] = useState(false);
 
   const calcPackages = useMemo(
-    () => packages.filter((p) => p.calculationId === form.baseCalculationId),
+    // Базой может быть только выпущенный комплект: черновик мастер перезаписывает.
+    () =>
+      packages.filter((p) => p.calculationId === form.baseCalculationId && p.status !== 'draft'),
     [packages, form.baseCalculationId],
   );
 
@@ -527,6 +529,19 @@ function DecisionPanel({
       : null;
 
   const decide = async (action: keyof typeof DECISION_LABELS) => {
+    if (
+      action === 'accept' &&
+      !window.confirm(
+        `Принять ${formatChangeRequestNumber(cr.seq)} «${cr.title}»?\n\n` +
+          `Будет создана новая версия расчёта со строкой ${formatChangeLabel(cr.seq)} ` +
+          `(${cr.confirmedHours} ч, ${cr.confirmedCost} ${cr.impact?.base.currency ?? ''}, ` +
+          `срок ${cr.confirmedScheduleDays} раб. дн.)` +
+          (cr.basePackageId ? ' и черновая версия комплекта с правками требований' : '') +
+          '. Решение необратимо; исходная база не изменится.',
+      )
+    ) {
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -595,6 +610,7 @@ function ChangeRequestDetail({
   canDecideRole,
   onChanged,
   onEdit,
+  onDeleted,
 }: {
   projectId: string;
   cr: ChangeRequestDto;
@@ -604,11 +620,26 @@ function ChangeRequestDetail({
   canDecideRole: boolean;
   onChanged: (cr: ChangeRequestDto) => void;
   onEdit: (cr: ChangeRequestDto) => void;
+  onDeleted: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const reqById = new Map(cr.affectedRequirements.map((r) => [r.id, r]));
   const baseCalc = calculations.find((c) => c.id === cr.baseCalculationId);
+
+  const removeDraft = async () => {
+    if (!window.confirm(`Удалить черновик ${formatChangeRequestNumber(cr.seq)}?`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/api/projects/${projectId}/change-requests/${cr.id}`, { method: 'DELETE' });
+      onDeleted();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async () => {
     setBusy(true);
@@ -819,6 +850,14 @@ function ChangeRequestDetail({
           <button type="button" className="btn-primary text-xs" disabled={busy} onClick={submit}>
             Передать на оценку
           </button>
+          <button
+            type="button"
+            className="btn-secondary text-xs"
+            disabled={busy}
+            onClick={removeDraft}
+          >
+            Удалить черновик
+          </button>
         </div>
       )}
 
@@ -862,14 +901,19 @@ export default function ChangeRequestsTab({
   const [detail, setDetail] = useState<ChangeRequestDto | null>(null);
   const [form, setForm] = useState<{ initial: FormState; editingId: string | null } | null>(null);
 
-  const defaultBase = wonCalculationId ?? calculations[0]?.id ?? '';
+  // Голова цепочки изменений: новый запрос оформляется только на ней.
+  const [head, setHead] = useState<string | null>(null);
+  const defaultBase = head ?? wonCalculationId ?? calculations[0]?.id ?? '';
+  const baseOptions = head ? calculations.filter((c) => c.id === head) : calculations;
 
   const reload = useCallback(async () => {
     try {
-      const data = await api<{ changeRequests: ChangeRequestDto[] }>(
-        `/api/projects/${projectId}/change-requests`,
-      );
+      const data = await api<{
+        changeRequests: ChangeRequestDto[];
+        headCalculationId: string | null;
+      }>(`/api/projects/${projectId}/change-requests`);
       setItems(data.changeRequests);
+      setHead(data.headCalculationId ?? null);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -941,7 +985,7 @@ export default function ChangeRequestsTab({
         <ChangeRequestForm
           key={form.editingId ?? 'new'}
           projectId={projectId}
-          calculations={calculations}
+          calculations={baseOptions}
           packages={packages}
           initial={form.initial}
           editingId={form.editingId}
@@ -1000,6 +1044,12 @@ export default function ChangeRequestsTab({
                     canDecideRole={canDecideRole}
                     onChanged={changed}
                     onEdit={(d) => setForm({ initial: formFromCr(d), editingId: d.id })}
+                    onDeleted={() => {
+                      openRef.current = null;
+                      setOpenId(null);
+                      setDetail(null);
+                      void reload();
+                    }}
                   />
                 ) : (
                   <p className="text-xs text-slate-500">Загрузка…</p>

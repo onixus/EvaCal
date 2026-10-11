@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { changeRequestErrorResponse } from '@/lib/changeRequests/http';
-import { decideChangeRequest } from '@/lib/changeRequests/decisions';
+import { decideChangeRequest, deleteDraftChangeRequest } from '@/lib/changeRequests/decisions';
 import {
   getChangeRequest,
   recordEstimate,
@@ -96,6 +96,28 @@ export async function PATCH(req: NextRequest, props: Props) {
       ip: clientIp(req),
     });
     return NextResponse.json(result);
+  } catch (error) {
+    return changeRequestErrorResponse(error);
+  }
+}
+
+/** Удаление черновика (кто ведёт запросы). Поданные запросы — история, не удаляются. */
+export async function DELETE(req: NextRequest, props: Props) {
+  const auth = await requireApiRole(CHANGE_REQUEST_EDIT_ROLES);
+  if (auth instanceof NextResponse) return auth;
+  const { id, crId } = await props.params;
+  try {
+    await deleteDraftChangeRequest(id, crId);
+    await writeAudit({
+      actorType: 'user',
+      actorId: auth.userId,
+      action: 'change_request.delete',
+      entityType: 'change_request',
+      entityId: crId,
+      meta: { projectId: id },
+      ip: clientIp(req),
+    });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return changeRequestErrorResponse(error);
   }

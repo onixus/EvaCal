@@ -10,8 +10,8 @@ import {
 } from '@/lib/project';
 import { prisma } from '@/lib/prisma';
 
-vi.mock('@/lib/prisma', () => ({
-  prisma: {
+vi.mock('@/lib/prisma', () => {
+  const prisma: Record<string, unknown> = {
     project: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
@@ -43,8 +43,12 @@ vi.mock('@/lib/prisma', () => ({
       updateMany: vi.fn(),
       delete: vi.fn(),
     },
-  },
-}));
+    // Номера версий берутся под транзакционной блокировкой проекта.
+    $executeRaw: vi.fn(),
+  };
+  prisma.$transaction = vi.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
+  return { prisma };
+});
 
 describe('lib/project', () => {
   beforeEach(() => {

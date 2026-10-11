@@ -81,6 +81,14 @@ export async function loadChangeSummary(project: {
     {
       calculations: new Map(project.calculations.map((c) => [c.id, c.version])),
       packages: new Map(project.packages.map((p) => [p.id, p.version])),
+      // Цена версии-результата по её ставкам — рядом с подтверждённой стоимостью,
+      // чтобы разница (строка ИЗМ тарифицируется как риск) была видна.
+      prices: new Map(
+        accepted
+          .map((cr) => project.calculations.find((c) => c.id === cr.resultCalculationId))
+          .filter((c): c is CalculationForBaseline => !!c)
+          .map((c) => [c.id, baselineFigures(c).priceExVat]),
+      ),
     },
   );
 }

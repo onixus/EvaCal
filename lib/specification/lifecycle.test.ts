@@ -10,6 +10,8 @@ vi.mock('@/lib/prisma', () => {
       delete: vi.fn(),
     },
     specificationVersion: { findFirst: vi.fn(), updateMany: vi.fn() },
+    // Номер версии комплекта берётся под advisory-блокировкой проекта.
+    $executeRaw: vi.fn(),
     // A failing callback rejects the whole transaction, as Prisma does.
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
   };
@@ -129,9 +131,14 @@ describe('Жизненный цикл редакции спецификации'
       snapshot: { specificationVersion: 3, specification: confirmed },
       zipBuffer: Buffer.from('zip'),
     });
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    // Каждая запись пакета идёт в транзакции (номер версии под блокировкой
+    // проекта); отметка редакции — внутри транзакции финализации выпуска.
+    const transactions = vi.mocked(prisma.$transaction).mock.calls.length;
+    expect(transactions).toBeGreaterThanOrEqual(2);
+    expect(prisma.specificationVersion.updateMany).toHaveBeenCalledTimes(1);
     await createGostPackageVersion({ ...pkgInput, snapshot: { specificationVersion: null } });
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(transactions + 1);
+    expect(prisma.specificationVersion.updateMany).toHaveBeenCalledTimes(1);
   });
   it('сбой отметки отменяет выпуск: пакет удаляется, ошибка пробрасывается', async () => {
     vi.mocked(prisma.specificationVersion.updateMany).mockRejectedValueOnce(new Error('db down'));
@@ -171,6 +178,5 @@ describe('Жизненный цикл редакции спецификации'
       zipBuffer: Buffer.from('zip'),
     });
     expect(prisma.specificationVersion.updateMany).not.toHaveBeenCalled();
-    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

@@ -15,11 +15,16 @@ import { prisma } from '../lib/prisma';
 import {
   createChangeRequest,
   getChangeRequest,
+  loadBaseFingerprint,
   recordEstimate,
   submitChangeRequest,
   updateChangeRequestDraft,
 } from '../lib/changeRequests/store';
-import { decideChangeRequest } from '../lib/changeRequests/decisions';
+import {
+  decideChangeRequest,
+  deleteDraftChangeRequest,
+  isChangeRequestRestrictViolation,
+} from '../lib/changeRequests/decisions';
 import { parseDraftInput, parseEstimateInput } from '../lib/changeRequests/workflow';
 
 const asArchitect = (decision: 'accept' | 'reject' | 'defer' | 'reopen', comment?: string) => ({
@@ -108,7 +113,7 @@ async function main() {
         await prisma.gostPackage.findUnique({ where: { id: pkg.id } }),
         await prisma.project.findUnique({ where: { id: project.id } }),
       ]);
-    const before = await baseState();
+    let before = await baseState();
 
     // 1. Создание, правка, передача на оценку, оценка — через хранилище.
     const draftBody = {
@@ -212,6 +217,78 @@ async function main() {
       prisma.changeRequestEvent.update({ where: { id: event.id }, data: { comment: 'x' } }),
     );
 
+    // Параллельный запрос на ту же базу, поданный до принятия первого.
+    await submitChangeRequest(project.id, pair[0].id, 'ci', null);
+    await recordEstimate(
+      project.id,
+      pair[0].id,
+      parseEstimateInput({ hours: 8, cost: '1000', scheduleDays: 0 }),
+      'architect',
+    );
+
+    // 3a. Отпечаток базы: подписи и метка сохранения снимка не влияют, входы
+    // Ганта (старт, параллельность, срок согласования, зависимости) — влияют.
+    const fp = () => loadBaseFingerprint(prisma, cr);
+    const fp0 = await fp();
+    const snap0 = (await prisma.gostPackage.findUniqueOrThrow({ where: { id: pkg.id } })).snapshot;
+    await prisma.gostPackage.update({
+      where: { id: pkg.id },
+      data: {
+        snapshot: JSON.stringify({
+          ...JSON.parse(snap0 ?? '{}'),
+          signatures: { approver: 'CI' },
+          updatedAt: new Date().toISOString(),
+        }),
+      },
+    });
+    assert.equal(await fp(), fp0, 'signatures/updatedAt do not stale the estimate');
+    await prisma.gostPackage.update({ where: { id: pkg.id }, data: { snapshot: snap0 } });
+    const startDate0 = (
+      await prisma.calculation.findUniqueOrThrow({ where: { id: calculation.id } })
+    ).startDate;
+    for (const [label, change, undo] of [
+      [
+        'startDate',
+        () =>
+          prisma.calculation.update({
+            where: { id: calculation.id },
+            data: { startDate: new Date('2031-02-03T00:00:00Z') },
+          }),
+        () =>
+          prisma.calculation.update({
+            where: { id: calculation.id },
+            data: { startDate: startDate0 },
+          }),
+      ],
+      [
+        'parallel',
+        () => prisma.stage.update({ where: { id: s2.id }, data: { parallel: true } }),
+        () => prisma.stage.update({ where: { id: s2.id }, data: { parallel: false } }),
+      ],
+      [
+        'approvalDays',
+        () => prisma.stage.update({ where: { id: s2.id }, data: { approvalDays: 5 } }),
+        () => prisma.stage.update({ where: { id: s2.id }, data: { approvalDays: null } }),
+      ],
+      [
+        'dependency',
+        () =>
+          prisma.stageDependency.create({
+            data: { calculationId: calculation.id, fromStageId: s1.id, toStageId: s2.id },
+          }),
+        () => prisma.stageDependency.deleteMany({ where: { calculationId: calculation.id } }),
+      ],
+    ] as const) {
+      await change();
+      assert.notEqual(await fp(), fp0, `${label} changes the base fingerprint`);
+      await undo();
+      assert.equal(await fp(), fp0, `${label} restored`);
+    }
+
+    // Проверка отпечатка правила базу и вернула значения; updatedAt сдвинулся —
+    // дальнейшие сравнения ведутся от нового снимка.
+    before = await baseState();
+
     // 4a. Принятие откатывается целиком: сбой на записи строки ИЗМ.
     await prisma.$executeRawUnsafe(
       `CREATE FUNCTION "ci_fail_risk"() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'ci: risk insert blocked'; END; $$ LANGUAGE plpgsql`,
@@ -287,18 +364,37 @@ async function main() {
       'base byte-identical after accept',
     );
 
-    // 4c. Вторая принятая ветка от той же базы запрещена.
-    await submitChangeRequest(project.id, pair[0].id, 'ci', null);
-    await recordEstimate(
-      project.id,
-      pair[0].id,
-      parseEstimateInput({ hours: 8, cost: '1000', scheduleDays: 0 }),
-      'architect',
-    );
+    // 4c. Цепочка: параллельная ветка от той же базы не принимается, новый
+    // запрос оформляется только на результате, черновик комплекта базой не бывает.
     await assert.rejects(
       decideChangeRequest(project.id, pair[0].id, asArchitect('accept')),
       status409,
     );
+    await assert.rejects(
+      createChangeRequest(project.id, parseDraftInput({ ...draftBody, title: 'stale' }), 'ci'),
+      (error: unknown) => /текущая согласованная версия/.test(String(error)),
+    );
+    await assert.rejects(
+      createChangeRequest(
+        project.id,
+        parseDraftInput({ ...draftBody, baseCalculationId: next.id, basePackageId: nextPkg.id }),
+        'ci',
+      ),
+      (error: unknown) => /выпущенный комплект/.test(String(error)),
+    );
+    const onHead = await createChangeRequest(
+      project.id,
+      parseDraftInput({
+        ...draftBody,
+        title: 'on head',
+        baseCalculationId: next.id,
+        basePackageId: null,
+        requirementIds: [],
+        proposedChanges: { summary: 'дальше по цепочке' },
+      }),
+      'ci',
+    );
+    assert.equal(onHead.baseCalculationId, next.id);
 
     // 4d. Политика оценки: база изменилась — принять нельзя, reopen сбрасывает оценку.
     await decideChangeRequest(project.id, pair[0].id, asArchitect('defer', 'позже'));
@@ -324,6 +420,56 @@ async function main() {
     await rejects('delete base package', () =>
       prisma.gostPackage.delete({ where: { id: pkg.id } }),
     );
+    // Отказ триггера распознаётся как 409 (restrict_violation).
+    const restrict = await prisma.calculation.delete({ where: { id: calculation.id } }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    assert.ok(isChangeRequestRestrictViolation(restrict), `restrict mapped: ${String(restrict)}`);
+    // Черновики и отклонённые запросы удаляются вместе с расчётом.
+    const spare = await prisma.calculation.create({
+      data: {
+        templateId: template.id,
+        projectId: project.id,
+        name: 'spare',
+        customer: 'CI',
+        answers: '{}',
+        version: 99,
+      },
+    });
+    const loose = await prisma.changeRequest.createManyAndReturn({
+      data: [
+        {
+          projectId: project.id,
+          seq: 90,
+          title: 'draft',
+          initiator: 'ci',
+          reason: 'ci',
+          baseCalculationId: spare.id,
+          createdBy: 'ci',
+        },
+        {
+          projectId: project.id,
+          seq: 91,
+          title: 'rejected',
+          initiator: 'ci',
+          reason: 'ci',
+          status: 'rejected',
+          decidedBy: 'ci',
+          decidedAt: new Date(),
+          baseCalculationId: spare.id,
+          createdBy: 'ci',
+        },
+      ],
+    });
+    await prisma.calculation.delete({ where: { id: spare.id } });
+    assert.equal(
+      await prisma.changeRequest.count({ where: { id: { in: loose.map((l) => l.id) } } }),
+      0,
+      'draft and rejected requests go away with the calculation',
+    );
+    await deleteDraftChangeRequest(project.id, onHead.id);
+    await assert.rejects(deleteDraftChangeRequest(project.id, cr.id), status409);
     await rejects('accepted without result', () =>
       prisma.changeRequest.update({ where: { id: cr.id }, data: { resultCalculationId: null } }),
     );

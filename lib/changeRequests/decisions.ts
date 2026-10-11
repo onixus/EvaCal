@@ -4,7 +4,9 @@ import { safeJsonParse } from '@/lib/json';
 import { recordInternalChangeTx } from '@/lib/changelog';
 import { createCalculationVersion, createDraftPackageVersion } from '@/lib/project';
 import { applyProposedChanges, matchStageIds } from './apply';
+import { lockCalculationLedger } from '@/lib/actualsLedgerData';
 import {
+  assertBaseIsHead,
   getChangeRequest,
   loadBaseFingerprint,
   toChangeRequestDto,
@@ -76,6 +78,7 @@ export async function decideChangeRequest(
   await prisma.$transaction(async (tx) => {
     await lockProject(tx, projectId);
     const cr = await loadForDecision(tx, projectId, crId);
+    await lockCalculationLedger(tx, cr.baseCalculationId);
     const hash = cr.estimatedAt ? await loadBaseFingerprint(tx, cr) : null;
     const matches = !!hash && hash === cr.estimateBaseHash;
     const error = decisionError(input.decision, cr.status, {
@@ -144,6 +147,9 @@ async function acceptChangeRequest(
     async (tx) => {
       await lockProject(tx, projectId);
       const cr = await loadForDecision(tx, projectId, crId);
+      // Та же блокировка расчёта, что у перестроения этапов: база не меняется
+      // между сверкой отпечатка и созданием версии.
+      await lockCalculationLedger(tx, cr.baseCalculationId);
       const hash = cr.estimatedAt ? await loadBaseFingerprint(tx, cr) : null;
       if (cr.estimatedAt && !hash) {
         throw new ChangeRequestError('Базовый расчёт или комплект удалён', 409);
@@ -172,6 +178,7 @@ async function acceptChangeRequest(
           409,
         );
       }
+      await assertBaseIsHead(tx, projectId, cr.baseCalculationId, 409);
 
       const dto = toChangeRequestDto(cr);
       const number = formatChangeRequestNumber(cr.seq);
@@ -219,6 +226,9 @@ async function acceptChangeRequest(
       if (cr.basePackageId) {
         const basePkg = await tx.gostPackage.findUnique({ where: { id: cr.basePackageId } });
         if (!basePkg) throw new ChangeRequestError('Базовый комплект удалён', 409);
+        if (basePkg.status === 'draft') {
+          throw new ChangeRequestError('Базовый комплект — черновик, принять нельзя', 409);
+        }
         const applied = applyProposedChanges(
           safeJsonParse<unknown>(basePkg.snapshot ?? null, {}),
           dto.proposedChanges,
@@ -292,7 +302,14 @@ async function acceptChangeRequest(
   return getChangeRequest(projectId, crId);
 }
 
-/** Запросы, для которых расчёт (или его комплекты) — база или результат. */
+/**
+ * Статусы, в которых запрос держит свою базу и результат: на оценке, отложен,
+ * принят. Черновик и отклонённый — нет: при удалении расчёта они удаляются
+ * вместе с ним (то же делают триггеры БД).
+ */
+export const ACTIVE_CHANGE_REQUEST_STATUSES = ['submitted', 'deferred', 'accepted'] as const;
+
+/** Активные запросы, для которых расчёт (или его комплекты) — база или результат. */
 export async function changeRequestsReferencingCalculation(calculationId: string) {
   const packages = await prisma.gostPackage.findMany({
     where: { calculationId },
@@ -301,6 +318,7 @@ export async function changeRequestsReferencingCalculation(calculationId: string
   const packageIds = packages.map((p) => p.id);
   return prisma.changeRequest.findMany({
     where: {
+      status: { in: [...ACTIVE_CHANGE_REQUEST_STATUSES] },
       OR: [
         { baseCalculationId: calculationId },
         { resultCalculationId: calculationId },
@@ -311,4 +329,38 @@ export async function changeRequestsReferencingCalculation(calculationId: string
     },
     select: { seq: true, projectId: true },
   });
+}
+
+/**
+ * Отказ триггера защиты базы (ERRCODE restrict_violation, 23001). Prisma
+ * пробрасывает его по-разному в зависимости от драйвера, поэтому смотрим и код,
+ * и текст.
+ */
+export function isChangeRequestRestrictViolation(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { code?: unknown; message?: unknown; meta?: unknown; cause?: unknown };
+  const text = `${String(e.code ?? '')} ${String(e.message ?? '')} ${JSON.stringify(e.meta ?? {})}`;
+  return (
+    text.includes('23001') ||
+    text.includes('restrict_violation') ||
+    text.includes('referenced by a change request') ||
+    (e.cause !== undefined && e.cause !== error && isChangeRequestRestrictViolation(e.cause))
+  );
+}
+
+/** Удаление черновика запроса (с журналом). Другие статусы — история согласования. */
+export async function deleteDraftChangeRequest(projectId: string, crId: string): Promise<void> {
+  const res = await prisma.changeRequest.deleteMany({
+    where: { id: crId, projectId, status: 'draft' },
+  });
+  if (res.count !== 1) {
+    const exists = await prisma.changeRequest.findFirst({
+      where: { id: crId, projectId },
+      select: { id: true },
+    });
+    throw new ChangeRequestError(
+      exists ? 'Удалить можно только черновик запроса' : 'Запрос на изменение не найден',
+      exists ? 409 : 404,
+    );
+  }
 }

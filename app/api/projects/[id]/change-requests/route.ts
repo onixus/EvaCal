@@ -6,7 +6,9 @@ import {
   createChangeRequest,
   listChangeRequests,
   loadBaseRequirements,
+  loadChainHead,
 } from '@/lib/changeRequests/store';
+import { prisma } from '@/lib/prisma';
 import { CHANGE_REQUEST_EDIT_ROLES, parseDraftInput } from '@/lib/changeRequests/workflow';
 
 /**
@@ -23,7 +25,12 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     if (packageId) {
       return NextResponse.json({ requirements: await loadBaseRequirements(id, packageId) });
     }
-    return NextResponse.json({ changeRequests: await listChangeRequests(id) });
+    const changeRequests = await listChangeRequests(id);
+    // Голова цепочки — единственная допустимая база нового запроса.
+    return NextResponse.json({
+      changeRequests,
+      headCalculationId: await loadChainHead(prisma, id),
+    });
   } catch (error) {
     return changeRequestErrorResponse(error);
   }

@@ -38,6 +38,8 @@ describe('удаление расчёта, связанного с запрос�
     expect((await res.json()).error).toContain('ЗИ-03');
     expect(prisma.calculation.delete).not.toHaveBeenCalled();
     const where = vi.mocked(prisma.changeRequest.findMany).mock.calls[0][0]?.where;
+    // Держат базу только поданные, отложенные и принятые запросы.
+    expect(where?.status).toEqual({ in: ['submitted', 'deferred', 'accepted'] });
     expect(where?.OR).toEqual([
       { baseCalculationId: 'calc' },
       { resultCalculationId: 'calc' },
@@ -46,8 +48,27 @@ describe('удаление расчёта, связанного с запрос�
     ]);
   });
 
+  it('отказ триггера БД (гонка с подачей запроса) — 409, а не 500', async () => {
+    vi.mocked(prisma.changeRequest.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.calculation.delete).mockRejectedValue(
+      Object.assign(new Error('Calculation c is referenced by a change request'), {
+        code: 'P2010',
+        meta: { code: '23001' },
+      }) as never,
+    );
+    const res = await del();
+    expect(res.status).toBe(409);
+  });
+
+  it('другие ошибки удаления не маскируются под 409', async () => {
+    vi.mocked(prisma.changeRequest.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.calculation.delete).mockRejectedValue(new Error('connection lost') as never);
+    await expect(del()).rejects.toThrow('connection lost');
+  });
+
   it('без ссылок удаляется как раньше', async () => {
     vi.mocked(prisma.changeRequest.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.calculation.delete).mockResolvedValue({} as never);
     expect((await del()).status).toBe(200);
     expect(prisma.calculation.delete).toHaveBeenCalledWith({ where: { id: 'calc' } });
   });

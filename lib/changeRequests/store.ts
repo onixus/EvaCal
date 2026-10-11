@@ -1,7 +1,9 @@
 import type { Prisma } from '../generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { safeJsonParse } from '@/lib/json';
+import { lockCalculationLedger } from '@/lib/actualsLedgerData';
 import { computeBaseFingerprint } from './apply';
+import { chainHead } from './totals';
 import {
   computeChangeImpact,
   requirementsFromSnapshot,
@@ -32,6 +34,7 @@ export async function loadBaseFingerprint(
   const calculation = await db.calculation.findUnique({
     where: { id: cr.baseCalculationId },
     select: {
+      startDate: true,
       pmHours: true,
       currency: true,
       pricingMode: true,
@@ -50,9 +53,14 @@ export async function loadBaseFingerprint(
           order: true,
           isApprovalTask: true,
           requirements: true,
+          parallel: true,
+          approvalDays: true,
         },
       },
       risks: { select: { description: true, hours: true, order: true } },
+      stageDependencies: {
+        select: { fromStageId: true, toStageId: true, type: true, lagDays: true },
+      },
     },
   });
   if (!calculation) return null;
@@ -63,7 +71,62 @@ export async function loadBaseFingerprint(
       })
     : null;
   if (cr.basePackageId && !basePackage) return null;
-  return computeBaseFingerprint({ calculation, basePackage });
+  const { stageDependencies, ...rest } = calculation;
+  return computeBaseFingerprint({
+    calculation: { ...rest, dependencies: stageDependencies },
+    basePackage,
+  });
+}
+
+/**
+ * Текущая голова цепочки изменений проекта — единственная допустимая база
+ * нового запроса (см. `chainHead`). null — база ещё не определена.
+ */
+export async function loadChainHead(
+  db: Prisma.TransactionClient,
+  projectId: string,
+): Promise<string | null> {
+  const project = await db.project.findUnique({
+    where: { id: projectId },
+    select: { baselineCalculationId: true, wonCalculationId: true },
+  });
+  if (!project) return null;
+  const accepted = await db.changeRequest.findMany({
+    where: { projectId, status: 'accepted' },
+    select: {
+      id: true,
+      seq: true,
+      baseCalculationId: true,
+      resultCalculationId: true,
+      decidedAt: true,
+    },
+  });
+  return chainHead(
+    project.baselineCalculationId ?? project.wonCalculationId ?? null,
+    accepted.map((cr) => ({ ...cr, decidedAt: cr.decidedAt ? cr.decidedAt.toISOString() : null })),
+  );
+}
+
+/** База запроса — текущая голова цепочки, иначе изменения разошлись бы по веткам версий. */
+export async function assertBaseIsHead(
+  db: Prisma.TransactionClient,
+  projectId: string,
+  baseCalculationId: string,
+  status: number,
+): Promise<void> {
+  const head = await loadChainHead(db, projectId);
+  if (head && head !== baseCalculationId) {
+    const headCalc = await db.calculation.findUnique({
+      where: { id: head },
+      select: { version: true },
+    });
+    throw new ChangeRequestError(
+      `Базой может быть только текущая согласованная версия расчёта` +
+        (headCalc ? ` (v${headCalc.version})` : '') +
+        ': изменения оформляются цепочкой от первоначальной базы',
+      status,
+    );
+  }
 }
 
 /**
@@ -188,9 +251,21 @@ function docTypes(raw: string | null | undefined): string[] {
 async function loadBasePackage(projectId: string, packageId: string) {
   const pkg = await prisma.gostPackage.findFirst({
     where: { id: packageId, projectId },
-    select: { id: true, version: true, calculationId: true, documentTypes: true, snapshot: true },
+    select: {
+      id: true,
+      version: true,
+      status: true,
+      calculationId: true,
+      documentTypes: true,
+      snapshot: true,
+    },
   });
   if (!pkg) throw new ChangeRequestError('Базовый комплект не найден в проекте', 400);
+  // Черновик комплекта мастер перезаписывает при каждом сохранении — базой
+  // договора он быть не может.
+  if (pkg.status === 'draft') {
+    throw new ChangeRequestError('Базой может быть только выпущенный комплект, не черновик', 400);
+  }
   return {
     id: pkg.id,
     version: pkg.version,
@@ -237,6 +312,7 @@ async function resolveDraft(projectId: string, input: ChangeRequestDraftInput) {
     },
   });
   if (!calculation) throw new ChangeRequestError('Базовый расчёт не найден в проекте', 400);
+  await assertBaseIsHead(prisma, projectId, calculation.id, 400);
 
   const basePackage = input.basePackageId
     ? await loadBasePackage(projectId, input.basePackageId)
@@ -473,6 +549,7 @@ export async function submitChangeRequest(
     ? transitionError(cr.status, 'submitted', { hasEstimate: !!cr.estimatedAt })
     : 'Передать на оценку можно только черновик';
   if (error) throw new ChangeRequestError(error, 409);
+  await assertBaseIsHead(prisma, projectId, cr.baseCalculationId, 409);
   // Непустоту проверяем внутри той же транзакции, что и переход: правка
   // черновика между проверкой и переходом не проскочит.
   return guardedUpdate(
@@ -499,28 +576,40 @@ export async function recordEstimate(
   if (!canEstimate(cr.status)) {
     throw new ChangeRequestError('Оценку вносят только для запроса на оценке', 409);
   }
-  // Оценка привязывается к состоянию базы: если база изменится, принять запрос
-  // без переоценки нельзя (decisions.ts).
-  const baseHash = await loadBaseFingerprint(prisma, cr);
-  if (!baseHash) throw new ChangeRequestError('Базовый расчёт или комплект удалён', 409);
-  return guardedUpdate(
-    projectId,
-    crId,
-    'submitted',
-    {
-      confirmedHours: estimate.hours,
-      confirmedCost: estimate.cost,
-      confirmedScheduleDays: estimate.scheduleDays,
-      estimateComment: estimate.comment,
-      estimatedBy: actor,
-      estimatedAt: new Date(),
-      estimateBaseHash: baseHash,
-    },
-    {
-      action: 'estimated',
-      actor,
-      comment: estimate.comment,
-      data: { hours: estimate.hours, cost: estimate.cost, scheduleDays: estimate.scheduleDays },
-    },
-  );
+  // Оценка привязывается к состоянию базы: отпечаток считается в той же
+  // транзакции и под той же блокировкой расчёта, что и перестроение этапов
+  // (lockCalculationLedger), — правка базы не проскочит между чтением и записью.
+  await prisma.$transaction(async (tx) => {
+    await lockCalculationLedger(tx, cr.baseCalculationId);
+    const baseHash = await loadBaseFingerprint(tx, cr);
+    if (!baseHash) throw new ChangeRequestError('Базовый расчёт или комплект удалён', 409);
+    const res = await tx.changeRequest.updateMany({
+      where: { id: crId, projectId, status: 'submitted' },
+      data: {
+        confirmedHours: estimate.hours,
+        confirmedCost: estimate.cost,
+        confirmedScheduleDays: estimate.scheduleDays,
+        estimateComment: estimate.comment,
+        estimatedBy: actor,
+        estimatedAt: new Date(),
+        estimateBaseHash: baseHash,
+      },
+    });
+    if (res.count !== 1) {
+      throw new ChangeRequestError(
+        'Запрос уже изменён другим пользователем, обновите страницу',
+        409,
+      );
+    }
+    await tx.changeRequestEvent.create({
+      data: {
+        crId,
+        action: 'estimated',
+        actor,
+        comment: estimate.comment,
+        data: { hours: estimate.hours, cost: estimate.cost, scheduleDays: estimate.scheduleDays },
+      },
+    });
+  });
+  return getChangeRequest(projectId, crId);
 }

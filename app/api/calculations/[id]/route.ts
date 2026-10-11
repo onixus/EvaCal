@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { changeRequestsReferencingCalculation } from '@/lib/changeRequests/decisions';
+import {
+  changeRequestsReferencingCalculation,
+  isChangeRequestRestrictViolation,
+} from '@/lib/changeRequests/decisions';
 import { formatChangeRequestNumber } from '@/lib/changeRequests/workflow';
 import { validateCommercialUpdate } from '@/lib/commercial';
 import {
@@ -220,7 +223,18 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ id: st
     );
   }
 
-  await prisma.calculation.delete({ where: { id: params.id } });
+  try {
+    await prisma.calculation.delete({ where: { id: params.id } });
+  } catch (error) {
+    // Гонка с передачей запроса на оценку: триггер БД отказал — тоже 409.
+    if (isChangeRequestRestrictViolation(error)) {
+      return NextResponse.json(
+        { error: 'Расчёт или его комплект используется запросом на изменение' },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
   await writeAudit({
     actorType: 'user',
     actorId: auth.userId,

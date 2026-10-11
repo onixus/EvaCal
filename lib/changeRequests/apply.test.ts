@@ -75,6 +75,7 @@ describe('applyProposedChanges', () => {
       description: 'Вход через SAML',
       originalText: 'Вход через SAML',
       changeRef: 'ИЗМ-02',
+      title: 'Вход через SAML',
     });
     // legacy-привязка перенесена на этап новой версии
     expect(reqs[1].mappedStageId).toBe('N2');
@@ -83,6 +84,16 @@ describe('applyProposedChanges', () => {
     expect(reqs[2]).not.toHaveProperty('normalizedText');
     expect(reqs[3]).toMatchObject({ code: 'ИЗМ-02.1', description: 'Журнал входов SSO' });
     expect(res.snapshot.standardProfileId).toBe('ru-gost34-current');
+    // Подписи и автор ТЗ — от выпуска базы; черновик подписывают заново.
+    const signed = applyProposedChanges(
+      { ...snapshot, signatures: { a: 'b' }, tzAuthor: { x: 1 }, activeStep: 'review' },
+      proposed,
+      'ИЗМ-02',
+      map,
+    );
+    expect(signed.snapshot).not.toHaveProperty('signatures');
+    expect(signed.snapshot).not.toHaveProperty('tzAuthor');
+    expect(signed.snapshot).not.toHaveProperty('activeStep');
   });
 
   it('связи: исключённые удалены, цели перенесены, «не распределено» сохранено, потерянные отброшены', () => {
@@ -101,8 +112,28 @@ describe('applyProposedChanges', () => {
 });
 
 describe('computeBaseFingerprint', () => {
+  const stageRow = (id: string, name: string, hours: number, order: number) => ({
+    id,
+    name,
+    role: 'r',
+    hours,
+    order,
+    isApprovalTask: false,
+    requirements: null,
+    parallel: false,
+    approvalDays: null as number | null,
+  });
+  const snapshot = {
+    requirements: [{ id: 'R1', description: 'Вход' }],
+    manualLinks: [],
+    signatures: { approver: 'Иванов' },
+    tzAuthor: { mode: 'manual' },
+    activeStep: 'review',
+    updatedAt: '2026-10-01T00:00:00.000Z',
+  };
   const input: FingerprintInput = {
     calculation: {
+      startDate: new Date('2026-11-02T00:00:00Z'),
       pmHours: 16,
       currency: 'RUB',
       pricingMode: 'markup',
@@ -112,47 +143,75 @@ describe('computeBaseFingerprint', () => {
       discountPercent: 0,
       vatPercent: 20,
       includeVat: true,
-      stages: [
-        {
-          id: 'S1',
-          name: 'A',
-          role: 'r',
-          hours: 10,
-          order: 0,
-          isApprovalTask: false,
-          requirements: null,
-        },
-        {
-          id: 'S2',
-          name: 'B',
-          role: 'r',
-          hours: 20,
-          order: 1,
-          isApprovalTask: false,
-          requirements: null,
-        },
-      ],
+      stages: [stageRow('S1', 'A', 10, 0), stageRow('S2', 'B', 20, 1)],
       risks: [{ description: 'риск', hours: 5, order: 0 }],
+      dependencies: [{ fromStageId: 'S1', toStageId: 'S2', type: 'FS', lagDays: 0 }],
     },
-    basePackage: { snapshot: '{"requirements":[]}', documentTypes: '["tz"]' },
+    basePackage: { snapshot: JSON.stringify(snapshot), documentTypes: '["tz"]' },
   };
   const fp = computeBaseFingerprint(input);
+  const c = input.calculation;
+  const withSnapshot = (value: unknown): FingerprintInput => ({
+    ...input,
+    basePackage: { snapshot: JSON.stringify(value), documentTypes: '["tz"]' },
+  });
 
-  it('не зависит от порядка выборки строк', () => {
-    const reordered = {
+  it('не зависит от порядка выборки строк и ключей снимка', () => {
+    const reordered: FingerprintInput = {
       ...input,
-      calculation: { ...input.calculation, stages: [...input.calculation.stages].reverse() },
+      calculation: { ...c, stages: [...c.stages].reverse() },
     };
     expect(computeBaseFingerprint(reordered)).toBe(fp);
+    const reversedKeys = Object.fromEntries(Object.entries(snapshot).reverse());
+    expect(computeBaseFingerprint(withSnapshot(reversedKeys))).toBe(fp);
   });
-  it('меняется от часов, рисков, ставок и снимка комплекта', () => {
-    const c = input.calculation;
+
+  it('подписи, автор ТЗ, шаг мастера и метка сохранения снимка не влияют', () => {
+    expect(
+      computeBaseFingerprint(
+        withSnapshot({
+          ...snapshot,
+          signatures: { approver: 'Петров' },
+          tzAuthor: null,
+          activeStep: 'export',
+          updatedAt: '2026-10-11T00:00:00.000Z',
+        }),
+      ),
+    ).toBe(fp);
+  });
+
+  it('меняется от часов, рисков, ставок и содержания комплекта', () => {
     const variants: FingerprintInput[] = [
       { ...input, calculation: { ...c, stages: [{ ...c.stages[0], hours: 11 }, c.stages[1]] } },
       { ...input, calculation: { ...c, risks: [] } },
       { ...input, calculation: { ...c, marginPercent: 25 } },
-      { ...input, basePackage: { snapshot: '{"requirements":[1]}', documentTypes: '["tz"]' } },
+      withSnapshot({ ...snapshot, requirements: [{ id: 'R1', description: 'Вход по SSO' }] }),
+      withSnapshot({ ...snapshot, sectionOverrides: { intro: { title: 'Новое' } } }),
+      withSnapshot({ ...snapshot, projectContext: { users: 500 } }),
       { ...input, basePackage: null },
+    ];
+    for (const v of variants) expect(computeBaseFingerprint(v)).not.toBe(fp);
+  });
+
+  it('меняется от входов Ганта: параллельность, срок согласования, старт, зависимости', () => {
+    const variants: FingerprintInput[] = [
+      {
+        ...input,
+        calculation: { ...c, stages: [{ ...c.stages[0], parallel: true }, c.stages[1]] },
+      },
+      {
+        ...input,
+        calculation: { ...c, stages: [{ ...c.stages[0], approvalDays: 5 }, c.stages[1]] },
+      },
+      { ...input, calculation: { ...c, startDate: new Date('2026-11-09T00:00:00Z') } },
+      { ...input, calculation: { ...c, dependencies: [] } },
+      {
+        ...input,
+        calculation: {
+          ...c,
+          dependencies: [{ fromStageId: 'S1', toStageId: 'S2', type: 'FS', lagDays: 3 }],
+        },
+      },
     ];
     for (const v of variants) expect(computeBaseFingerprint(v)).not.toBe(fp);
   });

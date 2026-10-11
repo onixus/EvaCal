@@ -7,8 +7,8 @@ import {
 } from '@/lib/project';
 import { prisma } from '@/lib/prisma';
 
-vi.mock('@/lib/prisma', () => ({
-  prisma: {
+vi.mock('@/lib/prisma', () => {
+  const prisma: Record<string, unknown> = {
     project: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
@@ -29,8 +29,12 @@ vi.mock('@/lib/prisma', () => ({
       delete: vi.fn(),
     },
     reviewComment: { findMany: vi.fn(async () => []) },
-  },
-}));
+    // Номер версии комплекта берётся в транзакции под advisory-блокировкой проекта.
+    $executeRaw: vi.fn(),
+  };
+  prisma.$transaction = vi.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
+  return { prisma };
+});
 
 vi.mock('../storage', () => ({
   storePackageArtifact: vi.fn(async (projectId: string, packageId: string, buffer: any) => ({

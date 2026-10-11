@@ -73,6 +73,7 @@ const db = vi.hoisted(() => {
           ...calc,
           stages: state.stages.filter((s) => s.calculationId === calc.id),
           risks: [],
+          stageDependencies: [],
         };
       },
       findFirst: async ({ where }: Row) => {
@@ -129,6 +130,11 @@ const db = vi.hoisted(() => {
         };
         state.crs.push(row);
         return row;
+      },
+      deleteMany: async ({ where }: Row) => {
+        const before = state.crs.length;
+        state.crs = state.crs.filter((r) => !matches(r, where));
+        return { count: before - state.crs.length };
       },
       updateMany: async ({ where, data }: Row) => {
         const rows = state.crs.filter((r) => matches(r, where));
@@ -188,7 +194,7 @@ import { requireApiRole } from '@/lib/auth';
 import { createCalculationVersion, createDraftPackageVersion } from '@/lib/project';
 import { recordInternalChangeTx } from '@/lib/changelog';
 import { GET as list, POST as create } from '@/app/api/projects/[id]/change-requests/route';
-import { GET as getOne, PATCH } from '@/app/api/projects/[id]/change-requests/[crId]/route';
+import { DELETE, GET as getOne, PATCH } from '@/app/api/projects/[id]/change-requests/[crId]/route';
 
 const snapshot = {
   requirements: [
@@ -208,9 +214,9 @@ function seed() {
   ];
   db.state.risks = [];
   db.state.calculations = [
-    { id: 'c1', projectId: 'pr1', version: 1, currency: 'RUB' },
-    { id: 'c2', projectId: 'pr1', version: 2, currency: 'RUB' },
-    { id: 'cx', projectId: 'pr2', version: 1, currency: 'RUB' },
+    { id: 'c1', projectId: 'pr1', version: 1, currency: 'RUB', startDate: new Date('2026-11-02') },
+    { id: 'c2', projectId: 'pr1', version: 2, currency: 'RUB', startDate: new Date('2026-11-02') },
+    { id: 'cx', projectId: 'pr2', version: 1, currency: 'RUB', startDate: new Date('2026-11-02') },
   ];
   db.state.stages = [
     {
@@ -583,13 +589,78 @@ describe('Маршруты запросов на изменение', () => {
     expect(db.state.crs[0].status).toBe('submitted');
   });
 
-  it('вторая база одного расчёта не принимается — версии не расходятся', async () => {
+  it('цепочка: после принятия база — только результат; параллельная ветка не принимается', async () => {
     const first = await estimatedCr();
+    const second = await estimatedCr(); // подан на ту же базу до принятия первого
     expect((await PATCH(patch({ action: 'accept' }), crProps(first))).status).toBe(200);
-    const second = await estimatedCr();
+    const listed = await (await list(req(), props())).json();
+    expect(listed.headCalculationId).toBe('c-new');
     const res = await PATCH(patch({ action: 'accept' }), crProps(second));
     expect(res.status).toBe(409);
     expect((await res.json()).error).toMatch(/ЗИ-01/);
+    // Новый запрос на старой версии не создаётся.
+    const stale = await create(
+      req({ ...draft, basePackageId: null, requirementIds: [], proposedChanges: { summary: 'x' } }),
+      props(),
+    );
+    expect(stale.status).toBe(400);
+    expect((await stale.json()).error).toMatch(/текущая согласованная версия/);
+  });
+
+  it('база — выигранная версия: другая версия проекта не принимается', async () => {
+    db.state.calculations.push({
+      id: 'c3',
+      projectId: 'pr1',
+      version: 3,
+      currency: 'RUB',
+      startDate: new Date('2026-11-02'),
+    });
+    const res = await create(
+      req({
+        ...draft,
+        baseCalculationId: 'c3',
+        basePackageId: null,
+        requirementIds: [],
+        proposedChanges: { summary: 'x' },
+      }),
+      props(),
+    );
+    expect(res.status).toBe(400);
+    // Пока сделка не выиграна и изменений нет — база любая версия проекта.
+    db.state.projects[0].wonCalculationId = null;
+    const ok = await create(
+      req({
+        ...draft,
+        baseCalculationId: 'c3',
+        basePackageId: null,
+        requirementIds: [],
+        proposedChanges: { summary: 'x' },
+      }),
+      props(),
+    );
+    expect(ok.status).toBe(201);
+  });
+
+  it('черновик комплекта не может быть базой', async () => {
+    db.state.packages[0].status = 'draft';
+    const res = await create(req(draft), props());
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/выпущенный комплект/);
+  });
+
+  it('удалить можно только черновик запроса', async () => {
+    const cr = await (await create(req(draft), props())).json();
+    const id = await estimatedCr();
+    expect((await DELETE(req(undefined, 'http://localhost/x', 'DELETE'), crProps(id))).status).toBe(
+      409,
+    );
+    expect(
+      (await DELETE(req(undefined, 'http://localhost/x', 'DELETE'), crProps(cr.id))).status,
+    ).toBe(200);
+    expect(db.state.crs.map((r) => r.id)).toEqual([id]);
+    expect(
+      (await DELETE(req(undefined, 'http://localhost/x', 'DELETE'), crProps('nope'))).status,
+    ).toBe(404);
   });
 
   it('нумерация сквозная в проекте; список, карточка и требования базы', async () => {

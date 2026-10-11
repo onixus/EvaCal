@@ -801,7 +801,7 @@ model ChangeRequest {
   estimatedBy           String?
   estimatedAt           DateTime?
   // Отпечаток базы (расчёт + комплект) на момент оценки: принять можно, только
-  // если база не менялась после оценки (lib/changeRequests/fingerprint.ts).
+  // если база не менялась после оценки (computeBaseFingerprint в lib/changeRequests/apply.ts).
   estimateBaseHash      String?
   // Решение и результат (WP-2b): кто решил и какие версии появились.
   decidedBy             String?
