@@ -14,6 +14,7 @@ import type { Product } from '../catalog/types';
 import { loadSpecification, saveSpecification } from './store';
 import { parseSpecification, SpecificationError } from './validation';
 import type { SpecificationItem, SpecificationSnapshot } from './types';
+import { newRowId } from '../rowId';
 
 export interface ReplacementOption {
   relationId: string;
@@ -172,7 +173,7 @@ export function replaceInItems(
   let rows = [replaced];
   if (product.kind === 'bundle') {
     const byId = new Map(catalog.products.map((p) => [p.id, p]));
-    const newId = options.newId ?? (() => crypto.randomUUID());
+    const newId = options.newId ?? (() => newRowId());
     rows = expandBundle(
       replaced,
       componentsOf(catalog.relations, product.id).map((r) => {
