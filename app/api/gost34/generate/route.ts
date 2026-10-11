@@ -5,6 +5,7 @@ import { GOST34_LLM_ROLES } from '../roles';
 import { generateGost34Document } from '@/lib/gost34';
 import { responseBody, contentDisposition } from '@/lib/exportResponse';
 import { handleApiError } from '@/lib/apiHelpers';
+import { withoutClientEvidence } from '@/lib/gost34/generation/clientEvidence';
 
 export async function POST(req: NextRequest) {
   const session = await requireApiRole(GOST34_LLM_ROLES);
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
     } = body;
 
     const { buffer, filename } = await generateGost34Document({
-      calculation,
+      calculation: withoutClientEvidence(calculation),
       metadataOverride,
       rawRequirements,
       vendorFiles,

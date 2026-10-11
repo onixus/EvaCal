@@ -13,6 +13,8 @@ import {
 import type { Product } from '../lib/catalog/types';
 import type { ComplianceEvidence } from '../lib/catalog/compliance';
 import type { SpecificationItem } from '../lib/specification/types';
+import { refreshSpecificationEvidence } from '../lib/specification/evidence-refresh';
+import { loadCalculationForExport } from '../lib/export';
 
 const rejects409 = (e: unknown) => (e as { statusCode?: number }).statusCode === 409;
 
@@ -124,8 +126,9 @@ export async function verifyEvidence(actor: string, templateId: string) {
   assert.equal(v1.snapshot.items.find((i) => i.id === 'manual')!.evidence, undefined);
   assert.equal(await markSpecificationReleased(calculation.id, 1), 1);
 
-  // Catalog changes do not rewrite the released revision; an unchanged confirmed row
-  // keeps its copy, a re-confirmed row gets the current catalog evidence.
+  // Catalog changes never rewrite the released revision. A kept copy is re-validated on
+  // every save: edited records are refreshed, archived ones dropped. New records reach a
+  // confirmed row only through «Обновить сведения реестров» (or re-confirmation).
   await mutateCatalog(
     {
       action: 'evidence.update',
@@ -139,51 +142,77 @@ export async function verifyEvidence(actor: string, templateId: string) {
     mutateCatalog({ action: 'evidence.update', id: created.id, revision: 1, evidence }, actor),
     rejects409,
   );
+  const exportLive = await loadCalculationForExport(calculation.id);
+  assert.equal(exportLive?.specification?.status, 'released');
+  assert.equal(exportLive?.evidenceLive, undefined, 'released revisions are not compared');
   const v2 = await saveSpecification(calculation.id, { ...v1.snapshot, status: 'draft' }, actor);
-  assert.deepEqual(v2.snapshot.items.find((i) => i.id === 'os')!.evidence, copied);
-  const v3 = await saveSpecification(
-    calculation.id,
+  const kept = v2.snapshot.items.find((i) => i.id === 'os')!.evidence!;
+  assert.deepEqual(
+    kept.map((e) => [e.id, e.status, e.revision]),
+    [[created.id, 'revoked', 2]],
+    'edited record refreshed in the kept copy',
+  );
+  const second = (await mutateCatalog(
     {
-      ...v2.snapshot,
-      items: v2.snapshot.items.map((i) => (i.id === 'os' ? { ...i, confirmed: false } : i)),
+      action: 'evidence.create',
+      productId: product.id,
+      evidence: { ...evidence, type: 'certificate', number: 'CERT-1' },
+    },
+    actor,
+  )) as ComplianceEvidence;
+  const v3 = await saveSpecification(calculation.id, v2.snapshot, actor);
+  assert.equal(v3.snapshot.items.find((i) => i.id === 'os')!.evidence!.length, 1);
+  const draftExport = await loadCalculationForExport(calculation.id);
+  assert.deepEqual(draftExport?.evidenceLive, { [created.id]: { revision: 2, archived: false } });
+  await assert.rejects(
+    refreshSpecificationEvidence(calculation.id, { version: 2 }, actor),
+    rejects409,
+  );
+  await assert.rejects(
+    refreshSpecificationEvidence(calculation.id, { version: 3, itemIds: ['manual'] }, actor),
+    /позиций каталога/,
+  );
+  const v4 = await refreshSpecificationEvidence(
+    calculation.id,
+    { version: 3, itemIds: ['os'] },
+    actor,
+  );
+  assert.equal(v4.snapshot.status, 'draft');
+  assert.deepEqual(
+    v4.snapshot.items
+      .find((i) => i.id === 'os')!
+      .evidence!.map((e) => e.number)
+      .sort(),
+    ['369', 'CERT-1'],
+    'explicit refresh copies the current catalog evidence',
+  );
+  assert.equal(v4.snapshot.items.find((i) => i.id === 'os')!.confirmed, true);
+  await mutateCatalog({ action: 'evidence.archive', id: second.id, revision: 1 }, actor);
+  const v5 = await saveSpecification(calculation.id, v4.snapshot, actor);
+  assert.deepEqual(
+    v5.snapshot.items.find((i) => i.id === 'os')!.evidence!.map((e) => e.number),
+    ['369'],
+    'archived record dropped from the kept copy',
+  );
+  // Evidence of an archived product is read-only; the edit records the current product revision.
+  await mutateCatalog(
+    {
+      action: 'product.update',
+      id: product.id,
+      revision: 1,
+      product: { ...stored, attributes: [], name: 'ОС (ред. 2)' },
     },
     actor,
   );
-  const v4 = await saveSpecification(
-    calculation.id,
-    {
-      ...v3.snapshot,
-      items: v3.snapshot.items.map((i) => (i.id === 'os' ? { ...i, confirmed: true } : i)),
-    },
+  const reChecked = (await mutateCatalog(
+    { action: 'evidence.update', id: created.id, revision: 2, evidence },
     actor,
-  );
-  assert.equal(v4.snapshot.items.find((i) => i.id === 'os')!.evidence?.[0].status, 'revoked');
-  await mutateCatalog({ action: 'evidence.archive', id: created.id, revision: 2 }, actor);
-  const v5 = await saveSpecification(
-    calculation.id,
-    {
-      ...v4.snapshot,
-      items: v4.snapshot.items.map((i) => (i.id === 'os' ? { ...i, quantity: '2' } : i)),
-    },
-    actor,
-  );
-  assert.equal(
-    v5.snapshot.items.find((i) => i.id === 'os')!.evidence?.[0].status,
-    'revoked',
-    'a confirmed row keeps its copied evidence across edits',
-  );
-  const v6 = await saveSpecification(
-    calculation.id,
-    {
-      ...v5.snapshot,
-      items: v5.snapshot.items.map((i) => (i.id === 'os' ? { ...i, confirmed: false } : i)),
-    },
-    actor,
-  );
-  assert.equal(
-    v6.snapshot.items.find((i) => i.id === 'os')!.evidence,
-    undefined,
-    'archived evidence is not copied into new revisions',
+  )) as ComplianceEvidence;
+  assert.equal(reChecked.productRevision, 2);
+  await mutateCatalog({ action: 'product.archive', id: product.id, revision: 2 }, actor);
+  await assert.rejects(
+    mutateCatalog({ action: 'evidence.update', id: created.id, revision: 3, evidence }, actor),
+    /архивирована/,
   );
   const released = await loadSpecification(calculation.id, 1);
   assert.equal(released?.snapshot.status, 'released');

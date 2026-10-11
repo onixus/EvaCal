@@ -1,8 +1,8 @@
 // Compliance evidence in SPEC/PZ: only confirmed specification rows with current
-// confirmed evidence covering their exact SKU/edition are printed; everything else is
-// «Не подтверждено». A brand or vendor alone never implies compliance.
+// confirmed evidence covering their exact catalog SKU/edition are printed; everything
+// else is «Не подтверждено». A brand or vendor alone never implies compliance.
 import { businessDate } from '../../catalog/business-date';
-import { evidenceText, itemEvidence } from '../../catalog/compliance';
+import { evidenceDrift, evidenceText, itemEvidence } from '../../catalog/compliance';
 import type { ItemKind, SpecificationItem } from '../../specification/types';
 import type { ContextGap } from '../context/types';
 import type { Gost34InputPayload } from '../types';
@@ -15,33 +15,55 @@ export const EVIDENCE_KINDS: readonly ItemKind[] = [
   'hardware',
   'bundle',
 ];
+const REFRESH_HINT =
+  'Внесите или исправьте запись в каталоге («Реестры и сертификаты» позиции), затем в спецификации нажмите «Обновить сведения реестров» и сохраните новую редакцию';
 
-export function evidenceAsOf(payload: Pick<Gost34InputPayload, 'evidenceDate'>): string {
-  return payload.evidenceDate ?? businessDate(new Date())!;
+/** Business date of evaluation: expiry and stale checks are judged on the generation day. */
+export function evidenceAsOf(): string {
+  return businessDate(new Date())!;
 }
 
 export function itemEvidenceText(item: SpecificationItem, asOf: string): string {
   return evidenceText(itemEvidence(item, asOf));
 }
 
+const names = (list: string[]) =>
+  `${list.length} поз.: ${list.slice(0, 10).join(', ')}${list.length > 10 ? ', …' : ''}`;
+
 /**
- * Non-blocking gap: confirmed supplied rows that need evidence but have no current
- * confirmed evidence (missing, expired, revoked, stale or for another version/model).
+ * Non-blocking gaps: confirmed supplied rows that need evidence but have no current
+ * confirmed evidence; and (non-released revisions only, when the live catalog state is
+ * known) copies that no longer match the catalog records.
  */
-export function evidenceGap(items: SpecificationItem[], asOf: string): ContextGap | null {
-  const missing = items.filter(
-    (item) =>
-      item.confirmed &&
-      item.disposition !== 'alternative' &&
-      EVIDENCE_KINDS.includes(item.kind) &&
-      itemEvidence(item, asOf).current.length === 0,
-  );
-  if (!missing.length) return null;
-  const names = missing.slice(0, 10).map((item) => item.name || item.id);
-  return {
-    path: 'specification.evidence',
-    label: `Действующие подтверждения реестров / сертификатов (${missing.length} поз.: ${names.join(', ')}${missing.length > names.length ? ', …' : ''})`,
-    severity: 'minor',
-    hint: 'Внесите в каталоге запись реестра или сертификат с источником, датой проверки и точной применимостью, затем повторно подтвердите строку спецификации',
-  };
+export function evidenceGaps(
+  items: SpecificationItem[],
+  asOf: string,
+  live?: Gost34InputPayload['evidenceLive'],
+): ContextGap[] {
+  const gaps: ContextGap[] = [];
+  const missing = items
+    .filter(
+      (item) =>
+        item.confirmed &&
+        item.disposition === 'supply' &&
+        EVIDENCE_KINDS.includes(item.kind) &&
+        itemEvidence(item, asOf).current.length === 0,
+    )
+    .map((item) => item.name || item.id);
+  if (missing.length)
+    gaps.push({
+      path: 'specification.evidence',
+      label: `Действующие подтверждения реестров / сертификатов (${names(missing)})`,
+      severity: 'minor',
+      hint: REFRESH_HINT,
+    });
+  const drift = live ? evidenceDrift(items, live) : [];
+  if (drift.length)
+    gaps.push({
+      path: 'specification.evidence-drift',
+      label: `Сведения реестров / сертификатов изменились в каталоге после копирования (${names(drift)})`,
+      severity: 'minor',
+      hint: 'Нажмите «Обновить сведения реестров» в спецификации: копии в редакции обновятся по каталогу',
+    });
+  return gaps;
 }

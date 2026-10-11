@@ -2,31 +2,20 @@ import { describe, it, expect } from 'vitest';
 import { extractVendorRequisites } from '../vendorDocParser';
 
 describe('extractVendorRequisites', () => {
-  const text = `
+  it('извлекает сертификаты ФСТЭК, ФСБ и записи реестра как кандидаты без статического справочника', () => {
+    const found = extractVendorRequisites(`
       Операционная система Astra Linux Special Edition.
       Соответствие подтверждено сертификатом ФСТЭК России № 2557 (1 уровень доверия).
       Продукт включён в Единый реестр российского ПО, запись № 369.
       СКЗИ сертифицировано ФСБ России, сертификат № СФ/124-4900 (класс КС3).
-    `;
-  it('извлекает сертификаты ФСТЭК, ФСБ и записи реестра без статического справочника', () => {
-    const found = extractVendorRequisites(text);
+    `);
     expect(found.map((r) => [r.kind, r.number])).toEqual([
       ['fstek', '№ 2557'],
       ['fsb', '№ СФ/124-4900'],
       ['reestr-min-tsifry', '№ 369'],
     ]);
-    // Без подтверждений каталога ничего не помечается как известное.
-    expect(found.every((r) => r.matchesEvidenceId === undefined)).toBe(true);
-  });
-
-  it('совпадение номера с подтверждением каталога только помечается для пересверки', () => {
-    const found = extractVendorRequisites(text, [
-      { id: 'ev-1', number: '369' },
-      { id: 'ev-2', number: '№ СФ/124-4900' },
-    ]);
-    expect(found.find((r) => r.kind === 'reestr-min-tsifry')?.matchesEvidenceId).toBe('ev-1');
-    expect(found.find((r) => r.kind === 'fsb')?.matchesEvidenceId).toBe('ev-2');
-    expect(found.find((r) => r.kind === 'fstek')?.matchesEvidenceId).toBeUndefined();
+    // Никакой привязки к «известным» продуктам: номер — только кандидат для ручной проверки.
+    for (const r of found) expect(Object.keys(r).sort()).toEqual(['context', 'kind', 'number']);
   });
 
   it('не дублирует одинаковые находки и терпит пустой текст', () => {

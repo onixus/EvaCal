@@ -185,10 +185,20 @@ export async function mutateCatalog(
     if (d.action === 'evidence.update' || d.action === 'evidence.archive') {
       const evidenceId = text(d.id, 'Подтверждение', 100, true);
       const data = d.action === 'evidence.update' ? evidenceInput(d.evidence) : null;
+      let productRevision: number | undefined;
+      if (data) {
+        // An edit is a new check of the current product: archived products are read-only.
+        const current = await tx.complianceEvidence.findUnique({ where: { id: evidenceId } });
+        if (!current) throw new SpecificationError('Подтверждение не найдено', 404);
+        const product = await lockProduct(tx, current.productId);
+        if (product.archived)
+          throw new SpecificationError('Позиция архивирована: подтверждения не изменяются', 409);
+        productRevision = product.revision;
+      }
       const result = await tx.complianceEvidence.updateMany({
         where: { id: evidenceId, revision: revision(d.revision), archivedAt: null },
         data: data
-          ? { ...data, checkedBy: actorId, revision: { increment: 1 } }
+          ? { ...data, productRevision, checkedBy: actorId, revision: { increment: 1 } }
           : { archivedAt: new Date(), archivedBy: actorId, revision: { increment: 1 } },
       });
       if (!result.count)

@@ -7,7 +7,7 @@ import {
 } from '../../specification/sections';
 import { describeTotal, summarizeSpecification } from '../../specification/totals';
 import type { ContextGap } from '../context/types';
-import { evidenceAsOf, evidenceGap, itemEvidenceText } from './evidence';
+import { evidenceAsOf, evidenceGaps, itemEvidenceText } from './evidence';
 
 /** Questionnaire values and catalogue heuristics never become accepted supply lines. */
 export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[] {
@@ -18,7 +18,7 @@ export function buildSPEC34Document(payload: Gost34InputPayload): {
   sections: Gost34Section[];
   gaps: ContextGap[];
 } {
-  const asOf = evidenceAsOf(payload);
+  const asOf = evidenceAsOf();
   const spec = payload.specification && parseSpecification(payload.specification);
   const items = spec?.items || [];
   const blockers = specificationBlockers(spec);
@@ -57,7 +57,7 @@ export function buildSPEC34Document(payload: Gost34InputPayload): {
       { caption: `Таблица ${num - 1} — ${title.toLowerCase()}`, headers, rows: rows(selected) },
     ],
   });
-  const gap = spec ? evidenceGap(spec.items, asOf) : null;
+  const gaps = spec ? evidenceGaps(spec.items, asOf, payload.evidenceLive) : [];
   const sections: Gost34Section[] = [
     {
       id: 'sec-1',
@@ -99,5 +99,5 @@ export function buildSPEC34Document(payload: Gost34InputPayload): {
       ],
     },
   ];
-  return { sections, gaps: gap ? [gap] : [] };
+  return { sections, gaps };
 }

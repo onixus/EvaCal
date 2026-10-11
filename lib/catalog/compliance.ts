@@ -53,6 +53,8 @@ export interface EvidenceSnapshot extends Omit<EvidenceInput, 'note'> {
   productId: string;
   productRevision: number | null;
   checkedBy: string;
+  /** Revision of the catalog record copied (absent in early copies: treated as outdated). */
+  revision?: number;
 }
 export interface ComplianceEvidence extends EvidenceInput {
   id: string;
@@ -170,11 +172,10 @@ export function deriveEvidenceStatus(
 }
 
 /** Evidence copied into a specification item; null-safe for legacy rows. */
-export function snapshotEvidence(
-  e: Pick<ComplianceEvidence, Exclude<keyof EvidenceSnapshot, never>>,
-): EvidenceSnapshot {
+export function snapshotEvidence(e: ComplianceEvidence): EvidenceSnapshot {
   return {
     id: e.id,
+    revision: e.revision,
     productId: e.productId,
     productRevision: e.productRevision,
     type: e.type,
@@ -189,6 +190,11 @@ export function snapshotEvidence(
   };
 }
 
+function positive(value: unknown): number {
+  if (!Number.isSafeInteger(value) || Number(value) < 1)
+    throw new SpecificationError('Некорректная редакция подтверждения');
+  return Number(value);
+}
 /** Strict parse of a stored snapshot (reloaded revisions are validated too). */
 export function parseEvidenceSnapshot(input: unknown): EvidenceSnapshot {
   const d = object(input);
@@ -205,6 +211,7 @@ export function parseEvidenceSnapshot(input: unknown): EvidenceSnapshot {
     'validUntil',
     'status',
     'applicability',
+    'revision',
   ];
   if (Object.keys(d).some((k) => !allowed.includes(k)))
     throw new SpecificationError('Неизвестное поле подтверждения соответствия');
@@ -230,6 +237,7 @@ export function parseEvidenceSnapshot(input: unknown): EvidenceSnapshot {
     validUntil: d.validUntil === null ? null : date(d.validUntil, 'Действует до'),
     status: d.status as EvidenceStatus,
     applicability: text(d.applicability, 'Применимость', 500, true),
+    ...(d.revision === undefined ? {} : { revision: positive(d.revision) }),
   };
 }
 
@@ -259,11 +267,18 @@ export function itemEvidence(
     view.problems.push('позиция не подтверждена');
     return view;
   }
+  // Applicability is matched against the catalog identity of the row, never the editable SKU.
+  if (!item.origin) {
+    view.problems.push('ручная позиция: подтверждения ведутся только для позиций каталога');
+    return view;
+  }
+  if (item.sku !== item.origin.sku) {
+    view.problems.push('артикул изменен вручную: подтверждения каталога к строке не относятся');
+    return view;
+  }
   for (const e of item.evidence ?? []) {
     const label = `${EVIDENCE_TYPE_LABELS[e.type]} № ${e.number}`;
-    if (
-      !applicabilityMatches(e.applicability, [item.sku, item.origin?.sku, item.origin?.edition])
-    ) {
+    if (!applicabilityMatches(e.applicability, [item.origin.sku, item.origin.edition])) {
       view.problems.push(`${label}: не относится к версии/модели позиции (${e.applicability})`);
       continue;
     }
@@ -285,4 +300,24 @@ export function evidenceText(view: ItemEvidenceView): string {
         `${EVIDENCE_TYPE_LABELS[e.type]} № ${e.number}${e.issuer ? ` (${e.issuer})` : ''}; применимо к: ${e.applicability}; проверено ${e.checkedAt}${e.validUntil ? `, действует до ${e.validUntil}` : ''}; источник: ${e.sourceUrl}`,
     )
     .join('\n');
+}
+
+/** Live state of catalog evidence records referenced by a non-released specification. */
+export type EvidenceLive = Record<string, { revision: number; archived: boolean }>;
+/**
+ * Rows whose copied evidence no longer matches the catalog: the record was archived,
+ * deleted or edited after the copy. Only meaningful for non-released revisions.
+ */
+export function evidenceDrift(
+  items: Array<{ name: string; id: string; evidence?: EvidenceSnapshot[] }>,
+  live: EvidenceLive,
+): string[] {
+  return items
+    .filter((item) =>
+      (item.evidence ?? []).some((e) => {
+        const current = live[e.id];
+        return !current || current.archived || current.revision !== e.revision;
+      }),
+    )
+    .map((item) => item.name || item.id);
 }

@@ -16,12 +16,6 @@ export interface VendorRequisite {
   number: string;
   /** Фрагмент исходного текста вокруг находки. */
   context: string;
-  /**
-   * ID подтверждения каталога (ComplianceEvidence) с тем же номером, если
-   * вызывающий передал список; совпадение номера не подтверждает соответствие
-   * — оно лишь указывает запись каталога для ручной пересверки.
-   */
-  matchesEvidenceId?: string;
 }
 
 /**
@@ -72,13 +66,10 @@ export async function parseVendorDocument(
 /**
  * Извлекает из текста вендорского документа номера сертификатов ФСТЭК/ФСБ
  * и записей Единого реестра российского ПО. Статического справочника вендоров
- * нет: найденный номер — кандидат для ручной проверки, а не подтверждение.
- * Если передан список подтверждений каталога, совпадение номера помечается.
+ * нет: найденный номер — кандидат для ручной проверки и внесения в каталог
+ * («Реестры и сертификаты» позиции), а не подтверждение соответствия.
  */
-export function extractVendorRequisites(
-  text: string,
-  known: Array<{ id: string; number: string }> = [],
-): VendorRequisite[] {
+export function extractVendorRequisites(text: string): VendorRequisite[] {
   const found: VendorRequisite[] = [];
   const seen = new Set<string>();
 
@@ -91,9 +82,7 @@ export function extractVendorRequisites(
       .slice(Math.max(0, index - 60), index + 80)
       .replace(/\s+/g, ' ')
       .trim();
-    const bare = rawNumber.trim().toLowerCase();
-    const match = known.find((e) => e.number.replace(/^№\s*/, '').trim().toLowerCase() === bare);
-    found.push({ kind, number, context, ...(match ? { matchesEvidenceId: match.id } : {}) });
+    found.push({ kind, number, context });
   };
 
   // «Сертификат (соответствия) ФСТЭК России № 2557», «сертификат ФСТЭК №4063»

@@ -126,6 +126,7 @@ export function analyzeAndNormalizeInput(input: {
 
   return {
     specification: calc?.specification,
+    ...(calc?.evidenceLive ? { evidenceLive: calc.evidenceLive } : {}),
     metadata,
     standardProfile,
     systemName: metadata.systemName,

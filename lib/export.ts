@@ -31,6 +31,8 @@ export interface FieldForExport {
 
 export interface CalculationForExport {
   specification?: import('@/lib/specification/types').SpecificationSnapshot;
+  /** Live catalog state of evidence copied into a non-released specification revision. */
+  evidenceLive?: import('@/lib/catalog/compliance').EvidenceLive;
   id?: string;
   name: string;
   customer: string;
@@ -82,8 +84,28 @@ export async function loadCalculationForExport(
     throw new SpecificationError('Редакция спецификации не найдена', 404);
   }
 
+  // Released revisions are immutable documents: their copies are not compared to the catalog.
+  let evidenceLive: CalculationForExport['evidenceLive'];
+  if (specification && specification.snapshot.status !== 'released') {
+    const ids = [
+      ...new Set(
+        specification.snapshot.items.flatMap((item) => (item.evidence ?? []).map((e) => e.id)),
+      ),
+    ];
+    if (ids.length) {
+      const rows = await prisma.complianceEvidence.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, revision: true, archivedAt: true },
+      });
+      evidenceLive = Object.fromEntries(
+        rows.map((row) => [row.id, { revision: row.revision, archived: row.archivedAt !== null }]),
+      );
+    }
+  }
+
   return {
     specification: specification?.snapshot,
+    ...(evidenceLive ? { evidenceLive } : {}),
     id: calculation.id,
     name: calculation.name,
     customer: calculation.customer,

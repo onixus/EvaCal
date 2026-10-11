@@ -3,6 +3,7 @@ import {
   applicabilityMatches,
   deriveEvidenceStatus,
   evidenceInput,
+  evidenceDrift,
   evidenceText,
   itemEvidence,
   NOT_CONFIRMED,
@@ -165,5 +166,46 @@ describe('Снимок в редакции спецификации', () => {
       ],
     });
     expect(spec.items[0].evidence).toEqual([snapshot()]);
+  });
+});
+
+describe('Каталожная идентичность и расхождение с каталогом', () => {
+  const e = snapshot({ revision: 2, applicability: 'SE 1.8' });
+  it('применимость сверяется с артикулом/редакцией каталога, а не с изменяемым артикулом строки', () => {
+    const origin = { sku: 'ALSE-18', edition: 'SE 1.8' };
+    expect(
+      itemEvidence({ confirmed: true, sku: 'ALSE-18', origin, evidence: [e] }, '2026-10-10', 365)
+        .current,
+    ).toHaveLength(1);
+    const edited = itemEvidence(
+      { confirmed: true, sku: 'SE 1.8', origin: { ...origin, edition: '' }, evidence: [e] },
+      '2026-10-10',
+      365,
+    );
+    expect(edited.current).toEqual([]);
+    expect(edited.problems[0]).toMatch(/артикул изменен вручную/);
+    expect(
+      itemEvidence({ confirmed: true, sku: 'SE 1.8', evidence: [e] }, '2026-10-10', 365)
+        .problems[0],
+    ).toMatch(/ручная позиция/);
+  });
+  it('копия расходится с каталогом при архивировании, удалении или правке записи', () => {
+    const items = [
+      { id: 'a', name: 'A', evidence: [e] },
+      { id: 'b', name: 'B', evidence: [snapshot({ id: 'gone', revision: 1 })] },
+      { id: 'c', name: 'C', evidence: [snapshot({ id: 'old', revision: undefined })] },
+      { id: 'd', name: 'D' },
+    ];
+    expect(evidenceDrift(items, { 'ev-1': { revision: 2, archived: false } })).toEqual(['B', 'C']);
+    expect(evidenceDrift(items, { 'ev-1': { revision: 3, archived: false } })).toEqual([
+      'A',
+      'B',
+      'C',
+    ]);
+    expect(evidenceDrift(items, { 'ev-1': { revision: 2, archived: true } })[0]).toBe('A');
+  });
+  it('редакция записи в снимке проверяется', () => {
+    expect(parseEvidenceSnapshot(e).revision).toBe(2);
+    expect(() => parseEvidenceSnapshot({ ...e, revision: 0 })).toThrow(/редакция/);
   });
 });

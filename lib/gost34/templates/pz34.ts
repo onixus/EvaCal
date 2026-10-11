@@ -18,7 +18,7 @@ import { Gost34InputPayload, Gost34Section, Gost34TableData } from '../types';
 import { ContextGap, formatGap } from '../context/types';
 import { parseSpecification } from '../../specification/validation';
 import { LICENSED_KINDS, type SpecificationItem } from '../../specification/types';
-import { evidenceAsOf, evidenceGap, itemEvidenceText } from './evidence';
+import { evidenceAsOf, evidenceGaps, itemEvidenceText } from './evidence';
 
 const SPEC_GAP: ContextGap = {
   path: 'specification',
@@ -201,7 +201,7 @@ export function buildPZ34Document(payload: Gost34InputPayload): {
 
   // Обоснование выбора ПО — только подтверждённые позиции спецификации проекта.
   const software = confirmedSoftware(payload);
-  const asOf = evidenceAsOf(payload);
+  const asOf = evidenceAsOf();
   if (!software) {
     techParagraphs.push(
       `3.7 ${formatGap('Обоснование выбора программных средств')} Состав программных средств не подтверждён спецификацией проекта.`,
@@ -232,8 +232,7 @@ export function buildPZ34Document(payload: Gost34InputPayload): {
         itemEvidenceText(item, asOf),
       ]),
     });
-    const gap = evidenceGap(software, asOf);
-    if (gap) gaps.push(gap);
+    gaps.push(...evidenceGaps(software, asOf, payload.evidenceLive));
   }
 
   const dataClasses = ctx?.dataClasses || [];

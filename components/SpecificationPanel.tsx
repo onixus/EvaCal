@@ -264,6 +264,29 @@ export default function SpecificationPanel({
     }
   };
   // Proposes a saved manual row for the shared catalog; the project row is unchanged.
+  // «Обновить сведения реестров»: the server re-copies catalog evidence into a new draft.
+  const refreshEvidence = async (itemIds?: string[]) => {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const res = await fetch(`/api/calculations/${calculationId}/specification/evidence`, {
+        method: 'POST',
+        headers: withShareHeaders(calculationId, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ version: spec.version, ...(itemIds ? { itemIds } : {}) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Не удалось обновить сведения реестров');
+      setSpec((data as SavedSpecification).snapshot);
+      setNotice(
+        'Сведения реестров и сертификатов обновлены по каталогу в новой черновой редакции.',
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка обновления сведений');
+    } finally {
+      setBusy(false);
+    }
+  };
   const suggest = async (item: SpecificationItem) => {
     setBusy(true);
     setError('');
@@ -568,7 +591,15 @@ export default function SpecificationPanel({
                   {evidenceText(itemEvidence(item, businessDate(new Date()) ?? ''))}
                   {item.evidence?.length
                     ? ''
-                    : ' (копия подтверждений каталога сохраняется при подтверждении строки)'}
+                    : ' (сведения каталога копируются при подтверждении строки или кнопкой «Обновить сведения реестров»)'}
+                  {canWrite && !dirty && !historical && spec.version > 0 && (
+                    <button
+                      className="btn-secondary ml-2"
+                      onClick={() => refreshEvidence([item.id])}
+                    >
+                      Обновить сведения реестров
+                    </button>
+                  )}
                 </p>
               )}
               {item.sizingRef && (
@@ -678,6 +709,13 @@ export default function SpecificationPanel({
                 onClick={() => change({ ...spec, items: [...spec.items, newItem()] })}
               >
                 Добавить позицию
+              </button>
+              <button
+                className="btn-secondary"
+                disabled={disabled || dirty || !spec.version || !spec.items.some((i) => i.origin)}
+                onClick={() => refreshEvidence()}
+              >
+                Обновить сведения реестров (все позиции каталога)
               </button>
               <button className="btn-secondary" disabled={disabled} onClick={() => save('draft')}>
                 Сохранить новую редакцию
