@@ -185,7 +185,7 @@ vN → комплект vM` (`lib/changeRequests/totals.ts`, `summaryData.ts`).
 ## Хранение
 
 Таблицы `ChangeRequest` и `ChangeRequestEvent` (миграции
-`20261026100000_change_requests`, `20261115100000_change_request_decisions` —
+`20261026100000_change_requests`, `20261120100000_change_request_decisions` —
 `estimateBaseHash`, `Project.baselineCalculationId`, CHECK результата,
 триггеры защиты от удаления). Ссылки на проект, расчёт и комплект —
 скалярные id без внешних ключей: запрос не каскадирует изменения в базу, общие
