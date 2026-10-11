@@ -7,7 +7,9 @@ import {
 } from './validation';
 import { catalogItem, withoutPriceConfirmation } from '../catalog/snapshot';
 import type { Product } from '../catalog/types';
-import type { SavedSpecification } from './types';
+import type { SavedSpecification, SpecificationItem, SpecificationSnapshot } from './types';
+import { snapshotEvidence } from '../catalog/compliance';
+import { mapEvidence } from '../catalog/store';
 import { clearStaleChangeReasons } from './diff';
 import { verifySizingRefs } from '../sizing/refs';
 
@@ -31,6 +33,72 @@ export async function loadSpecification(
   };
 }
 
+/**
+ * Compliance evidence is copied by the server, never taken from the client:
+ * - a new, re-originated, newly confirmed or explicitly refreshed catalog row gets the
+ *   current (non-archived) evidence of its product;
+ * - a row that stays confirmed with the same origin keeps its copy, re-validated against
+ *   the live records: archived/deleted records are dropped, edited records are refreshed;
+ * - manual rows carry no evidence.
+ * Saved (and released) revisions are never rewritten: this only shapes the new revision.
+ */
+async function attachEvidence(
+  tx: Prisma.TransactionClient,
+  previous: SpecificationSnapshot | null,
+  snapshot: SpecificationSnapshot,
+  refresh: Set<string> | 'all' | undefined,
+) {
+  const old = new Map((previous?.items ?? []).map((item) => [item.id, item]));
+  const fresh = new Set<string>();
+  const kept: SpecificationItem[] = [];
+  for (const item of snapshot.items) {
+    const before = old.get(item.id);
+    const refreshed = refresh === 'all' || Boolean(refresh?.has(item.id));
+    const keep =
+      !refreshed &&
+      item.origin &&
+      before?.origin &&
+      before.confirmed &&
+      item.confirmed &&
+      JSON.stringify(before.origin) === JSON.stringify(item.origin);
+    delete item.evidence;
+    if (keep) {
+      if (before.evidence?.length) {
+        item.evidence = before.evidence;
+        kept.push(item);
+      }
+    } else if (item.origin) fresh.add(item.origin.productId);
+  }
+  const keptIds = [...new Set(kept.flatMap((item) => item.evidence!.map((e) => e.id)))];
+  if (!fresh.size && !keptIds.length) return;
+  const rows = await tx.complianceEvidence.findMany({
+    where: {
+      OR: [
+        ...(fresh.size ? [{ productId: { in: [...fresh] }, archivedAt: null }] : []),
+        ...(keptIds.length ? [{ id: { in: keptIds } }] : []),
+      ],
+    },
+    orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }],
+  });
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  for (const item of kept) {
+    const evidence = item.evidence!.flatMap((copy) => {
+      const live = byId.get(copy.id);
+      if (!live || live.archivedAt) return [];
+      return live.revision === copy.revision ? [copy] : [snapshotEvidence(mapEvidence(live))];
+    });
+    if (evidence.length) item.evidence = evidence;
+    else delete item.evidence;
+  }
+  for (const item of snapshot.items) {
+    if (!item.origin || item.evidence || !fresh.has(item.origin.productId)) continue;
+    const evidence = rows
+      .filter((row) => row.productId === item.origin!.productId && !row.archivedAt)
+      .map((row) => snapshotEvidence(mapEvidence(row)));
+    if (evidence.length) item.evidence = evidence;
+  }
+}
+
 /** Serialize writes per calculation; stale editors cannot overwrite another revision. */
 export async function saveSpecification(
   calculationId: string,
@@ -41,6 +109,8 @@ export async function saveSpecification(
     allowNewCatalogOrigins?: boolean;
     /** Extra checks inside the write transaction (after the version lock). */
     beforeWrite?: (tx: Prisma.TransactionClient) => Promise<void>;
+    /** Rows (or all) whose compliance evidence is re-copied from the catalog. */
+    refreshEvidence?: string[] | 'all';
   } = {},
 ) {
   const snapshot = parseSpecification(input);
@@ -133,6 +203,14 @@ export async function saveSpecification(
       }
     }
     // Связи с сайзингом проверяются по неизменяемым прогонам этого расчета.
+    await attachEvidence(
+      tx,
+      previous,
+      snapshot,
+      options.refreshEvidence === 'all'
+        ? 'all'
+        : options.refreshEvidence && new Set(options.refreshEvidence),
+    );
     if (options.beforeWrite) await options.beforeWrite(tx);
     const sizingRunIds = await verifySizingRefs(tx, calculationId, snapshot.items);
     const { sizingRunIds: _clientRunIds, ...rest } = clearStaleChangeReasons(previous, snapshot);

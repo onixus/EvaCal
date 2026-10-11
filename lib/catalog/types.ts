@@ -1,6 +1,7 @@
 import type { SpecificationItem } from '../specification/types';
 import type { ProductRelation } from './relations';
 import type { AttributeDefinition } from './attributes';
+import type { ComplianceEvidence } from './compliance';
 export const CATALOG_ROLES = ['admin', 'architect', 'presale'];
 export interface Vendor {
   id: string;
@@ -75,6 +76,8 @@ export interface Product extends ProductInput {
   offers: Offer[];
   /** Attribute problems against the definitions (invalid values, unknown names); review only. */
   attributeFlags?: string[];
+  /** Active compliance evidence (registry entries, certificates), newest first. */
+  evidence?: ComplianceEvidence[];
 }
 export interface Catalog {
   vendors: Vendor[];

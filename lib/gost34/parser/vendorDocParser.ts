@@ -1,6 +1,5 @@
 import mammoth from 'mammoth';
 import { Gost34RequirementItem, RequirementCategory } from '../types';
-import { VENDOR_SOFTWARE } from '../vendors/registry';
 
 export interface ParsedVendorDocument {
   filename: string;
@@ -17,11 +16,6 @@ export interface VendorRequisite {
   number: string;
   /** Фрагмент исходного текста вокруг находки. */
   context: string;
-  /**
-   * Идентификатор продукта базы знаний вендоров, чей записанный реквизит
-   * совпал с найденным; расхождение — повод пересверить базу.
-   */
-  matchesKnownProductId?: string;
 }
 
 /**
@@ -71,9 +65,9 @@ export async function parseVendorDocument(
 
 /**
  * Извлекает из текста вендорского документа номера сертификатов ФСТЭК/ФСБ
- * и записей Единого реестра российского ПО и сверяет их с базой знаний
- * вендоров: совпавший номер подтверждает реквизит базы, несовпавший —
- * сигнал пересверить её с актуальным вендорским документом.
+ * и записей Единого реестра российского ПО. Статического справочника вендоров
+ * нет: найденный номер — кандидат для ручной проверки и внесения в каталог
+ * («Реестры и сертификаты» позиции), а не подтверждение соответствия.
  */
 export function extractVendorRequisites(text: string): VendorRequisite[] {
   const found: VendorRequisite[] = [];
@@ -88,10 +82,7 @@ export function extractVendorRequisites(text: string): VendorRequisite[] {
       .slice(Math.max(0, index - 60), index + 80)
       .replace(/\s+/g, ' ')
       .trim();
-    const known = VENDOR_SOFTWARE.find((p) =>
-      `${p.reestrMinTsifry || ''} ${p.certification || ''}`.includes(number),
-    );
-    found.push({ kind, number, context, matchesKnownProductId: known?.id });
+    found.push({ kind, number, context });
   };
 
   // «Сертификат (соответствия) ФСТЭК России № 2557», «сертификат ФСТЭК №4063»

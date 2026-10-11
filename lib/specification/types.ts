@@ -1,4 +1,5 @@
 import type { SpecificationCatalogOrigin } from './gpl-update-types';
+import type { EvidenceSnapshot } from '../catalog/compliance';
 export const ITEM_KINDS = [
   'hardware',
   'software',
@@ -86,6 +87,11 @@ export interface SpecificationItem {
   includedIn?: string;
   /** Component quantity per one bundle (with `includedIn`); the editor derives quantity from it. */
   perBundle?: string;
+  /**
+   * Compliance evidence (registry entries, certificates) of the catalog product,
+   * copied by the server when the row is added or confirmed; immutable in the revision.
+   */
+  evidence?: EvidenceSnapshot[];
 }
 
 /**

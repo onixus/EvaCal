@@ -515,6 +515,7 @@ model CatalogProduct {
   relationsFrom CatalogProductRelation[] @relation("CatalogRelationFrom")
   relationsTo   CatalogProductRelation[] @relation("CatalogRelationTo")
   suggestions   CatalogSuggestion[]
+  evidence      ComplianceEvidence[]
 
   @@index([vendorId, archived])
 }
@@ -1317,4 +1318,34 @@ model DiscountApproval {
   createdAt        DateTime    @default(now())
 
   @@index([calculationId, createdAt])
+}
+
+// ==== #101 stage 3: compliance evidence ====
+// Registry entries and certificates are separate evidence records of a catalog
+// product: source, check date, exact applicability (version/model/edition), status
+// and validity. Display status is derived (expired after validUntil in the business
+// time zone; a check older than COMPLIANCE_EVIDENCE_STALE_DAYS is unverified).
+// A brand alone never implies compliance.
+model ComplianceEvidence {
+  id              String         @id @default(cuid())
+  productId       String
+  product         CatalogProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productRevision Int? // Product revision current when the evidence was recorded.
+  type            String // software_registry | hardware_registry | certificate
+  number          String
+  issuer          String         @default("")
+  sourceUrl       String
+  checkedAt       String // ГГГГ-ММ-ДД, business date of the manual check
+  checkedBy       String
+  validUntil      String? // ГГГГ-ММ-ДД; null is unknown/indefinite
+  status          String // confirmed | expired | revoked | unverified
+  applicability   String // exact version/model/edition values, «;»-separated
+  note            String         @default("")
+  revision        Int            @default(1)
+  createdBy       String
+  createdAt       DateTime       @default(now())
+  archivedBy      String?
+  archivedAt      DateTime?
+
+  @@index([productId, archivedAt])
 }

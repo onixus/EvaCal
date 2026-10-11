@@ -6,9 +6,19 @@ import {
   specificationSections,
 } from '../../specification/sections';
 import { describeTotal, summarizeSpecification } from '../../specification/totals';
+import type { ContextGap } from '../context/types';
+import { evidenceAsOf, evidenceGaps, itemEvidenceText } from './evidence';
 
 /** Questionnaire values and catalogue heuristics never become accepted supply lines. */
 export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[] {
+  return buildSPEC34Document(payload).sections;
+}
+
+export function buildSPEC34Document(payload: Gost34InputPayload): {
+  sections: Gost34Section[];
+  gaps: ContextGap[];
+} {
+  const asOf = evidenceAsOf();
   const spec = payload.specification && parseSpecification(payload.specification);
   const items = spec?.items || [];
   const blockers = specificationBlockers(spec);
@@ -22,6 +32,7 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
     'Назначение',
     'Цена за единицу / валюта',
     'Источник / основание / подтверждение',
+    'Реестры / сертификаты',
   ];
   const rows = (selected: SpecificationItem[]) =>
     selected.map((item, index) => [
@@ -35,6 +46,7 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
         : dispositions[item.disposition],
       item.unitPrice === null ? 'Цена неизвестна' : `${item.unitPrice} ${item.currency}`,
       `${item.source || 'Источник не указан'}; ${item.rationale || 'Основание не указано'}; ${item.confirmed ? 'Подтверждено пользователем' : 'Не подтверждено'}`,
+      itemEvidenceText(item, asOf),
     ]);
   const section = (num: number, title: string, selected: SpecificationItem[]): Gost34Section => ({
     id: `sec-${num}`,
@@ -45,7 +57,8 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
       { caption: `Таблица ${num - 1} — ${title.toLowerCase()}`, headers, rows: rows(selected) },
     ],
   });
-  return [
+  const gaps = spec ? evidenceGaps(spec.items, asOf, payload.evidenceLive) : [];
+  const sections: Gost34Section[] = [
     {
       id: 'sec-1',
       numStr: '1',
@@ -59,7 +72,7 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
         ...(spec?.emptySupplyReason
           ? [`Обоснование отсутствия поставки: ${spec.emptySupplyReason}`]
           : []),
-        'Позиции и сведения приведены из сохраненной проектной версии. Наличие бренда не подтверждает соответствие нормативным требованиям. Реестры и сертификаты автоматически не проверяются.',
+        'Позиции и сведения приведены из сохраненной проектной версии. Наличие бренда не подтверждает соответствие нормативным требованиям. Реестры и сертификаты автоматически не проверяются: в графе «Реестры / сертификаты» приводятся только действующие подтверждения, внесенные в каталог вручную с источником и датой проверки и относящиеся к точной версии/модели подтвержденной позиции; иначе указано «Не подтверждено».',
       ],
     },
     ...specificationSections(items).map((group) => section(group.num, group.title, group.items)),
@@ -86,4 +99,5 @@ export function buildSPEC34Sections(payload: Gost34InputPayload): Gost34Section[
       ],
     },
   ];
+  return { sections, gaps };
 }

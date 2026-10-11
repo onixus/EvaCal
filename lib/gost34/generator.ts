@@ -7,7 +7,7 @@ import { buildTZ34Document } from './templates/tz34';
 import { buildPZ34Document } from './templates/pz34';
 import { buildAF34Sections } from './templates/af34';
 import { buildPMI34Sections } from './templates/pmi34';
-import { buildSPEC34Sections } from './templates/spec34';
+import { buildSPEC34Document } from './templates/spec34';
 import { buildRP34Sections } from './templates/rp34';
 import { buildRA34Sections } from './templates/ra34';
 import { buildPSI34Document } from './templates/psi34';
@@ -31,7 +31,7 @@ const BUILDERS: Record<string, DocumentBuilder> = {
   AF: (payload) => ({ sections: buildAF34Sections(payload) }),
   PMI: (payload) => ({ sections: buildPMI34Sections(payload) }),
   SPEC: (payload) => ({
-    sections: buildSPEC34Sections(payload),
+    ...buildSPEC34Document(payload),
     issues: specificationBlockers(payload.specification).map((message) => ({
       nodeId: 'specification',
       title: 'Состав поставки',

@@ -19,6 +19,8 @@ import { specificationBlockers } from '@/lib/specification/validation';
 import { describeTotal, summarizeSpecification } from '@/lib/specification/totals';
 import { STATUS_LABELS } from '@/lib/specification/sections';
 import { syncBundleComponents } from '@/lib/catalog/relations';
+import { evidenceText, itemEvidence } from '@/lib/catalog/compliance';
+import { businessDate } from '@/lib/catalog/business-date';
 
 interface SpecificationPanelProps {
   calculationId: string;
@@ -262,6 +264,29 @@ export default function SpecificationPanel({
     }
   };
   // Proposes a saved manual row for the shared catalog; the project row is unchanged.
+  // «Обновить сведения реестров»: the server re-copies catalog evidence into a new draft.
+  const refreshEvidence = async (itemIds?: string[]) => {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const res = await fetch(`/api/calculations/${calculationId}/specification/evidence`, {
+        method: 'POST',
+        headers: withShareHeaders(calculationId, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ version: spec.version, ...(itemIds ? { itemIds } : {}) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Не удалось обновить сведения реестров');
+      setSpec((data as SavedSpecification).snapshot);
+      setNotice(
+        'Сведения реестров и сертификатов обновлены по каталогу в новой черновой редакции.',
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка обновления сведений');
+    } finally {
+      setBusy(false);
+    }
+  };
   const suggest = async (item: SpecificationItem) => {
     setBusy(true);
     setError('');
@@ -560,6 +585,23 @@ export default function SpecificationPanel({
                 </p>
               )}
               <PriceOrigin item={item} canUseCatalog={canUseCatalog} />
+              {item.origin && (
+                <p className="text-sm text-slate-600" data-testid="item-evidence">
+                  Реестры / сертификаты:{' '}
+                  {evidenceText(itemEvidence(item, businessDate(new Date()) ?? ''))}
+                  {item.evidence?.length
+                    ? ''
+                    : ' (сведения каталога копируются при подтверждении строки или кнопкой «Обновить сведения реестров»)'}
+                  {canWrite && !dirty && !historical && spec.version > 0 && (
+                    <button
+                      className="btn-secondary ml-2"
+                      onClick={() => refreshEvidence([item.id])}
+                    >
+                      Обновить сведения реестров
+                    </button>
+                  )}
+                </p>
+              )}
               {item.sizingRef && (
                 <p className="text-xs text-slate-500">
                   Сайзинг: метрика {item.sizingRef.metric}
@@ -667,6 +709,13 @@ export default function SpecificationPanel({
                 onClick={() => change({ ...spec, items: [...spec.items, newItem()] })}
               >
                 Добавить позицию
+              </button>
+              <button
+                className="btn-secondary"
+                disabled={disabled || dirty || !spec.version || !spec.items.some((i) => i.origin)}
+                onClick={() => refreshEvidence()}
+              >
+                Обновить сведения реестров (все позиции каталога)
               </button>
               <button className="btn-secondary" disabled={disabled} onClick={() => save('draft')}>
                 Сохранить новую редакцию

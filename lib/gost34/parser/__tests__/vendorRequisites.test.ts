@@ -2,32 +2,20 @@ import { describe, it, expect } from 'vitest';
 import { extractVendorRequisites } from '../vendorDocParser';
 
 describe('extractVendorRequisites', () => {
-  it('извлекает сертификаты ФСТЭК, ФСБ и записи реестра из текста формуляра', () => {
-    const text = `
+  it('извлекает сертификаты ФСТЭК, ФСБ и записи реестра как кандидаты без статического справочника', () => {
+    const found = extractVendorRequisites(`
       Операционная система Astra Linux Special Edition.
       Соответствие подтверждено сертификатом ФСТЭК России № 2557 (1 уровень доверия).
       Продукт включён в Единый реестр российского ПО, запись № 369.
       СКЗИ сертифицировано ФСБ России, сертификат № СФ/124-4900 (класс КС3).
-    `;
-    const found = extractVendorRequisites(text);
-
-    const fstek = found.find((r) => r.kind === 'fstek');
-    expect(fstek?.number).toBe('№ 2557');
-    expect(fstek?.matchesKnownProductId).toBe('astra-linux-se');
-
-    const reestr = found.find((r) => r.kind === 'reestr-min-tsifry');
-    expect(reestr?.number).toBe('№ 369');
-    expect(reestr?.matchesKnownProductId).toBe('astra-linux-se');
-
-    const fsb = found.find((r) => r.kind === 'fsb');
-    expect(fsb?.number).toBe('№ СФ/124-4900');
-    expect(fsb?.matchesKnownProductId).toBe('vipnet');
-  });
-
-  it('незнакомый номер остаётся без привязки к базе — сигнал к сверке', () => {
-    const found = extractVendorRequisites('Сертификат ФСТЭК России № 9999 на изделие.');
-    expect(found).toHaveLength(1);
-    expect(found[0].matchesKnownProductId).toBeUndefined();
+    `);
+    expect(found.map((r) => [r.kind, r.number])).toEqual([
+      ['fstek', '№ 2557'],
+      ['fsb', '№ СФ/124-4900'],
+      ['reestr-min-tsifry', '№ 369'],
+    ]);
+    // Никакой привязки к «известным» продуктам: номер — только кандидат для ручной проверки.
+    for (const r of found) expect(Object.keys(r).sort()).toEqual(['context', 'kind', 'number']);
   });
 
   it('не дублирует одинаковые находки и терпит пустой текст', () => {

@@ -180,6 +180,8 @@ export interface Gost34DocumentAST {
 
 export interface Gost34CalculationInput {
   specification?: import('@/lib/specification/types').SpecificationSnapshot;
+  /** Server-loaded live state of copied compliance evidence (non-released revisions only). */
+  evidenceLive?: import('@/lib/catalog/compliance').EvidenceLive;
   id?: string;
   name: string;
   customer: string;
@@ -214,6 +216,8 @@ export interface Gost34CalculationInput {
  */
 export interface Gost34InputPayload {
   specification?: import('@/lib/specification/types').SpecificationSnapshot;
+  /** Live catalog state of copied compliance evidence; absent for released revisions. */
+  evidenceLive?: import('@/lib/catalog/compliance').EvidenceLive;
   metadata: Gost34DocMetadata;
   standardProfile: StandardProfile;
   systemName: string;

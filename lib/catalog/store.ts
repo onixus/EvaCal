@@ -10,6 +10,29 @@ import {
   type AttributeDefinition,
 } from './attributes';
 import type { Attribute } from './types';
+import { evidenceInput, type ComplianceEvidence } from './compliance';
+
+type EvidenceRow = Prisma.ComplianceEvidenceGetPayload<object>;
+export function mapEvidence(row: EvidenceRow): ComplianceEvidence {
+  return {
+    id: row.id,
+    productId: row.productId,
+    productRevision: row.productRevision,
+    type: row.type as ComplianceEvidence['type'],
+    number: row.number,
+    issuer: row.issuer,
+    sourceUrl: row.sourceUrl,
+    checkedAt: row.checkedAt,
+    checkedBy: row.checkedBy,
+    validUntil: row.validUntil,
+    status: row.status as ComplianceEvidence['status'],
+    applicability: row.applicability,
+    note: row.note,
+    revision: row.revision,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
 
 type DefinitionRow = Prisma.CatalogAttributeDefinitionGetPayload<object>;
 type RelationRow = Prisma.CatalogProductRelationGetPayload<object>;
@@ -98,7 +121,14 @@ export async function loadCatalog() {
     prisma.catalogVendor.findMany({ orderBy: [{ name: 'asc' }, { id: 'asc' }] }),
     prisma.catalogProduct.findMany({
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
-      include: { vendor: true, offers: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] } },
+      include: {
+        vendor: true,
+        offers: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] },
+        evidence: {
+          where: { archivedAt: null },
+          orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }],
+        },
+      },
     }),
     prisma.catalogProductRelation.findMany({ orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
     prisma.catalogAttributeDefinition.findMany({ orderBy: [{ label: 'asc' }, { id: 'asc' }] }),
@@ -111,6 +141,7 @@ export async function loadCatalog() {
     products: rows.map((p) => ({
       ...p,
       attributeFlags: attributeFlags(p.attributes as unknown as Attribute[], attributeDefinitions),
+      evidence: p.evidence.map(mapEvidence),
       offers: p.offers.map((o) => ({
         ...o,
         unitPrice: o.unitPrice?.toString() ?? null,
@@ -132,6 +163,50 @@ export async function mutateCatalog(
         data: { name: text(d.name, 'Вендор', 200, true), createdBy: actorId },
       });
     if (d.action === 'relation.create') return createRelation(tx, d.relation, actorId);
+    if (d.action === 'evidence.create') {
+      // Evidence is recorded against the product's current revision; the checker is the actor.
+      const productId = text(d.productId, 'Позиция', 100, true);
+      const data = evidenceInput(d.evidence);
+      const product = await lockProduct(tx, productId);
+      if (product.archived)
+        throw new SpecificationError('Позиция архивирована: подтверждения не добавляются', 409);
+      return mapEvidence(
+        await tx.complianceEvidence.create({
+          data: {
+            ...data,
+            productId,
+            productRevision: product.revision,
+            checkedBy: actorId,
+            createdBy: actorId,
+          },
+        }),
+      );
+    }
+    if (d.action === 'evidence.update' || d.action === 'evidence.archive') {
+      const evidenceId = text(d.id, 'Подтверждение', 100, true);
+      const data = d.action === 'evidence.update' ? evidenceInput(d.evidence) : null;
+      let productRevision: number | undefined;
+      if (data) {
+        // An edit is a new check of the current product: archived products are read-only.
+        const current = await tx.complianceEvidence.findUnique({ where: { id: evidenceId } });
+        if (!current) throw new SpecificationError('Подтверждение не найдено', 404);
+        const product = await lockProduct(tx, current.productId);
+        if (product.archived)
+          throw new SpecificationError('Позиция архивирована: подтверждения не изменяются', 409);
+        productRevision = product.revision;
+      }
+      const result = await tx.complianceEvidence.updateMany({
+        where: { id: evidenceId, revision: revision(d.revision), archivedAt: null },
+        data: data
+          ? { ...data, productRevision, checkedBy: actorId, revision: { increment: 1 } }
+          : { archivedAt: new Date(), archivedBy: actorId, revision: { increment: 1 } },
+      });
+      if (!result.count)
+        throw new SpecificationError('Подтверждение изменено или в архиве. Обновите каталог.', 409);
+      return mapEvidence(
+        await tx.complianceEvidence.findUniqueOrThrow({ where: { id: evidenceId } }),
+      );
+    }
     if (d.action === 'attribute.create') {
       const data = attributeDefinitionInput(d.definition);
       const clash = await tx.catalogAttributeDefinition.findUnique({ where: { key: data.key } });
