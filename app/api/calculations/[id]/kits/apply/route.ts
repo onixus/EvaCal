@@ -33,6 +33,8 @@ export async function POST(req: NextRequest, props: Params) {
     { calculationId: id, ...target, selection, createVersion: body.createVersion === true },
   );
   if (!result.ok) return kitFailure(result);
+  // Пустой план (повтор, всё исключено) — ничего не записано.
+  if (result.noop) return NextResponse.json(result, { status: 200 });
   await writeAudit({
     actorType: 'user',
     actorId: auth.userId,

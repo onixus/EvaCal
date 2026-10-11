@@ -84,6 +84,7 @@ describe('API наборов решений расчёта', () => {
       applicationId: 'a1',
       calculationId: 'calc2',
       packageId: 'p1',
+      noop: false,
     });
     const res = await APPLY(
       req({
@@ -156,6 +157,7 @@ describe('API наборов решений расчёта', () => {
       applicationId: 'a2',
       calculationId: 'calc3',
       packageId: null,
+      noop: false,
     });
     const res = await UPDATE(req({ kitId: 'k', toVersion: 2, elementIds: ['stage-01'] }), props);
     expect(res.status).toBe(201);

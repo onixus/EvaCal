@@ -204,6 +204,10 @@ export default function KitsTab({ calculation }: { calculation: SerializedCalcul
   async function apply() {
     if (!base) return;
     const data = await post(`${base}/apply`, { kitId, selection, createVersion });
+    if (data?.noop) {
+      setMessage({ ok: true, text: 'Применять нечего: все выбранные элементы уже в проекте' });
+      return;
+    }
     if (data) {
       setMessage({
         ok: true,

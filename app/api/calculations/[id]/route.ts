@@ -51,7 +51,10 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   const body = await req.json();
   const existing = await prisma.calculation.findUnique({
     where: { id: params.id },
-    include: { template: { include: { stageTemplates: true, fields: true } } },
+    include: {
+      template: { include: { stageTemplates: true, fields: true } },
+      stages: { orderBy: { order: 'asc' } },
+    },
   });
   if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 });
   if (existing.status === 'approved') {
@@ -68,7 +71,14 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
     existing.template.defaultStartDate ??
     (body.startDate ? new Date(body.startDate) : existing.startDate);
 
-  const primary = primaryStagesFromTemplate(existing.template.stageTemplates, answers);
+  // Этапы шаблона пересчитываются по ответам; этапы из наборов решений
+  // (#103 WP-7b, originRef) шаблону не принадлежат — переносятся как есть
+  // после них, со своими часами и происхождением.
+  const kitStages = primaryInputsFromStageRows(existing.stages ?? []).filter((p) => p.originRef);
+  const primary = [
+    ...primaryStagesFromTemplate(existing.template.stageTemplates, answers),
+    ...kitStages,
+  ];
   const pmHours = pmHoursFor(existing.template.fields, answers, primary);
 
   try {

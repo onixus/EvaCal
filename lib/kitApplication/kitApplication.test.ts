@@ -13,8 +13,17 @@ import {
 } from '@/lib/gost34/requirements/adapters';
 import { expandWithApprovals, primaryInputsFromStageRows } from '@/lib/scheduling';
 import { formatOriginRef, parseOriginRef, readOrigin } from './origin';
-import { buildApplicationPlan, parseSelection, type KitSelection } from './plan';
-import { applyPlanToSnapshot } from './snapshot';
+import {
+  buildApplicationPlan,
+  isEmptyPlan,
+  parseDriverValues,
+  parseSelection,
+  type KitSelection,
+} from './plan';
+import { applyPlanToSnapshot, recomputeKitCriteria } from './snapshot';
+import { applySectionOverrides } from '@/lib/gost34/generation/overrides';
+import { overlaysForDocument } from '@/lib/gost34/llm/tzAuthor/project';
+import type { Gost34Section } from '@/lib/gost34/types';
 import {
   applySnapshotUpdate,
   buildUpdateProposal,
@@ -268,7 +277,6 @@ describe('applyPlanToSnapshot', () => {
     const req1 = (snapshot.requirements as Record<string, unknown>[])[1];
     expect(req1).toMatchObject({
       id: 'kit.siem.basic.req-1',
-      acceptanceCriteria: ['Журналы поступают', 'В консоли'],
       criterion: 'Журналы поступают; В консоли',
       verificationMethod: 'TEST',
     });
@@ -282,13 +290,15 @@ describe('applyPlanToSnapshot', () => {
       method: 'MANUAL',
       approved: true,
     });
+    // Фрагмент дописывается после текста раздела, ручная замена сохраняется.
     expect(snapshot.sectionOverrides!.scope).toEqual({
       title: 'Своя',
-      paragraphs: ['Свой абзац', 'А', 'Б'],
+      paragraphs: ['Свой абзац'],
+      appendParagraphs: ['А', 'Б'],
     });
     const seeds = extractCheckSeeds(snapshot);
     expect(seeds.map((s) => [s.requirementId, s.method, s.criteria])).toEqual([
-      ['kit.siem.basic.req-1', 'TEST', ['Журналы поступают', 'В консоли']],
+      ['kit.siem.basic.req-1', 'TEST', ['Журналы поступают; В консоли']],
       ['kit.siem.basic.req-2', null, ['TLS']],
     ]);
   });
@@ -492,8 +502,8 @@ describe('перенос выбранных изменений', () => {
     expect(next.manualLinks).toContainEqual(
       expect.objectContaining({ sourceId: 'kit.siem.basic.req-2', targetId: 'S3' }),
     );
-    expect(next.sectionOverrides!.scope.paragraphs).toEqual(['А', 'В']);
-    expect(snapshot.sectionOverrides!.scope.paragraphs).toEqual(['А', 'Б']); // исходный не тронут
+    expect(next.sectionOverrides!.scope.appendParagraphs).toEqual(['А', 'В']);
+    expect(snapshot.sectionOverrides!.scope.appendParagraphs).toEqual(['А', 'Б']); // исходный не тронут
 
     // Повторный дифф: остаётся только невыбранное удаление риска.
     const after = collectProjectKitUsage(
@@ -570,5 +580,133 @@ describe('перенос выбранных изменений', () => {
     expect(ids).not.toContain('kit.siem.basic.req-1');
     expect(next.manualLinks ?? []).toEqual([]);
     expect(next.kitChecks?.map((k) => k.origin.elementId)).toEqual(['chk-2']);
+  });
+});
+
+describe('правки пользователя и снятые этапы', () => {
+  it('пересчёт критериев не затирает критерий, исправленный пользователем', () => {
+    const plan = buildApplicationPlan({
+      kit,
+      version: { version: 1, content: content() },
+      selection: both,
+      answers: {},
+    });
+    const { snapshot } = applyPlanToSnapshot({}, plan, new Map(), new Map());
+    const reqs = snapshot.requirements as Record<string, unknown>[];
+    reqs[0].criterion = 'Свой критерий';
+    // Новая проверка на то же требование: автоматический критерий изменился бы.
+    snapshot.kitChecks!.push({
+      origin: { kitId: 'kit1', kitKey: 'siem.basic', kitVersion: 1, elementId: 'chk-x' },
+      requirementIds: ['kit.siem.basic.req-1', 'kit.siem.basic.req-2'],
+      criteria: 'Ещё',
+      method: null,
+    });
+    recomputeKitCriteria(snapshot);
+    expect(reqs[0].criterion).toBe('Свой критерий');
+    expect(reqs[1].criterion).toBe('TLS; Ещё'); // не правили — пересчитан
+  });
+
+  it('связи на этапы, которых нет после перестройки, снимаются', () => {
+    const { v1, stages, risks, snapshot } = appliedProject();
+    snapshot.manualLinks = [
+      ...(snapshot.manualLinks ?? []),
+      { sourceId: 'manual', targetId: 'GONE', method: 'MANUAL', approved: true },
+      { sourceId: 'decision', targetId: '', method: 'MANUAL', approved: true },
+    ];
+    const usage = collectProjectKitUsage(stages, risks, snapshot).get('kit1')!;
+    const c = content();
+    c.stages = c.stages.filter((x) => x.elementId !== 'stage-01');
+    const to = { version: 2, content: c };
+    const proposal = buildUpdateProposal({
+      kit,
+      to,
+      versions: new Map([[1, v1]]),
+      usage,
+      driverValues: { sites: 1 },
+      hasPackage: true,
+    });
+    expect(proposal.changes.find((x) => x.elementId === 'stage-01')?.kind).toBe('removed');
+    const selected = new Set(['stage-01']);
+    const calcPlan = planCalculationUpdate({
+      kit,
+      to,
+      proposal,
+      selected,
+      usage,
+      stages,
+      risks,
+      snapshot,
+      driverValues: { sites: 1 },
+      hasPackage: true,
+    });
+    expect(calcPlan.primary.map((p) => p.sourceStageId)).toEqual(['M']);
+    const next = applySnapshotUpdate({
+      kit,
+      to,
+      proposal,
+      selected,
+      snapshot,
+      addPlan: calcPlan.addPlan,
+      stageIdByElement: new Map(),
+      liveStageIds: new Set(['M']),
+    });
+    expect((next.manualLinks ?? []).map((l) => (l as { sourceId: string }).sourceId)).toEqual([
+      'decision',
+    ]);
+  });
+
+  it('пустой план и разбор драйверов', () => {
+    const plan = buildApplicationPlan({
+      kit,
+      version: { version: 1, content: content() },
+      selection: { ...both, excluded: ['x'], targets: { calculation: false, package: true } },
+      answers: {},
+      existing: {
+        presentElementIds: new Set(['req-1', 'req-2', 'chk-1', 'chk-2', 'frag-1']),
+        stageIdByElement: new Map(),
+        requirementIdByElement: new Map(),
+        snapshotRequirementIds: new Set(),
+      },
+    });
+    expect(isEmptyPlan(plan)).toBe(true);
+    expect(parseDriverValues({ sites: 2 })).toEqual({ sites: 2 });
+    expect(parseDriverValues({ sites: 1e7 })).toMatch(/sites/);
+    expect(parseDriverValues([])).toMatch(/объект/);
+  });
+});
+
+describe('фрагменты в документе', () => {
+  const sec = {
+    id: 'scope',
+    numStr: '1',
+    title: 'Область',
+    paragraphs: ['1.1 Сгенерировано'],
+  } as unknown as Gost34Section;
+
+  it('appendParagraphs дописываются после сгенерированного текста и после замены', () => {
+    expect(
+      applySectionOverrides([sec], { scope: { appendParagraphs: ['Из набора'] } })[0].paragraphs,
+    ).toEqual(['1.1 Сгенерировано', '1.2 Из набора']);
+    expect(
+      applySectionOverrides([sec], {
+        scope: { paragraphs: ['Своё'], appendParagraphs: ['Из набора'] },
+      })[0].paragraphs,
+    ).toEqual(['1.1 Своё', '1.2 Из набора']);
+    expect(applySectionOverrides([sec], {})[0].paragraphs).toEqual(['1.1 Сгенерировано']);
+  });
+
+  it('принятая проза автора ТЗ заменяет ручные абзацы, дополнения набора остаются', () => {
+    const overlays = overlaysForDocument({
+      docType: 'TZ',
+      sectionOverrides: { scope: { paragraphs: ['Ручное'], appendParagraphs: ['Из набора'] } },
+      tzAuthor: {
+        proposals: { p1: { nodeId: 'scope', status: 'ACCEPTED', paragraphs: ['Автор ТЗ'] } },
+      } as never,
+    });
+    expect(overlays.scope).toEqual({ paragraphs: ['Автор ТЗ'], appendParagraphs: ['Из набора'] });
+    expect(applySectionOverrides([sec], overlays)[0].paragraphs).toEqual([
+      '1.1 Автор ТЗ',
+      '1.2 Из набора',
+    ]);
   });
 });

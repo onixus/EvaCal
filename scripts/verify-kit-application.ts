@@ -19,6 +19,7 @@ import {
   updateDraftVersion,
 } from '../lib/solutionKits/store';
 import { applyKit, applyKitUpdate, kitUpdateProposals } from '../lib/kitApplication/store';
+import { DraftConflictError, saveGostPackageDraft } from '../lib/project';
 import type { KitSelection } from '../lib/kitApplication/plan';
 
 async function rejects(label: string, fn: () => Promise<unknown>, pattern: RegExp) {
@@ -194,15 +195,16 @@ async function main() {
   );
   assert.equal(req1.origin.kitId, kitId);
   assert.equal(req1.origin.kitVersion, 1);
-  assert.deepEqual(req1.acceptanceCriteria, ['Журналы поступают', 'Журналы в консоли']);
+  assert.equal(req1.criterion, 'Журналы поступают; Журналы в консоли');
   assert.equal(req1.verificationMethod, 'TEST');
   assert.deepEqual(a.links, [[req1.id, 'Монтаж']], 'связь требование → этап сохранена');
-  assert.deepEqual(a.sectionOverrides.scope, {
-    title: 'Область',
-    paragraphs: ['Абзац 1', 'Абзац 2'],
-  });
+  assert.deepEqual(
+    a.sectionOverrides.scope,
+    { appendParagraphs: ['Абзац 1', 'Абзац 2'] },
+    'фрагмент дописывается, текст раздела не заменяется',
+  );
   const app = await prisma.kitApplication.findUniqueOrThrow({
-    where: { id: applied.applicationId },
+    where: { id: applied.applicationId! },
   });
   assert.equal(app.kind, 'apply');
   assert.ok((app.mapping as { stages: Record<string, string> }).stages['stage-01']);
@@ -213,9 +215,21 @@ async function main() {
   assert.ok((await applyKit(actor, { calculationId: calcB.id, kitId, selection })).ok);
   const b = await shape(calcB.id);
   assert.deepEqual(b, a, 'та же версия и адаптация — тот же результат');
+  const appsBefore = await prisma.kitApplication.count({ where: { calculationId: calcA.id } });
+  const pkgBefore = await draftSnapshot(calcA.id);
   const again = await applyKit(actor, { calculationId: calcA.id, kitId, selection });
-  assert.ok(again.ok);
+  assert.ok(again.ok && again.noop && again.applicationId === null, 'повтор — пустой план');
   assert.deepEqual(await shape(calcA.id), a, 'повторное применение ничего не дублирует');
+  assert.equal(
+    await prisma.kitApplication.count({ where: { calculationId: calcA.id } }),
+    appsBefore,
+    'пустой план — без записи применения',
+  );
+  assert.equal(
+    (await draftSnapshot(calcA.id)).pkg!.updatedAt.getTime(),
+    pkgBefore.pkg!.updatedAt.getTime(),
+    'пустой план — черновик комплекта не тронут',
+  );
   console.log('[kit-app] воспроизводимо и идемпотентно');
 
   // ── originRef переживает перестройку этапов (правка в редакторе) ───────
@@ -261,6 +275,12 @@ async function main() {
     createVersion: true,
   });
   assert.ok(viaVersion.ok && viaVersion.calculationId !== calcC.id, 'новая версия расчёта');
+  const newDraft = await prisma.gostPackage.findUniqueOrThrow({
+    where: { id: viaVersion.packageId! },
+  });
+  assert.equal(newDraft.status, 'draft');
+  assert.equal(newDraft.version, 2, 'номер черновика — следующий в проекте');
+  assert.equal(newDraft.calculationId, viaVersion.calculationId);
   assert.equal(
     await prisma.stage.count({ where: { calculationId: calcC.id, originRef: { not: null } } }),
     0,
@@ -270,6 +290,35 @@ async function main() {
   assert.equal(releasedAfter.snapshot, released.snapshot, 'выпущенный комплект не изменён');
   assert.equal(releasedAfter.status, 'approved');
   console.log('[kit-app] применяется только к черновикам');
+
+  // ── Студия: сохранение поверх изменённого черновика — конфликт ────────
+  const calcD = await newCalculation(template.id, 'D');
+  const studioDraft = await saveGostPackageDraft({
+    calculationId: calcD.id,
+    snapshot: { requirements: [] },
+    expectedUpdatedAt: null,
+  });
+  const loadedAt = studioDraft.updatedAt.toISOString();
+  assert.ok((await applyKit(actor, { calculationId: calcD.id, kitId, selection })).ok);
+  await assert.rejects(
+    () =>
+      saveGostPackageDraft({
+        calculationId: calcD.id,
+        snapshot: { requirements: [] },
+        expectedUpdatedAt: loadedAt,
+      }),
+    DraftConflictError,
+    'студия не затирает черновик, изменённый набором',
+  );
+  const fresh = await draftSnapshot(calcD.id);
+  assert.ok(fresh.snapshot.requirements.length > 0, 'требования набора на месте');
+  const resaved = await saveGostPackageDraft({
+    calculationId: calcD.id,
+    snapshot: fresh.snapshot,
+    expectedUpdatedAt: fresh.pkg!.updatedAt.toISOString(),
+  });
+  assert.equal(resaved.id, fresh.pkg!.id, 'после перезагрузки сохранение проходит');
+  console.log('[kit-app] студия: оптимистичная блокировка черновика');
 
   // ── Триггер KitApplication ─────────────────────────────────────────────
   await rejects(
@@ -338,6 +387,16 @@ async function main() {
   );
   assert.equal(stageChange.kitChanged, true);
 
+  // Пользователь исправил критерий req-2 в черновике — обновление его не затирает.
+  const draftA = await draftSnapshot(calcA.id);
+  const editedReq2 = draftA.snapshot.requirements.find(
+    (r: { origin?: { elementId: string } }) => r.origin?.elementId === 'req-2',
+  );
+  editedReq2.criterion = 'Свой критерий';
+  await prisma.gostPackage.update({
+    where: { id: draftA.pkg!.id },
+    data: { snapshot: JSON.stringify(draftA.snapshot) },
+  });
   const before = await shape(calcA.id);
   const upd = await applyKitUpdate(actor, {
     calculationId: calcA.id,
@@ -378,10 +437,18 @@ async function main() {
     'связь req-1 → stage-01 переведена на новую версию расчёта',
   );
   const updApp = await prisma.kitApplication.findUniqueOrThrow({
-    where: { id: upd.applicationId },
+    where: { id: upd.applicationId! },
   });
   assert.equal(updApp.kind, 'update');
   assert.ok(updApp.fromVersionId);
+  assert.equal(r2.criterion, 'Свой критерий', 'правка критерия пользователем сохранена');
+  const dup = await applyKitUpdate(actor, {
+    calculationId: calcA.id,
+    kitId,
+    toVersion: 2,
+    elementIds: ['req-1', 'stage-03', 'stage-01'],
+  });
+  assert.ok(!dup.ok && dup.status === 409, 'повторная отправка обновления — 409');
 
   const rest = await kitUpdateProposals(upd.calculationId);
   assert.ok(rest.ok);

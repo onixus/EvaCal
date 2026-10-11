@@ -77,7 +77,14 @@ export interface GostWizardSnapshot {
   applicabilityOverrides?: Record<string, unknown>;
   manualLinks?: unknown[];
   signatures?: Record<string, string>;
-  sectionOverrides?: Record<string, { title?: string; paragraphs?: string[]; items?: string[] }>;
+  /**
+   * Ручные правки разделов: `paragraphs` заменяет текст раздела, `appendParagraphs`
+   * (фрагменты наборов решений, #103 WP-7b) дописывается после него.
+   */
+  sectionOverrides?: Record<
+    string,
+    { title?: string; paragraphs?: string[]; items?: string[]; appendParagraphs?: string[] }
+  >;
   /** Редакция и решение, из которых взяты факты испытаний для ПСИ и акта (#103 WP-4b). */
   acceptance?: { packageId: string; packageVersion: number; decisionId: string | null };
   /** Проверки из наборов решений (#103 WP-7b): их критерии сведены в требования. */
@@ -498,6 +505,17 @@ export async function createGostPackageVersion(input: CreateGostPackageInput) {
 /**
  * Saves or updates a draft snapshot of wizard decisions on a GostPackage.
  */
+/**
+ * Черновик изменён другим источником (применение набора решений, другая
+ * вкладка) после того, как студия его загрузила: сохранение затёрло бы чужие
+ * изменения. Студия предлагает перезагрузить черновик.
+ */
+export class DraftConflictError extends Error {
+  constructor() {
+    super('Черновик комплекта изменён после загрузки студии: перезагрузите его');
+  }
+}
+
 export async function saveGostPackageDraft(input: {
   calculationId: string;
   snapshot: GostWizardSnapshot | string;
@@ -505,6 +523,12 @@ export async function saveGostPackageDraft(input: {
   standardProfileVersion?: string;
   generatorVersion?: string;
   createdBy?: string;
+  /**
+   * Оптимистичная блокировка (#103 WP-7b): `updatedAt` черновика, который
+   * загрузила студия (ISO), `null` — студия черновика не видела. Не совпало —
+   * `DraftConflictError`. Не передано — без проверки (прежние клиенты).
+   */
+  expectedUpdatedAt?: string | null;
 }) {
   const calculation = await prisma.calculation.findUnique({
     where: { id: input.calculationId },
@@ -540,9 +564,21 @@ export async function saveGostPackageDraft(input: {
     orderBy: { version: 'desc' },
   });
 
+  const expected = input.expectedUpdatedAt;
+  if (expected !== undefined) {
+    const expectedTime = expected === null ? null : new Date(expected).getTime();
+    const actualTime = existingDraft ? existingDraft.updatedAt.getTime() : null;
+    if (expectedTime !== actualTime) throw new DraftConflictError();
+  }
+
   if (existingDraft) {
-    return prisma.gostPackage.update({
-      where: { id: existingDraft.id },
+    // Условная запись: черновик не изменился между чтением и записью.
+    const res = await prisma.gostPackage.updateMany({
+      where: {
+        id: existingDraft.id,
+        status: 'draft',
+        ...(expected !== undefined ? { updatedAt: existingDraft.updatedAt } : {}),
+      },
       data: {
         snapshot: snapshotJson,
         standardProfileId: input.standardProfileId || existingDraft.standardProfileId,
@@ -552,6 +588,8 @@ export async function saveGostPackageDraft(input: {
         updatedAt: new Date(),
       },
     });
+    if (res.count === 0) throw new DraftConflictError();
+    return prisma.gostPackage.findUniqueOrThrow({ where: { id: existingDraft.id } });
   }
 
   const draftProjectId = projectId;

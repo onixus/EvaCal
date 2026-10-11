@@ -12,7 +12,10 @@ import { Gost34StructureError } from './errors';
 import type { Gost34AcceptanceFacts } from '../types';
 
 export type Gost34GenerationParams = Parameters<typeof analyzeAndNormalizeInput>[0] & {
-  sectionOverrides?: Record<string, { title?: string; paragraphs?: string[] }>;
+  sectionOverrides?: Record<
+    string,
+    { title?: string; paragraphs?: string[]; appendParagraphs?: string[] }
+  >;
   tzAuthor?: TzAuthorState;
   /**
    * Факты испытаний и решение комиссии для ПСИ и акта (#103 WP-4b). Маршруты

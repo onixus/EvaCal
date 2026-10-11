@@ -139,6 +139,14 @@ export default function Gost34Studio({
   const [isDraftLoading, setIsDraftLoading] = useState(true);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [lastDraftSavedAt, setLastDraftSavedAt] = useState<string | null>(null);
+  // Оптимистичная блокировка черновика (#103 WP-7b): updatedAt загруженного
+  // черновика; null — черновика не было. Набор решений или другая вкладка,
+  // изменившие черновик, дают 409 — студия предлагает перезагрузку.
+  const [draftUpdatedAt, setDraftUpdatedAt] = useState<string | null>(null);
+  const [draftConflict, setDraftConflict] = useState<string | null>(null);
+  // Реестры наборов решений в снимке (kitChecks, kitFragments): студия их не
+  // редактирует, но сохраняет как есть, чтобы не терять происхождение.
+  const [kitRegistries, setKitRegistries] = useState<Record<string, unknown>>({});
   const [latestPackage, setLatestPackage] = useState<StudioLatestPackage | null>(null);
   const [selectedSectionAnchor, setSelectedSectionAnchor] = useState<string | null>(null);
   const [isRejectionBannerDismissed, setIsRejectionBannerDismissed] = useState(false);
@@ -189,9 +197,16 @@ export default function Gost34Studio({
           setLatestPackage(data.latestPackage);
         }
 
+        setDraftUpdatedAt(
+          data?.draft?.status === 'draft' && data.draft.updatedAt ? data.draft.updatedAt : null,
+        );
         if (!data?.draft?.snapshot) return;
 
         const snap = data.draft.snapshot;
+        setKitRegistries({
+          ...(snap.kitChecks ? { kitChecks: snap.kitChecks } : {}),
+          ...(snap.kitFragments ? { kitFragments: snap.kitFragments } : {}),
+        });
         if (snap.standardProfileId) setStandardProfileId(snap.standardProfileId);
         if (snap.layoutProfileId) setLayoutProfileId(snap.layoutProfileId);
         if (snap.docType) setDocType(snap.docType);
@@ -472,19 +487,26 @@ export default function Gost34Studio({
         sectionOverrides,
         tzAuthor,
         activeStep,
+        ...kitRegistries,
         updatedAt: new Date().toISOString(),
       };
 
       const res = await fetch(`/api/calculations/${calculationId}/gost34/draft`, {
         method: 'POST',
         headers: withShareHeaders(calculationId, { 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ snapshot, standardProfileId }),
+        body: JSON.stringify({ snapshot, standardProfileId, expectedUpdatedAt: draftUpdatedAt }),
       });
 
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.draft?.updatedAt) setDraftUpdatedAt(data.draft.updatedAt);
+        setDraftConflict(null);
         setLastDraftSavedAt(
           new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
         );
+      } else if (res.status === 409) {
+        const data = await res.json().catch(() => ({}));
+        setDraftConflict(data?.error || 'Черновик изменён в другом месте: перезагрузите студию');
       }
     } catch (err) {
       console.error('Failed to save draft:', err);
@@ -574,6 +596,14 @@ export default function Gost34Studio({
             {lastDraftSavedAt && <> · черновик сохранён в {lastDraftSavedAt}</>}
             {isDraftLoading && <> · загрузка черновика…</>}
           </p>
+          {draftConflict && (
+            <p className="mt-1 text-xs text-rose-700 dark:text-nord-red">
+              {draftConflict}. Несохранённые правки этой вкладки будут потеряны при перезагрузке.{' '}
+              <button type="button" className="underline" onClick={() => window.location.reload()}>
+                Перезагрузить черновик
+              </button>
+            </p>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-2">

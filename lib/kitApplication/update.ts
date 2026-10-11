@@ -505,6 +505,11 @@ export function applySnapshotUpdate(input: {
   addPlan: ApplicationPlan;
   /** elementId этапа набора → Stage.id новой версии расчёта. */
   stageIdByElement: Map<string, string>;
+  /**
+   * Stage.id, существующие в расчёте после перестройки: связи на удалённые
+   * этапы (в том числе удалённые обновлением) снимаются.
+   */
+  liveStageIds?: Set<string>;
 }): GostWizardSnapshot {
   const { kit, to, proposal, selected, addPlan } = input;
   const snapshot = JSON.parse(JSON.stringify(input.snapshot)) as GostWizardSnapshot;
@@ -545,10 +550,20 @@ export function applySnapshotUpdate(input: {
       r.origin = origin(o.elementId);
     }
   }
-  if (removedReqIds.size > 0) {
-    snapshot.manualLinks = (snapshot.manualLinks ?? []).filter(
-      (l) => !removedReqIds.has(String((l as { sourceId?: unknown }).sourceId)),
-    );
+  const live = input.liveStageIds;
+  snapshot.manualLinks = (snapshot.manualLinks ?? []).filter((l) => {
+    const link = l as { sourceId?: unknown; targetId?: unknown; targetStageId?: unknown };
+    if (removedReqIds.has(String(link.sourceId))) return false;
+    const target = (link.targetId ?? link.targetStageId) as string | undefined;
+    // Решение «не распределено» (пустая цель) остаётся как есть.
+    return !target || !live || live.has(target);
+  });
+  if (live) {
+    for (const r of reqs) {
+      if (typeof r?.mappedStageId === 'string' && !live.has(r.mappedStageId)) {
+        delete r.mappedStageId;
+      }
+    }
   }
 
   const reqIdByElement = new Map<string, string>();

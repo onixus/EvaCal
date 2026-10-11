@@ -3,6 +3,7 @@ import { clientIp, writeAudit } from '@/lib/audit';
 import { kitFailure, readJson, requireKitApplicationRole } from '@/lib/kitApplication/http';
 import { parseVersionParam } from '@/lib/solutionKits/http';
 import { applyKitUpdate } from '@/lib/kitApplication/store';
+import { parseDriverValues } from '@/lib/kitApplication/plan';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -32,16 +33,8 @@ export async function POST(req: NextRequest, props: Params) {
       { status: 400 },
     );
   }
-  const drivers = body.driverValues ?? {};
-  if (
-    typeof drivers !== 'object' ||
-    Array.isArray(drivers) ||
-    Object.values(drivers as Record<string, unknown>).some(
-      (v) => typeof v !== 'number' || !Number.isFinite(v) || v < 0,
-    )
-  ) {
-    return NextResponse.json({ error: 'driverValues: { ключ: число ≥ 0 }' }, { status: 400 });
-  }
+  const drivers = parseDriverValues(body.driverValues);
+  if (typeof drivers === 'string') return NextResponse.json({ error: drivers }, { status: 400 });
   const result = await applyKitUpdate(
     { username: auth.username },
     {
@@ -49,7 +42,7 @@ export async function POST(req: NextRequest, props: Params) {
       kitId,
       toVersion,
       elementIds: elementIds as string[],
-      driverValues: drivers as Record<string, number>,
+      driverValues: drivers,
     },
   );
   if (!result.ok) return kitFailure(result);

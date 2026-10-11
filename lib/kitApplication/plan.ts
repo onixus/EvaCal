@@ -90,21 +90,51 @@ export function parseSelection(raw: unknown): KitSelection | string {
     }
     overrides[elementId] = out;
   }
-  const driverValues: Record<string, number> = {};
-  const rawDrivers = o.driverValues ?? {};
-  if (typeof rawDrivers !== 'object' || Array.isArray(rawDrivers)) return 'driverValues: объект';
-  for (const [key, value] of Object.entries(rawDrivers as Record<string, unknown>)) {
-    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1e6) {
-      return `driverValues.${key}: неотрицательное число`;
-    }
-    driverValues[key] = value;
-  }
+  const driverValues = parseDriverValues(o.driverValues);
+  if (typeof driverValues === 'string') return driverValues;
   return {
     targets,
     excluded: [...new Set(excluded as string[])].sort(),
     overrides,
     driverValues,
   };
+}
+
+const MAX_DRIVER = 1e6;
+const MAX_DRIVERS = 500;
+
+/** Значения драйверов `{ ключ поля: число 0…1e6 }`; строка — текст ошибки. */
+export function parseDriverValues(raw: unknown): Record<string, number> | string {
+  const value = raw ?? {};
+  if (typeof value !== 'object' || Array.isArray(value)) return 'driverValues: объект';
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length > MAX_DRIVERS) return 'driverValues: слишком много значений';
+  const out: Record<string, number> = {};
+  for (const [key, v] of entries) {
+    if (
+      key.length > 64 ||
+      typeof v !== 'number' ||
+      !Number.isFinite(v) ||
+      v < 0 ||
+      v > MAX_DRIVER
+    ) {
+      return `driverValues.${key.slice(0, 64)}: число от 0 до ${MAX_DRIVER}`;
+    }
+    out[key] = v;
+  }
+  return out;
+}
+
+/** План ничего не создаёт: применять нечего (повтор или всё исключено). */
+export function isEmptyPlan(plan: ApplicationPlan): boolean {
+  return (
+    plan.stages.length === 0 &&
+    plan.risks.length === 0 &&
+    plan.requirements.length === 0 &&
+    plan.checks.length === 0 &&
+    plan.fragments.length === 0 &&
+    plan.links.length === 0
+  );
 }
 
 // ── Часы этапов ─────────────────────────────────────────────────────────
@@ -161,8 +191,10 @@ export type KitRequirementItem = Gost34RequirementItem & {
   origin: KitElementOrigin;
   /** Критерий самого требования в наборе: база для пересчёта критериев. */
   kitCriterion: string | null;
-  acceptanceCriteria?: string[];
   verificationMethod?: KitCheckMethod;
+  /** Последние значения из набора: правку пользователя пересчёт не затирает. */
+  kitAutoCriterion?: string | null;
+  kitAutoMethod?: KitCheckMethod | null;
 };
 
 export interface KitCheckEntry {

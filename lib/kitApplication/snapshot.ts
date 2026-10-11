@@ -4,10 +4,14 @@
  *
  * - Требования добавляются legacy-строками мастера с `origin`.
  * - Проверки ведутся реестром `kitChecks`; их критерии и метод сводятся в
- *   требования (`acceptanceCriteria`, `criterion`, `verificationMethod`),
- *   откуда их берёт засев проверок приёмки (`extractCheckSeeds`).
+ *   `criterion` и `verificationMethod` требования, откуда их берёт засев
+ *   проверок приёмки (`extractCheckSeeds`). Правку критерия пользователем
+ *   пересчёт не затирает (сравнение с последним значением из набора).
  * - Связи «требование → этап» — ручные связи трассируемости (`manualLinks`).
- * - Фрагменты — абзацы `sectionOverrides[sectionKey]` и реестр `kitFragments`.
+ * - Фрагменты — дополнительные абзацы раздела (`sectionOverrides[key]
+ *   .appendParagraphs`): сгенерированный текст раздела и ручная замена
+ *   абзацев сохраняются (`lib/gost34/generation/overrides.ts`); реестр
+ *   `kitFragments` хранит происхождение.
  */
 import type { TraceLink } from '@/lib/gost34/traceability/types';
 import type { GostWizardSnapshot } from '@/lib/project';
@@ -19,7 +23,12 @@ import {
   type KitFragmentEntry,
 } from './plan';
 
-type SectionOverride = { title?: string; paragraphs?: string[]; items?: string[] };
+type SectionOverride = {
+  title?: string;
+  paragraphs?: string[];
+  items?: string[];
+  appendParagraphs?: string[];
+};
 
 export function cloneSnapshot(snapshot: GostWizardSnapshot | null | undefined): GostWizardSnapshot {
   return snapshot ? (JSON.parse(JSON.stringify(snapshot)) as GostWizardSnapshot) : {};
@@ -32,48 +41,52 @@ export function fragmentParagraphs(text: string): string[] {
     .filter(Boolean);
 }
 
-/** Добавляет абзацы фрагмента в раздел (раздела нет — создаёт). */
+/**
+ * Добавляет абзацы фрагмента в конец раздела, не заменяя ни сгенерированный
+ * текст, ни ручную замену абзацев: `appendParagraphs`. Заголовок раздела не
+ * меняется.
+ */
 export function addFragment(snapshot: GostWizardSnapshot, entry: KitFragmentEntry): void {
   const overrides = (snapshot.sectionOverrides ??= {});
   const current: SectionOverride = overrides[entry.sectionKey] ?? {};
   overrides[entry.sectionKey] = {
     ...current,
-    ...(current.title === undefined && entry.title ? { title: entry.title } : {}),
-    paragraphs: [...(current.paragraphs ?? []), ...fragmentParagraphs(entry.text)],
+    appendParagraphs: [...(current.appendParagraphs ?? []), ...fragmentParagraphs(entry.text)],
   };
   (snapshot.kitFragments ??= []).push(entry);
 }
 
 /**
- * Убирает абзацы фрагмента из раздела (первое вхождение подряд идущего блока);
- * пустой раздел без пунктов удаляется. Правки пользователя в других абзацах
- * не трогаются.
+ * Убирает абзацы фрагмента из дополнительных абзацев раздела (первое
+ * вхождение подряд идущего блока). Пустая запись раздела удаляется; ручные
+ * абзацы и пункты не трогаются.
  */
 export function removeFragment(snapshot: GostWizardSnapshot, elementId: string, kitId: string) {
   const list = snapshot.kitFragments ?? [];
   const idx = list.findIndex((f) => f.origin.kitId === kitId && f.origin.elementId === elementId);
   if (idx < 0) return;
   const [entry] = list.splice(idx, 1);
-  const section = snapshot.sectionOverrides?.[entry.sectionKey];
-  if (!section?.paragraphs) return;
+  const section = snapshot.sectionOverrides?.[entry.sectionKey] as SectionOverride | undefined;
+  if (!section?.appendParagraphs) return;
   const block = fragmentParagraphs(entry.text);
-  const paragraphs = section.paragraphs;
+  const paragraphs = section.appendParagraphs;
   for (let i = 0; i + block.length <= paragraphs.length; i += 1) {
     if (block.every((p, j) => paragraphs[i + j] === p)) {
       paragraphs.splice(i, block.length);
       break;
     }
   }
-  if (paragraphs.length === 0 && !(section.items?.length ?? 0)) {
-    delete snapshot.sectionOverrides![entry.sectionKey];
-  }
+  if (paragraphs.length === 0) delete section.appendParagraphs;
+  if (Object.keys(section).length === 0) delete snapshot.sectionOverrides![entry.sectionKey];
 }
 
 /**
  * Пересчёт критериев требований из набора: критерий самого требования плюс
  * критерии проверок реестра, ссылающихся на него (без повторов, в порядке
- * реестра); метод — первый заданный метод проверки. Требования без `origin`
- * не трогаются.
+ * реестра), одной строкой `criterion`; метод — первый заданный метод
+ * проверки. Значение пишется, только если пользователь его не правил:
+ * текущее совпадает с последним значением из набора (`kitAutoCriterion`,
+ * `kitAutoMethod`) или его ещё не было. Требования без `origin` не трогаются.
  */
 export function recomputeKitCriteria(snapshot: GostWizardSnapshot): void {
   const reqs = Array.isArray(snapshot.requirements) ? snapshot.requirements : [];
@@ -84,20 +97,25 @@ export function recomputeKitCriteria(snapshot: GostWizardSnapshot): void {
     if (!readOrigin(r.origin)) continue;
     const id = String(r.id);
     const related = checks.filter((c) => c.requirementIds.includes(id));
-    const criteria = dedupeCriteria([
-      typeof r.kitCriterion === 'string' ? r.kitCriterion : null,
-      ...related.map((c) => c.criteria),
-    ]);
-    if (criteria.length > 0) {
-      r.acceptanceCriteria = criteria;
-      r.criterion = criteria.join('; ');
-    } else {
-      delete r.acceptanceCriteria;
-      delete r.criterion;
+    const criterion =
+      dedupeCriteria([
+        typeof r.kitCriterion === 'string' ? r.kitCriterion : null,
+        ...related.map((c) => c.criteria),
+      ]).join('; ') || null;
+    const method = related.find((c) => c.method)?.method ?? null;
+
+    const untouched = (field: string, auto: string) =>
+      !(auto in r) || (r[field] ?? null) === (r[auto] ?? null);
+    if (untouched('criterion', 'kitAutoCriterion')) {
+      if (criterion) r.criterion = criterion;
+      else delete r.criterion;
+      r.kitAutoCriterion = criterion;
     }
-    const method = related.find((c) => c.method)?.method;
-    if (method) r.verificationMethod = method;
-    else delete r.verificationMethod;
+    if (untouched('verificationMethod', 'kitAutoMethod')) {
+      if (method) r.verificationMethod = method;
+      else delete r.verificationMethod;
+      r.kitAutoMethod = method;
+    }
   }
 }
 
