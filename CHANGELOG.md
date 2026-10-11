@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Compliance evidence (software/hardware registry entries and certificates) per catalog product with source, check date, exact applicability, status and validity; SPEC and PZ print only current confirmed evidence of confirmed rows, otherwise «Не подтверждено»; the static vendor registry is removed (#101, see [docs/specification.md](docs/specification.md)).
 - "Требует моего действия" queue (`/inbox`) with in-app notifications on review assignment, return, comment reply, fix and its verification/rejection/reopening; repeated rejection of an already returned package is refused (409); lazy idempotent overdue notifications; delayed projects show reason, named responsible and next step (#103).
 - **Behaviour change:** GOST package document types are stored sorted (`["pmi","tz"]`), and review lines compare them order-insensitively. Existing versions of one calculation that differ only in document order now form a single review line: open comments carry forward between them and the newer version supersedes the older one (#103).
 - Catalog relations (replaced/alternative products, bundle composition), typed attribute definitions, a review queue for manual rows proposed to the catalog, explicit replacement of replaced products in a project as a new draft, and the `subscription`/`bundle` item kinds; bundle components never enter totals (#101, see [docs/specification.md](docs/specification.md)).

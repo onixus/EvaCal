@@ -19,6 +19,8 @@ import { specificationBlockers } from '@/lib/specification/validation';
 import { describeTotal, summarizeSpecification } from '@/lib/specification/totals';
 import { STATUS_LABELS } from '@/lib/specification/sections';
 import { syncBundleComponents } from '@/lib/catalog/relations';
+import { evidenceText, itemEvidence } from '@/lib/catalog/compliance';
+import { businessDate } from '@/lib/catalog/business-date';
 
 interface SpecificationPanelProps {
   calculationId: string;
@@ -560,6 +562,15 @@ export default function SpecificationPanel({
                 </p>
               )}
               <PriceOrigin item={item} canUseCatalog={canUseCatalog} />
+              {item.origin && (
+                <p className="text-sm text-slate-600" data-testid="item-evidence">
+                  Реестры / сертификаты:{' '}
+                  {evidenceText(itemEvidence(item, businessDate(new Date()) ?? ''))}
+                  {item.evidence?.length
+                    ? ''
+                    : ' (копия подтверждений каталога сохраняется при подтверждении строки)'}
+                </p>
+              )}
               {item.sizingRef && (
                 <p className="text-xs text-slate-500">
                   Сайзинг: метрика {item.sizingRef.metric}

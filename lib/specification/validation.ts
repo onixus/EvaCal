@@ -14,6 +14,7 @@ import {
   SpecificationSnapshot,
   type SpecificationExchangeRate,
 } from './types';
+import { parseEvidenceSnapshot } from '../catalog/compliance';
 
 export class SpecificationError extends Error {
   constructor(
@@ -22,6 +23,12 @@ export class SpecificationError extends Error {
   ) {
     super(message);
   }
+}
+
+function parseEvidenceList(value: unknown) {
+  if (!Array.isArray(value) || value.length > 50)
+    throw new SpecificationError('Подтверждения соответствия: список до 50 записей');
+  return value.map(parseEvidenceSnapshot);
 }
 
 export function isDecimal(value: unknown): value is string {
@@ -245,6 +252,7 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
       ...(changeReason ? { changeReason } : {}),
       ...(includedIn ? { includedIn } : {}),
       ...(row.perBundle === undefined ? {} : { perBundle: row.perBundle as string }),
+      ...(row.evidence === undefined ? {} : { evidence: parseEvidenceList(row.evidence) }),
     };
   });
   let sizingRunIds: string[] | undefined;

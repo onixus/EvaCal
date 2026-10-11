@@ -214,6 +214,11 @@ export interface Gost34CalculationInput {
  */
 export interface Gost34InputPayload {
   specification?: import('@/lib/specification/types').SpecificationSnapshot;
+  /**
+   * Business date (ГГГГ-ММ-ДД) as of which compliance evidence is evaluated
+   * (expiry, stale checks); defaults to today in the business time zone.
+   */
+  evidenceDate?: string;
   metadata: Gost34DocMetadata;
   standardProfile: StandardProfile;
   systemName: string;

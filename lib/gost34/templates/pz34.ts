@@ -10,13 +10,15 @@
  * формулировкой «Требует уточнения у Заказчика» — раздел не заполняется
  * выдуманными значениями. Обоснование выбора программных средств строится
  * только из подтверждённых позиций сохранённой спецификации проекта; реестровые
- * записи и сертификаты из статических справочников не печатаются.
+ * записи и сертификаты берутся только из действующих подтверждений каталога,
+ * скопированных в редакцию спецификации, и относящихся к точной версии позиции.
  */
 
 import { Gost34InputPayload, Gost34Section, Gost34TableData } from '../types';
 import { ContextGap, formatGap } from '../context/types';
 import { parseSpecification } from '../../specification/validation';
 import { LICENSED_KINDS, type SpecificationItem } from '../../specification/types';
+import { evidenceAsOf, evidenceGap, itemEvidenceText } from './evidence';
 
 const SPEC_GAP: ContextGap = {
   path: 'specification',
@@ -199,6 +201,7 @@ export function buildPZ34Document(payload: Gost34InputPayload): {
 
   // Обоснование выбора ПО — только подтверждённые позиции спецификации проекта.
   const software = confirmedSoftware(payload);
+  const asOf = evidenceAsOf(payload);
   if (!software) {
     techParagraphs.push(
       `3.7 ${formatGap('Обоснование выбора программных средств')} Состав программных средств не подтверждён спецификацией проекта.`,
@@ -210,7 +213,7 @@ export function buildPZ34Document(payload: Gost34InputPayload): {
     );
   } else {
     techParagraphs.push(
-      '3.7 Обоснование выбора программных средств приведено в Таблице 3 по подтверждённой спецификации проекта. Сведения о реестровых записях и сертификатах автоматически не проверяются и настоящим документом не подтверждаются.',
+      '3.7 Обоснование выбора программных средств приведено в Таблице 3 по подтверждённой спецификации проекта. Реестровые записи и сертификаты приведены только по действующим подтверждениям, внесённым в каталог вручную с источником и датой проверки и относящимся к точной версии позиции; в остальных случаях указано «Не подтверждено». Наличие бренда соответствие не подтверждает; реестры автоматически не проверяются.',
     );
     techTables.push({
       caption: 'Таблица 3 — Обоснование выбора программных средств',
@@ -226,9 +229,11 @@ export function buildPZ34Document(payload: Gost34InputPayload): {
         [item.vendor, item.sku].filter(Boolean).join(' / ') || 'Не указано',
         item.disposition === 'existing' ? 'Используется имеющееся' : 'Поставляется',
         `${item.source}; ${item.rationale}`,
-        'Не подтверждены',
+        itemEvidenceText(item, asOf),
       ]),
     });
+    const gap = evidenceGap(software, asOf);
+    if (gap) gaps.push(gap);
   }
 
   const dataClasses = ctx?.dataClasses || [];

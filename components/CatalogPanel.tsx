@@ -4,6 +4,7 @@ import GplImportPanel from './catalog/GplImportPanel';
 import CatalogRelationsPanel from './catalog/CatalogRelationsPanel';
 import AttributeDefinitionsPanel from './catalog/AttributeDefinitionsPanel';
 import SuggestionQueue from './catalog/SuggestionQueue';
+import ComplianceEvidencePanel from './catalog/ComplianceEvidencePanel';
 import { alternativesOf, componentsOf, replacementsOf } from '@/lib/catalog/relations';
 import { useEffect, useState } from 'react';
 import type { Catalog, Product, ProductInput, OfferInput, Vendor } from '@/lib/catalog/types';
@@ -419,6 +420,7 @@ export default function CatalogPanel() {
               </ul>
             )}
             <RelationSummary catalog={catalog} product={p} />
+            <ComplianceEvidencePanel product={p} busy={busy} mutate={mutate} />
             {!p.archived && !p.vendor.archived && (
               <div className="flex gap-2">
                 <button

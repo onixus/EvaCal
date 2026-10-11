@@ -7,7 +7,9 @@ import {
 } from './validation';
 import { catalogItem, withoutPriceConfirmation } from '../catalog/snapshot';
 import type { Product } from '../catalog/types';
-import type { SavedSpecification } from './types';
+import type { SavedSpecification, SpecificationSnapshot } from './types';
+import { snapshotEvidence } from '../catalog/compliance';
+import { mapEvidence } from '../catalog/store';
 import { clearStaleChangeReasons } from './diff';
 import { verifySizingRefs } from '../sizing/refs';
 
@@ -29,6 +31,46 @@ export async function loadSpecification(
     createdAt: row.createdAt.toISOString(),
     createdBy: row.createdBy,
   };
+}
+
+/**
+ * Compliance evidence is copied by the server, never taken from the client: a row
+ * that stays confirmed with the same catalog origin keeps the copy of the previous
+ * revision; a new, changed or newly confirmed catalog row gets the current evidence
+ * of its product. Manual rows carry no evidence. Saved revisions are never rewritten.
+ */
+async function attachEvidence(
+  tx: Prisma.TransactionClient,
+  previous: SpecificationSnapshot | null,
+  snapshot: SpecificationSnapshot,
+) {
+  const old = new Map((previous?.items ?? []).map((item) => [item.id, item]));
+  const fresh = new Set<string>();
+  for (const item of snapshot.items) {
+    const before = old.get(item.id);
+    const keep =
+      item.origin &&
+      before?.origin &&
+      before.confirmed &&
+      item.confirmed &&
+      JSON.stringify(before.origin) === JSON.stringify(item.origin);
+    delete item.evidence;
+    if (keep) {
+      if (before.evidence) item.evidence = before.evidence;
+    } else if (item.origin) fresh.add(item.origin.productId);
+  }
+  if (!fresh.size) return;
+  const rows = await tx.complianceEvidence.findMany({
+    where: { productId: { in: [...fresh] }, archivedAt: null },
+    orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }],
+  });
+  for (const item of snapshot.items) {
+    if (!item.origin || item.evidence || !fresh.has(item.origin.productId)) continue;
+    const evidence = rows
+      .filter((row) => row.productId === item.origin!.productId)
+      .map((row) => snapshotEvidence(mapEvidence(row)));
+    if (evidence.length) item.evidence = evidence;
+  }
 }
 
 /** Serialize writes per calculation; stale editors cannot overwrite another revision. */
@@ -133,6 +175,7 @@ export async function saveSpecification(
       }
     }
     // Связи с сайзингом проверяются по неизменяемым прогонам этого расчета.
+    await attachEvidence(tx, previous, snapshot);
     if (options.beforeWrite) await options.beforeWrite(tx);
     const sizingRunIds = await verifySizingRefs(tx, calculationId, snapshot.items);
     const { sizingRunIds: _clientRunIds, ...rest } = clearStaleChangeReasons(previous, snapshot);
