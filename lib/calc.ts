@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import type { Prisma } from './generated/prisma/client';
 import {
   carryDependencies,
   expandWithApprovals,
@@ -33,72 +34,8 @@ export async function rebuildStages(
   startDate: Date,
   config: ScheduleConfig = DEFAULT_SCHEDULE_CONFIG,
 ) {
-  const items = expandWithApprovals(primary);
   await prisma.$transaction(
-    async (tx) => {
-      // Блокировка расчёта (та же, что у журнала факта, правки зависимостей и
-      // apply) берётся до чтения: этапы и зависимости читаются и пишутся под
-      // ней, параллельная правка не увидит промежуточного состояния и не
-      // затрёт эту.
-      await lockCalculationLedger(tx, calculationId);
-      const oldStages = await tx.stage.findMany({
-        where: { calculationId },
-        orderBy: { order: 'asc' },
-        select: { id: true, name: true, role: true, isApprovalTask: true },
-      });
-      const oldDeps = await tx.stageDependency.findMany({
-        where: { calculationId },
-        select: { fromStageId: true, toStageId: true, lagDays: true },
-      });
-      const matched = matchStageRows(primary, items, oldStages);
-      const dependencies = carryDependencies(items, matched, oldDeps);
-      const scheduled = scheduleItems(items, startDate, config, dependencies);
-      const kept = new Set(matched.filter((id): id is string => Boolean(id)));
-      const removed = oldStages.filter((s) => !kept.has(s.id)).map((s) => s.id);
-
-      await tx.stageDependency.deleteMany({ where: { calculationId } });
-      if (removed.length > 0) {
-        await tx.stage.deleteMany({ where: { calculationId, id: { in: removed } } });
-      }
-      const ids: string[] = [];
-      for (const [i, item] of scheduled.entries()) {
-        const data = {
-          name: item.name,
-          role: item.role,
-          hours: item.hours,
-          order: item.order,
-          startDate: item.startDate,
-          endDate: item.endDate,
-          isApprovalTask: item.isApprovalTask,
-          dueDate: item.dueDate,
-          requirements: item.requirements,
-          parallel: item.parallel,
-          approvalDays: item.approvalDays,
-        };
-        const id = matched[i];
-        if (id) {
-          await tx.stage.update({ where: { id }, data });
-          ids.push(id);
-        } else {
-          const row = await tx.stage.create({
-            data: { calculationId, ...data },
-            select: { id: true },
-          });
-          ids.push(row.id);
-        }
-      }
-      if (dependencies.length > 0) {
-        await tx.stageDependency.createMany({
-          data: dependencies.map((d) => ({
-            calculationId,
-            fromStageId: ids[d.from],
-            toStageId: ids[d.to],
-            type: 'FS',
-            lagDays: d.lagDays,
-          })),
-        });
-      }
-    },
+    (tx) => rebuildStagesTx(tx, calculationId, primary, startDate, config),
     { timeout: 30_000 },
   );
 
@@ -106,6 +43,89 @@ export async function rebuildStages(
     where: { calculationId },
     orderBy: { order: 'asc' },
   });
+}
+
+type Tx = Prisma.TransactionClient;
+
+/**
+ * То же, что `rebuildStages`, внутри транзакции вызывающего: применение набора
+ * решений (#103 WP-7b) перестраивает этапы, заводит риски и пишет снимок
+ * комплекта одной транзакцией. Возвращает id строк в порядке плана.
+ */
+export async function rebuildStagesTx(
+  tx: Tx,
+  calculationId: string,
+  primary: PrimaryStageInput[],
+  startDate: Date,
+  config: ScheduleConfig = DEFAULT_SCHEDULE_CONFIG,
+): Promise<string[]> {
+  const items = expandWithApprovals(primary);
+  // Блокировка расчёта (та же, что у журнала факта, правки зависимостей и
+  // apply) берётся до чтения: этапы и зависимости читаются и пишутся под
+  // ней, параллельная правка не увидит промежуточного состояния и не
+  // затрёт эту.
+  await lockCalculationLedger(tx, calculationId);
+  const oldStages = await tx.stage.findMany({
+    where: { calculationId },
+    orderBy: { order: 'asc' },
+    select: { id: true, name: true, role: true, isApprovalTask: true },
+  });
+  const oldDeps = await tx.stageDependency.findMany({
+    where: { calculationId },
+    select: { fromStageId: true, toStageId: true, lagDays: true },
+  });
+  const matched = matchStageRows(primary, items, oldStages);
+  const dependencies = carryDependencies(items, matched, oldDeps);
+  const scheduled = scheduleItems(items, startDate, config, dependencies);
+  const kept = new Set(matched.filter((id): id is string => Boolean(id)));
+  const removed = oldStages.filter((s) => !kept.has(s.id)).map((s) => s.id);
+
+  await tx.stageDependency.deleteMany({ where: { calculationId } });
+  if (removed.length > 0) {
+    await tx.stage.deleteMany({ where: { calculationId, id: { in: removed } } });
+  }
+  const ids: string[] = [];
+  for (const [i, item] of scheduled.entries()) {
+    const data = {
+      name: item.name,
+      role: item.role,
+      hours: item.hours,
+      order: item.order,
+      startDate: item.startDate,
+      endDate: item.endDate,
+      isApprovalTask: item.isApprovalTask,
+      dueDate: item.dueDate,
+      requirements: item.requirements,
+      parallel: item.parallel,
+      approvalDays: item.approvalDays,
+      // Происхождение из набора (#103 WP-7b): без явного значения строка
+      // сохраняет своё — перестройка по правке этапов его не теряет.
+      ...(item.originRef !== undefined ? { originRef: item.originRef } : {}),
+    };
+    const id = matched[i];
+    if (id) {
+      await tx.stage.update({ where: { id }, data });
+      ids.push(id);
+    } else {
+      const row = await tx.stage.create({
+        data: { calculationId, ...data },
+        select: { id: true },
+      });
+      ids.push(row.id);
+    }
+  }
+  if (dependencies.length > 0) {
+    await tx.stageDependency.createMany({
+      data: dependencies.map((d) => ({
+        calculationId,
+        fromStageId: ids[d.from],
+        toStageId: ids[d.to],
+        type: 'FS',
+        lagDays: d.lagDays,
+      })),
+    });
+  }
+  return ids;
 }
 
 /**

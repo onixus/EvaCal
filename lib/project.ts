@@ -80,6 +80,10 @@ export interface GostWizardSnapshot {
   sectionOverrides?: Record<string, { title?: string; paragraphs?: string[]; items?: string[] }>;
   /** Редакция и решение, из которых взяты факты испытаний для ПСИ и акта (#103 WP-4b). */
   acceptance?: { packageId: string; packageVersion: number; decisionId: string | null };
+  /** Проверки из наборов решений (#103 WP-7b): их критерии сведены в требования. */
+  kitChecks?: import('./kitApplication/plan').KitCheckEntry[];
+  /** Фрагменты документов из наборов решений: их абзацы — в sectionOverrides. */
+  kitFragments?: import('./kitApplication/plan').KitFragmentEntry[];
   activeStep?: string;
   updatedAt?: string;
 }
@@ -295,6 +299,7 @@ async function createCalculationVersionIn(
         requirements: stage.requirements,
         parallel: stage.parallel,
         approvalDays: stage.approvalDays,
+        originRef: stage.originRef,
       },
     });
     stageIdMap.set(stage.id, created.id);
@@ -335,6 +340,7 @@ async function createCalculationVersionIn(
           description: risk.description,
           hours: risk.hours,
           order: risk.order,
+          originRef: risk.originRef,
         },
       });
     }

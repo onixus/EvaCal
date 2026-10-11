@@ -132,6 +132,8 @@ export interface Gost34RequirementItem {
    * качества формулировки.
    */
   assumptions?: string;
+  /** Происхождение из набора решений (#103 WP-7b); переносится в v2 `source.origin`. */
+  origin?: import('./requirements/v2').KitElementOrigin;
   stageName?: string;
   stageRole?: string;
   mappedStageId?: string;

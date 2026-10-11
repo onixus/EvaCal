@@ -29,7 +29,21 @@ export type RequirementRelationType =
   | 'IMPLEMENTED_BY'
   | 'TRACES_TO';
 
+/**
+ * Происхождение элемента из библиотеки решений (#103 WP-7b): набор, его
+ * версия и стабильный elementId. По нему проект сопоставляется с новыми
+ * версиями набора (предложения обновлений) — см. docs/kit-application.md.
+ */
+export interface KitElementOrigin {
+  kitId: string;
+  kitKey: string;
+  kitVersion: number;
+  elementId: string;
+}
+
 export interface RequirementSource {
+  /** Требование пришло из набора решений. */
+  origin?: KitElementOrigin;
   documentId?: string;
   filename?: string;
   page?: number;

@@ -122,7 +122,7 @@ pipeline {
                         sh 'cd "$BUILD_DIR" && npx prisma generate'
                         // Миграции PostgreSQL применяются к живой базе: сломанная
                         // миграция падает здесь, а не у пользователя при деплое.
-                        sh 'cd "$BUILD_DIR" && npm run db:sync && npm run test:postgres && npm run test:specification:postgres && npm run test:commercial:postgres && npm run test:catalog:postgres && npm run test:gpl:postgres && npm run test:gpl-comparison:postgres && npm run test:gpl-project-updates:postgres && npm run test:calendars:postgres && npm run test:review:postgres && npm run test:actuals-sync:postgres && npm run test:change-requests:postgres && npm run test:acceptance:postgres && npm run test:norm-proposals:postgres && npm run test:stage-deps:postgres && npm run test:sizing:postgres && npm run test:profit-forecast:postgres && npm run test:solution-kits:postgres'
+                        sh 'cd "$BUILD_DIR" && npm run db:sync && npm run test:postgres && npm run test:specification:postgres && npm run test:commercial:postgres && npm run test:catalog:postgres && npm run test:gpl:postgres && npm run test:gpl-comparison:postgres && npm run test:gpl-project-updates:postgres && npm run test:calendars:postgres && npm run test:review:postgres && npm run test:actuals-sync:postgres && npm run test:change-requests:postgres && npm run test:acceptance:postgres && npm run test:norm-proposals:postgres && npm run test:stage-deps:postgres && npm run test:sizing:postgres && npm run test:profit-forecast:postgres && npm run test:solution-kits:postgres && npm run test:kit-application:postgres'
                     }
                 }
 

@@ -116,6 +116,11 @@ export interface PrimaryStageInput {
   approvalDays?: number | null;
   /** id прежней строки Stage этого этапа: по нему перестройка переносит зависимости. */
   sourceStageId?: string | null;
+  /**
+   * Происхождение из набора решений (#103 WP-7b). undefined — не трогать
+   * сохранённое значение строки; null — снять; строка — записать.
+   */
+  originRef?: string | null;
 }
 
 export interface StagePlanItem {
@@ -126,6 +131,8 @@ export interface StagePlanItem {
   requirements: string | null;
   parallel: boolean;
   approvalDays: number | null;
+  /** См. PrimaryStageInput.originRef; у строк согласования не задаётся. */
+  originRef?: string | null;
 }
 
 export interface ScheduledItem extends StagePlanItem {
@@ -153,6 +160,7 @@ export function expandWithApprovals(primary: PrimaryStageInput[]): StagePlanItem
       requirements: p.requirements ?? null,
       parallel: !!p.parallel,
       approvalDays: needsApproval ? (p.approvalDays ?? null) : null,
+      ...(p.originRef !== undefined ? { originRef: p.originRef } : {}),
     });
     if (needsApproval) {
       items.push({
@@ -184,6 +192,7 @@ export function primaryInputsFromStageRows(
     requirements?: string | null;
     parallel?: boolean | null;
     approvalDays?: number | null;
+    originRef?: string | null;
   }[],
 ): PrimaryStageInput[] {
   const out: PrimaryStageInput[] = [];
@@ -199,6 +208,7 @@ export function primaryInputsFromStageRows(
       parallel: !!s.parallel,
       approvalDays: s.approvalDays ?? fromApproval,
       sourceStageId: s.id,
+      ...(s.originRef !== undefined ? { originRef: s.originRef } : {}),
     });
   });
   return out;

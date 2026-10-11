@@ -56,6 +56,7 @@ export function toGost34RequirementItem(
 
   if (requirement.assumptions) item.assumptions = requirement.assumptions;
   if (requirement.source?.filename !== undefined) item.sourceFile = requirement.source.filename;
+  if (requirement.source?.origin) item.origin = { ...requirement.source.origin };
   if (requirement.legacy?.normalizedBy !== undefined)
     item.normalizedBy = requirement.legacy.normalizedBy;
   if (requirement.legacy?.stageName !== undefined) item.stageName = requirement.legacy.stageName;
@@ -101,6 +102,9 @@ export function fromGost34RequirementItem(
     requirement.source = {};
     if (filename !== undefined) requirement.source.filename = filename;
     if (opts.sourceSection !== undefined) requirement.source.section = opts.sourceSection;
+  }
+  if (item.origin) {
+    requirement.source = { ...(requirement.source ?? {}), origin: { ...item.origin } };
   }
 
   const legacy: NonNullable<Gost34RequirementV2['legacy']> = {};
