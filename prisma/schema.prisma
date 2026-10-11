@@ -1120,3 +1120,56 @@ model Notification {
   @@unique([userId, kind, entityId, dueAt])
   @@index([userId, readAt])
 }
+
+// ==== #103 WP-7a: solution library ====
+
+// Набор проектного решения: требования + работы + риски + проверки +
+// фрагменты документов. Сам набор хранит паспорт (владелец, область
+// применимости, источник, статус); содержимое — в версиях. Правила и роли —
+// docs/solution-library.md, схема содержимого — lib/solutionKits/content.ts.
+model SolutionKit {
+  id        String   @id @default(cuid())
+  /// Стабильный ключ (`preset.<id>`, `tor.<id>` у импортированных из кода).
+  key       String   @unique
+  name      String
+  /// User.id владельца (без FK: удаление учётки не трогает библиотеку);
+  /// null — системный набор, новые версии утверждает только admin.
+  ownerId   String?
+  ownerName String?
+  /// { industries: string[], productTypes: string[], notes: string }
+  scope     Json     @default("{}")
+  /// Откуда взят набор: `preset:<id>`, `tor-template:<id>`, `manual`, …
+  source    String   @default("manual")
+  status    String   @default("draft") // draft | approved | archived
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  versions SolutionKitVersion[]
+
+  @@index([status, name])
+}
+
+// Версия содержимого набора. Черновик правится; утверждённая версия
+// неизменна (триггер в миграции), допускается только перевод в архив.
+// Элементы содержимого несут стабильный elementId: применение к проекту
+// (следующий шаг) сохранит происхождение {kitId, version, elementId}.
+model SolutionKitVersion {
+  id         String      @id @default(cuid())
+  kitId      String
+  kit        SolutionKit @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  version    Int
+  status     String      @default("draft") // draft | approved | archived
+  content    Json
+  changelog  String      @default("")
+  createdBy  String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  approvedBy String?
+  approvedAt DateTime?
+  archivedBy String?
+  archivedAt DateTime?
+
+  @@unique([kitId, version])
+  @@index([kitId, status])
+}
