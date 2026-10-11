@@ -30,6 +30,7 @@ import {
 } from './plan';
 import { addFragment, addManualLink, recomputeKitCriteria, removeFragment } from './snapshot';
 import { REQUIREMENT_CATEGORY_LABELS } from '@/lib/gost34/types';
+import { resolveTzSectionId } from './sections';
 
 export type UpdateSection = Exclude<KitSection, 'fields'>;
 type Values = Record<string, unknown>;
@@ -241,7 +242,13 @@ export function kitElementValues(
     }
     case 'fragments': {
       const f = content.fragments.find((x) => x.elementId === elementId);
-      return f ? { sectionKey: f.sectionKey, title: f.title, text: f.text } : null;
+      return f
+        ? {
+            sectionKey: resolveTzSectionId(f.sectionKey) ?? f.sectionKey,
+            title: f.title,
+            text: f.text,
+          }
+        : null;
     }
   }
 }
@@ -611,6 +618,8 @@ export function applySnapshotUpdate(input: {
     if (c?.kind === 'removed') removeFragment(snapshot, o.elementId, kit.id);
     else if (c?.kind === 'changed' && c.kit) {
       removeFragment(snapshot, o.elementId, kit.id);
+      // Раздел новой версии не найден в схеме — фрагмент снимается, а не висит.
+      if (!resolveTzSectionId(String(c.kit.sectionKey))) continue;
       addFragment(snapshot, {
         origin: origin(o.elementId),
         sectionKey: String(c.kit.sectionKey),

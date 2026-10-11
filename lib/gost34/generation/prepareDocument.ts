@@ -8,14 +8,17 @@ import { overlaysForDocument } from '../llm/tzAuthor/project';
 import { validateTzAuthorProposals, TzAuthorHardFlagsError } from '../llm/tzAuthor/validate';
 import type { TzAuthorDiagnostic, TzAuthorState } from '../llm/tzAuthor/types';
 import { applySectionOverrides } from './overrides';
+import { applyKitAppendices, kitAppendicesFromFragments } from './kitAppendices';
 import { Gost34StructureError } from './errors';
 import type { Gost34AcceptanceFacts } from '../types';
 
 export type Gost34GenerationParams = Parameters<typeof analyzeAndNormalizeInput>[0] & {
-  sectionOverrides?: Record<
-    string,
-    { title?: string; paragraphs?: string[]; appendParagraphs?: string[] }
-  >;
+  sectionOverrides?: Record<string, { title?: string; paragraphs?: string[] }>;
+  /**
+   * Фрагменты наборов решений (`snapshot.kitFragments`, #103 WP-7b): дописываются
+   * в разделы после всех правок (`generation/kitAppendices.ts`).
+   */
+  kitFragments?: unknown;
   tzAuthor?: TzAuthorState;
   /**
    * Факты испытаний и решение комиссии для ПСИ и акта (#103 WP-4b). Маршруты
@@ -60,7 +63,10 @@ export function prepareGost34Document(
     tzAuthor: validTzAuthor,
     includeProposed,
   });
-  const sections = applySectionOverrides(baselineAst.sections, overrides);
+  const sections = applyKitAppendices(
+    applySectionOverrides(baselineAst.sections, overrides),
+    kitAppendicesFromFragments(params.kitFragments),
+  );
   const issues =
     docType === 'TZ' && payload.standardProfile.id !== LEGACY_GOST34_PROFILE_ID
       ? validateSchemaCoverage(TZ_SCHEMA_2020, sections)

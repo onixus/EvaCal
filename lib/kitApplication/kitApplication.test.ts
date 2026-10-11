@@ -22,8 +22,15 @@ import {
 } from './plan';
 import { applyPlanToSnapshot, recomputeKitCriteria } from './snapshot';
 import { applySectionOverrides } from '@/lib/gost34/generation/overrides';
+import {
+  applyKitAppendices,
+  editableParagraphs,
+  kitAppendicesFromFragments,
+} from '@/lib/gost34/generation/kitAppendices';
+import { normalizeRequirementsWithLlm } from '@/lib/gost34/parser/llmNormalizer';
+import { resolveTzSectionId } from './sections';
 import { overlaysForDocument } from '@/lib/gost34/llm/tzAuthor/project';
-import type { Gost34Section } from '@/lib/gost34/types';
+import type { Gost34RequirementItem, Gost34Section } from '@/lib/gost34/types';
 import {
   applySnapshotUpdate,
   buildUpdateProposal,
@@ -277,6 +284,7 @@ describe('applyPlanToSnapshot', () => {
     const req1 = (snapshot.requirements as Record<string, unknown>[])[1];
     expect(req1).toMatchObject({
       id: 'kit.siem.basic.req-1',
+      acceptanceCriteria: ['Журналы поступают', 'В консоли'],
       criterion: 'Журналы поступают; В консоли',
       verificationMethod: 'TEST',
     });
@@ -290,15 +298,15 @@ describe('applyPlanToSnapshot', () => {
       method: 'MANUAL',
       approved: true,
     });
-    // Фрагмент дописывается после текста раздела, ручная замена сохраняется.
-    expect(snapshot.sectionOverrides!.scope).toEqual({
-      title: 'Своя',
-      paragraphs: ['Свой абзац'],
-      appendParagraphs: ['А', 'Б'],
-    });
+    // Ручные правки разделов не трогаются; фрагмент — в реестре с id раздела
+    // схемы (прежний ключ `scope` приведён к «Назначению АС»).
+    expect(snapshot.sectionOverrides).toEqual(base.sectionOverrides);
+    expect(snapshot.kitFragments).toEqual([
+      expect.objectContaining({ sectionKey: 'tz2020-goals-purpose', text: 'А\nБ' }),
+    ]);
     const seeds = extractCheckSeeds(snapshot);
     expect(seeds.map((s) => [s.requirementId, s.method, s.criteria])).toEqual([
-      ['kit.siem.basic.req-1', 'TEST', ['Журналы поступают; В консоли']],
+      ['kit.siem.basic.req-1', 'TEST', ['Журналы поступают', 'В консоли']],
       ['kit.siem.basic.req-2', null, ['TLS']],
     ]);
   });
@@ -502,8 +510,8 @@ describe('перенос выбранных изменений', () => {
     expect(next.manualLinks).toContainEqual(
       expect.objectContaining({ sourceId: 'kit.siem.basic.req-2', targetId: 'S3' }),
     );
-    expect(next.sectionOverrides!.scope.appendParagraphs).toEqual(['А', 'В']);
-    expect(snapshot.sectionOverrides!.scope.appendParagraphs).toEqual(['А', 'Б']); // исходный не тронут
+    expect(next.kitFragments!.map((f) => f.text)).toEqual(['А\nВ']);
+    expect(snapshot.kitFragments!.map((f) => f.text)).toEqual(['А\nБ']); // исходный не тронут
 
     // Повторный дифф: остаётся только невыбранное удаление риска.
     const after = collectProjectKitUsage(
@@ -603,7 +611,18 @@ describe('правки пользователя и снятые этапы', () 
     });
     recomputeKitCriteria(snapshot);
     expect(reqs[0].criterion).toBe('Свой критерий');
-    expect(reqs[1].criterion).toBe('TLS; Ещё'); // не правили — пересчитан
+    // Исправленная строка главнее устаревшего списка: засев берёт её.
+    expect(reqs[0].acceptanceCriteria).toBeUndefined();
+    expect(reqs[1].acceptanceCriteria).toEqual(['TLS', 'Ещё']); // не правили — пересчитан
+    expect(reqs[1].criterion).toBe('TLS; Ещё');
+    // Список, исправленный пользователем (v2), тоже не затирается.
+    reqs[1].acceptanceCriteria = ['Свой список'];
+    recomputeKitCriteria(snapshot);
+    expect(reqs[1].acceptanceCriteria).toEqual(['Свой список']);
+    expect(extractCheckSeeds(snapshot).map((x) => [x.requirementId, x.criteria])).toEqual([
+      ['kit.siem.basic.req-1', ['Свой критерий']],
+      ['kit.siem.basic.req-2', ['Свой список']],
+    ]);
   });
 
   it('связи на этапы, которых нет после перестройки, снимаются', () => {
@@ -675,38 +694,164 @@ describe('правки пользователя и снятые этапы', () 
   });
 });
 
-describe('фрагменты в документе', () => {
-  const sec = {
-    id: 'scope',
-    numStr: '1',
-    title: 'Область',
-    paragraphs: ['1.1 Сгенерировано'],
-  } as unknown as Gost34Section;
+describe('дополнения разделов из наборов в документе', () => {
+  const generated = (): Gost34Section =>
+    ({
+      id: 'tz2020-goals-purpose',
+      numStr: '2.2',
+      title: 'Назначение АС',
+      paragraphs: ['2.2.1 Сгенерировано', '2.2.2 Ещё сгенерировано'],
+    }) as unknown as Gost34Section;
+  const fragments = [
+    {
+      origin: { kitId: 'k', kitKey: 'kk', kitVersion: 1, elementId: 'frag-1' },
+      sectionKey: 'tz2020-goals-purpose',
+      title: null,
+      text: 'Из набора 1\nИз набора 2',
+    },
+  ];
+  const build = (overrides: Record<string, { paragraphs?: string[] }>, tzAuthor?: unknown) =>
+    applyKitAppendices(
+      applySectionOverrides(
+        [generated()],
+        overlaysForDocument({
+          docType: 'TZ',
+          sectionOverrides: overrides,
+          tzAuthor: tzAuthor as never,
+        }),
+      ),
+      kitAppendicesFromFragments(fragments),
+    )[0];
 
-  it('appendParagraphs дописываются после сгенерированного текста и после замены', () => {
-    expect(
-      applySectionOverrides([sec], { scope: { appendParagraphs: ['Из набора'] } })[0].paragraphs,
-    ).toEqual(['1.1 Сгенерировано', '1.2 Из набора']);
-    expect(
-      applySectionOverrides([sec], {
-        scope: { paragraphs: ['Своё'], appendParagraphs: ['Из набора'] },
-      })[0].paragraphs,
-    ).toEqual(['1.1 Своё', '1.2 Из набора']);
-    expect(applySectionOverrides([sec], {})[0].paragraphs).toEqual(['1.1 Сгенерировано']);
+  it('дописываются после сгенерированного текста, нумерация продолжается, сгенерированное не перенумеровано', () => {
+    const sec = build({});
+    expect(sec.paragraphs).toEqual([
+      '2.2.1 Сгенерировано',
+      '2.2.2 Ещё сгенерировано',
+      '2.2.3 Из набора 1',
+      '2.2.4 Из набора 2',
+    ]);
+    expect(sec.kitAppendix).toEqual({ count: 2, elementIds: ['frag-1'] });
   });
 
-  it('принятая проза автора ТЗ заменяет ручные абзацы, дополнения набора остаются', () => {
-    const overlays = overlaysForDocument({
-      docType: 'TZ',
-      sectionOverrides: { scope: { paragraphs: ['Ручное'], appendParagraphs: ['Из набора'] } },
-      tzAuthor: {
-        proposals: { p1: { nodeId: 'scope', status: 'ACCEPTED', paragraphs: ['Автор ТЗ'] } },
-      } as never,
-    });
-    expect(overlays.scope).toEqual({ paragraphs: ['Автор ТЗ'], appendParagraphs: ['Из набора'] });
-    expect(applySectionOverrides([sec], overlays)[0].paragraphs).toEqual([
-      '1.1 Автор ТЗ',
-      '1.2 Из набора',
+  it('правка в студии: редактируются только свои абзацы, дополнения остаются и не дублируются', () => {
+    const sec = build({});
+    const editable = editableParagraphs(sec);
+    expect(editable).toEqual(['2.2.1 Сгенерировано', '2.2.2 Ещё сгенерировано']);
+    // Пользователь сохранил правку раздела (без дополнений) — как saveSectionEdit.
+    const edited = build({ 'Назначение АС': { paragraphs: ['Своя формулировка'] } });
+    expect(edited.paragraphs).toEqual([
+      '2.2.1 Своя формулировка',
+      '2.2.2 Из набора 1',
+      '2.2.3 Из набора 2',
     ]);
+  });
+
+  it('сброс правки и перегенерация автором ТЗ сохраняют дополнения', () => {
+    // Сброс: правки нет — сгенерированный текст и дополнения.
+    expect(build({}).paragraphs.slice(-2)).toEqual(['2.2.3 Из набора 1', '2.2.4 Из набора 2']);
+    // Перегенерация: принятая проза автора ТЗ заменяет текст раздела.
+    const regenerated = build(
+      {},
+      {
+        proposals: {
+          p: { nodeId: 'tz2020-goals-purpose', status: 'ACCEPTED', paragraphs: ['Автор ТЗ'] },
+        },
+      },
+    );
+    expect(regenerated.paragraphs).toEqual([
+      '2.2.1 Автор ТЗ',
+      '2.2.2 Из набора 1',
+      '2.2.3 Из набора 2',
+    ]);
+  });
+
+  it('без нумерованного последнего абзаца дополнения печатаются без номера', () => {
+    const sec = applyKitAppendices(
+      [{ ...generated(), paragraphs: ['Вводный текст'] }],
+      kitAppendicesFromFragments(fragments),
+    )[0];
+    expect(sec.paragraphs).toEqual(['Вводный текст', 'Из набора 1', 'Из набора 2']);
+    expect(applyKitAppendices([generated()], {})[0]).toEqual(generated());
+  });
+
+  it('раздел фрагмента приводится к id схемы', () => {
+    expect(resolveTzSectionId('tz2020-sources')).toBe('tz2020-sources');
+    expect(resolveTzSectionId('scope')).toBe('tz2020-goals-purpose');
+    expect(resolveTzSectionId('  назначение   ас ')).toBe('tz2020-goals-purpose');
+    expect(resolveTzSectionId('нет такого')).toBeNull();
+    const plan = buildApplicationPlan({
+      kit,
+      version: {
+        version: 1,
+        content: {
+          ...content(),
+          fragments: [
+            {
+              elementId: 'frag-x',
+              sectionKey: 'нет такого',
+              title: null,
+              text: 'x',
+              requirementIds: [],
+            },
+          ],
+        },
+      },
+      selection: both,
+      answers: {},
+    });
+    expect(plan.fragments).toEqual([]);
+    expect(plan.skipped).toContainEqual({ elementId: 'frag-x', reason: 'unknown-section' });
+  });
+});
+
+describe('нормализатор не трогает требования из наборов', () => {
+  it('требования с origin проходят насквозь со служебными полями и на своих местах', async () => {
+    const plan = buildApplicationPlan({
+      kit,
+      version: { version: 1, content: content() },
+      selection: both,
+      answers: {},
+    });
+    const { snapshot } = applyPlanToSnapshot({}, plan, new Map(), new Map());
+    const kitReq = (snapshot.requirements as Gost34RequirementItem[])[0];
+    const items: Gost34RequirementItem[] = [
+      {
+        id: 'a',
+        code: '1',
+        category: 'functional',
+        title: 'система должна логировать',
+        description: '- система должна логировать',
+      },
+      kitReq,
+      {
+        id: 'b',
+        code: '2',
+        category: 'security',
+        title: 'шифрование',
+        description: 'Система должна шифровать.',
+      },
+    ];
+    const res = await normalizeRequirementsWithLlm(items, {
+      provider: { id: 'x', label: 'x', endpoint: 'http://127.0.0.1:9', kind: 'ollama' },
+    });
+    expect(res.requirements[1]).toEqual(kitReq);
+    expect(res.requirements[1]).toMatchObject({
+      kitCriterion: 'Журналы поступают',
+      acceptanceCriteria: ['Журналы поступают', 'В консоли'],
+      verificationMethod: 'TEST',
+    });
+    expect(res.requirementsV2[1].source?.origin?.elementId).toBe('req-1');
+    expect(res.requirementsV2[1].kitTracking?.criterion).toBe('Журналы поступают');
+    // Адаптеры: v1 → v2 → v1 без потерь для требования из набора.
+    expect(toGost34RequirementItem(fromGost34RequirementItem(kitReq))).toMatchObject({
+      origin: kitReq.origin,
+      acceptanceCriteria: kitReq.acceptanceCriteria,
+      verificationMethod: 'TEST',
+      kitCriterion: 'Журналы поступают',
+      kitAutoCriteria: kitReq.kitAutoCriteria,
+      kitAutoCriterion: kitReq.kitAutoCriterion,
+      kitAutoMethod: 'TEST',
+    });
   });
 });

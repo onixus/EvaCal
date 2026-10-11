@@ -16,6 +16,7 @@ import {
 } from '@/lib/gost34/types';
 import type { KitCheckMethod, SolutionKitContent } from '@/lib/solutionKits/content';
 import { formatOriginRef, kitRequirementId, type KitElementOrigin } from './origin';
+import { resolveTzSectionId } from './sections';
 
 // ── Адаптация ─────────────────────────────────────────────────────────────
 
@@ -191,8 +192,10 @@ export type KitRequirementItem = Gost34RequirementItem & {
   origin: KitElementOrigin;
   /** Критерий самого требования в наборе: база для пересчёта критериев. */
   kitCriterion: string | null;
+  acceptanceCriteria?: string[];
   verificationMethod?: KitCheckMethod;
   /** Последние значения из набора: правку пользователя пересчёт не затирает. */
+  kitAutoCriteria?: string[] | null;
   kitAutoCriterion?: string | null;
   kitAutoMethod?: KitCheckMethod | null;
 };
@@ -219,7 +222,13 @@ export interface PlannedLink {
 
 export interface SkippedElement {
   elementId: string;
-  reason: 'excluded' | 'already-applied' | 'no-target' | 'requirement-not-selected' | 'id-conflict';
+  reason:
+    | 'excluded'
+    | 'already-applied'
+    | 'no-target'
+    | 'requirement-not-selected'
+    | 'id-conflict'
+    | 'unknown-section';
 }
 
 export interface ApplicationPlan {
@@ -375,17 +384,24 @@ export function buildApplicationPlan(input: {
     });
   }
 
-  const fragments: KitFragmentEntry[] = content.fragments
-    .filter((f) => take(f.elementId, selection.targets.package))
-    .map((f) => {
-      const o = ov(f.elementId);
-      return {
-        origin: origin(f.elementId),
-        sectionKey: f.sectionKey,
-        title: o.title ?? f.title,
-        text: o.text ?? f.text,
-      };
+  // Раздел фрагмента приводится к id раздела схемы ТЗ (по id, заголовку или
+  // прежнему ключу); фрагмент без такого раздела не применяется.
+  const fragments: KitFragmentEntry[] = [];
+  for (const f of content.fragments) {
+    if (!take(f.elementId, selection.targets.package)) continue;
+    const sectionId = resolveTzSectionId(f.sectionKey);
+    if (!sectionId) {
+      skipped.push({ elementId: f.elementId, reason: 'unknown-section' });
+      continue;
+    }
+    const o = ov(f.elementId);
+    fragments.push({
+      origin: origin(f.elementId),
+      sectionKey: sectionId,
+      title: o.title ?? f.title,
+      text: o.text ?? f.text,
     });
+  }
 
   // Связи «требование → этап» — только между элементами, которые в проекте есть.
   const stagePresent = new Set([

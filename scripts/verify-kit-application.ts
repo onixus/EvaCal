@@ -136,6 +136,7 @@ async function shape(calculationId: string) {
     requirements: snapshot?.requirements,
     kitChecks: snapshot?.kitChecks,
     sectionOverrides: snapshot?.sectionOverrides,
+    kitFragments: snapshot?.kitFragments,
     links: (snapshot?.manualLinks ?? []).map((l: { sourceId: string; targetId: string }) => [
       l.sourceId,
       stageNames.get(l.targetId),
@@ -195,13 +196,15 @@ async function main() {
   );
   assert.equal(req1.origin.kitId, kitId);
   assert.equal(req1.origin.kitVersion, 1);
+  assert.deepEqual(req1.acceptanceCriteria, ['Журналы поступают', 'Журналы в консоли']);
   assert.equal(req1.criterion, 'Журналы поступают; Журналы в консоли');
   assert.equal(req1.verificationMethod, 'TEST');
   assert.deepEqual(a.links, [[req1.id, 'Монтаж']], 'связь требование → этап сохранена');
+  assert.equal(a.sectionOverrides, undefined, 'ручные правки разделов не создаются');
   assert.deepEqual(
-    a.sectionOverrides.scope,
-    { appendParagraphs: ['Абзац 1', 'Абзац 2'] },
-    'фрагмент дописывается, текст раздела не заменяется',
+    a.kitFragments.map((f: { sectionKey: string; text: string }) => [f.sectionKey, f.text]),
+    [['tz2020-goals-purpose', 'Абзац 1\nАбзац 2']],
+    'фрагмент — в реестре с id раздела схемы',
   );
   const app = await prisma.kitApplication.findUniqueOrThrow({
     where: { id: applied.applicationId! },

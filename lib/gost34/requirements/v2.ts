@@ -96,6 +96,18 @@ export interface Gost34RequirementV2 {
   standardReferences?: StandardReference[];
   relations?: RequirementRelation[];
 
+  /**
+   * Служебные значения требования из набора решений (#103 WP-7b): критерий из
+   * набора и последние автоматически сведённые критерии и метод. Нужны, чтобы
+   * пересчёт не затирал правку пользователя; переносятся адаптерами.
+   */
+  kitTracking?: {
+    criterion: string | null;
+    autoCriteria: string[] | null;
+    autoCriterion: string | null;
+    autoMethod: string | null;
+  };
+
   createdBy?: string;
   createdAt?: string;
   updatedAt?: string;

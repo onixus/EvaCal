@@ -90,7 +90,7 @@ export function torTemplateKit(tpl: Gost34TorTemplate): BuiltinKit {
   if (tpl.metadata?.scopeSummary?.trim()) {
     fragments.push({
       elementId: 'frag-scope',
-      sectionKey: 'scope',
+      sectionKey: 'tz2020-goals-purpose',
       title: 'Область применения',
       text: tpl.metadata.scopeSummary.trim(),
       requirementIds: [],
@@ -99,7 +99,7 @@ export function torTemplateKit(tpl: Gost34TorTemplate): BuiltinKit {
   if (tpl.metadata?.applicableStandards?.length) {
     fragments.push({
       elementId: 'frag-standards',
-      sectionKey: 'standards',
+      sectionKey: 'tz2020-sources',
       title: 'Применимые стандарты',
       text: tpl.metadata.applicableStandards.join('\n'),
       requirementIds: [],

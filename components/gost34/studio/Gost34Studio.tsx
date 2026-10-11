@@ -386,6 +386,7 @@ export default function Gost34Studio({
       manualLinks,
       sectionOverrides,
       tzAuthor,
+      kitFragments: kitRegistries.kitFragments,
     }),
     [
       specificationVersion,
@@ -401,6 +402,7 @@ export default function Gost34Studio({
       manualLinks,
       sectionOverrides,
       tzAuthor,
+      kitRegistries,
     ],
   );
 
@@ -934,6 +936,7 @@ export default function Gost34Studio({
                 signatures,
                 sectionOverrides,
                 tzAuthor,
+                kitFragments: kitRegistries.kitFragments as unknown[] | undefined,
               }}
               calculationId={calculationId}
               review={review}

@@ -21,27 +21,13 @@ export function projectAcceptedOverlays(
 
 export function overlaysForDocument(params: {
   docType: GostDocumentType;
-  sectionOverrides?: Record<
-    string,
-    { title?: string; paragraphs?: string[]; appendParagraphs?: string[] }
-  >;
+  sectionOverrides?: Record<string, { title?: string; paragraphs?: string[] }>;
   tzAuthor?: TzAuthorState;
   includeProposed?: boolean;
-}): Record<string, { title?: string; paragraphs?: string[]; appendParagraphs?: string[] }> {
+}): Record<string, { title?: string; paragraphs?: string[] }> {
   const manual = { ...(params.sectionOverrides || {}) };
   if (params.docType !== 'TZ') return manual; // PZ/AF/PMI/SPEC/ACT/PSI не получают LLM-прозу
   const accepted = projectAcceptedOverlays(params.tzAuthor, params.includeProposed);
-  // Приоритет на одном nodeId: принятая проза автора ТЗ заменяет ручную
-  // правку раздела целиком (как и раньше), но дополнения из наборов решений
-  // (appendParagraphs, #103 WP-7b) сохраняются и печатаются после неё.
-  // title-ключи manual не затирают id.
-  const out = { ...manual };
-  for (const [nodeId, overlay] of Object.entries(accepted)) {
-    const append = manual[nodeId]?.appendParagraphs;
-    out[nodeId] = {
-      paragraphs: overlay.paragraphs,
-      ...(append ? { appendParagraphs: append } : {}),
-    };
-  }
-  return out;
+  // accepted побеждает manual на том же nodeId; title-ключи manual не затирают id
+  return { ...manual, ...accepted };
 }

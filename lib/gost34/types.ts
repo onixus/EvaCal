@@ -134,6 +134,18 @@ export interface Gost34RequirementItem {
   assumptions?: string;
   /** Происхождение из набора решений (#103 WP-7b); переносится в v2 `source.origin`. */
   origin?: import('./requirements/v2').KitElementOrigin;
+  /**
+   * Только у требований из наборов решений (#103 WP-7b): критерии списком и
+   * метод проверки (засев приёмки), критерий из набора и последние
+   * автоматические значения (правку пользователя пересчёт не затирает).
+   * Адаптеры v1 ↔ v2 переносят их без потерь.
+   */
+  acceptanceCriteria?: string[];
+  verificationMethod?: 'INSPECTION' | 'ANALYSIS' | 'DEMONSTRATION' | 'TEST';
+  kitCriterion?: string | null;
+  kitAutoCriteria?: string[] | null;
+  kitAutoCriterion?: string | null;
+  kitAutoMethod?: string | null;
   stageName?: string;
   stageRole?: string;
   mappedStageId?: string;
@@ -171,6 +183,11 @@ export interface Gost34Section {
   paragraphs: string[];
   tables?: Gost34TableData[];
   subsections?: Gost34Section[];
+  /**
+   * Последние `count` абзацев дописаны из наборов решений (#103 WP-7b,
+   * `generation/kitAppendices.ts`): студия не включает их в редактируемый текст.
+   */
+  kitAppendix?: { count: number; elementIds: string[] };
 }
 
 export interface Gost34DocumentAST {

@@ -118,7 +118,54 @@ function buildLlmProposals(
     .filter(Boolean) as Gost34RequirementV2[];
 }
 
+/**
+ * Требования из наборов решений (#103 WP-7b, `origin`) не нормализуются: их
+ * текст, код и критерии принадлежат утверждённой версии набора, а сведения
+ * пересчёта (kitCriterion, kitAuto*) нормализатор потерял бы. Они проходят
+ * насквозь без изменений и остаются на своих местах; нормализуются остальные.
+ */
 export async function normalizeRequirementsWithLlm(
+  rawItems: Gost34RequirementItem[],
+  options: LlmNormalizerOptions,
+): Promise<LlmNormalizationResult> {
+  const isKit = (item: Gost34RequirementItem) => Boolean(item?.origin);
+  if (!rawItems.some(isKit)) return normalizeItems(rawItems, options);
+  const kitItems = rawItems.filter(isKit);
+  const others = rawItems.filter((item) => !isKit(item));
+  const result = others.length
+    ? await normalizeItems(others, options)
+    : { requirements: [], requirementsV2: [], usedLlm: false };
+  const kitCopies = kitItems.map(
+    (item) => JSON.parse(JSON.stringify(item)) as Gost34RequirementItem,
+  );
+  const kitV2 = fromGost34RequirementItems(kitCopies);
+  let requirements: Gost34RequirementItem[];
+  let requirementsV2: Gost34RequirementV2[];
+  if (result.requirements.length === others.length) {
+    // Длина сохранилась — требования наборов возвращаются на прежние позиции.
+    requirements = [];
+    requirementsV2 = [];
+    let k = 0;
+    let n = 0;
+    for (const item of rawItems) {
+      if (isKit(item)) {
+        requirements.push(kitCopies[k]);
+        requirementsV2.push(kitV2[k]);
+        k += 1;
+      } else {
+        requirements.push(result.requirements[n]);
+        requirementsV2.push(result.requirementsV2[n]);
+        n += 1;
+      }
+    }
+  } else {
+    requirements = [...result.requirements, ...kitCopies];
+    requirementsV2 = [...result.requirementsV2, ...kitV2];
+  }
+  return { ...result, requirements, requirementsV2 };
+}
+
+async function normalizeItems(
   rawItems: Gost34RequirementItem[],
   options: LlmNormalizerOptions,
 ): Promise<LlmNormalizationResult> {
