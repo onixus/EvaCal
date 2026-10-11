@@ -183,7 +183,12 @@ model Calculation {
   pmHours                Float        @default(0)
   // Факт часов РП по выигранной версии (Horizon E1).
   actualPmHours          Float?
-  createdBy              String       @default("presale")
+  // #103 4.5: подтверждённый остаток часов РП; null — не подтверждён.
+  remainingPmHoursEstimate Float?
+  remainingPmActualBaseline Float?
+  remainingPmEstimatedBy   String?
+  remainingPmEstimatedAt   DateTime?
+  createdBy             String       @default("presale")
   createdAt              DateTime     @default(now())
   updatedAt              DateTime     @updatedAt
   // Нормативная привязка выпущенного комплекта ГОСТ 34 (PR-12). Пустые поля —
@@ -329,6 +334,14 @@ model Stage {
   actualStartDate    DateTime?
   actualEndDate      DateTime?
   actualNote         String?
+  // #103 4.5: подтверждённая оценка оставшейся работы, ч. null — не подтверждена
+  // («неизвестно», а не 0). Пишется только через PATCH этапа; перестройка плана
+  // это поле не трогает.
+  remainingHoursEstimate Float?
+  // Факт этапа в момент оценки: изменился — оценка устарела (прогноз неполный).
+  remainingActualBaseline Float?
+  remainingEstimatedBy   String?
+  remainingEstimatedAt   DateTime?
   // #103 WP-6a: actualHours/даты факта — агрегат этих записей
   actualEntries      ActualEntry[]
   taskMappings       ExternalTaskMapping[]

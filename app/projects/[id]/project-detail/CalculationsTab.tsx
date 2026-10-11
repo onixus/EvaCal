@@ -1,18 +1,24 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
+import OfferCompareModal from './OfferCompareModal';
 import type { SerializedCalculation } from './types';
 
 export default function CalculationsTab({
   projectId,
   calculations,
   onCreateVersion,
+  canCompare = false,
 }: {
   projectId: string;
   calculations: SerializedCalculation[];
   onCreateVersion: (calculation: SerializedCalculation) => void;
+  /** Роль видит коммерческие итоги и может сравнивать варианты КП (#103 4.4). */
+  canCompare?: boolean;
 }) {
+  const [compareOpen, setCompareOpen] = useState(false);
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -25,10 +31,29 @@ export default function CalculationsTab({
             параметров КП.
           </p>
         </div>
-        <Link href={`/presale?projectId=${projectId}`} className="btn-secondary text-xs">
-          + Создать расчёт с нуля
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          {canCompare && calculations.length >= 2 && (
+            <button
+              className="btn-secondary text-xs"
+              onClick={() => setCompareOpen(true)}
+              title="Состав, стоимость, цена, прибыль и срок версий по их сохранённым условиям"
+            >
+              Сравнить варианты КП
+            </button>
+          )}
+          <Link href={`/presale?projectId=${projectId}`} className="btn-secondary text-xs">
+            + Создать расчёт с нуля
+          </Link>
+        </div>
       </div>
+
+      {compareOpen && (
+        <OfferCompareModal
+          projectId={projectId}
+          calculations={calculations}
+          onClose={() => setCompareOpen(false)}
+        />
+      )}
 
       {calculations.length === 0 ? (
         <div className="card p-10 text-center">

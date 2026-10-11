@@ -173,6 +173,7 @@ export default function ProjectDetailClient({
           projectId={project.id}
           calculations={project.calculations}
           onCreateVersion={setVersionCalculation}
+          canCompare={['presale', 'architect', 'reviewer', 'admin'].includes(sessionRole ?? '')}
         />
       )}
 

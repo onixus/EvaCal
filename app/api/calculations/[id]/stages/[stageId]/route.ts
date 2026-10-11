@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { actualsWriteGate } from '@/lib/actualsData';
+import { parseHoursInput } from '@/lib/actuals';
 import {
   isLedgerConflict,
   recordManualStageEdit,
@@ -72,6 +73,28 @@ export async function PATCH(
       data.actualNote = String(body.actualNote ?? '').trim() || null;
   }
 
+  // #103 4.5: подтверждённая оценка оставшейся работы. null — снять оценку
+  // («неизвестно»), а не «0 часов». Автор и время фиксируются вместе с оценкой.
+  const touchesRemaining = body.remainingHoursEstimate !== undefined;
+  if (touchesRemaining) {
+    if (!touchesActuals) {
+      const gate = await actualsWriteGate(params.id, auth.role);
+      if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+    }
+    const h = parseHoursInput(body.remainingHoursEstimate);
+    if (h === undefined) {
+      return NextResponse.json(
+        { error: 'Оставшиеся часы: неотрицательное число или null' },
+        { status: 400 },
+      );
+    }
+    data.remainingHoursEstimate = h;
+    data.remainingEstimatedBy = h === null ? null : auth.username;
+    data.remainingEstimatedAt = h === null ? null : new Date();
+    // Базу факта (remainingActualBaseline) пишем в транзакции после правки
+    // журнала: оценка привязывается к факту, при котором она подтверждена.
+  }
+
   const touchesLedger = Object.keys(ledger).length > 0;
   if (Object.keys(data).length === 0 && !touchesLedger) {
     return NextResponse.json({ error: 'Нечего обновлять' }, { status: 400 });
@@ -80,6 +103,12 @@ export async function PATCH(
   const existing = await prisma.stage.findUnique({ where: { id: params.stageId } });
   if (!existing || existing.calculationId !== params.id) {
     return NextResponse.json({ error: 'Stage not found' }, { status: 404 });
+  }
+  if (touchesRemaining && existing.isApprovalTask) {
+    return NextResponse.json(
+      { error: 'Задача согласования не оценивается: её часы не входят в затраты' },
+      { status: 400 },
+    );
   }
 
   const stage = await prisma
@@ -90,6 +119,16 @@ export async function PATCH(
           stageId: params.stageId,
           ...ledger,
         });
+      }
+      if (touchesRemaining) {
+        const current = touchesLedger
+          ? await tx.stage.findUnique({
+              where: { id: params.stageId },
+              select: { actualHours: true },
+            })
+          : existing;
+        data.remainingActualBaseline =
+          data.remainingHoursEstimate === null ? null : (current?.actualHours ?? null);
       }
       return Object.keys(data).length
         ? tx.stage.update({ where: { id: params.stageId }, data })
@@ -114,6 +153,21 @@ export async function PATCH(
       entityType: 'stage',
       entityId: stage.id,
       meta: { calculationId: params.id, actualHours: stage.actualHours },
+      ip: clientIp(req),
+    });
+  }
+  if (touchesRemaining) {
+    await writeAudit({
+      actorType: 'user',
+      actorId: auth.userId,
+      action: 'stage.remaining_estimate',
+      entityType: 'stage',
+      entityId: stage.id,
+      meta: {
+        calculationId: params.id,
+        from: existing.remainingHoursEstimate,
+        to: stage.remainingHoursEstimate,
+      },
       ip: clientIp(req),
     });
   }

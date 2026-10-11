@@ -14,6 +14,7 @@ import {
   discountOutcomes,
   lossReasons,
   monthlyWins,
+  tryProfitForecast,
   roleBias,
   winRate,
   winRateBy,
@@ -84,9 +85,20 @@ export async function loadActualsSummary(calculationId: string) {
     select: {
       id: true,
       actualPmHours: true,
+      remainingPmHoursEstimate: true,
+      remainingPmActualBaseline: true,
+      remainingPmEstimatedBy: true,
+      remainingPmEstimatedAt: true,
       pmHours: true,
+      currency: true,
       roleRates: true,
       overheadPercent: true,
+      pricingMode: true,
+      marginPercent: true,
+      discountPercent: true,
+      vatPercent: true,
+      includeVat: true,
+      risks: { select: { hours: true } },
       stages: {
         orderBy: { order: 'asc' },
         select: {
@@ -101,6 +113,11 @@ export async function loadActualsSummary(calculationId: string) {
           actualStartDate: true,
           actualEndDate: true,
           actualNote: true,
+          status: true,
+          remainingHoursEstimate: true,
+          remainingActualBaseline: true,
+          remainingEstimatedBy: true,
+          remainingEstimatedAt: true,
         },
       },
       project: {
@@ -126,6 +143,23 @@ export async function loadActualsSummary(calculationId: string) {
     overheadPercent: calc.overheadPercent,
     contractAmount: calc.project?.contractAmount ?? null,
   });
+  // #103 4.5: прогноз итоговой прибыли — только по выигранной версии и только
+  // по сохранённым условиям этой версии.
+  const forecast = isWonVersion
+    ? tryProfitForecast({
+        stages: calc.stages,
+        risks: calc.risks,
+        pmHours: calc.pmHours,
+        actualPmHours: calc.actualPmHours,
+        remainingPmHoursEstimate: calc.remainingPmHoursEstimate,
+        remainingPmEstimatedBy: calc.remainingPmEstimatedBy,
+        remainingPmEstimatedAt: calc.remainingPmEstimatedAt,
+        remainingPmActualBaseline: calc.remainingPmActualBaseline,
+        terms: calc,
+        contractAmount: calc.project?.contractAmount ?? null,
+        contractCurrency: calc.project?.contractCurrency ?? null,
+      })
+    : null;
   return {
     calculationId: calc.id,
     isWonVersion,
@@ -133,8 +167,10 @@ export async function loadActualsSummary(calculationId: string) {
     contractCurrency: calc.project?.contractCurrency ?? null,
     pmHours: calc.pmHours,
     actualPmHours: calc.actualPmHours,
+    remainingPmHoursEstimate: calc.remainingPmHoursEstimate,
     stages: calc.stages.map((s) => ({
       ...s,
+      remainingEstimatedAt: s.remainingEstimatedAt?.toISOString() ?? null,
       startDate: s.startDate.toISOString(),
       endDate: s.endDate.toISOString(),
       actualStartDate: s.actualStartDate?.toISOString() ?? null,
@@ -142,6 +178,7 @@ export async function loadActualsSummary(calculationId: string) {
     })),
     accuracy,
     margin,
+    forecast,
     schedule: isWonVersion ? projectSchedule(calc.stages) : null,
     // Журнал факта (#103 WP-6a): источники записей и время последней синхронизации.
     ledger: isWonVersion ? await loadLedgerOverview(calc.id) : null,

@@ -6,7 +6,12 @@
  * оценки, фактическая маржа, win rate и связь скидки с исходом. Загрузка
  * данных — в `lib/actualsData.ts`.
  */
-import { DEFAULT_ROLE_RATES, resolveRoleRates } from './commercial';
+import {
+  DEFAULT_ROLE_RATES,
+  calculateCommercialSummary,
+  resolveRoleRates,
+  type CommercialConfig,
+} from './commercial';
 import { median, round1, round2 } from './stats';
 
 // ---------------------------------------------------------------------------
@@ -729,4 +734,361 @@ export function matchActuals(
     matched.push({ stageId: s.id, name: s.name, hours: r.hours, start: r.start, end: r.end });
   }
   return { matched, unmatched, invalid, ambiguous };
+}
+
+// ---------------------------------------------------------------------------
+// Прогноз итоговой прибыли (#103 4.5)
+// ---------------------------------------------------------------------------
+
+/** Статусы этапа, после которых оставшейся работы нет. */
+export const FINISHED_STAGE_STATUSES = ['done', 'approved'];
+/** Статус этапа, по которому работа ещё не начиналась. */
+export const NOT_STARTED_STAGE_STATUS = 'planned';
+
+export interface ForecastStageRow {
+  id: string;
+  name: string;
+  role: string;
+  hours: number;
+  status: string;
+  isApprovalTask: boolean;
+  /** Агрегат журнала факта; null — факт не вносился. */
+  actualHours: number | null;
+  /** Подтверждённая оценка остатка; null — не подтверждена. */
+  remainingHoursEstimate: number | null;
+  /** Факт часов этапа в момент подтверждения оценки (null — факта тогда не было). */
+  remainingActualBaseline: number | null;
+  remainingEstimatedBy?: string | null;
+  remainingEstimatedAt?: Date | string | null;
+}
+
+export interface ProfitForecastInput {
+  stages: ForecastStageRow[];
+  risks: { hours: number }[];
+  pmHours: number;
+  actualPmHours: number | null;
+  remainingPmHoursEstimate: number | null;
+  /** Факт часов РП в момент подтверждения оценки остатка РП. */
+  remainingPmActualBaseline: number | null;
+  remainingPmEstimatedBy?: string | null;
+  remainingPmEstimatedAt?: Date | string | null;
+  /** Сохранённые условия версии: ставки и проценты берутся только отсюда. */
+  terms: CommercialConfig;
+  contractAmount: number | null;
+  contractCurrency: string | null;
+}
+
+/**
+ * Состояние строки прогноза:
+ * - `known` — факт и актуальный подтверждённый остаток (или этап завершён и факт внесён);
+ * - `estimate_only` — работа не начиналась, факта нет, специалист подтвердил весь остаток;
+ * - `missing_remaining` — факт есть, остаток не подтверждён;
+ * - `missing_actual` — работа начата или завершена, а факт не внесён;
+ * - `stale_estimate` — после подтверждения остатка факт изменился: оценку нужно подтвердить заново;
+ * - `unknown` — ни факта, ни подтверждённого остатка.
+ */
+export type ForecastLineState =
+  'known' | 'estimate_only' | 'missing_remaining' | 'missing_actual' | 'stale_estimate' | 'unknown';
+
+export const FORECAST_LINE_STATE_LABELS: Record<ForecastLineState, string> = {
+  known: 'факт + подтверждённый остаток',
+  estimate_only: 'работа не начата, учтён подтверждённый остаток',
+  missing_remaining: 'остаток не подтверждён',
+  missing_actual: 'работа начата или завершена, факт не внесён',
+  stale_estimate: 'факт изменился после оценки остатка — подтвердите остаток заново',
+  unknown: 'нет ни факта, ни оценки остатка',
+};
+
+const KNOWN_STATES: readonly ForecastLineState[] = ['known', 'estimate_only'];
+
+export interface ForecastLine {
+  /** null — строка РП. */
+  stageId: string | null;
+  name: string;
+  role: string;
+  status: string | null;
+  rate: number;
+  plannedHours: number;
+  actualHours: number | null;
+  remainingHours: number | null;
+  /** `done` — остаток 0 по статусу этапа, `estimate` — подтверждён специалистом. */
+  remainingSource: 'done' | 'estimate' | null;
+  remainingEstimatedBy: string | null;
+  remainingEstimatedAt: string | null;
+  /** Факт на момент оценки; заполнен у устаревшей оценки, чтобы показать разницу. */
+  remainingActualBaseline: number | null;
+  /** Стоимость без накладных; null — неизвестна (у устаревшей оценки остаток не учитывается). */
+  actualCost: number | null;
+  remainingCost: number | null;
+  /** Итог строки; null, если строка неполна. */
+  forecastHours: number | null;
+  forecastCost: number | null;
+  state: ForecastLineState;
+  /** Почему строка неполна; null у известных строк. */
+  reason: string | null;
+}
+
+export interface ProfitForecast {
+  currency: string;
+  overheadPercent: number;
+  lines: ForecastLine[];
+  /** Строки, без которых прогноз неполон: перечисляются явно, нулём не считаются. */
+  incomplete: { name: string; state: ForecastLineState; reason: string }[];
+  partial: boolean;
+  /** Известные части с накладными. При partial их сумма — нижняя граница затрат. */
+  actualCost: number;
+  remainingCost: number;
+  knownCost: number;
+  /** Прогноз себестоимости; null при partial. */
+  forecastCost: number | null;
+  /** Плановая себестоимость КП версии (с рисками и накладными). */
+  plannedCost: number;
+  revenue: number | null;
+  revenueSource: 'contract' | 'quote';
+  /** Договор в другой валюте: выручку и затраты нельзя сравнить без курса. */
+  currencyMismatch: boolean;
+  /** null при partial или без сопоставимой выручки. */
+  profit: number | null;
+  /** revenue − известные затраты: прибыль не выше этого значения. */
+  profitUpperBound: number | null;
+  marginPercent: number | null;
+  plannedProfit: number;
+  explanation: string[];
+}
+
+const money2 = (v: number) =>
+  Math.round((v + Number.EPSILON * Math.max(1, Math.abs(v))) * 100) / 100;
+
+function isoOrNull(v: Date | string | null | undefined): string | null {
+  if (!v) return null;
+  return typeof v === 'string' ? v : v.toISOString();
+}
+
+/** Факт изменился с момента оценки (null и число считаются разными значениями). */
+function actualChanged(baseline: number | null, actual: number | null): boolean {
+  if (baseline === null || actual === null) return baseline !== actual;
+  return Math.abs(baseline - actual) > 1e-9;
+}
+
+/**
+ * Разбор часов из API: null/'' — очистить; число или строка из цифр (с точкой)
+ * — значение ≥ 0; иначе (пробелы, буквы, массивы, логические) — undefined.
+ */
+export function parseHoursInput(v: unknown): number | null | undefined {
+  if (v === null || v === '') return null;
+  if (typeof v === 'number') return Number.isFinite(v) && v >= 0 ? v : undefined;
+  if (typeof v === 'string' && /^\d+(\.\d+)?$/.test(v)) return Number(v);
+  return undefined;
+}
+
+interface LineFacts {
+  actualHours: number | null;
+  remaining: number | null;
+  baseline: number | null;
+  finished: boolean;
+  notStarted: boolean;
+  by: string | null;
+  at: string | null;
+}
+
+function forecastLine(
+  base: Pick<ForecastLine, 'stageId' | 'name' | 'role' | 'status' | 'rate' | 'plannedHours'>,
+  f: LineFacts,
+): ForecastLine {
+  const { actualHours, finished } = f;
+  const remainingHours = finished ? 0 : f.remaining;
+  const remainingSource = finished ? 'done' : f.remaining === null ? null : 'estimate';
+  const stale = !finished && f.remaining !== null && actualChanged(f.baseline, actualHours);
+  let state: ForecastLineState;
+  let reason: string | null = null;
+  if (finished) {
+    state = actualHours === null ? 'missing_actual' : 'known';
+    if (state === 'missing_actual') reason = 'этап завершён, а факт не внесён';
+  } else if (actualHours === null && remainingHours === null) {
+    state = 'unknown';
+    reason = 'нет ни факта, ни подтверждённой оценки остатка';
+  } else if (remainingHours === null) {
+    state = 'missing_remaining';
+    reason = 'факт внесён, остаток не подтверждён';
+  } else if (stale) {
+    state = 'stale_estimate';
+    reason = `остаток подтверждён при факте ${f.baseline ?? 0} ч, сейчас ${actualHours ?? 0} ч — подтвердите заново`;
+  } else if (actualHours === null) {
+    // «Только оценка» допустима, лишь пока работа не начата: у начатой работы
+    // пустой факт — это незаполненный факт, а не ноль часов.
+    if (f.notStarted) state = 'estimate_only';
+    else {
+      state = 'missing_actual';
+      reason = 'работа начата, а факт не внесён';
+    }
+  } else state = 'known';
+  const known = KNOWN_STATES.includes(state);
+  const actualCost = actualHours === null ? null : money2(actualHours * base.rate);
+  const remainingCost =
+    remainingHours === null || stale ? null : money2(remainingHours * base.rate);
+  return {
+    ...base,
+    actualHours,
+    remainingHours,
+    remainingSource,
+    remainingEstimatedBy: finished ? null : f.by,
+    remainingEstimatedAt: finished ? null : f.at,
+    remainingActualBaseline: stale ? f.baseline : null,
+    actualCost,
+    remainingCost,
+    forecastHours: known ? round2((actualHours ?? 0) + (remainingHours ?? 0)) : null,
+    forecastCost: known ? money2((actualCost ?? 0) + (remainingCost ?? 0)) : null,
+    state,
+    reason,
+  };
+}
+
+/**
+ * Прогноз итоговой прибыли выигранной версии: фактические затраты (часы
+ * журнала × ставки версии) + подтверждённая оценка оставшейся работы, с
+ * накладными версии. Строка без факта и без оценки — «неизвестно»: прогноз
+ * помечается неполным с явным списком, а не считается с нулём. Завершённые
+ * этапы имеют остаток 0. Ставки и проценты берутся из сохранённой версии,
+ * поэтому смена ставок шаблона или новой версии прогноз не переписывает.
+ */
+export function profitForecast(input: ProfitForecastInput): ProfitForecast {
+  const rates = resolveRoleRates(input.terms.roleRates ?? null);
+  // Так же, как в calculateCommercialSummary: неизвестная роль — ставка «other».
+  const rateOf = (role: string) =>
+    rates[role] !== undefined ? rates[role] : (rates.other ?? DEFAULT_ROLE_RATES.other);
+  const quote = calculateCommercialSummary(input.stages, input.pmHours, input.risks, input.terms);
+  const overheadPercent = quote.overheadPercent;
+  const lines: ForecastLine[] = input.stages
+    .filter((s) => !s.isApprovalTask)
+    .map((s) =>
+      forecastLine(
+        {
+          stageId: s.id,
+          name: s.name,
+          role: s.role,
+          status: s.status,
+          rate: rateOf(s.role),
+          plannedHours: s.hours,
+        },
+        {
+          actualHours: s.actualHours,
+          remaining: s.remainingHoursEstimate,
+          baseline: s.remainingActualBaseline,
+          finished: FINISHED_STAGE_STATUSES.includes(s.status),
+          notStarted: s.status === NOT_STARTED_STAGE_STATUS,
+          by: s.remainingEstimatedBy ?? null,
+          at: isoOrNull(s.remainingEstimatedAt),
+        },
+      ),
+    );
+  // РП не имеет статуса: его работа считается начатой, как только начат или
+  // имеет факт хотя бы один этап.
+  const projectStarted = input.stages.some(
+    (s) => !s.isApprovalTask && (s.status !== NOT_STARTED_STAGE_STATUS || s.actualHours !== null),
+  );
+  if (
+    input.pmHours > 0 ||
+    input.actualPmHours !== null ||
+    input.remainingPmHoursEstimate !== null
+  ) {
+    lines.push(
+      forecastLine(
+        {
+          stageId: null,
+          name: 'Руководство проектом',
+          role: 'pm',
+          status: null,
+          rate: rates.pm ?? DEFAULT_ROLE_RATES.pm,
+          plannedHours: input.pmHours,
+        },
+        {
+          actualHours: input.actualPmHours,
+          remaining: input.remainingPmHoursEstimate,
+          baseline: input.remainingPmActualBaseline,
+          finished: false,
+          notStarted: !projectStarted,
+          by: input.remainingPmEstimatedBy ?? null,
+          at: isoOrNull(input.remainingPmEstimatedAt),
+        },
+      ),
+    );
+  }
+  const withOverhead = (v: number) => money2(v * (1 + overheadPercent / 100));
+  const sum = (pick: (l: ForecastLine) => number | null) =>
+    lines.reduce((acc, l) => acc + (pick(l) ?? 0), 0);
+  const actualCost = withOverhead(sum((l) => l.actualCost));
+  const remainingCost = withOverhead(sum((l) => l.remainingCost));
+  const knownCost = money2(actualCost + remainingCost);
+  const incomplete = lines
+    .filter((l) => !KNOWN_STATES.includes(l.state))
+    .map((l) => ({ name: l.name, state: l.state, reason: l.reason ?? '' }));
+  const partial = incomplete.length > 0;
+
+  const currency = quote.currency;
+  const revenueSource: ProfitForecast['revenueSource'] =
+    input.contractAmount !== null ? 'contract' : 'quote';
+  const revenueCurrency =
+    revenueSource === 'contract' ? (input.contractCurrency ?? currency) : currency;
+  const currencyMismatch = revenueCurrency !== currency;
+  const revenue = currencyMismatch
+    ? null
+    : revenueSource === 'contract'
+      ? input.contractAmount
+      : quote.subtotalExVat;
+  const forecastCost = partial ? null : knownCost;
+  const profit = revenue === null || forecastCost === null ? null : money2(revenue - forecastCost);
+  const profitUpperBound = revenue === null ? null : money2(revenue - knownCost);
+  const marginPercent =
+    profit !== null && revenue !== null && revenue > 0 ? round2((profit / revenue) * 100) : null;
+
+  const fmt = (v: number) => `${round2(v)} ${currency}`;
+  const explanation = [
+    `Ставки ролей и накладные (${overheadPercent}%) — из сохранённой версии расчёта, а не из текущего шаблона.`,
+    `Фактические затраты = Σ(факт часов × ставка роли) × (1 + ${overheadPercent}%) = ${fmt(actualCost)}.`,
+    `Оставшиеся затраты = Σ(подтверждённый остаток × ставка роли) × (1 + ${overheadPercent}%) = ${fmt(remainingCost)}; у завершённых этапов остаток 0.`,
+    revenue === null
+      ? `Выручка не сопоставима: договор в ${revenueCurrency}, расчёт в ${currency}.`
+      : revenueSource === 'contract'
+        ? `Выручка — сумма договора без НДС: ${fmt(revenue)}.`
+        : `Сумма договора не указана: выручка — цена КП версии без НДС после скидки, ${fmt(revenue)}.`,
+    partial
+      ? `Прогноз неполный: ${incomplete.length} строк(и) без факта, без подтверждённого или с устаревшим остатком не считаются нулём. Затраты не меньше ${fmt(knownCost)}${profitUpperBound === null ? '' : `, прибыль не больше ${fmt(profitUpperBound)}`}.`
+      : `Прогноз прибыли = выручка − (фактические + оставшиеся затраты)${profit === null ? '' : ` = ${fmt(profit)}`}.`,
+  ];
+
+  return {
+    currency,
+    overheadPercent,
+    lines,
+    incomplete,
+    partial,
+    actualCost,
+    remainingCost,
+    knownCost,
+    forecastCost,
+    plannedCost: quote.totalCost,
+    revenue,
+    revenueSource,
+    currencyMismatch,
+    profit,
+    profitUpperBound,
+    marginPercent,
+    plannedProfit: quote.profitAfterDiscount,
+    explanation,
+  };
+}
+
+/**
+ * Прогноз без исключения: некорректные сохранённые условия версии (неизвестный
+ * режим цены, недопустимая целевая маржа) дают состояние ошибки, а не падение
+ * страницы или API.
+ */
+export function tryProfitForecast(input: ProfitForecastInput): ProfitForecast | { error: string } {
+  try {
+    return profitForecast(input);
+  } catch (e) {
+    return {
+      error: `Прогноз не рассчитан: ${e instanceof Error ? e.message : 'некорректные условия версии'}`,
+    };
+  }
 }

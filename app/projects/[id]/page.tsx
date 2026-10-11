@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getProjectDetails } from '@/lib/project';
 import { getSession } from '@/lib/auth';
 import { projectSchedule } from '@/lib/schedule';
+import { tryProfitForecast } from '@/lib/actuals';
 import { resolveLifecycle } from '@/lib/lifecycle';
 import { lifecycleInputFromRow } from '@/lib/lifecycleData';
 import ProjectDetailClient from './ProjectDetailClient';
@@ -55,6 +56,34 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
               overdue: s.overdue,
             }
           : null;
+      })(),
+      forecast: (() => {
+        const won = project.calculations.find((c) => c.id === project.wonCalculationId);
+        if (project.dealStatus !== 'won' || !won) return null;
+        const f = tryProfitForecast({
+          stages: won.stages,
+          risks: won.risks,
+          pmHours: won.pmHours,
+          actualPmHours: won.actualPmHours,
+          remainingPmHoursEstimate: won.remainingPmHoursEstimate,
+          remainingPmActualBaseline: won.remainingPmActualBaseline,
+          terms: won,
+          contractAmount: project.contractAmount,
+          contractCurrency: project.contractCurrency,
+        });
+        if ('error' in f) return { error: f.error };
+        return {
+          currency: f.currency,
+          partial: f.partial,
+          incomplete: f.incomplete,
+          profit: f.profit,
+          profitUpperBound: f.profitUpperBound,
+          marginPercent: f.marginPercent,
+          forecastCost: f.forecastCost,
+          knownCost: f.knownCost,
+          revenueSource: f.revenueSource,
+          currencyMismatch: f.currencyMismatch,
+        };
       })(),
       calculations: project.calculations.map((c) => ({
         id: c.id,
