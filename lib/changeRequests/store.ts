@@ -4,6 +4,7 @@ import { safeJsonParse } from '@/lib/json';
 import { lockCalculationLedger } from '@/lib/actualsLedgerData';
 import { computeBaseFingerprint } from './apply';
 import { chainHead } from './totals';
+import { affectedRequirementIds } from '@/lib/acceptance/review';
 import {
   computeChangeImpact,
   requirementsFromSnapshot,
@@ -176,6 +177,12 @@ export interface ChangeRequestDto {
    * нет или запрос уже решён; false — база изменилась, нужна переоценка.
    */
   estimateMatchesBase?: boolean | null;
+  /**
+   * Только в карточке: проверки приёмки базового комплекта по затронутым
+   * требованиям. Пока запрос на оценке или принят, приёмка помечает их «требует
+   * пересмотра» (lib/acceptance/review.ts).
+   */
+  acceptanceChecks?: Array<{ id: string; requirementCode: string; title: string }>;
 }
 
 export type ChangeRequestRow = Prisma.ChangeRequestGetPayload<object>;
@@ -386,6 +393,15 @@ export async function getChangeRequest(projectId: string, crId: string): Promise
   } else {
     dto.estimateMatchesBase = null;
   }
+  const requirementIds = affectedRequirementIds(row);
+  dto.acceptanceChecks =
+    row.basePackageId && requirementIds.length
+      ? await prisma.acceptanceCheck.findMany({
+          where: { packageId: row.basePackageId, requirementId: { in: requirementIds } },
+          select: { id: true, requirementCode: true, title: true },
+          orderBy: { order: 'asc' },
+        })
+      : [];
   return dto;
 }
 

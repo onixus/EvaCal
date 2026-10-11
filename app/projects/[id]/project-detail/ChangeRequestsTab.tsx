@@ -793,6 +793,23 @@ function ChangeRequestDetail({
                   ))}
                 </ul>
               )}
+              {cr.acceptanceChecks && cr.acceptanceChecks.length > 0 && (
+                <div className="mt-2">
+                  <p className={sectionTitle}>Проверки приёмки комплекта</p>
+                  <ul>
+                    {cr.acceptanceChecks.map((c) => (
+                      <li key={c.id}>
+                        <span className="font-mono font-bold">{c.requirementCode}</span>: {c.title}
+                      </li>
+                    ))}
+                  </ul>
+                  {(cr.status === 'submitted' || cr.status === 'accepted') && (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                      В приёмке помечены «требует пересмотра».
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

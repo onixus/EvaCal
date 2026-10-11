@@ -145,6 +145,7 @@ const db = vi.hoisted(() => {
         return { count: rows.length };
       },
     },
+    acceptanceCheck: { findMany: async () => [] },
     changeRequestEvent: {
       create: async ({ data }: Row) => {
         const row = { id: `ev${++counter}`, comment: null, data: null, at: new Date(), ...data };
