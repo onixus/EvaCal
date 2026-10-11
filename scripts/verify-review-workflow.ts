@@ -293,6 +293,7 @@ async function main() {
     assert.equal(twQueue.overdue, 1, 'overdue assignment is on top of the queue');
     assert.equal(twQueue.items[0].packageId, w4.id);
     assert.equal(twQueue.unread, 1);
+    assert.equal(twQueue.badge, 1, 'task and its overdue notification count once');
     assert.equal(
       await prisma.notification.count({ where: { userId: tw.id } }),
       1,

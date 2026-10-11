@@ -17,7 +17,7 @@ import {
   isAssignableStage,
   validateAssignment,
 } from '@/lib/review/workflow';
-import { assignmentDrafts, notifySafe } from '@/lib/review/notifications';
+import { assignmentDrafts, notificationActorName, notifySafe } from '@/lib/review/notifications';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -146,7 +146,7 @@ export async function POST(req: NextRequest, props: Props) {
         pkg,
         assignment,
         actorId: actor.actorId,
-        actorName: actor.username,
+        actorName: notificationActorName(access),
       }),
     );
 

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { fetchNavBadges } from './navBadges';
 import { appRoleLabel, navGroupsFor, type NavItem } from '@/lib/appRoles';
 import { applyTheme, resolveTheme, THEME_STORAGE_KEY, type Theme } from '@/lib/theme';
 
@@ -50,10 +51,7 @@ export default function AppSidebar() {
       setBadges({});
       return;
     }
-    fetch('/api/nav/badges')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setBadges(data?.badges ?? {}))
-      .catch(() => setBadges({}));
+    fetchNavBadges().then((data) => setBadges(data as BadgeCounts));
   }, [session, pathname]);
 
   useEffect(() => {

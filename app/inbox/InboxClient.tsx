@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { MyQueue, QueueItem } from '@/lib/review/queue';
+import { invalidateNavBadges } from '@/components/navBadges';
 
 const KIND_LABELS: Record<QueueItem['kind'], string> = {
   assignment: 'Этап ревью',
@@ -51,6 +52,7 @@ export default function InboxClient({ initial }: { initial: MyQueue }) {
           ),
         };
       });
+      invalidateNavBadges();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка');

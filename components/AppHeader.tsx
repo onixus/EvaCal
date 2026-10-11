@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { canCreateCalculation, NAV_BY_ROLE, NAV_GROUP_LABELS, navItemsFor } from '@/lib/appRoles';
 import { isNavActive } from './AppSidebar';
+import { fetchNavBadges } from './navBadges';
 
 interface Session {
   username: string;
@@ -81,16 +82,13 @@ export default function AppHeader() {
       setQueue(null);
       return;
     }
-    fetch('/api/nav/badges')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) =>
-        setQueue(
-          typeof data?.badges?.myQueue === 'number'
-            ? { count: data.badges.myQueue, overdue: data.badges.myQueueOverdue ?? 0 }
-            : null,
-        ),
-      )
-      .catch(() => setQueue(null));
+    fetchNavBadges().then((badges) =>
+      setQueue(
+        typeof badges.myQueue === 'number'
+          ? { count: badges.myQueue, overdue: badges.myQueueOverdue ?? 0 }
+          : null,
+      ),
+    );
   }, [session, pathname]);
 
   const { root, title } = resolveTitle(pathname, session?.role);

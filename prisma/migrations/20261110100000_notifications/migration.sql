@@ -23,7 +23,8 @@ CREATE INDEX "Notification_userId_readAt_idx" ON "Notification"("userId", "readA
 CREATE UNIQUE INDEX "Notification_userId_kind_entityId_dueAt_key" ON "Notification"("userId", "kind", "entityId", "dueAt");
 
 ALTER TABLE "Notification" ADD CONSTRAINT "Notification_kind_check"
-  CHECK ("kind" IN ('assigned', 'deputy_assigned', 'returned', 'overdue', 'comment_reply', 'comment_fixed'));
+  CHECK ("kind" IN ('assigned', 'deputy_assigned', 'returned', 'overdue', 'comment_reply',
+    'comment_fixed', 'comment_verified', 'comment_rejected', 'comment_reopened'));
 ALTER TABLE "Notification" ADD CONSTRAINT "Notification_entityType_check"
   CHECK ("entityType" IN ('gost_package', 'review_assignment', 'review_comment'));
 -- Просрочка без срока не бывает: иначе уникальность не держала бы идемпотентность.

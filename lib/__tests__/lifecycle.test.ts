@@ -255,7 +255,7 @@ describe('resolveLifecycle: задержавшийся комплект — пр
     expect(s.overdue).toBe(true);
     expect(s.attention).toBe('stale');
     expect(s.reason).toMatch(/^Срок ответственного истёк/);
-    expect(s.responsible.label).toBe('gap.petrov (замещает gap.sidorov)');
+    expect(s.responsible.label).toBe('gap.petrov (зам.: gap.sidorov)');
     expect(s.next).toEqual({ label: 'Открыть финальное ревью', href: '/review/g1' });
   });
 

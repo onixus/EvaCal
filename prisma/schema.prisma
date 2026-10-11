@@ -1109,7 +1109,7 @@ model AcceptanceDecision {
 model Notification {
   id         String    @id @default(cuid())
   userId     String
-  kind       String // assigned | deputy_assigned | returned | overdue | comment_reply | comment_fixed
+  kind       String // assigned | deputy_assigned | returned | overdue | comment_reply | comment_fixed | comment_verified | comment_rejected | comment_reopened
   entityType String // gost_package | review_assignment | review_comment
   entityId   String
   payload    Json?

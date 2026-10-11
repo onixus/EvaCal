@@ -21,7 +21,7 @@ vi.mock('@/lib/prisma', () => {
     },
     reviewCommentReply: { create: vi.fn() },
     reviewAssignment: { findMany: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
-    user: { findMany: vi.fn() },
+    user: { findMany: vi.fn(), findUnique: vi.fn() },
     notification: {
       createMany: vi.fn(),
       findMany: vi.fn(),
@@ -47,7 +47,9 @@ import { POST as markRead } from '@/app/api/me/notifications/route';
 import { GET as getBadges } from '@/app/api/nav/badges/route';
 import {
   assignmentDrafts,
+  notificationActorName,
   overdueDrafts,
+  resetOverdueSyncCache,
   returnedDrafts,
   saveNotifications,
   syncOverdueNotifications,
@@ -55,6 +57,7 @@ import {
 } from './notifications';
 import {
   composeQueue,
+  distinctBadgeCount,
   type QueueAssignmentSource,
   type QueueCommentSource,
   type QueueReturnedSource,
@@ -158,6 +161,7 @@ function created(): [string, string][] {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetOverdueSyncCache();
   vi.mocked(getSession).mockResolvedValue(null);
   vi.stubEnv('SESSION_SECRET', 'review-notification-tests-secret-32');
   db.gostPackage.findUnique.mockResolvedValue(pkg() as never);
@@ -208,14 +212,68 @@ describe('Триггеры уведомлений', () => {
     ] as never);
     db.gostPackage.update.mockResolvedValue(pkg({ status: 'rejected' }) as never);
 
-    const res = await decide(req({ decision: 'reject', comment: 'Нет трассировки' }), props);
+    const res = await decide(
+      req({ decision: 'reject', comment: 'Нет трассировки', reviewerName: 'Чужое Имя' }),
+      props,
+    );
 
     expect(res.status).toBe(200);
+    // Имя в уведомлении — из сессии, а не из тела запроса.
+    const [{ data: sent }] = db.notification.createMany.mock.calls[0] as unknown as [
+      { data: { payload: { actor: string } }[] },
+    ];
+    expect(sent.every((d) => d.payload.actor === 'gap1')).toBe(true);
     expect(created().sort()).toEqual([
       ['arch', 'returned'],
       ['gap2', 'returned'],
       ['tw1', 'returned'],
     ]);
+  });
+
+  it('повторный возврат уже возвращённого комплекта — 409 без уведомлений', async () => {
+    loginAs('gap1');
+    db.gostPackage.findUnique.mockResolvedValue(pkg({ status: 'rejected' }) as never);
+
+    const res = await decide(req({ decision: 'reject' }), props);
+
+    expect(res.status).toBe(409);
+    expect(db.gostPackage.update).not.toHaveBeenCalled();
+    expect(db.notification.createMany).not.toHaveBeenCalled();
+  });
+
+  it('проверка, отклонение и возврат исправления — тому, кто его отметил', async () => {
+    loginAs('gap1');
+    const row = commentRow({
+      status: 'fixed',
+      fixedBy: 'arch',
+      fixedAt: new Date(),
+      fixedInPackageId: 'p2',
+      fixedInVersion: 2,
+    });
+    db.reviewComment.findUnique.mockResolvedValue(row as never);
+    db.reviewComment.findMany.mockResolvedValue([row] as never);
+    db.reviewComment.updateMany.mockResolvedValue({ count: 1 });
+    db.user.findUnique.mockResolvedValue({ id: 'arch' } as never);
+
+    for (const [action, kind] of [
+      ['verify', 'comment_verified'],
+      ['reopen', 'comment_reopened'],
+      ['reject', 'comment_rejected'],
+    ] as const) {
+      db.notification.createMany.mockClear();
+      const res = await changeComment(req({ action }), commentProps);
+      expect(res.status).toBe(200);
+      expect(created()).toEqual([['arch', kind]]);
+    }
+    expect(db.user.findUnique).toHaveBeenCalledWith({
+      where: { username: 'arch' },
+      select: { id: true },
+    });
+  });
+
+  it('имя действующего лица — из сессии, гость — «гость (ссылка)»', () => {
+    expect(notificationActorName({ kind: 'staff', session: { username: 'gap1' } })).toBe('gap1');
+    expect(notificationActorName({ kind: 'share' })).toBe('гость (ссылка)');
   });
 
   it('утверждение никого не уведомляет о возврате', async () => {
@@ -496,6 +554,34 @@ describe('Очередь «Требует моего действия»', () => 
     expect(items.map((i) => i.key)).toEqual(['verify:rc1']);
   });
 
+  it('замечание, после которого линия уже утверждена, — не задача', () => {
+    const items = composeQueue({
+      actor: me,
+      assignments: [],
+      fixedComments: [fixed({ author: 'gap1', authorId: 'gap1' })],
+      returned: [],
+      lines: [
+        { id: 'p1', calculationId: 'c1', documentTypes: '["tz"]', version: 1, status: 'rejected' },
+        {
+          id: 'p5',
+          calculationId: 'c1',
+          documentTypes: '["tz"]',
+          version: 5,
+          status: 'approved',
+          reviewStage: 'done',
+        },
+      ],
+      now: NOW,
+    });
+    expect(items).toEqual([]);
+  });
+
+  it('бейдж не считает дважды задачу и уведомление о ней', () => {
+    const items = [{ entityId: 'a1' }, { entityId: 'rc1' }];
+    expect(distinctBadgeCount(items, ['a1', 'a1', 'rc1', 'x', 'x', 'y'])).toBe(4);
+    expect(distinctBadgeCount([], [])).toBe(0);
+  });
+
   it('замечание к утверждённому комплекту в очередь не идёт', () => {
     const items = composeQueue({
       actor: me,
@@ -562,16 +648,28 @@ describe('Маршруты очереди и уведомлений', () => {
 
     expect(res.status).toBe(200);
     expect(created()).toEqual([['gap1', 'overdue']]);
+    // Задача и уведомление о её просрочке — одно дело в счётчике.
     expect(body).toMatchObject({ overdue: 1, unread: 1 });
     expect(body.items[0]).toMatchObject({ kind: 'assignment', overdue: true });
   });
 
-  it('бейдж myQueue = задачи + непрочитанные', async () => {
+  it('бейдж myQueue — различимые непрочитанные дела', async () => {
     loginAs('tw1');
     db.gostPackage.count.mockResolvedValue(0);
-    db.notification.count.mockResolvedValue(3);
+    db.notification.findMany.mockResolvedValue([
+      { entityId: 'rc1' },
+      { entityId: 'rc1' },
+      { entityId: 'p2' },
+    ] as never);
     const res = await getBadges();
-    expect((await res.json()).badges).toMatchObject({ myQueue: 3, myQueueOverdue: 0 });
+    expect((await res.json()).badges).toMatchObject({ myQueue: 2, myQueueOverdue: 0 });
+  });
+
+  it('пресейлу (нет пункта «Требует моего действия») очередь не считается', async () => {
+    loginAs('pre', 'presale');
+    const res = await getBadges();
+    expect((await res.json()).badges).not.toHaveProperty('myQueue');
+    expect(db.reviewAssignment.findMany).not.toHaveBeenCalled();
   });
 
   it('отметить прочитанными можно только свои уведомления', async () => {

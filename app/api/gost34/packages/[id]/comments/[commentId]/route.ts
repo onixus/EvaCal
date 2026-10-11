@@ -14,7 +14,13 @@ import {
   type CommentRuleSubject,
 } from '@/lib/review/workflow';
 import type { CommentStatus } from '@/lib/gost34/review/types';
-import { fixedDrafts, notifySafe, replyDrafts } from '@/lib/review/notifications';
+import {
+  fixedDrafts,
+  notificationActorName,
+  notifySafe,
+  replyDrafts,
+  resolvedDrafts,
+} from '@/lib/review/notifications';
 
 type Props = { params: Promise<{ id: string; commentId: string }> };
 
@@ -181,9 +187,27 @@ export async function PATCH(req: NextRequest, props: Props) {
             })
           ).flatMap((a) => [a.assigneeId, a.deputyId]),
           actorId: actor.actorId,
-          actorName: who,
+          actorName: notificationActorName(access),
         }),
       );
+    } else if (comment.fixedBy) {
+      // Проверено, отклонено или возвращено — тому, кто отметил исправление.
+      // fixedBy хранит логин сотрудника (у гостя — share:…, такого User нет).
+      const fixedBy = comment.fixedBy;
+      await notifySafe(async () => {
+        const fixer = await prisma.user.findUnique({
+          where: { username: fixedBy },
+          select: { id: true },
+        });
+        return resolvedDrafts({
+          pkg,
+          comment,
+          action,
+          fixerId: fixer?.id ?? null,
+          actorId: actor.actorId,
+          actorName: notificationActorName(access),
+        });
+      });
     }
 
     return NextResponse.json({ comment: serializeComment((await findComment(comment.id))!) });
@@ -234,7 +258,7 @@ export async function POST(req: NextRequest, props: Props) {
         comment,
         participantIds: comment.replies.map((r) => r.authorId),
         actorId: actor.actorId,
-        actorName: author,
+        actorName: notificationActorName(access),
         text,
       }),
     );

@@ -19,6 +19,7 @@ import {
   isAssignableStage,
   isApprovedPackage,
   isSupersededPackage,
+  sameLine,
   type AssignableStage,
   type LinePackage,
   type ReviewActor,
@@ -26,6 +27,7 @@ import {
 import {
   isAssignmentActionable,
   loadNotifications,
+  type OverdueSource,
   syncOverdueNotifications,
   type SerializedNotification,
 } from './notifications';
@@ -36,6 +38,12 @@ export interface QueueItem {
   /** Стабильный ключ для React и тестов. */
   key: string;
   kind: QueueItemKind;
+  /**
+   * Сущность задачи — та же, что `Notification.entityId` у уведомлений о ней
+   * (назначение, замечание, комплект): по ней счётчик не считает задачу и
+   * уведомление о ней дважды.
+   */
+  entityId: string;
   packageId: string;
   packageName: string;
   version: number;
@@ -107,7 +115,10 @@ export function composeQueue(input: {
   /** Статусы комплектов, в которых зафиксированы исправления. */
   fixedInPackages?: Pick<LinePackage, 'id' | 'status' | 'reviewStage'>[];
   returned: QueueReturnedSource[];
-  /** Все версии линий возвращённых комплектов: заменённые в очередь не идут. */
+  /**
+   * Все версии линий возвращённых комплектов и замечаний: заменённый возврат
+   * и замечание, после которого линия уже утверждена, в очередь не идут.
+   */
   lines: LinePackage[];
   now?: Date;
 }): QueueItem[] {
@@ -126,6 +137,7 @@ export function composeQueue(input: {
     items.push({
       key: `assignment:${a.id}`,
       kind: 'assignment',
+      entityId: a.id,
       packageId: a.packageId,
       packageName: a.package.name,
       version: a.package.version,
@@ -150,6 +162,11 @@ export function composeQueue(input: {
     if (isApprovedPackage(c.package)) continue;
     const fixedIn = c.fixedInPackageId ? fixedInStatus.get(c.fixedInPackageId) : undefined;
     if (fixedIn && isApprovedPackage(fixedIn)) continue;
+    // Более поздняя утверждённая версия линии — барьер: замечание уже принято.
+    const acceptedLater = input.lines.some(
+      (p) => sameLine(p, c.package) && p.version > c.package.version && isApprovedPackage(p),
+    );
+    if (acceptedLater) continue;
     const mine = c.authorId === userId;
     const assignedHere = Boolean(
       c.fixedInPackageId && myStages.has(`${c.fixedInPackageId}:${c.stage}`),
@@ -172,6 +189,7 @@ export function composeQueue(input: {
     items.push({
       key: `verify:${c.id}`,
       kind: 'verify',
+      entityId: c.id,
       packageId: target,
       packageName: c.package.name,
       version: c.fixedInVersion ?? c.package.version,
@@ -196,6 +214,7 @@ export function composeQueue(input: {
     items.push({
       key: `returned:${p.id}`,
       kind: 'returned',
+      entityId: p.id,
       packageId: p.id,
       packageName: p.name,
       version: p.version,
@@ -233,7 +252,6 @@ const PKG_SELECT = {
 /** Задачи пользователя из БД. Просрочки дописываются в уведомления лениво. */
 export async function loadQueueItems(actor: ReviewActor, now: Date = new Date()) {
   const userId = actor.actorId;
-  await syncOverdueNotifications(userId, now);
 
   const assignments = await prisma.reviewAssignment.findMany({
     where: {
@@ -252,6 +270,8 @@ export async function loadQueueItems(actor: ReviewActor, now: Date = new Date())
       package: { select: PKG_SELECT },
     },
   });
+  // Те же строки дописывают просрочки — отдельного запроса назначений нет.
+  await syncOverdueNotifications(userId, now, assignments as OverdueSource[]);
   const assignedPackageIds = Array.from(new Set(assignments.map((a) => a.packageId)));
 
   const [fixedComments, returned] = await Promise.all([
@@ -264,7 +284,8 @@ export async function loadQueueItems(actor: ReviewActor, now: Date = new Date())
           ...(assignedPackageIds.length ? [{ fixedInPackageId: { in: assignedPackageIds } }] : []),
         ],
       },
-      orderBy: [{ fixedAt: 'asc' }, { id: 'asc' }],
+      // Свежие первыми: при упоре в лимит отсекаются самые старые, а не новые.
+      orderBy: [{ fixedAt: 'desc' }, { id: 'desc' }],
       take: 200,
       select: {
         id: true,
@@ -293,7 +314,9 @@ export async function loadQueueItems(actor: ReviewActor, now: Date = new Date())
   const fixedInIds = Array.from(
     new Set(fixedComments.map((c) => c.fixedInPackageId).filter((v): v is string => Boolean(v))),
   );
-  const calcIds = Array.from(new Set(returned.map((p) => p.calculationId)));
+  const calcIds = Array.from(
+    new Set([...returned, ...fixedComments.map((c) => c.package)].map((p) => p.calculationId)),
+  );
   const [fixedInPackages, lines] = await Promise.all([
     fixedInIds.length
       ? prisma.gostPackage.findMany({
@@ -330,18 +353,52 @@ export async function loadQueueItems(actor: ReviewActor, now: Date = new Date())
 export interface MyQueue {
   items: QueueItem[];
   overdue: number;
+  /** Число для бейджа: задачи и непрочитанные уведомления о других сущностях. */
+  badge: number;
   notifications: SerializedNotification[];
   unread: number;
+}
+
+/**
+ * Бейдж считает различимые дела: задачу и непрочитанное уведомление о той же
+ * сущности (назначение, замечание, комплект) — один раз.
+ */
+export function distinctBadgeCount(
+  items: Pick<QueueItem, 'entityId'>[],
+  unreadEntityIds: string[],
+): number {
+  const inQueue = new Set(items.map((i) => i.entityId));
+  const extra = new Set(unreadEntityIds.filter((id) => !inQueue.has(id)));
+  return items.length + extra.size;
+}
+
+async function unreadEntityIds(userId: string): Promise<string[]> {
+  const rows = await prisma.notification.findMany({
+    where: { userId, readAt: null },
+    select: { entityId: true },
+    take: 500,
+  });
+  return rows.map((r) => r.entityId);
+}
+
+/** Счётчик для навигации и шапки. */
+export async function loadQueueBadge(actor: ReviewActor, now: Date = new Date()) {
+  const items = await loadQueueItems(actor, now);
+  return {
+    count: distinctBadgeCount(items, await unreadEntityIds(actor.actorId)),
+    overdue: items.filter((i) => i.overdue).length,
+  };
 }
 
 /** Очередь и уведомления для экрана `/inbox` и `/api/me/queue`. */
 export async function loadMyQueue(actor: ReviewActor, now: Date = new Date()): Promise<MyQueue> {
   const items = await loadQueueItems(actor, now);
   const { items: notifications, unread } = await loadNotifications(actor.actorId);
-  return { items, overdue: items.filter((i) => i.overdue).length, notifications, unread };
-}
-
-/** Число для бейджа: задачи плюс непрочитанные уведомления. */
-export function queueBadgeCount(queue: Pick<MyQueue, 'items' | 'unread'>): number {
-  return queue.items.length + queue.unread;
+  return {
+    items,
+    overdue: items.filter((i) => i.overdue).length,
+    badge: distinctBadgeCount(items, await unreadEntityIds(actor.actorId)),
+    notifications,
+    unread,
+  };
 }

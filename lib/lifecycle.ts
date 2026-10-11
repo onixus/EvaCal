@@ -117,7 +117,7 @@ export interface LifecycleResponsible {
   deputy: string | null;
   /** Роль шага (из `LIFECYCLE_STEPS.owner`). */
   role: string;
-  /** Готовая подпись: «tw.ivanov (замещает tw.petrov)» или «роль: тех.писатель». */
+  /** Готовая подпись: «tw.ivanov (зам.: tw.petrov)» или «роль: тех.писатель». */
   label: string;
 }
 
@@ -323,7 +323,7 @@ export function resolveLifecycle(input: LifecycleInput, now: Date = new Date()):
     deputy: deputyName,
     role,
     label: responsibleName
-      ? `${responsibleName}${deputyName ? ` (замещает ${deputyName})` : ''}`
+      ? `${responsibleName}${deputyName ? ` (зам.: ${deputyName})` : ''}`
       : `роль: ${role}`,
   };
 

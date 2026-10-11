@@ -16,7 +16,15 @@ import { prisma } from '@/lib/prisma';
 import type { AssignableStage } from './workflow';
 
 export type NotificationKind =
-  'assigned' | 'deputy_assigned' | 'returned' | 'overdue' | 'comment_reply' | 'comment_fixed';
+  | 'assigned'
+  | 'deputy_assigned'
+  | 'returned'
+  | 'overdue'
+  | 'comment_reply'
+  | 'comment_fixed'
+  | 'comment_verified'
+  | 'comment_rejected'
+  | 'comment_reopened';
 
 export const NOTIFICATION_KINDS: NotificationKind[] = [
   'assigned',
@@ -25,6 +33,9 @@ export const NOTIFICATION_KINDS: NotificationKind[] = [
   'overdue',
   'comment_reply',
   'comment_fixed',
+  'comment_verified',
+  'comment_rejected',
+  'comment_reopened',
 ];
 
 export type NotificationEntity = 'gost_package' | 'review_assignment' | 'review_comment';
@@ -36,7 +47,24 @@ export const NOTIFICATION_LABELS: Record<NotificationKind, string> = {
   overdue: 'Просрочен срок этапа',
   comment_reply: 'Ответ в ветке замечания',
   comment_fixed: 'Замечание отмечено исправленным',
+  comment_verified: 'Исправление проверено',
+  comment_rejected: 'Замечание отклонено',
+  comment_reopened: 'Исправление не принято',
 };
+
+/**
+ * Имя действующего лица в уведомлении — только из сессии: логин сотрудника
+ * или «гость (ссылка)». Имя из тела запроса (ФИО согласующего) сюда не
+ * попадает: иначе гость мог бы подписать уведомление чужим именем.
+ */
+export function notificationActorName(access: {
+  kind: 'staff' | 'share' | 'anonymous';
+  session?: { username: string } | null;
+}): string {
+  return access.kind === 'staff' && access.session?.username
+    ? access.session.username
+    : 'гость (ссылка)';
+}
 
 /** Что показать в уведомлении без дополнительных запросов. */
 export interface NotificationPayload {
@@ -219,6 +247,40 @@ export function fixedDrafts(input: {
   );
 }
 
+export type ResolveAction = 'verify' | 'reject' | 'reopen';
+
+const RESOLVE_KIND: Record<ResolveAction, NotificationKind> = {
+  verify: 'comment_verified',
+  reject: 'comment_rejected',
+  reopen: 'comment_reopened',
+};
+
+/**
+ * Проверка, отклонение или возврат исправления — тому, кто отметил
+ * замечание исправленным: он узнаёт, принята ли его работа.
+ */
+export function resolvedDrafts(input: {
+  pkg: PackageRef;
+  comment: CommentRef;
+  action: ResolveAction;
+  fixerId: string | null;
+  actorId: string | null;
+  actorName?: string | null;
+}): NotificationDraft[] {
+  return recipients([input.fixerId], input.actorId).map((userId) => ({
+    userId,
+    kind: RESOLVE_KIND[input.action],
+    entityType: 'review_comment' as const,
+    entityId: input.comment.id,
+    payload: {
+      ...pkgPayload(input.pkg),
+      commentId: input.comment.id,
+      actor: input.actorName ?? null,
+      text: snippet(input.comment.text),
+    },
+  }));
+}
+
 /**
  * Назначение требует действия, только пока комплект стоит на этом этапе:
  * возвращённый комплект ждёт автора, а будущий этап — предыдущий.
@@ -314,31 +376,60 @@ export async function notifySafe(build: () => Promise<NotificationDraft[]>): Pro
 }
 
 /**
- * Лениво дописать просрочки пользователя — вызывается при чтении очереди и
- * счётчиков. Повторный вызов ничего не добавляет.
+ * Недавно записанные просрочки процесса: ключ (пользователь, назначение,
+ * срок) → время записи. Повторное чтение очереди в пределах окна не ходит в
+ * БД. Это только оптимизация: идемпотентность держит уникальный ключ в БД,
+ * поэтому несколько экземпляров приложения дублей не создадут.
+ */
+const OVERDUE_SYNC_TTL_MS = 10 * 60_000;
+const recentOverdue = new Map<string, number>();
+
+const overdueKey = (d: NotificationDraft) =>
+  `${d.userId}|${d.entityId}|${d.dueAt ? d.dueAt.toISOString() : ''}`;
+
+/** Сбросить кэш просрочек (тесты). */
+export function resetOverdueSyncCache(): void {
+  recentOverdue.clear();
+}
+
+/**
+ * Лениво дописать просрочки пользователя — при чтении очереди и счётчиков.
+ * Назначения можно передать готовыми (очередь их уже загрузила), иначе они
+ * читаются здесь. Повторный вызов ничего не добавляет.
  */
 export async function syncOverdueNotifications(
   userId: string,
   now: Date = new Date(),
+  assignments?: OverdueSource[],
 ): Promise<number> {
-  const rows = await prisma.reviewAssignment.findMany({
-    where: {
-      active: true,
-      dueAt: { lt: now },
-      OR: [{ assigneeId: userId }, { deputyId: userId }],
-      package: { status: 'under_review' },
-    },
-    select: {
-      id: true,
-      packageId: true,
-      stage: true,
-      assigneeId: true,
-      deputyId: true,
-      dueAt: true,
-      package: { select: { name: true, version: true, status: true, reviewStage: true } },
-    },
-  });
-  return saveNotifications(overdueDrafts(userId, rows, now));
+  const rows =
+    assignments ??
+    (await prisma.reviewAssignment.findMany({
+      where: {
+        active: true,
+        dueAt: { lt: now },
+        OR: [{ assigneeId: userId }, { deputyId: userId }],
+        package: { status: 'under_review' },
+      },
+      select: {
+        id: true,
+        packageId: true,
+        stage: true,
+        assigneeId: true,
+        deputyId: true,
+        dueAt: true,
+        package: { select: { name: true, version: true, status: true, reviewStage: true } },
+      },
+    }));
+  const at = now.getTime();
+  for (const [key, savedAt] of recentOverdue) {
+    if (at - savedAt > OVERDUE_SYNC_TTL_MS) recentOverdue.delete(key);
+  }
+  const fresh = overdueDrafts(userId, rows, now).filter((d) => !recentOverdue.has(overdueKey(d)));
+  if (fresh.length === 0) return 0;
+  const count = await saveNotifications(fresh);
+  for (const d of fresh) recentOverdue.set(overdueKey(d), at);
+  return count;
 }
 
 export interface SerializedNotification {
