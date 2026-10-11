@@ -3,7 +3,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { DEAL_STATUS_LABELS, LOSS_REASONS, lossReasonLabel, type DealStatus } from '@/lib/actuals';
+import {
+  DEAL_STATUS_LABELS,
+  LOSS_REASONS,
+  lossReasonLabel,
+  type DealStatus,
+  type ProfitForecast,
+} from '@/lib/actuals';
 import { SUPPORTED_CURRENCIES, formatCurrency } from '@/lib/commercial';
 import { PROJECT_SCHEDULE_LABELS, type ProjectSchedule } from '@/lib/schedule';
 
@@ -24,6 +30,20 @@ export interface DealProjectView {
     ProjectSchedule,
     'status' | 'plannedEnd' | 'forecastEnd' | 'currentSlipDays' | 'done' | 'total' | 'overdue'
   > | null;
+  /** Прогноз итоговой прибыли выигранной версии (#103 4.5); null — сделка не выиграна. */
+  forecast?: Pick<
+    ProfitForecast,
+    | 'currency'
+    | 'partial'
+    | 'incomplete'
+    | 'profit'
+    | 'profitUpperBound'
+    | 'marginPercent'
+    | 'forecastCost'
+    | 'knownCost'
+    | 'revenueSource'
+    | 'currencyMismatch'
+  > | null;
   calculations: {
     id: string;
     version: number;
@@ -33,6 +53,38 @@ export interface DealProjectView {
     stagesTotal: number;
     stagesWithActual: number;
   }[];
+}
+
+/** Краткий прогноз прибыли; разбор с вводом остатка — в панели факта расчёта. */
+function ForecastLine({ forecast: f }: { forecast: NonNullable<DealProjectView['forecast']> }) {
+  const cur = (v: number) => formatCurrency(v, f.currency);
+  return (
+    <div className="text-xs text-slate-600 dark:text-nord-4" data-testid="deal-forecast">
+      Прогноз прибыли:{' '}
+      {f.currencyMismatch ? (
+        'не считается — договор в другой валюте'
+      ) : f.profit !== null ? (
+        <>
+          <strong
+            className={
+              f.profit < 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-800 dark:text-nord-4'
+            }
+          >
+            {cur(f.profit)}
+          </strong>
+          {f.marginPercent !== null && ` (маржа ${f.marginPercent}%)`}
+          {' · '}себестоимость {f.forecastCost === null ? '—' : cur(f.forecastCost)}
+        </>
+      ) : (
+        <span className="text-amber-700 dark:text-nord-yellow">
+          неполный
+          {f.profitUpperBound !== null && `, не больше ${cur(f.profitUpperBound)}`} — нет факта или
+          оценки остатка: {f.incomplete.map((i) => i.name).join(', ')}
+        </span>
+      )}
+      {f.revenueSource === 'quote' && !f.currencyMismatch && ' · выручка по цене КП'}
+    </div>
+  );
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -176,6 +228,9 @@ export default function DealPanel({
                 открыть расчёт
               </Link>
             </div>
+          )}
+          {project.dealStatus === 'won' && project.forecast && (
+            <ForecastLine forecast={project.forecast} />
           )}
         </div>
         {canEdit && mode === null && (

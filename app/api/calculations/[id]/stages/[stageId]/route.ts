@@ -72,6 +72,33 @@ export async function PATCH(
       data.actualNote = String(body.actualNote ?? '').trim() || null;
   }
 
+  // #103 4.5: подтверждённая оценка оставшейся работы. null — снять оценку
+  // («неизвестно»), а не «0 часов». Автор и время фиксируются вместе с оценкой.
+  const touchesRemaining = body.remainingHoursEstimate !== undefined;
+  if (touchesRemaining) {
+    if (!touchesActuals) {
+      const gate = await actualsWriteGate(params.id, auth.role);
+      if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+    }
+    const raw = body.remainingHoursEstimate;
+    if (raw === null || raw === '') {
+      data.remainingHoursEstimate = null;
+      data.remainingEstimatedBy = null;
+      data.remainingEstimatedAt = null;
+    } else {
+      const h = typeof raw === 'number' ? raw : Number(raw);
+      if (typeof raw === 'boolean' || !Number.isFinite(h) || h < 0) {
+        return NextResponse.json(
+          { error: 'Оставшиеся часы: неотрицательное число или null' },
+          { status: 400 },
+        );
+      }
+      data.remainingHoursEstimate = h;
+      data.remainingEstimatedBy = auth.username;
+      data.remainingEstimatedAt = new Date();
+    }
+  }
+
   const touchesLedger = Object.keys(ledger).length > 0;
   if (Object.keys(data).length === 0 && !touchesLedger) {
     return NextResponse.json({ error: 'Нечего обновлять' }, { status: 400 });
@@ -80,6 +107,12 @@ export async function PATCH(
   const existing = await prisma.stage.findUnique({ where: { id: params.stageId } });
   if (!existing || existing.calculationId !== params.id) {
     return NextResponse.json({ error: 'Stage not found' }, { status: 404 });
+  }
+  if (touchesRemaining && existing.isApprovalTask) {
+    return NextResponse.json(
+      { error: 'Задача согласования не оценивается: её часы не входят в затраты' },
+      { status: 400 },
+    );
   }
 
   const stage = await prisma
@@ -114,6 +147,21 @@ export async function PATCH(
       entityType: 'stage',
       entityId: stage.id,
       meta: { calculationId: params.id, actualHours: stage.actualHours },
+      ip: clientIp(req),
+    });
+  }
+  if (touchesRemaining) {
+    await writeAudit({
+      actorType: 'user',
+      actorId: auth.userId,
+      action: 'stage.remaining_estimate',
+      entityType: 'stage',
+      entityId: stage.id,
+      meta: {
+        calculationId: params.id,
+        from: existing.remainingHoursEstimate,
+        to: stage.remainingHoursEstimate,
+      },
       ip: clientIp(req),
     });
   }

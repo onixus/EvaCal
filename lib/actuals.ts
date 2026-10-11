@@ -6,7 +6,12 @@
  * оценки, фактическая маржа, win rate и связь скидки с исходом. Загрузка
  * данных — в `lib/actualsData.ts`.
  */
-import { DEFAULT_ROLE_RATES, resolveRoleRates } from './commercial';
+import {
+  DEFAULT_ROLE_RATES,
+  calculateCommercialSummary,
+  resolveRoleRates,
+  type CommercialConfig,
+} from './commercial';
 import { median, round1, round2 } from './stats';
 
 // ---------------------------------------------------------------------------
@@ -729,4 +734,276 @@ export function matchActuals(
     matched.push({ stageId: s.id, name: s.name, hours: r.hours, start: r.start, end: r.end });
   }
   return { matched, unmatched, invalid, ambiguous };
+}
+
+// ---------------------------------------------------------------------------
+// Прогноз итоговой прибыли (#103 4.5)
+// ---------------------------------------------------------------------------
+
+/** Статусы этапа, после которых оставшейся работы нет. */
+export const FINISHED_STAGE_STATUSES = ['done', 'approved'];
+
+export interface ForecastStageRow {
+  id: string;
+  name: string;
+  role: string;
+  hours: number;
+  status: string;
+  isApprovalTask: boolean;
+  /** Агрегат журнала факта; null — факт не вносился. */
+  actualHours: number | null;
+  /** Подтверждённая оценка остатка; null — не подтверждена. */
+  remainingHoursEstimate: number | null;
+  remainingEstimatedBy?: string | null;
+  remainingEstimatedAt?: Date | string | null;
+}
+
+export interface ProfitForecastInput {
+  stages: ForecastStageRow[];
+  risks: { hours: number }[];
+  pmHours: number;
+  actualPmHours: number | null;
+  remainingPmHoursEstimate: number | null;
+  remainingPmEstimatedBy?: string | null;
+  remainingPmEstimatedAt?: Date | string | null;
+  /** Сохранённые условия версии: ставки и проценты берутся только отсюда. */
+  terms: CommercialConfig;
+  contractAmount: number | null;
+  contractCurrency: string | null;
+}
+
+/**
+ * Состояние строки прогноза:
+ * - `known` — факт и подтверждённый остаток (или этап завершён и факт внесён);
+ * - `estimate_only` — факта нет, но специалист подтвердил всю оставшуюся работу;
+ * - `missing_remaining` — факт есть, остаток не подтверждён;
+ * - `missing_actual` — этап завершён, а факт не внесён;
+ * - `unknown` — ни факта, ни подтверждённого остатка.
+ */
+export type ForecastLineState =
+  'known' | 'estimate_only' | 'missing_remaining' | 'missing_actual' | 'unknown';
+
+export const FORECAST_LINE_STATE_LABELS: Record<ForecastLineState, string> = {
+  known: 'факт + подтверждённый остаток',
+  estimate_only: 'факта нет, учтён подтверждённый остаток',
+  missing_remaining: 'остаток не подтверждён',
+  missing_actual: 'этап завершён, факт не внесён',
+  unknown: 'нет ни факта, ни оценки остатка',
+};
+
+export interface ForecastLine {
+  /** null — строка РП. */
+  stageId: string | null;
+  name: string;
+  role: string;
+  status: string | null;
+  rate: number;
+  plannedHours: number;
+  actualHours: number | null;
+  remainingHours: number | null;
+  /** `done` — остаток 0 по статусу этапа, `estimate` — подтверждён специалистом. */
+  remainingSource: 'done' | 'estimate' | null;
+  remainingEstimatedBy: string | null;
+  remainingEstimatedAt: string | null;
+  /** Стоимость без накладных; null — неизвестна. */
+  actualCost: number | null;
+  remainingCost: number | null;
+  /** Итог строки; null, если строка неполна. */
+  forecastHours: number | null;
+  forecastCost: number | null;
+  state: ForecastLineState;
+}
+
+export interface ProfitForecast {
+  currency: string;
+  overheadPercent: number;
+  lines: ForecastLine[];
+  /** Строки, без которых прогноз неполон: перечисляются явно, нулём не считаются. */
+  incomplete: { name: string; state: ForecastLineState }[];
+  partial: boolean;
+  /** Известные части с накладными. При partial их сумма — нижняя граница затрат. */
+  actualCost: number;
+  remainingCost: number;
+  knownCost: number;
+  /** Прогноз себестоимости; null при partial. */
+  forecastCost: number | null;
+  /** Плановая себестоимость КП версии (с рисками и накладными). */
+  plannedCost: number;
+  revenue: number | null;
+  revenueSource: 'contract' | 'quote';
+  /** Договор в другой валюте: выручку и затраты нельзя сравнить без курса. */
+  currencyMismatch: boolean;
+  /** null при partial или без сопоставимой выручки. */
+  profit: number | null;
+  /** revenue − известные затраты: прибыль не выше этого значения. */
+  profitUpperBound: number | null;
+  marginPercent: number | null;
+  plannedProfit: number;
+  explanation: string[];
+}
+
+const money2 = (v: number) =>
+  Math.round((v + Number.EPSILON * Math.max(1, Math.abs(v))) * 100) / 100;
+
+function isoOrNull(v: Date | string | null | undefined): string | null {
+  if (!v) return null;
+  return typeof v === 'string' ? v : v.toISOString();
+}
+
+function forecastLine(
+  base: Pick<ForecastLine, 'stageId' | 'name' | 'role' | 'status' | 'rate' | 'plannedHours'>,
+  actualHours: number | null,
+  remaining: number | null,
+  finished: boolean,
+  by: string | null,
+  at: string | null,
+): ForecastLine {
+  const remainingHours = finished ? 0 : remaining;
+  const remainingSource = finished ? 'done' : remaining === null ? null : 'estimate';
+  let state: ForecastLineState;
+  if (finished) state = actualHours === null ? 'missing_actual' : 'known';
+  else if (actualHours === null && remainingHours === null) state = 'unknown';
+  else if (remainingHours === null) state = 'missing_remaining';
+  else if (actualHours === null) state = 'estimate_only';
+  else state = 'known';
+  // «Только оценка»: подтверждённый остаток покрывает всю работу этапа, часов
+  // по нему ещё не тратили. Это решение специалиста, а не ноль вместо пустого факта.
+  const actualCost = actualHours === null ? null : money2(actualHours * base.rate);
+  const remainingCost = remainingHours === null ? null : money2(remainingHours * base.rate);
+  const known = state === 'known' || state === 'estimate_only';
+  return {
+    ...base,
+    actualHours,
+    remainingHours,
+    remainingSource,
+    remainingEstimatedBy: finished ? null : by,
+    remainingEstimatedAt: finished ? null : at,
+    actualCost,
+    remainingCost,
+    forecastHours: known ? round2((actualHours ?? 0) + (remainingHours ?? 0)) : null,
+    forecastCost: known ? money2((actualCost ?? 0) + (remainingCost ?? 0)) : null,
+    state,
+  };
+}
+
+/**
+ * Прогноз итоговой прибыли выигранной версии: фактические затраты (часы
+ * журнала × ставки версии) + подтверждённая оценка оставшейся работы, с
+ * накладными версии. Строка без факта и без оценки — «неизвестно»: прогноз
+ * помечается неполным с явным списком, а не считается с нулём. Завершённые
+ * этапы имеют остаток 0. Ставки и проценты берутся из сохранённой версии,
+ * поэтому смена ставок шаблона или новой версии прогноз не переписывает.
+ */
+export function profitForecast(input: ProfitForecastInput): ProfitForecast {
+  const rates = resolveRoleRates(input.terms.roleRates ?? null);
+  // Так же, как в calculateCommercialSummary: неизвестная роль — ставка «other».
+  const rateOf = (role: string) =>
+    rates[role] !== undefined ? rates[role] : (rates.other ?? DEFAULT_ROLE_RATES.other);
+  const quote = calculateCommercialSummary(input.stages, input.pmHours, input.risks, input.terms);
+  const overheadPercent = quote.overheadPercent;
+  const lines: ForecastLine[] = input.stages
+    .filter((s) => !s.isApprovalTask)
+    .map((s) =>
+      forecastLine(
+        {
+          stageId: s.id,
+          name: s.name,
+          role: s.role,
+          status: s.status,
+          rate: rateOf(s.role),
+          plannedHours: s.hours,
+        },
+        s.actualHours,
+        s.remainingHoursEstimate,
+        FINISHED_STAGE_STATUSES.includes(s.status),
+        s.remainingEstimatedBy ?? null,
+        isoOrNull(s.remainingEstimatedAt),
+      ),
+    );
+  if (
+    input.pmHours > 0 ||
+    input.actualPmHours !== null ||
+    input.remainingPmHoursEstimate !== null
+  ) {
+    lines.push(
+      forecastLine(
+        {
+          stageId: null,
+          name: 'Руководство проектом',
+          role: 'pm',
+          status: null,
+          rate: rates.pm ?? DEFAULT_ROLE_RATES.pm,
+          plannedHours: input.pmHours,
+        },
+        input.actualPmHours,
+        input.remainingPmHoursEstimate,
+        false,
+        input.remainingPmEstimatedBy ?? null,
+        isoOrNull(input.remainingPmEstimatedAt),
+      ),
+    );
+  }
+  const withOverhead = (v: number) => money2(v * (1 + overheadPercent / 100));
+  const sum = (pick: (l: ForecastLine) => number | null) =>
+    lines.reduce((acc, l) => acc + (pick(l) ?? 0), 0);
+  const actualCost = withOverhead(sum((l) => l.actualCost));
+  const remainingCost = withOverhead(sum((l) => l.remainingCost));
+  const knownCost = money2(actualCost + remainingCost);
+  const incomplete = lines
+    .filter((l) => l.state !== 'known' && l.state !== 'estimate_only')
+    .map((l) => ({ name: l.name, state: l.state }));
+  const partial = incomplete.length > 0;
+
+  const currency = quote.currency;
+  const revenueSource: ProfitForecast['revenueSource'] =
+    input.contractAmount !== null ? 'contract' : 'quote';
+  const revenueCurrency =
+    revenueSource === 'contract' ? (input.contractCurrency ?? currency) : currency;
+  const currencyMismatch = revenueCurrency !== currency;
+  const revenue = currencyMismatch
+    ? null
+    : revenueSource === 'contract'
+      ? input.contractAmount
+      : quote.subtotalExVat;
+  const forecastCost = partial ? null : knownCost;
+  const profit = revenue === null || forecastCost === null ? null : money2(revenue - forecastCost);
+  const profitUpperBound = revenue === null ? null : money2(revenue - knownCost);
+  const marginPercent =
+    profit !== null && revenue !== null && revenue > 0 ? round2((profit / revenue) * 100) : null;
+
+  const fmt = (v: number) => `${round2(v)} ${currency}`;
+  const explanation = [
+    `Ставки ролей и накладные (${overheadPercent}%) — из сохранённой версии расчёта, а не из текущего шаблона.`,
+    `Фактические затраты = Σ(факт часов × ставка роли) × (1 + ${overheadPercent}%) = ${fmt(actualCost)}.`,
+    `Оставшиеся затраты = Σ(подтверждённый остаток × ставка роли) × (1 + ${overheadPercent}%) = ${fmt(remainingCost)}; у завершённых этапов остаток 0.`,
+    revenue === null
+      ? `Выручка не сопоставима: договор в ${revenueCurrency}, расчёт в ${currency}.`
+      : revenueSource === 'contract'
+        ? `Выручка — сумма договора без НДС: ${fmt(revenue)}.`
+        : `Сумма договора не указана: выручка — цена КП версии без НДС после скидки, ${fmt(revenue)}.`,
+    partial
+      ? `Прогноз неполный: ${incomplete.length} строк(и) без факта или подтверждённого остатка не считаются нулём. Затраты не меньше ${fmt(knownCost)}${profitUpperBound === null ? '' : `, прибыль не больше ${fmt(profitUpperBound)}`}.`
+      : `Прогноз прибыли = выручка − (фактические + оставшиеся затраты)${profit === null ? '' : ` = ${fmt(profit)}`}.`,
+  ];
+
+  return {
+    currency,
+    overheadPercent,
+    lines,
+    incomplete,
+    partial,
+    actualCost,
+    remainingCost,
+    knownCost,
+    forecastCost,
+    plannedCost: quote.totalCost,
+    revenue,
+    revenueSource,
+    currencyMismatch,
+    profit,
+    profitUpperBound,
+    marginPercent,
+    plannedProfit: quote.profitAfterDiscount,
+    explanation,
+  };
 }

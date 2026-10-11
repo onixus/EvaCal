@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { roleLabel } from '@/lib/roles';
-import { accuracyTone, type CalculationAccuracy, type ActualMargin } from '@/lib/actuals';
+import {
+  FORECAST_LINE_STATE_LABELS,
+  accuracyTone,
+  type ActualMargin,
+  type CalculationAccuracy,
+  type ProfitForecast,
+} from '@/lib/actuals';
 import { formatCurrency } from '@/lib/commercial';
 import { PROJECT_SCHEDULE_LABELS, type ProjectSchedule } from '@/lib/schedule';
 
@@ -19,7 +25,13 @@ interface StageView {
   actualStartDate: string | null;
   actualEndDate: string | null;
   actualNote: string | null;
+  status: string;
+  remainingHoursEstimate: number | null;
+  remainingEstimatedBy: string | null;
+  remainingEstimatedAt: string | null;
 }
+
+const FINISHED = ['done', 'approved'];
 
 interface SyncCounts {
   created: number;
@@ -80,9 +92,11 @@ interface Summary {
   contractCurrency: string | null;
   pmHours: number;
   actualPmHours: number | null;
+  remainingPmHoursEstimate: number | null;
   stages: StageView[];
   accuracy: CalculationAccuracy;
   margin: ActualMargin;
+  forecast: ProfitForecast | null;
   schedule: ProjectSchedule | null;
   ledger: { sources: LedgerSource[]; stageSources: Record<string, string[]> } | null;
 }
@@ -131,6 +145,8 @@ export default function ActualsPanel({
   const [summary, setSummary] = useState<Summary | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [pmDraft, setPmDraft] = useState('');
+  const [remainingDrafts, setRemainingDrafts] = useState<Record<string, string>>({});
+  const [pmRemainingDraft, setPmRemainingDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [csv, setCsv] = useState('');
@@ -146,6 +162,12 @@ export default function ActualsPanel({
     setSummary(data);
     setDrafts(Object.fromEntries(data.stages.map((s) => [s.id, s.actualHours?.toString() ?? ''])));
     setPmDraft(data.actualPmHours?.toString() ?? '');
+    setRemainingDrafts(
+      Object.fromEntries(
+        data.stages.map((s) => [s.id, s.remainingHoursEstimate?.toString() ?? '']),
+      ),
+    );
+    setPmRemainingDraft(data.remainingPmHoursEstimate?.toString() ?? '');
   }
 
   useEffect(() => {
@@ -204,6 +226,25 @@ export default function ActualsPanel({
     const ok = await call(`/api/calculations/${calculationId}/stages/${stage.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ [key]: value || null }),
+    });
+    if (ok) await load();
+  }
+
+  // #103 4.5: пустое поле снимает оценку («неизвестно»), а не ставит 0.
+  async function saveRemaining(stage: StageView) {
+    const raw = (remainingDrafts[stage.id] ?? '').trim();
+    const ok = await call(`/api/calculations/${calculationId}/stages/${stage.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ remainingHoursEstimate: raw === '' ? null : Number(raw) }),
+    });
+    if (ok) await load();
+  }
+
+  async function savePmRemaining() {
+    const raw = pmRemainingDraft.trim();
+    const ok = await call(`/api/calculations/${calculationId}/actuals`, {
+      method: 'PATCH',
+      body: JSON.stringify({ remainingPmHoursEstimate: raw === '' ? null : Number(raw) }),
     });
     if (ok) await load();
   }
@@ -358,6 +399,8 @@ export default function ActualsPanel({
         />
       </div>
 
+      {summary.forecast && <ForecastBlock forecast={summary.forecast} />}
+
       {summary.ledger && summary.ledger.sources.length > 0 && (
         <div
           className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-nord-4"
@@ -395,6 +438,9 @@ export default function ActualsPanel({
               <th className="py-2 pr-4">Роль</th>
               <th className="py-2 pr-4 text-right">План</th>
               <th className="py-2 pr-4 text-right">Факт, ч</th>
+              <th className="py-2 pr-4 text-right" title="Подтверждённая оценка оставшейся работы">
+                Остаток, ч
+              </th>
               <th className="py-2 pr-4 text-right">Откл.</th>
               <th className="py-2 pr-4">Срок по плану</th>
               <th className="py-2 pr-4">Факт: начало</th>
@@ -440,6 +486,42 @@ export default function ActualsPanel({
                         }}
                         aria-label={`Факт часов: ${s.name}`}
                       />
+                    </td>
+                    <td className="py-2 pr-4 text-right">
+                      {FINISHED.includes(s.status) ? (
+                        <span
+                          className="text-xs text-slate-500 dark:text-nord-muted"
+                          title="Этап завершён: оставшейся работы нет"
+                        >
+                          0 (завершён)
+                        </span>
+                      ) : (
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.5"
+                          className="input w-24 text-right text-sm"
+                          disabled={locked || busy}
+                          placeholder="не оценён"
+                          value={remainingDrafts[s.id] ?? ''}
+                          onChange={(e) =>
+                            setRemainingDrafts({ ...remainingDrafts, [s.id]: e.target.value })
+                          }
+                          onBlur={() => {
+                            if (
+                              (remainingDrafts[s.id] ?? '') !==
+                              (s.remainingHoursEstimate?.toString() ?? '')
+                            )
+                              void saveRemaining(s);
+                          }}
+                          title={
+                            s.remainingEstimatedBy
+                              ? `Подтвердил ${s.remainingEstimatedBy}, ${fmtDT(s.remainingEstimatedAt)}`
+                              : 'Оценка не подтверждена'
+                          }
+                          aria-label={`Остаток часов: ${s.name}`}
+                        />
+                      )}
                     </td>
                     <td
                       className={`py-2 pr-4 text-right text-xs font-semibold ${TONE[accuracyTone(dev)]}`}
@@ -494,6 +576,23 @@ export default function ActualsPanel({
                     if (pmDraft !== (summary.actualPmHours?.toString() ?? '')) void savePm();
                   }}
                   aria-label="Факт часов РП"
+                />
+              </td>
+              <td className="py-2 pr-4 text-right">
+                <input
+                  type="number"
+                  min={0}
+                  step="0.5"
+                  className="input w-24 text-right text-sm"
+                  disabled={locked || busy}
+                  placeholder="не оценён"
+                  value={pmRemainingDraft}
+                  onChange={(e) => setPmRemainingDraft(e.target.value)}
+                  onBlur={() => {
+                    if (pmRemainingDraft !== (summary.remainingPmHoursEstimate?.toString() ?? ''))
+                      void savePmRemaining();
+                  }}
+                  aria-label="Остаток часов РП"
                 />
               </td>
               <td colSpan={5} />
@@ -649,6 +748,117 @@ export default function ActualsPanel({
           </div>
         </details>
       )}
+    </div>
+  );
+}
+
+function ForecastBlock({ forecast: f }: { forecast: ProfitForecast }) {
+  const cur = (v: number) => formatCurrency(v, f.currency, { decimals: 2 });
+  return (
+    <div className="mb-4 space-y-2" data-testid="profit-forecast">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat
+          title="Прогноз себестоимости"
+          value={f.forecastCost === null ? `≥ ${cur(f.knownCost)}` : cur(f.forecastCost)}
+          hint={`факт ${cur(f.actualCost)} + остаток ${cur(f.remainingCost)}; план ${cur(f.plannedCost)}`}
+          tone={f.partial ? 'text-amber-700 dark:text-nord-yellow' : undefined}
+        />
+        <Stat
+          title="Выручка"
+          value={f.revenue === null ? '—' : cur(f.revenue)}
+          hint={
+            f.currencyMismatch
+              ? 'договор в другой валюте'
+              : f.revenueSource === 'contract'
+                ? 'сумма договора без НДС'
+                : 'цена КП версии без НДС (сумма договора не указана)'
+          }
+        />
+        <Stat
+          title="Прогноз прибыли"
+          value={
+            f.profit !== null
+              ? cur(f.profit)
+              : f.profitUpperBound !== null
+                ? `≤ ${cur(f.profitUpperBound)}`
+                : '—'
+          }
+          tone={
+            f.partial
+              ? 'text-amber-700 dark:text-nord-yellow'
+              : f.profit !== null && f.profit < 0
+                ? 'text-rose-700 dark:text-rose-300'
+                : undefined
+          }
+          hint={
+            f.partial
+              ? 'прогноз неполный'
+              : f.marginPercent === null
+                ? undefined
+                : `маржа ${f.marginPercent}%`
+          }
+        />
+        <Stat title="Прибыль по КП" value={cur(f.plannedProfit)} hint="план версии после скидки" />
+      </div>
+      {f.partial && (
+        <div
+          className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-nord-yellow"
+          data-testid="forecast-incomplete"
+        >
+          Нет данных — не считаются нулём:{' '}
+          {f.incomplete.map((i) => `${i.name} (${FORECAST_LINE_STATE_LABELS[i.state]})`).join('; ')}
+        </div>
+      )}
+      <details className="text-xs">
+        <summary className="cursor-pointer text-slate-600 dark:text-nord-4">
+          Как посчитан прогноз
+        </summary>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-600 dark:text-nord-4">
+          {f.explanation.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+        <div className="mt-2 overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-slate-200/80 text-[10px] uppercase tracking-wider text-slate-500 dark:border-nord-3 dark:text-nord-muted">
+                <th className="py-1 pr-3">Строка</th>
+                <th className="py-1 pr-3 text-right">Ставка</th>
+                <th className="py-1 pr-3 text-right">Факт, ч</th>
+                <th className="py-1 pr-3 text-right">Остаток, ч</th>
+                <th className="py-1 pr-3 text-right">Затраты без накладных</th>
+                <th className="py-1 pr-3">Состояние</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-nord-3">
+              {f.lines.map((l) => (
+                <tr key={l.stageId ?? 'pm'}>
+                  <td className="py-1 pr-3">{l.name}</td>
+                  <td className="py-1 pr-3 text-right tabular-nums">{cur(l.rate)}</td>
+                  <td className="py-1 pr-3 text-right tabular-nums">{l.actualHours ?? '—'}</td>
+                  <td className="py-1 pr-3 text-right tabular-nums">
+                    {l.remainingHours ?? '—'}
+                    {l.remainingEstimatedBy && (
+                      <span className="text-slate-400 dark:text-nord-muted">
+                        {' '}
+                        ({l.remainingEstimatedBy})
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-1 pr-3 text-right tabular-nums">
+                    {l.forecastCost === null ? '—' : cur(l.forecastCost)}
+                  </td>
+                  <td
+                    className={`py-1 pr-3 ${l.state === 'known' || l.state === 'estimate_only' ? '' : 'text-amber-700 dark:text-nord-yellow'}`}
+                  >
+                    {FORECAST_LINE_STATE_LABELS[l.state]}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </div>
   );
 }
