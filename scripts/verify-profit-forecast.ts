@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma';
 import { createCalculationVersion } from '../lib/project';
+import { rebuildStages } from '../lib/calc';
 import { recordManualStageEdit } from '../lib/actualsLedgerData';
 import { loadActualsSummary } from '../lib/actualsData';
 import { loadOfferComparison } from '../lib/offerCompareData';
@@ -118,6 +119,26 @@ async function main() {
       where: { calculationId: v2.id, name: 'Разработка' },
     });
     assert.equal(v2Stage.remainingHoursEstimate, null, 'оценка остатка не копируется в версию');
+    // Перестройка плана на месте (#118) не затирает подтверждённую оценку остатка.
+    await prisma.stage.update({
+      where: { id: v2Stage.id },
+      data: {
+        remainingHoursEstimate: 7,
+        remainingEstimatedBy: 'ci',
+        remainingEstimatedAt: new Date(),
+      },
+    });
+    await rebuildStages(
+      v2.id,
+      [
+        { name: 'Анализ', role: 'analyst', hours: 10 },
+        { name: 'Разработка', role: 'developer', hours: 50, sourceStageId: v2Stage.id },
+      ],
+      day('2026-11-02'),
+    );
+    const rebuilt = await prisma.stage.findUniqueOrThrow({ where: { id: v2Stage.id } });
+    assert.equal(rebuilt.remainingHoursEstimate, 7, 'rebuildStages сохраняет оценку остатка');
+    assert.equal(rebuilt.remainingEstimatedBy, 'ci');
     await prisma.calculation.update({
       where: { id: v2.id },
       data: { status: 'draft', roleRates: '{"developer":3000,"analyst":3000,"pm":3000}' },
