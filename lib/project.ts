@@ -1,9 +1,44 @@
 import type { TzAuthorState } from './gost34/llm/tzAuthor/types';
+import type { Prisma } from './generated/prisma/client';
 import { prisma } from './prisma';
 import { storePackageArtifact } from './gost34/storage';
 import { countOpenBlockers } from './review/store';
-import { releasedSpecificationVersion, withSpecificationRelease } from './specification/store';
 import { normalizeDocumentTypes } from './review/workflow';
+import {
+  markSpecificationReleased,
+  releasedSpecificationVersion,
+  withSpecificationRelease,
+} from './specification/store';
+
+/**
+ * Номера версий расчётов и комплектов — max+1 в проекте. Без блокировки два
+ * параллельных создания получили бы один номер (уникального индекса нет:
+ * исторические данные его не гарантируют), поэтому чтение max и вставка идут
+ * под транзакционной advisory-блокировкой проекта.
+ */
+export async function lockVersionNumbers(
+  db: Prisma.TransactionClient,
+  kind: 'calculation' | 'package',
+  projectId: string,
+) {
+  await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`versions:${kind}:${projectId}`}))`;
+}
+
+/** Создание комплекта со следующим номером версии проекта под блокировкой. */
+async function createPackageWithNextVersion<T>(
+  projectId: string,
+  create: (tx: Prisma.TransactionClient, nextVersion: number) => Promise<T>,
+): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    await lockVersionNumbers(tx, 'package', projectId);
+    const latestPackage = await tx.gostPackage.findFirst({
+      where: { projectId },
+      orderBy: { version: 'desc' },
+      select: { version: true },
+    });
+    return create(tx, (latestPackage?.version ?? 0) + 1);
+  });
+}
 
 export interface CreateProjectInput {
   name: string;
@@ -115,8 +150,27 @@ export async function getOrCreateProject(input: CreateProjectInput) {
  * Creates a new version (N+1) of an existing Calculation inside its project,
  * deeply cloning stages and risks while linking parentCalculationId.
  */
-export async function createCalculationVersion(input: CreateCalculationVersionInput) {
-  const source = await prisma.calculation.findUnique({
+export async function createCalculationVersion(
+  input: CreateCalculationVersionInput,
+  // Транзакция вызывающего: принятие запроса на изменение создаёт версию
+  // атомарно вместе с остальными записями (lib/changeRequests/decisions.ts).
+  // Без неё — своя транзакция: номер версии берётся под блокировкой.
+  db?: Prisma.TransactionClient,
+) {
+  if (!db) {
+    return prisma.$transaction((tx) => createCalculationVersionIn(input, tx), {
+      timeout: 30000,
+      maxWait: 10000,
+    });
+  }
+  return createCalculationVersionIn(input, db);
+}
+
+async function createCalculationVersionIn(
+  input: CreateCalculationVersionInput,
+  db: Prisma.TransactionClient,
+) {
+  const source = await db.calculation.findUnique({
     where: { id: input.parentCalculationId },
     include: {
       stages: { orderBy: { order: 'asc' } },
@@ -139,14 +193,15 @@ export async function createCalculationVersion(input: CreateCalculationVersionIn
     });
     projectId = project.id;
     // Link source to the project if not linked
-    await prisma.calculation.update({
+    await db.calculation.update({
       where: { id: source.id },
       data: { projectId },
     });
   }
 
   // Determine highest version number in this project
-  const latestInProject = await prisma.calculation.findFirst({
+  await lockVersionNumbers(db, 'calculation', projectId);
+  const latestInProject = await db.calculation.findFirst({
     where: { projectId },
     orderBy: { version: 'desc' },
     select: { version: true },
@@ -161,7 +216,7 @@ export async function createCalculationVersion(input: CreateCalculationVersionIn
         ? input.answers
         : source.answers;
 
-  const newCalculation = await prisma.calculation.create({
+  const newCalculation = await db.calculation.create({
     data: {
       name: input.name || source.name,
       customer: source.customer,
@@ -190,34 +245,61 @@ export async function createCalculationVersion(input: CreateCalculationVersionIn
     },
   });
 
-  // Deep clone stages
-  if (source.stages.length > 0) {
-    for (const stage of source.stages) {
-      await prisma.stage.create({
-        data: {
-          calculationId: newCalculation.id,
-          name: stage.name,
-          role: stage.role,
-          hours: stage.hours,
-          order: stage.order,
-          startDate: stage.startDate,
-          endDate: stage.endDate,
-          isApprovalTask: stage.isApprovalTask,
-          approvalForStageId: stage.approvalForStageId,
-          status: 'planned',
-          dueDate: stage.dueDate,
-          requirements: stage.requirements,
-          parallel: stage.parallel,
-          approvalDays: stage.approvalDays,
-        },
+  // Deep clone stages. Ссылки между этапами (согласование → этап, явные
+  // зависимости) переводятся на id клонов: id исходной версии в новой версии
+  // указывали бы на чужой расчёт.
+  const stageIdMap = new Map<string, string>();
+  for (const stage of source.stages) {
+    const created = await db.stage.create({
+      data: {
+        calculationId: newCalculation.id,
+        name: stage.name,
+        role: stage.role,
+        hours: stage.hours,
+        order: stage.order,
+        startDate: stage.startDate,
+        endDate: stage.endDate,
+        isApprovalTask: stage.isApprovalTask,
+        status: 'planned',
+        dueDate: stage.dueDate,
+        requirements: stage.requirements,
+        parallel: stage.parallel,
+        approvalDays: stage.approvalDays,
+      },
+    });
+    stageIdMap.set(stage.id, created.id);
+  }
+  for (const stage of source.stages) {
+    const target = stage.approvalForStageId ? stageIdMap.get(stage.approvalForStageId) : null;
+    if (target) {
+      await db.stage.update({
+        where: { id: stageIdMap.get(stage.id) },
+        data: { approvalForStageId: target },
       });
     }
+  }
+  const dependencies = await db.stageDependency.findMany({
+    where: { calculationId: source.id },
+  });
+  for (const dep of dependencies) {
+    const fromStageId = stageIdMap.get(dep.fromStageId);
+    const toStageId = stageIdMap.get(dep.toStageId);
+    if (!fromStageId || !toStageId) continue;
+    await db.stageDependency.create({
+      data: {
+        calculationId: newCalculation.id,
+        fromStageId,
+        toStageId,
+        type: dep.type,
+        lagDays: dep.lagDays,
+      },
+    });
   }
 
   // Deep clone risks
   if (source.risks.length > 0) {
     for (const risk of source.risks) {
-      await prisma.risk.create({
+      await db.risk.create({
         data: {
           calculationId: newCalculation.id,
           description: risk.description,
@@ -228,13 +310,59 @@ export async function createCalculationVersion(input: CreateCalculationVersionIn
     }
   }
 
-  return prisma.calculation.findUnique({
+  return db.calculation.findUnique({
     where: { id: newCalculation.id },
     include: {
       stages: { orderBy: { order: 'asc' } },
       risks: { orderBy: { order: 'asc' } },
       project: true,
       parentCalculation: true,
+    },
+  });
+}
+
+export interface CreateDraftPackageVersionInput {
+  projectId: string;
+  calculationId: string;
+  name: string;
+  standardProfileId: string;
+  standardProfileVersion: string;
+  generatorVersion: string;
+  documentTypes: string[];
+  metadata: string | null;
+  snapshot: GostWizardSnapshot;
+  createdBy: string;
+}
+
+/**
+ * Черновая версия комплекта N+1 в переданной транзакции: без артефакта,
+ * выпуска и отметки спецификации. Используется принятием запроса на изменение,
+ * где версия расчёта, комплект и журнал пишутся атомарно.
+ */
+export async function createDraftPackageVersion(
+  db: Prisma.TransactionClient,
+  input: CreateDraftPackageVersionInput,
+) {
+  await lockVersionNumbers(db, 'package', input.projectId);
+  const latestPackage = await db.gostPackage.findFirst({
+    where: { projectId: input.projectId },
+    orderBy: { version: 'desc' },
+    select: { version: true },
+  });
+  return db.gostPackage.create({
+    data: {
+      projectId: input.projectId,
+      calculationId: input.calculationId,
+      name: input.name,
+      version: (latestPackage?.version ?? 0) + 1,
+      status: 'draft',
+      standardProfileId: input.standardProfileId,
+      standardProfileVersion: input.standardProfileVersion,
+      generatorVersion: input.generatorVersion,
+      documentTypes: normalizeDocumentTypes(input.documentTypes),
+      metadata: input.metadata,
+      snapshot: JSON.stringify(input.snapshot),
+      createdBy: input.createdBy,
     },
   });
 }
@@ -266,15 +394,6 @@ export async function createGostPackageVersion(input: CreateGostPackageInput) {
     });
   }
 
-  // Determine latest version for this project's packages
-  const latestPackage = await prisma.gostPackage.findFirst({
-    where: { projectId },
-    orderBy: { version: 'desc' },
-    select: { version: true },
-  });
-
-  const nextVersion = (latestPackage?.version ?? 0) + 1;
-
   const metadataJson =
     typeof input.metadata === 'object'
       ? JSON.stringify(input.metadata)
@@ -298,10 +417,11 @@ export async function createGostPackageVersion(input: CreateGostPackageInput) {
     input.releasedAt && input.releaseSpecification
       ? releasedSpecificationVersion(input.snapshot)
       : null;
-  const pkg = await withSpecificationRelease(calculation.id, specificationVersion, (db) =>
-    db.gostPackage.create({
+  const versionProjectId = projectId;
+  const pkg = await createPackageWithNextVersion(versionProjectId, async (db, nextVersion) => {
+    const created = await db.gostPackage.create({
       data: {
-        projectId,
+        projectId: versionProjectId,
         calculationId: calculation.id,
         name: input.name || `Комплект ГОСТ 34 v${nextVersion}`,
         version: nextVersion,
@@ -318,8 +438,12 @@ export async function createGostPackageVersion(input: CreateGostPackageInput) {
         releasedBy: input.releasedBy || null,
         createdBy: input.createdBy || 'architect',
       },
-    }),
-  );
+    });
+    if (specificationVersion !== null) {
+      await markSpecificationReleased(calculation.id, specificationVersion, db);
+    }
+    return created;
+  });
 
   // Update calculation binding stamps
   await prisma.calculation.update({
@@ -394,28 +518,24 @@ export async function saveGostPackageDraft(input: {
     });
   }
 
-  const latestPackage = await prisma.gostPackage.findFirst({
-    where: { projectId },
-    orderBy: { version: 'desc' },
-    select: { version: true },
-  });
-  const nextVersion = (latestPackage?.version ?? 0) + 1;
-
-  return prisma.gostPackage.create({
-    data: {
-      projectId,
-      calculationId: input.calculationId,
-      name: `Черновик комплекта ГОСТ 34 v${nextVersion}`,
-      version: nextVersion,
-      status: 'draft',
-      standardProfileId: input.standardProfileId || 'ru-gost34-current',
-      standardProfileVersion: input.standardProfileVersion || '2020',
-      generatorVersion: input.generatorVersion || '0.3.0',
-      documentTypes: JSON.stringify(['tz']),
-      snapshot: snapshotJson,
-      createdBy: input.createdBy || 'architect',
-    },
-  });
+  const draftProjectId = projectId;
+  return createPackageWithNextVersion(draftProjectId, (db, nextVersion) =>
+    db.gostPackage.create({
+      data: {
+        projectId: draftProjectId,
+        calculationId: input.calculationId,
+        name: `Черновик комплекта ГОСТ 34 v${nextVersion}`,
+        version: nextVersion,
+        status: 'draft',
+        standardProfileId: input.standardProfileId || 'ru-gost34-current',
+        standardProfileVersion: input.standardProfileVersion || '2020',
+        generatorVersion: input.generatorVersion || '0.3.0',
+        documentTypes: JSON.stringify(['tz']),
+        snapshot: snapshotJson,
+        createdBy: input.createdBy || 'architect',
+      },
+    }),
+  );
 }
 
 /**
@@ -494,38 +614,34 @@ export async function releaseGostPackage(input: {
     });
   }
 
-  const latestPackage = await prisma.gostPackage.findFirst({
-    where: { projectId },
-    orderBy: { version: 'desc' },
-    select: { version: true },
-  });
-  const nextVersion = (latestPackage?.version ?? 0) + 1;
-
   const snapshotJson =
     typeof input.snapshot === 'string' ? input.snapshot : JSON.stringify(input.snapshot);
   // Канонический порядок: ["pmi","tz"] и ["tz","pmi"] — одна линия ревью (#103).
   const docTypesJson = normalizeDocumentTypes(input.documentTypes);
 
-  const pkg = await prisma.gostPackage.create({
-    data: {
-      projectId,
-      calculationId: calculation.id,
-      name:
-        input.name ||
-        `Комплект ГОСТ 34 v${nextVersion} (${input.documentTypes.join(', ').toUpperCase()})`,
-      version: nextVersion,
-      status: 'under_review',
-      stageEnteredAt: new Date(),
-      standardProfileId: input.standardProfileId,
-      standardProfileVersion: input.standardProfileVersion,
-      generatorVersion: input.generatorVersion,
-      documentTypes: docTypesJson,
-      snapshot: snapshotJson,
-      releasedAt: new Date(),
-      releasedBy: input.actorId || 'architect',
-      createdBy: input.actorId || 'architect',
-    },
-  });
+  const releaseProjectId = projectId;
+  const pkg = await createPackageWithNextVersion(releaseProjectId, (db, nextVersion) =>
+    db.gostPackage.create({
+      data: {
+        projectId: releaseProjectId,
+        calculationId: calculation.id,
+        name:
+          input.name ||
+          `Комплект ГОСТ 34 v${nextVersion} (${input.documentTypes.join(', ').toUpperCase()})`,
+        version: nextVersion,
+        status: 'under_review',
+        stageEnteredAt: new Date(),
+        standardProfileId: input.standardProfileId,
+        standardProfileVersion: input.standardProfileVersion,
+        generatorVersion: input.generatorVersion,
+        documentTypes: docTypesJson,
+        snapshot: snapshotJson,
+        releasedAt: new Date(),
+        releasedBy: input.actorId || 'architect',
+        createdBy: input.actorId || 'architect',
+      },
+    }),
+  );
 
   try {
     const stored = await storePackageArtifact(projectId, pkg.id, input.zipBuffer);

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import {
+  changeRequestsReferencingCalculation,
+  isChangeRequestRestrictViolation,
+} from '@/lib/changeRequests/decisions';
+import { formatChangeRequestNumber } from '@/lib/changeRequests/workflow';
 import { validateCommercialUpdate } from '@/lib/commercial';
 import {
   primaryStagesFromTemplate,
@@ -205,7 +210,31 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ id: st
   const auth = await requireStaff();
   if (auth instanceof NextResponse) return auth;
 
-  await prisma.calculation.delete({ where: { id: params.id } });
+  // База и результат запроса на изменение — история договора (#103 WP-2b).
+  const refs = await changeRequestsReferencingCalculation(params.id);
+  if (refs.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          'Расчёт или его комплект используется запросами на изменение: ' +
+          refs.map((r) => formatChangeRequestNumber(r.seq)).join(', '),
+      },
+      { status: 409 },
+    );
+  }
+
+  try {
+    await prisma.calculation.delete({ where: { id: params.id } });
+  } catch (error) {
+    // Гонка с передачей запроса на оценку: триггер БД отказал — тоже 409.
+    if (isChangeRequestRestrictViolation(error)) {
+      return NextResponse.json(
+        { error: 'Расчёт или его комплект используется запросом на изменение' },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
   await writeAudit({
     actorType: 'user',
     actorId: auth.userId,

@@ -1,3 +1,4 @@
+import type { Prisma } from '@/lib/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { appRoleLabel } from '@/lib/appRoles';
 import {
@@ -39,25 +40,31 @@ export interface RecordChangeInput {
  * `[calculationId, seq]` уронил бы вторую.
  */
 export async function recordInternalChange(input: RecordChangeInput) {
-  return prisma.$transaction(async (tx) => {
-    const last = await tx.internalChange.findFirst({
-      where: { calculationId: input.calculationId },
-      orderBy: { seq: 'desc' },
-      select: { seq: true },
-    });
+  return prisma.$transaction((tx) => recordInternalChangeTx(tx, input));
+}
 
-    return tx.internalChange.create({
-      data: {
-        calculationId: input.calculationId,
-        seq: (last?.seq ?? 0) + 1,
-        author: input.author,
-        role: input.role,
-        docRef: input.docRef,
-        text: input.text,
-        source: input.source,
-        packageId: input.packageId ?? null,
-      },
-    });
+/** То же внутри уже открытой транзакции (принятие запроса на изменение). */
+export async function recordInternalChangeTx(
+  tx: Prisma.TransactionClient,
+  input: RecordChangeInput,
+) {
+  const last = await tx.internalChange.findFirst({
+    where: { calculationId: input.calculationId },
+    orderBy: { seq: 'desc' },
+    select: { seq: true },
+  });
+
+  return tx.internalChange.create({
+    data: {
+      calculationId: input.calculationId,
+      seq: (last?.seq ?? 0) + 1,
+      author: input.author,
+      role: input.role,
+      docRef: input.docRef,
+      text: input.text,
+      source: input.source,
+      packageId: input.packageId ?? null,
+    },
   });
 }
 

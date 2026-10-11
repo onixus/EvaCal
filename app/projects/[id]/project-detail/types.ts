@@ -1,4 +1,5 @@
 import type { DealProjectView } from '@/components/DealPanel';
+import type { ChangeSummary } from '@/lib/changeRequests/totals';
 
 export interface SerializedStage {
   id: string;
@@ -83,4 +84,5 @@ export interface SerializedProject {
   calculations: SerializedCalculation[];
   packages: SerializedGostPackage[];
   deal: DealProjectView;
+  changeSummary: ChangeSummary;
 }

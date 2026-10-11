@@ -8,7 +8,10 @@
 
 /** Что породило запись. Совпадает с колонкой «Источник» в выгрузке. */
 export type ChangeSource =
-  'upload' | 'tw-edit' | 'studio-inline' | 'calculation' | 'release' | 'review';
+  'upload' | 'tw-edit' | 'studio-inline' | 'calculation' | 'release' | 'review' | 'change_request';
+
+/** Источники, которые пишет только сервер; ручной ввод их не принимает. */
+export const SYSTEM_CHANGE_SOURCES: ReadonlySet<ChangeSource> = new Set(['change_request']);
 
 export const CHANGE_SOURCE_LABELS: Record<ChangeSource, string> = {
   upload: 'загрузка версии',
@@ -17,6 +20,7 @@ export const CHANGE_SOURCE_LABELS: Record<ChangeSource, string> = {
   calculation: 'расчёт',
   release: 'выпуск',
   review: 'решение ревью',
+  change_request: 'запрос на изменение',
 };
 
 /** Цветовая семантика чипа источника: правки тех.писателя выделяются. */
@@ -27,6 +31,7 @@ export const CHANGE_SOURCE_TONE: Record<ChangeSource, 'ok' | 'muted'> = {
   calculation: 'muted',
   release: 'muted',
   review: 'muted',
+  change_request: 'ok',
 };
 
 export interface InternalChangeRow {

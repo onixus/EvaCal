@@ -10,6 +10,7 @@ import PackagesTab from './project-detail/PackagesTab';
 import AcceptanceChecksModal from './project-detail/AcceptanceChecksModal';
 import CommercialTab from './project-detail/CommercialTab';
 import ChangeRequestsTab from './project-detail/ChangeRequestsTab';
+import ChangeSummaryPanel from './project-detail/ChangeSummaryPanel';
 import { canEditChangeRequests } from '@/lib/changeRequests/workflow';
 import ProjectSettingsPanel from './project-detail/ProjectSettingsPanel';
 import ProjectEditModal from './project-detail/ProjectEditModal';
@@ -108,6 +109,8 @@ export default function ProjectDetailClient({
                 <span>Автор: {project.createdBy}</span>
               </div>
 
+              <ChangeSummaryPanel summary={project.changeSummary} compact />
+
               {project.description && (
                 <p className="max-w-3xl text-xs leading-relaxed text-slate-600 dark:text-nord-4">
                   {project.description}
@@ -199,7 +202,9 @@ export default function ProjectDetailClient({
         />
       )}
 
-      {activeTab === 'commercial' && <CommercialTab calculation={latestCalculation} />}
+      {activeTab === 'commercial' && (
+        <CommercialTab calculation={latestCalculation} changeSummary={project.changeSummary} />
+      )}
 
       {activeTab === 'settings' && <ProjectSettingsPanel project={project} />}
 

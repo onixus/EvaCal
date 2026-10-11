@@ -10,7 +10,9 @@ import {
 } from '@/lib/changeRequests/types';
 import {
   canEditChangeRequests,
+  canDecideChangeRequests,
   canEstimateChangeRequests,
+  formatChangeLabel,
   formatChangeRequestNumber,
 } from '@/lib/changeRequests/workflow';
 import type { ChangeRequestDto } from '@/lib/changeRequests/store';
@@ -151,7 +153,9 @@ function ChangeRequestForm({
   const [saving, setSaving] = useState(false);
 
   const calcPackages = useMemo(
-    () => packages.filter((p) => p.calculationId === form.baseCalculationId),
+    // Базой может быть только выпущенный комплект: черновик мастер перезаписывает.
+    () =>
+      packages.filter((p) => p.calculationId === form.baseCalculationId && p.status !== 'draft'),
     [packages, form.baseCalculationId],
   );
 
@@ -497,27 +501,145 @@ function EstimateForm({
   );
 }
 
+const DECISION_LABELS = {
+  accept: 'Принять',
+  reject: 'Отклонить',
+  defer: 'Отложить',
+  reopen: 'Вернуть на оценку',
+} as const;
+
+function DecisionPanel({
+  projectId,
+  cr,
+  onDone,
+}: {
+  projectId: string;
+  cr: ChangeRequestDto;
+  onDone: (cr: ChangeRequestDto) => void;
+}) {
+  const [comment, setComment] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const decisions: (keyof typeof DECISION_LABELS)[] =
+    cr.status === 'deferred' ? ['reopen'] : ['accept', 'defer', 'reject'];
+  const acceptBlocked = !cr.estimatedAt
+    ? 'Нужна оценка специалиста'
+    : cr.estimateMatchesBase === false
+      ? 'База изменилась после оценки — переоцените'
+      : null;
+
+  const decide = async (action: keyof typeof DECISION_LABELS) => {
+    if (
+      action === 'accept' &&
+      !window.confirm(
+        `Принять ${formatChangeRequestNumber(cr.seq)} «${cr.title}»?\n\n` +
+          `Будет создана новая версия расчёта со строкой ${formatChangeLabel(cr.seq)} ` +
+          `(${cr.confirmedHours} ч, ${cr.confirmedCost} ${cr.impact?.base.currency ?? ''}, ` +
+          `срок ${cr.confirmedScheduleDays} раб. дн.)` +
+          (cr.basePackageId ? ' и черновая версия комплекта с правками требований' : '') +
+          '. Решение необратимо; исходная база не изменится.',
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      onDone(
+        await api<ChangeRequestDto>(`/api/projects/${projectId}/change-requests/${cr.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ action, comment }),
+        }),
+      );
+      setComment('');
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded border border-slate-100 p-3 dark:border-nord-3">
+      <p className={sectionTitle}>Решение</p>
+      {cr.status === 'submitted' && (
+        <p className="text-[11px] text-slate-500 dark:text-nord-muted">
+          Принятие создаёт новую версию расчёта от исходной с отдельной строкой{' '}
+          {formatChangeLabel(cr.seq)} на подтверждённые часы
+          {cr.basePackageId ? ' и черновую версию комплекта с правками требований' : ''}. Исходная
+          база не меняется.
+        </p>
+      )}
+      {error && <p className="text-xs font-medium text-rose-600">{error}</p>}
+      <textarea
+        className="input text-sm"
+        rows={2}
+        placeholder="Комментарий (для «Отклонить» и «Отложить» обязателен)"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+      />
+      <div className="flex flex-wrap gap-2">
+        {decisions.map((d) => (
+          <button
+            key={d}
+            type="button"
+            disabled={busy || (d === 'accept' && !!acceptBlocked)}
+            title={d === 'accept' && acceptBlocked ? acceptBlocked : undefined}
+            className={
+              d === 'accept' || d === 'reopen' ? 'btn-primary text-xs' : 'btn-secondary text-xs'
+            }
+            onClick={() => decide(d)}
+          >
+            {DECISION_LABELS[d]}
+          </button>
+        ))}
+      </div>
+      {acceptBlocked && cr.status === 'submitted' && (
+        <p className="text-[11px] text-slate-500">Принять: {acceptBlocked.toLowerCase()}.</p>
+      )}
+    </div>
+  );
+}
+
 function ChangeRequestDetail({
   projectId,
   cr,
   calculations,
   canEdit,
   canEstimateRole,
+  canDecideRole,
   onChanged,
   onEdit,
+  onDeleted,
 }: {
   projectId: string;
   cr: ChangeRequestDto;
   calculations: SerializedCalculation[];
   canEdit: boolean;
   canEstimateRole: boolean;
+  canDecideRole: boolean;
   onChanged: (cr: ChangeRequestDto) => void;
   onEdit: (cr: ChangeRequestDto) => void;
+  onDeleted: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const reqById = new Map(cr.affectedRequirements.map((r) => [r.id, r]));
   const baseCalc = calculations.find((c) => c.id === cr.baseCalculationId);
+
+  const removeDraft = async () => {
+    if (!window.confirm(`Удалить черновик ${formatChangeRequestNumber(cr.seq)}?`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/api/projects/${projectId}/change-requests/${cr.id}`, { method: 'DELETE' });
+      onDeleted();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async () => {
     setBusy(true);
@@ -671,6 +793,23 @@ function ChangeRequestDetail({
                   ))}
                 </ul>
               )}
+              {cr.acceptanceChecks && cr.acceptanceChecks.length > 0 && (
+                <div className="mt-2">
+                  <p className={sectionTitle}>Проверки приёмки комплекта</p>
+                  <ul>
+                    {cr.acceptanceChecks.map((c) => (
+                      <li key={c.id}>
+                        <span className="font-mono font-bold">{c.requirementCode}</span>: {c.title}
+                      </li>
+                    ))}
+                  </ul>
+                  {(cr.status === 'submitted' || cr.status === 'accepted') && (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                      В приёмке помечены «требует пересмотра».
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -687,7 +826,33 @@ function ChangeRequestDetail({
             {cr.estimatedBy}, {fmtDate(cr.estimatedAt)}
             {cr.estimateComment ? ` — ${cr.estimateComment}` : ''}
           </p>
+          {cr.estimateMatchesBase === false && (
+            <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+              База изменилась после оценки — перед принятием нужна переоценка.
+            </p>
+          )}
         </div>
+      )}
+
+      {cr.status === 'accepted' && cr.resultCalculationId && (
+        <div className="rounded bg-emerald-50 p-3 dark:bg-emerald-950/30">
+          <p className={sectionTitle}>Результат принятия</p>
+          <p className="text-slate-800 dark:text-nord-5">
+            <a
+              className="text-brand-700 hover:underline dark:text-nord-frost3"
+              href={`/calculations/${cr.resultCalculationId}`}
+            >
+              Новая версия расчёта
+            </a>{' '}
+            с изменением {formatChangeLabel(cr.seq)}
+            {cr.resultPackageId ? ' и черновая версия комплекта с правками требований' : ''}.
+            Исходная база не изменена.
+          </p>
+        </div>
+      )}
+
+      {canDecideRole && (cr.status === 'submitted' || cr.status === 'deferred') && (
+        <DecisionPanel projectId={projectId} cr={cr} onDone={onChanged} />
       )}
 
       {cr.status === 'submitted' && canEstimateRole && (
@@ -701,6 +866,14 @@ function ChangeRequestDetail({
           </button>
           <button type="button" className="btn-primary text-xs" disabled={busy} onClick={submit}>
             Передать на оценку
+          </button>
+          <button
+            type="button"
+            className="btn-secondary text-xs"
+            disabled={busy}
+            onClick={removeDraft}
+          >
+            Удалить черновик
           </button>
         </div>
       )}
@@ -736,6 +909,7 @@ export default function ChangeRequestsTab({
 }) {
   const canEdit = canEditChangeRequests(sessionRole);
   const canEstimateRole = canEstimateChangeRequests(sessionRole);
+  const canDecideRole = canDecideChangeRequests(sessionRole);
   const [items, setItems] = useState<ChangeRequestDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -744,14 +918,19 @@ export default function ChangeRequestsTab({
   const [detail, setDetail] = useState<ChangeRequestDto | null>(null);
   const [form, setForm] = useState<{ initial: FormState; editingId: string | null } | null>(null);
 
-  const defaultBase = wonCalculationId ?? calculations[0]?.id ?? '';
+  // Голова цепочки изменений: новый запрос оформляется только на ней.
+  const [head, setHead] = useState<string | null>(null);
+  const defaultBase = head ?? wonCalculationId ?? calculations[0]?.id ?? '';
+  const baseOptions = head ? calculations.filter((c) => c.id === head) : calculations;
 
   const reload = useCallback(async () => {
     try {
-      const data = await api<{ changeRequests: ChangeRequestDto[] }>(
-        `/api/projects/${projectId}/change-requests`,
-      );
+      const data = await api<{
+        changeRequests: ChangeRequestDto[];
+        headCalculationId: string | null;
+      }>(`/api/projects/${projectId}/change-requests`);
       setItems(data.changeRequests);
+      setHead(data.headCalculationId ?? null);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -823,7 +1002,7 @@ export default function ChangeRequestsTab({
         <ChangeRequestForm
           key={form.editingId ?? 'new'}
           projectId={projectId}
-          calculations={calculations}
+          calculations={baseOptions}
           packages={packages}
           initial={form.initial}
           editingId={form.editingId}
@@ -879,8 +1058,15 @@ export default function ChangeRequestsTab({
                     calculations={calculations}
                     canEdit={canEdit}
                     canEstimateRole={canEstimateRole}
+                    canDecideRole={canDecideRole}
                     onChanged={changed}
                     onEdit={(d) => setForm({ initial: formFromCr(d), editingId: d.id })}
+                    onDeleted={() => {
+                      openRef.current = null;
+                      setOpenId(null);
+                      setDetail(null);
+                      void reload();
+                    }}
                   />
                 ) : (
                   <p className="text-xs text-slate-500">Загрузка…</p>

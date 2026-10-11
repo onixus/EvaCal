@@ -1,6 +1,10 @@
 import type { Prisma } from '../generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { safeJsonParse } from '@/lib/json';
+import { lockCalculationLedger } from '@/lib/actualsLedgerData';
+import { computeBaseFingerprint } from './apply';
+import { chainHead } from './totals';
+import { affectedRequirementIds } from '@/lib/acceptance/review';
 import {
   computeChangeImpact,
   requirementsFromSnapshot,
@@ -18,9 +22,113 @@ import {
   ChangeRequestError,
   canEditContent,
   canEstimate,
+  canSubmit,
   transitionError,
   type ChangeRequestDraftInput,
 } from './workflow';
+
+/** Отпечаток текущего состояния базы запроса; null — база удалена. */
+export async function loadBaseFingerprint(
+  db: Prisma.TransactionClient,
+  cr: { baseCalculationId: string; basePackageId: string | null },
+): Promise<string | null> {
+  const calculation = await db.calculation.findUnique({
+    where: { id: cr.baseCalculationId },
+    select: {
+      startDate: true,
+      pmHours: true,
+      currency: true,
+      pricingMode: true,
+      roleRates: true,
+      overheadPercent: true,
+      marginPercent: true,
+      discountPercent: true,
+      vatPercent: true,
+      includeVat: true,
+      stages: {
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          hours: true,
+          order: true,
+          isApprovalTask: true,
+          requirements: true,
+          parallel: true,
+          approvalDays: true,
+        },
+      },
+      risks: { select: { description: true, hours: true, order: true } },
+      stageDependencies: {
+        select: { fromStageId: true, toStageId: true, type: true, lagDays: true },
+      },
+    },
+  });
+  if (!calculation) return null;
+  const basePackage = cr.basePackageId
+    ? await db.gostPackage.findUnique({
+        where: { id: cr.basePackageId },
+        select: { snapshot: true, documentTypes: true },
+      })
+    : null;
+  if (cr.basePackageId && !basePackage) return null;
+  const { stageDependencies, ...rest } = calculation;
+  return computeBaseFingerprint({
+    calculation: { ...rest, dependencies: stageDependencies },
+    basePackage,
+  });
+}
+
+/**
+ * Текущая голова цепочки изменений проекта — единственная допустимая база
+ * нового запроса (см. `chainHead`). null — база ещё не определена.
+ */
+export async function loadChainHead(
+  db: Prisma.TransactionClient,
+  projectId: string,
+): Promise<string | null> {
+  const project = await db.project.findUnique({
+    where: { id: projectId },
+    select: { baselineCalculationId: true, wonCalculationId: true },
+  });
+  if (!project) return null;
+  const accepted = await db.changeRequest.findMany({
+    where: { projectId, status: 'accepted' },
+    select: {
+      id: true,
+      seq: true,
+      baseCalculationId: true,
+      resultCalculationId: true,
+      decidedAt: true,
+    },
+  });
+  return chainHead(
+    project.baselineCalculationId ?? project.wonCalculationId ?? null,
+    accepted.map((cr) => ({ ...cr, decidedAt: cr.decidedAt ? cr.decidedAt.toISOString() : null })),
+  );
+}
+
+/** База запроса — текущая голова цепочки, иначе изменения разошлись бы по веткам версий. */
+export async function assertBaseIsHead(
+  db: Prisma.TransactionClient,
+  projectId: string,
+  baseCalculationId: string,
+  status: number,
+): Promise<void> {
+  const head = await loadChainHead(db, projectId);
+  if (head && head !== baseCalculationId) {
+    const headCalc = await db.calculation.findUnique({
+      where: { id: head },
+      select: { version: true },
+    });
+    throw new ChangeRequestError(
+      `Базой может быть только текущая согласованная версия расчёта` +
+        (headCalc ? ` (v${headCalc.version})` : '') +
+        ': изменения оформляются цепочкой от первоначальной базы',
+      status,
+    );
+  }
+}
 
 /**
  * Хранилище запросов на изменение. Всё, что здесь пишется, — только строки
@@ -64,9 +172,20 @@ export interface ChangeRequestDto {
   createdAt: string;
   updatedAt: string;
   events?: ChangeRequestEventDto[];
+  /**
+   * Только в карточке: оценка сделана по текущему состоянию базы. null — оценки
+   * нет или запрос уже решён; false — база изменилась, нужна переоценка.
+   */
+  estimateMatchesBase?: boolean | null;
+  /**
+   * Только в карточке: проверки приёмки базового комплекта по затронутым
+   * требованиям. Пока запрос на оценке или принят, приёмка помечает их «требует
+   * пересмотра» (lib/acceptance/review.ts).
+   */
+  acceptanceChecks?: Array<{ id: string; requirementCode: string; title: string }>;
 }
 
-type ChangeRequestRow = Prisma.ChangeRequestGetPayload<object>;
+export type ChangeRequestRow = Prisma.ChangeRequestGetPayload<object>;
 type EventRow = Prisma.ChangeRequestEventGetPayload<object>;
 
 function iso(value: Date | null | undefined): string | null {
@@ -139,9 +258,21 @@ function docTypes(raw: string | null | undefined): string[] {
 async function loadBasePackage(projectId: string, packageId: string) {
   const pkg = await prisma.gostPackage.findFirst({
     where: { id: packageId, projectId },
-    select: { id: true, version: true, calculationId: true, documentTypes: true, snapshot: true },
+    select: {
+      id: true,
+      version: true,
+      status: true,
+      calculationId: true,
+      documentTypes: true,
+      snapshot: true,
+    },
   });
   if (!pkg) throw new ChangeRequestError('Базовый комплект не найден в проекте', 400);
+  // Черновик комплекта мастер перезаписывает при каждом сохранении — базой
+  // договора он быть не может.
+  if (pkg.status === 'draft') {
+    throw new ChangeRequestError('Базой может быть только выпущенный комплект, не черновик', 400);
+  }
   return {
     id: pkg.id,
     version: pkg.version,
@@ -188,6 +319,7 @@ async function resolveDraft(projectId: string, input: ChangeRequestDraftInput) {
     },
   });
   if (!calculation) throw new ChangeRequestError('Базовый расчёт не найден в проекте', 400);
+  await assertBaseIsHead(prisma, projectId, calculation.id, 400);
 
   const basePackage = input.basePackageId
     ? await loadBasePackage(projectId, input.basePackageId)
@@ -254,7 +386,23 @@ export async function getChangeRequest(projectId: string, crId: string): Promise
     include: { events: { orderBy: { at: 'asc' } } },
   });
   if (!row) throw new ChangeRequestError('Запрос на изменение не найден', 404);
-  return toChangeRequestDto(row);
+  const dto = toChangeRequestDto(row);
+  if (row.estimatedAt && (row.status === 'submitted' || row.status === 'deferred')) {
+    const hash = await loadBaseFingerprint(prisma, row);
+    dto.estimateMatchesBase = !!hash && hash === row.estimateBaseHash;
+  } else {
+    dto.estimateMatchesBase = null;
+  }
+  const requirementIds = affectedRequirementIds(row);
+  dto.acceptanceChecks =
+    row.basePackageId && requirementIds.length
+      ? await prisma.acceptanceCheck.findMany({
+          where: { packageId: row.basePackageId, requirementId: { in: requirementIds } },
+          select: { id: true, requirementCode: true, title: true },
+          orderBy: { order: 'asc' },
+        })
+      : [];
+  return dto;
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -304,7 +452,13 @@ export async function createChangeRequest(
 async function current(projectId: string, crId: string) {
   const row = await prisma.changeRequest.findFirst({
     where: { id: crId, projectId },
-    select: { id: true, status: true, estimatedAt: true },
+    select: {
+      id: true,
+      status: true,
+      estimatedAt: true,
+      baseCalculationId: true,
+      basePackageId: true,
+    },
   });
   if (!row) throw new ChangeRequestError('Запрос на изменение не найден', 404);
   return { ...row, status: row.status as ChangeRequestStatus };
@@ -322,7 +476,7 @@ interface GuardOptions {
  * от гонки с параллельным переходом или правкой — если запрос уже изменился,
  * ничего не пишется и возвращается 409.
  */
-async function guardedUpdate(
+export async function guardedUpdate(
   projectId: string,
   crId: string,
   expected: ChangeRequestStatus,
@@ -406,8 +560,12 @@ export async function submitChangeRequest(
   comment: string | null,
 ): Promise<ChangeRequestDto> {
   const cr = await current(projectId, crId);
-  const error = transitionError(cr.status, 'submitted', { hasEstimate: !!cr.estimatedAt });
+  // Отложенный запрос возвращают решением reopen (архитектор/админ), не передачей.
+  const error = canSubmit(cr.status)
+    ? transitionError(cr.status, 'submitted', { hasEstimate: !!cr.estimatedAt })
+    : 'Передать на оценку можно только черновик';
   if (error) throw new ChangeRequestError(error, 409);
+  await assertBaseIsHead(prisma, projectId, cr.baseCalculationId, 409);
   // Непустоту проверяем внутри той же транзакции, что и переход: правка
   // черновика между проверкой и переходом не проскочит.
   return guardedUpdate(
@@ -415,7 +573,7 @@ export async function submitChangeRequest(
     crId,
     cr.status,
     { status: 'submitted' },
-    { action: cr.status === 'deferred' ? 'reopened' : 'submitted', actor, comment },
+    { action: 'submitted', actor, comment },
     { validate: assertHasContent },
   );
 }
@@ -434,23 +592,40 @@ export async function recordEstimate(
   if (!canEstimate(cr.status)) {
     throw new ChangeRequestError('Оценку вносят только для запроса на оценке', 409);
   }
-  return guardedUpdate(
-    projectId,
-    crId,
-    'submitted',
-    {
-      confirmedHours: estimate.hours,
-      confirmedCost: estimate.cost,
-      confirmedScheduleDays: estimate.scheduleDays,
-      estimateComment: estimate.comment,
-      estimatedBy: actor,
-      estimatedAt: new Date(),
-    },
-    {
-      action: 'estimated',
-      actor,
-      comment: estimate.comment,
-      data: { hours: estimate.hours, cost: estimate.cost, scheduleDays: estimate.scheduleDays },
-    },
-  );
+  // Оценка привязывается к состоянию базы: отпечаток считается в той же
+  // транзакции и под той же блокировкой расчёта, что и перестроение этапов
+  // (lockCalculationLedger), — правка базы не проскочит между чтением и записью.
+  await prisma.$transaction(async (tx) => {
+    await lockCalculationLedger(tx, cr.baseCalculationId);
+    const baseHash = await loadBaseFingerprint(tx, cr);
+    if (!baseHash) throw new ChangeRequestError('Базовый расчёт или комплект удалён', 409);
+    const res = await tx.changeRequest.updateMany({
+      where: { id: crId, projectId, status: 'submitted' },
+      data: {
+        confirmedHours: estimate.hours,
+        confirmedCost: estimate.cost,
+        confirmedScheduleDays: estimate.scheduleDays,
+        estimateComment: estimate.comment,
+        estimatedBy: actor,
+        estimatedAt: new Date(),
+        estimateBaseHash: baseHash,
+      },
+    });
+    if (res.count !== 1) {
+      throw new ChangeRequestError(
+        'Запрос уже изменён другим пользователем, обновите страницу',
+        409,
+      );
+    }
+    await tx.changeRequestEvent.create({
+      data: {
+        crId,
+        action: 'estimated',
+        actor,
+        comment: estimate.comment,
+        data: { hours: estimate.hours, cost: estimate.cost, scheduleDays: estimate.scheduleDays },
+      },
+    });
+  });
+  return getChangeRequest(projectId, crId);
 }

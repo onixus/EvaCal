@@ -3,9 +3,11 @@ import { NextRequest } from 'next/server';
 
 /**
  * Маршруты запросов на изменение поверх in-memory Prisma. Главное, что здесь
- * проверяется: создание, правка, передача на оценку и оценка пишут только
- * ChangeRequest/ChangeRequestEvent — базовые расчёт, этапы и комплект не
- * меняются ни одним вызовом (#103 §1, приёмка).
+ * проверяется: создание, правка, передача на оценку, оценка и решения не
+ * меняют базовые расчёт, этапы и комплект (#103 §1, приёмка); принятие
+ * создаёт новую версию от базы в той же транзакции и откатывается целиком.
+ * Сама запись версии и комплекта проверяется на живой БД
+ * (scripts/verify-change-requests.ts), здесь — её вызов и атомарность.
  */
 
 const db = vi.hoisted(() => {
@@ -17,6 +19,7 @@ const db = vi.hoisted(() => {
     packages: [] as Row[],
     crs: [] as Row[],
     events: [] as Row[],
+    risks: [] as Row[],
     alwaysDuplicate: false,
   };
   const writes: string[] = [];
@@ -36,7 +39,11 @@ const db = vi.hoisted(() => {
     );
   const matches = (row: Row, where: Row = {}) =>
     Object.entries(where).every(([k, v]) =>
-      v instanceof Date ? row[k] instanceof Date && row[k].getTime() === v.getTime() : row[k] === v,
+      v instanceof Date
+        ? row[k] instanceof Date && row[k].getTime() === v.getTime()
+        : v && typeof v === 'object' && 'not' in v
+          ? row[k] !== v.not
+          : row[k] === v,
     );
   const decimal = (v: unknown) =>
     v === null || v === undefined ? null : { toFixed: (n: number) => Number(v).toFixed(n) };
@@ -44,8 +51,31 @@ const db = vi.hoisted(() => {
   const client: Row = {
     project: Object.assign(forbidden('project'), {
       findUnique: async ({ where }: Row) => state.projects.find((p) => p.id === where.id) ?? null,
+      // Первоначальная база проекта — не часть базового расчёта.
+      updateMany: async ({ where, data }: Row) => {
+        const rows = state.projects.filter((p) => matches(p, where));
+        rows.forEach((p) => Object.assign(p, data));
+        return { count: rows.length };
+      },
+    }),
+    risk: Object.assign(forbidden('risk'), {
+      create: async ({ data }: Row) => {
+        const row = { id: `risk${++counter}`, ...data };
+        state.risks.push(row);
+        return row;
+      },
     }),
     calculation: Object.assign(forbidden('calculation'), {
+      findUnique: async ({ where }: Row) => {
+        const calc = state.calculations.find((c) => c.id === where.id);
+        if (!calc) return null;
+        return {
+          ...calc,
+          stages: state.stages.filter((s) => s.calculationId === calc.id),
+          risks: [],
+          stageDependencies: [],
+        };
+      },
       findFirst: async ({ where }: Row) => {
         const calc = state.calculations.find((c) => matches(c, where));
         if (!calc) return null;
@@ -59,6 +89,7 @@ const db = vi.hoisted(() => {
     }),
     stage: forbidden('stage'),
     gostPackage: Object.assign(forbidden('gostPackage'), {
+      findUnique: async ({ where }: Row) => state.packages.find((p) => p.id === where.id) ?? null,
       findFirst: async ({ where }: Row) => state.packages.find((p) => matches(p, where)) ?? null,
     }),
     changeRequest: {
@@ -100,6 +131,11 @@ const db = vi.hoisted(() => {
         state.crs.push(row);
         return row;
       },
+      deleteMany: async ({ where }: Row) => {
+        const before = state.crs.length;
+        state.crs = state.crs.filter((r) => !matches(r, where));
+        return { count: before - state.crs.length };
+      },
       updateMany: async ({ where, data }: Row) => {
         const rows = state.crs.filter((r) => matches(r, where));
         for (const row of rows) {
@@ -109,6 +145,7 @@ const db = vi.hoisted(() => {
         return { count: rows.length };
       },
     },
+    acceptanceCheck: { findMany: async () => [] },
     changeRequestEvent: {
       create: async ({ data }: Row) => {
         const row = { id: `ev${++counter}`, comment: null, data: null, at: new Date(), ...data };
@@ -117,15 +154,20 @@ const db = vi.hoisted(() => {
       },
     },
   };
-  // Транзакция с откатом: ошибка внутри восстанавливает строки запросов и журнала.
+  client.$executeRaw = async () => 1; // advisory lock
+  // Транзакция с откатом: ошибка внутри восстанавливает изменяемые строки.
   client.$transaction = async (fn: (tx: Row) => unknown) => {
     const crs = state.crs.map((r) => ({ ...r }));
     const events = [...state.events];
+    const risks = [...state.risks];
+    const projects = state.projects.map((p) => ({ ...p }));
     try {
       return await fn(client);
     } catch (error) {
       state.crs = crs;
       state.events = events;
+      state.risks = risks;
+      state.projects = projects;
       throw error;
     }
   };
@@ -135,10 +177,25 @@ const db = vi.hoisted(() => {
 vi.mock('@/lib/prisma', () => ({ prisma: db.client }));
 vi.mock('@/lib/auth', () => ({ requireApiRole: vi.fn() }));
 vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn(), clientIp: vi.fn() }));
+vi.mock('@/lib/project', () => ({
+  createCalculationVersion: vi.fn(async () => ({
+    id: 'c-new',
+    version: 3,
+    stages: [
+      { id: 'N1', name: 'Проектирование', role: 'architect', order: 0, isApprovalTask: false },
+      { id: 'N2', name: 'Разработка', role: 'engineer', order: 1, isApprovalTask: false },
+    ],
+    risks: [],
+  })),
+  createDraftPackageVersion: vi.fn(async () => ({ id: 'p-new', version: 2 })),
+}));
+vi.mock('@/lib/changelog', () => ({ recordInternalChangeTx: vi.fn(async () => ({ id: 'ic1' })) }));
 
 import { requireApiRole } from '@/lib/auth';
+import { createCalculationVersion, createDraftPackageVersion } from '@/lib/project';
+import { recordInternalChangeTx } from '@/lib/changelog';
 import { GET as list, POST as create } from '@/app/api/projects/[id]/change-requests/route';
-import { GET as getOne, PATCH } from '@/app/api/projects/[id]/change-requests/[crId]/route';
+import { DELETE, GET as getOne, PATCH } from '@/app/api/projects/[id]/change-requests/[crId]/route';
 
 const snapshot = {
   requirements: [
@@ -152,11 +209,15 @@ const snapshot = {
 };
 
 function seed() {
-  db.state.projects = [{ id: 'pr1' }, { id: 'pr2' }];
+  db.state.projects = [
+    { id: 'pr1', wonCalculationId: 'c1', baselineCalculationId: null },
+    { id: 'pr2', wonCalculationId: null, baselineCalculationId: null },
+  ];
+  db.state.risks = [];
   db.state.calculations = [
-    { id: 'c1', projectId: 'pr1', version: 1, currency: 'RUB' },
-    { id: 'c2', projectId: 'pr1', version: 2, currency: 'RUB' },
-    { id: 'cx', projectId: 'pr2', version: 1, currency: 'RUB' },
+    { id: 'c1', projectId: 'pr1', version: 1, currency: 'RUB', startDate: new Date('2026-11-02') },
+    { id: 'c2', projectId: 'pr1', version: 2, currency: 'RUB', startDate: new Date('2026-11-02') },
+    { id: 'cx', projectId: 'pr2', version: 1, currency: 'RUB', startDate: new Date('2026-11-02') },
   ];
   db.state.stages = [
     {
@@ -184,6 +245,11 @@ function seed() {
       projectId: 'pr1',
       calculationId: 'c1',
       version: 1,
+      name: 'Комплект',
+      standardProfileId: 'ru-gost34-current',
+      standardProfileVersion: '1',
+      generatorVersion: '1',
+      metadata: null,
       documentTypes: '["tz","pmi"]',
       snapshot: JSON.stringify(snapshot),
     },
@@ -389,12 +455,213 @@ describe('Маршруты запросов на изменение', () => {
     expect(db.state.crs).toEqual([]);
   });
 
-  it('решения и неизвестные действия в этом этапе не поддерживаются', async () => {
+  it('неизвестное действие — 400; решения по черновику — 409', async () => {
     const cr = await (await create(req(draft), props())).json();
-    for (const action of ['accept', 'reject', 'defer', 'drop']) {
-      expect((await PATCH(patch({ action }), crProps(cr.id))).status).toBe(400);
-    }
+    expect((await PATCH(patch({ action: 'drop' }), crProps(cr.id))).status).toBe(400);
+    expect((await PATCH(patch({ action: 'accept' }), crProps(cr.id))).status).toBe(409);
+    expect((await PATCH(patch({ action: 'reopen' }), crProps(cr.id))).status).toBe(409);
     expect(db.state.crs[0].status).toBe('draft');
+  });
+
+  async function estimatedCr() {
+    const cr = await (await create(req(draft), props())).json();
+    await PATCH(patch({ action: 'submit' }), crProps(cr.id));
+    await PATCH(
+      patch({ action: 'estimate', hours: 24, cost: '36000.00', scheduleDays: 2 }),
+      crProps(cr.id),
+    );
+    return cr.id as string;
+  }
+
+  it('принятие: версия от базы, строка ИЗМ, комплект, ЛВИ, ссылки результата; база цела', async () => {
+    const id = await estimatedCr();
+    untouched();
+    const res = await PATCH(patch({ action: 'accept', comment: 'Согласовано' }), crProps(id));
+    expect(res.status).toBe(200);
+    const accepted = await res.json();
+    expect(accepted).toMatchObject({
+      status: 'accepted',
+      decidedBy: 'architect',
+      resultCalculationId: 'c-new',
+      resultPackageId: 'p-new',
+    });
+    expect(vi.mocked(createCalculationVersion).mock.calls[0][0]).toMatchObject({
+      parentCalculationId: 'c1',
+    });
+    // Изменение — явная строка с подтверждёнными часами, а не сумма этапов.
+    expect(db.state.risks).toEqual([
+      expect.objectContaining({ calculationId: 'c-new', hours: 24, order: 0 }),
+    ]);
+    expect(db.state.risks[0].description).toMatch(/^ИЗМ-01 \(ЗИ-01\)/);
+    // Комплект — снимок базы с правкой R1 и связями на этапы новой версии.
+    const pkgInput = vi.mocked(createDraftPackageVersion).mock.calls[0][1];
+    expect(pkgInput.calculationId).toBe('c-new');
+    const reqs = pkgInput.snapshot.requirements as Array<Record<string, unknown>>;
+    expect(reqs.find((r) => r.id === 'R1')).toMatchObject({
+      description: 'Вход через SAML',
+      changeRef: 'ИЗМ-01',
+    });
+    expect(pkgInput.snapshot.manualLinks).toEqual([
+      expect.objectContaining({ sourceId: 'R1', targetId: 'N1' }),
+      expect.objectContaining({ sourceId: 'R2', targetId: 'N2' }),
+    ]);
+    expect(vi.mocked(recordInternalChangeTx).mock.calls[0][1]).toMatchObject({
+      calculationId: 'c-new',
+      source: 'change_request',
+      packageId: 'p-new',
+    });
+    expect(db.state.projects[0].baselineCalculationId).toBe('c1');
+    expect(accepted.events.at(-1)).toMatchObject({ action: 'accepted', comment: 'Согласовано' });
+    // Базовые расчёт, этапы и комплект не тронуты и после принятия.
+    expect(JSON.stringify([db.state.calculations, db.state.stages, db.state.packages])).toBe(
+      baseline,
+    );
+  });
+
+  it('ошибка внутри принятия откатывает всё: статус, строку ИЗМ, журнал', async () => {
+    const id = await estimatedCr();
+    const eventsBefore = db.state.events.length;
+    vi.mocked(createDraftPackageVersion).mockRejectedValueOnce(new Error('disk full'));
+    expect((await PATCH(patch({ action: 'accept' }), crProps(id))).status).toBe(500);
+    expect(db.state.crs[0]).toMatchObject({ status: 'submitted', resultCalculationId: null });
+    expect(db.state.risks).toEqual([]);
+    expect(db.state.events).toHaveLength(eventsBefore);
+    expect(db.state.projects[0].baselineCalculationId).toBeNull();
+  });
+
+  it('база изменилась после оценки — принять нельзя до переоценки', async () => {
+    const id = await estimatedCr();
+    db.state.stages[1].hours = 450; // кто-то поправил базовый расчёт
+    const res = await PATCH(patch({ action: 'accept' }), crProps(id));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/переоцен/);
+    expect((await (await getOne(req(), crProps(id))).json()).estimateMatchesBase).toBe(false);
+    await PATCH(
+      patch({ action: 'estimate', hours: 30, cost: '40000', scheduleDays: 3 }),
+      crProps(id),
+    );
+    expect((await PATCH(patch({ action: 'accept' }), crProps(id))).status).toBe(200);
+  });
+
+  it('отклонить и отложить требуют причину; reopen очищает решение', async () => {
+    const id = await estimatedCr();
+    expect((await PATCH(patch({ action: 'reject' }), crProps(id))).status).toBe(400);
+    const deferred = await PATCH(patch({ action: 'defer', comment: 'Бюджет Q3' }), crProps(id));
+    expect(await deferred.json()).toMatchObject({ status: 'deferred', decidedBy: 'architect' });
+    // Отложенный нельзя «передать» — только вернуть решением.
+    expect((await PATCH(patch({ action: 'submit' }), crProps(id))).status).toBe(409);
+    const reopened = await (await PATCH(patch({ action: 'reopen' }), crProps(id))).json();
+    expect(reopened).toMatchObject({
+      status: 'submitted',
+      decidedBy: null,
+      decidedAt: null,
+      confirmedHours: 24, // база не менялась — оценка сохранена
+    });
+    expect(reopened.events.at(-1)).toMatchObject({
+      action: 'reopened',
+      data: { estimate: 'kept' },
+    });
+    const rejected = await PATCH(patch({ action: 'reject', comment: 'Вне рамок' }), crProps(id));
+    expect((await rejected.json()).status).toBe('rejected');
+    expect((await PATCH(patch({ action: 'reopen' }), crProps(id))).status).toBe(409);
+    untouched();
+  });
+
+  it('reopen после изменения базы сбрасывает оценку', async () => {
+    const id = await estimatedCr();
+    await PATCH(patch({ action: 'defer', comment: 'Позже' }), crProps(id));
+    db.state.stages[0].hours = 10;
+    const reopened = await (await PATCH(patch({ action: 'reopen' }), crProps(id))).json();
+    expect(reopened).toMatchObject({
+      status: 'submitted',
+      confirmedHours: null,
+      confirmedCost: null,
+      estimatedAt: null,
+    });
+    expect(reopened.events.at(-1).data).toEqual({ estimate: 'cleared' });
+  });
+
+  it('решения — только архитектор/админ', async () => {
+    const id = await estimatedCr();
+    vi.mocked(requireApiRole).mockResolvedValue(session('presale') as never);
+    for (const action of ['accept', 'reject', 'defer', 'reopen']) {
+      expect((await PATCH(patch({ action, comment: 'x' }), crProps(id))).status).toBe(403);
+    }
+    expect(db.state.crs[0].status).toBe('submitted');
+  });
+
+  it('цепочка: после принятия база — только результат; параллельная ветка не принимается', async () => {
+    const first = await estimatedCr();
+    const second = await estimatedCr(); // подан на ту же базу до принятия первого
+    expect((await PATCH(patch({ action: 'accept' }), crProps(first))).status).toBe(200);
+    const listed = await (await list(req(), props())).json();
+    expect(listed.headCalculationId).toBe('c-new');
+    const res = await PATCH(patch({ action: 'accept' }), crProps(second));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/ЗИ-01/);
+    // Новый запрос на старой версии не создаётся.
+    const stale = await create(
+      req({ ...draft, basePackageId: null, requirementIds: [], proposedChanges: { summary: 'x' } }),
+      props(),
+    );
+    expect(stale.status).toBe(400);
+    expect((await stale.json()).error).toMatch(/текущая согласованная версия/);
+  });
+
+  it('база — выигранная версия: другая версия проекта не принимается', async () => {
+    db.state.calculations.push({
+      id: 'c3',
+      projectId: 'pr1',
+      version: 3,
+      currency: 'RUB',
+      startDate: new Date('2026-11-02'),
+    });
+    const res = await create(
+      req({
+        ...draft,
+        baseCalculationId: 'c3',
+        basePackageId: null,
+        requirementIds: [],
+        proposedChanges: { summary: 'x' },
+      }),
+      props(),
+    );
+    expect(res.status).toBe(400);
+    // Пока сделка не выиграна и изменений нет — база любая версия проекта.
+    db.state.projects[0].wonCalculationId = null;
+    const ok = await create(
+      req({
+        ...draft,
+        baseCalculationId: 'c3',
+        basePackageId: null,
+        requirementIds: [],
+        proposedChanges: { summary: 'x' },
+      }),
+      props(),
+    );
+    expect(ok.status).toBe(201);
+  });
+
+  it('черновик комплекта не может быть базой', async () => {
+    db.state.packages[0].status = 'draft';
+    const res = await create(req(draft), props());
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/выпущенный комплект/);
+  });
+
+  it('удалить можно только черновик запроса', async () => {
+    const cr = await (await create(req(draft), props())).json();
+    const id = await estimatedCr();
+    expect((await DELETE(req(undefined, 'http://localhost/x', 'DELETE'), crProps(id))).status).toBe(
+      409,
+    );
+    expect(
+      (await DELETE(req(undefined, 'http://localhost/x', 'DELETE'), crProps(cr.id))).status,
+    ).toBe(200);
+    expect(db.state.crs.map((r) => r.id)).toEqual([id]);
+    expect(
+      (await DELETE(req(undefined, 'http://localhost/x', 'DELETE'), crProps('nope'))).status,
+    ).toBe(404);
   });
 
   it('нумерация сквозная в проекте; список, карточка и требования базы', async () => {
