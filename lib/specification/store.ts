@@ -9,6 +9,7 @@ import { catalogItem, withoutPriceConfirmation } from '../catalog/snapshot';
 import type { Product } from '../catalog/types';
 import type { SavedSpecification } from './types';
 import { clearStaleChangeReasons } from './diff';
+import { verifySizingRefs } from '../sizing/refs';
 
 export async function loadSpecification(
   calculationId: string,
@@ -126,9 +127,13 @@ export async function saveSpecification(
           );
       }
     }
+    // Связи с сайзингом проверяются по неизменяемым прогонам этого расчета.
+    const sizingRunIds = await verifySizingRefs(tx, calculationId, snapshot.items);
+    const { sizingRunIds: _clientRunIds, ...rest } = clearStaleChangeReasons(previous, snapshot);
     const next = {
-      ...clearStaleChangeReasons(previous, snapshot),
+      ...rest,
       version: snapshot.version + 1,
+      ...(sizingRunIds.length ? { sizingRunIds } : {}),
     };
     const row = await tx.specificationVersion.create({
       data: {

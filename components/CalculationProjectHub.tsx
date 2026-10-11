@@ -11,6 +11,7 @@ import CommercialProposalPanel from './CommercialProposalPanel';
 import TraceabilityMatrixView from './gost34/TraceabilityMatrixView';
 import ScenarioAnalysisPanel from './ScenarioAnalysisPanel';
 import SpecificationPanel from './SpecificationPanel';
+import SizingPanel from './SizingPanel';
 import CalibrationPanel from './CalibrationPanel';
 
 interface FieldForView {
@@ -56,6 +57,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
     | 'scenarios'
     | 'schedule'
     | 'traceability'
+    | 'sizing'
     | 'specification'
     | 'gost34'
   >('summary');
@@ -221,6 +223,12 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
             <span>Трассируемость</span>
           </button>
           <button
+            onClick={() => setActiveTab('sizing')}
+            className={`tab-btn ${activeTab === 'sizing' ? 'tab-btn-active' : ''}`}
+          >
+            <span>Сайзинг</span>
+          </button>
+          <button
             onClick={() => setActiveTab('specification')}
             className={`tab-btn ${activeTab === 'specification' ? 'tab-btn-active' : ''}`}
           >
@@ -279,6 +287,11 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
           answers={calculation.answers}
           fields={calculation.template.fields}
         />
+      )}
+
+      {/* Tab: Sizing (technical demand, versioned profiles) */}
+      {activeTab === 'sizing' && (
+        <SizingPanel calculationId={calculation.id} answers={calculation.answers} />
       )}
 
       {/* Tab: Hardware & Software Specification */}

@@ -9,8 +9,25 @@ export const ITEM_KINDS = [
 ] as const;
 export const ITEM_DISPOSITIONS = ['supply', 'existing', 'alternative'] as const;
 
+/**
+ * Связь строки с технической потребностью из прогона сайзинга (#101 WP5).
+ * Строка остаётся закупаемой позицией (SKU); связь лишь фиксирует, какую метрику
+ * она покрывает. requiredQuantity — значение метрики в прогоне на момент связи.
+ */
+export interface SpecificationSizingRef {
+  runId: string;
+  metric: string;
+  /** Сценарий прогона; по умолчанию base. */
+  scenario?: string;
+  /** Значение метрики (десятичная строка) в связанном прогоне. */
+  requiredQuantity: string;
+  /** Сколько единиц метрики покрывает одна единица позиции; по умолчанию 1. */
+  unitCapacity?: string;
+}
+
 export interface SpecificationItem {
   id: string;
+  sizingRef?: SpecificationSizingRef;
   origin?: SpecificationCatalogOrigin;
   priceOverride?: boolean;
   kind: (typeof ITEM_KINDS)[number];
@@ -63,6 +80,8 @@ export interface SpecificationSnapshot {
   /** Explicitly confirmed empty supply is valid, unlike missing data. */
   emptySupplyReason: string;
   items: SpecificationItem[];
+  /** Прогоны сайзинга, на которые ссылаются строки редакции (заполняется при сохранении). */
+  sizingRunIds?: string[];
 }
 
 export interface SavedSpecification {
