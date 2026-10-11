@@ -51,6 +51,12 @@ export default function ChangeSummaryPanel({
     <div className="card space-y-3 p-5">
       <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-nord-muted">
         Первоначальный объём и согласованные изменения
+        <span
+          className="ml-2 rounded bg-amber-50 px-1.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/30 dark:text-nord-yellow"
+          data-testid="labour-only-label"
+        >
+          без учёта поставки и прочих затрат
+        </span>
       </h3>
       {summary.baseline ? (
         <div className="grid gap-3 text-sm sm:grid-cols-3">

@@ -43,6 +43,9 @@ export interface SerializedCalculation {
   standardProfileId: string | null;
   standardProfileVersion: string | null;
   generatorVersion: string | null;
+  /** #103 §4.2: поставка и статьи затрат (только у текущей версии); null — только труд. */
+  supply?: import('@/lib/supply').SupplyBreakdown | null;
+  supplyError?: string | null;
 }
 
 export interface SerializedGostPackage {

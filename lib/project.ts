@@ -179,6 +179,7 @@ async function createCalculationVersionIn(
     include: {
       stages: { orderBy: { order: 'asc' } },
       risks: { orderBy: { order: 'asc' } },
+      costItems: { orderBy: { order: 'asc' } },
       project: true,
     },
   });
@@ -249,8 +250,30 @@ async function createCalculationVersionIn(
       discountPercent: source.discountPercent,
       vatPercent: source.vatPercent,
       includeVat: source.includeVat,
+      // #103 §4.3: порог маржи версии не меняется вслед за шаблоном. Редакции
+      // спецификации принадлежат исходной версии, поэтому закрепление не копируется.
+      minMarginPercent: source.minMarginPercent,
     },
   });
+
+  // #103 §4.2: статьи затрат копируются как есть (точные десятичные значения).
+  if (source.costItems.length > 0) {
+    await db.costItem.createMany({
+      data: source.costItems.map((c) => ({
+        calculationId: newCalculation.id,
+        kind: c.kind,
+        description: c.description,
+        quantity: c.quantity,
+        unitCost: c.unitCost,
+        currency: c.currency,
+        exchangeRate: c.exchangeRate,
+        exchangeRateDate: c.exchangeRateDate,
+        exchangeRateSource: c.exchangeRateSource,
+        specItemRef: c.specItemRef,
+        order: c.order,
+      })),
+    });
+  }
 
   // Deep clone stages. Ссылки между этапами (согласование → этап, явные
   // зависимости) переводятся на id клонов: id исходной версии в новой версии

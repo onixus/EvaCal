@@ -8,6 +8,7 @@ import {
   type OfferVersionInput,
 } from '@/lib/offerCompare';
 import type { SpecificationItem } from '@/lib/specification/types';
+import { buildSupply } from '@/lib/supply';
 
 const item = (over: Partial<SpecificationItem>): SpecificationItem => ({
   id: over.id ?? 'i1',
@@ -230,5 +231,33 @@ describe('compareOffers', () => {
     const baseBroken = compareOffers([broken, version({ id: 'c2' })]);
     const second = baseBroken.variants[1];
     expect(!isOfferError(second) && second.delta).toBeNull();
+  });
+
+  it('поставка и статьи затрат версии входят в итог сравнения; ошибка поставки — ошибка колонки', () => {
+    const supply = buildSupply({
+      currency: 'RUB',
+      vatPercent: 20,
+      includeVat: true,
+      specification: {
+        version: 4,
+        items: [item({ id: 's1', quantity: '1', unitPrice: '1000', purchasePrice: '800' })],
+      },
+      costItems: [],
+    });
+    const plain = version();
+    const result = compareOffers([plain, version({ id: 'c2', supply })]);
+    const [a, b] = result.variants as OfferVariant[];
+    expect(b.money.supplyPrice).toBe(1000);
+    expect(b.money.subtotalExVat).toBe(a.money.subtotalExVat + 1000);
+    expect(b.money.totalCost).toBe(a.money.totalCost + 800);
+    expect(b.delta?.subtotalExVat).toBe(1000);
+    expect(b.explain.specification).toContain('закреплена редакция v4');
+    expect(a.explain.specification).toContain('не закреплена');
+
+    const failed = compareOffers([
+      plain,
+      version({ id: 'c3', supplyError: 'редакция v9 не найдена' }),
+    ]);
+    expect(isOfferError(failed.variants[1])).toBe(true);
   });
 });

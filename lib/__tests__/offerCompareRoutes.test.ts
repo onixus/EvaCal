@@ -11,6 +11,7 @@ vi.mock('@/lib/prisma', () => {
     project: { findUnique: vi.fn() },
     calculation: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn() },
     stage: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn() },
+    costItem: { findMany: vi.fn(async () => []) },
     $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
   };
   return { prisma };

@@ -3,7 +3,12 @@ import { CalculationForExport } from './export';
 import { roleLabel, STATUS_LABELS } from './roles';
 import { totalLaborHours } from './scheduling';
 import { risksTotalHours } from './totals';
-import { calculateCommercialSummary, PRICING_MODE_LABELS } from './commercial';
+import { roundDecimal } from './specification/totals';
+import {
+  calculateCommercialSummary,
+  PRICING_MODE_LABELS,
+  type CommercialSummary,
+} from './commercial';
 import { buildFullTraceabilityMatrix } from './gost34/traceability/matrix';
 import type { Gost34RequirementItem, Gost34StageItem } from './gost34/types';
 
@@ -76,6 +81,72 @@ export function renderInternalChangesXlsx(
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 }
 
+/** #103 §4.2: раздел поставки и статей затрат рядом с трудом; без поставки — пусто. */
+function supplyRows(commercial: CommercialSummary): (string | number)[][] {
+  const supply = commercial.supply;
+  if (!supply) return [];
+  const rows: (string | number)[][] = [
+    [],
+    ['3. ПОСТАВКА ОБОРУДОВАНИЯ И ПО И СТАТЬИ ЗАТРАТ'],
+    [
+      supply.specificationVersion === null
+        ? 'Спецификация не закреплена'
+        : `Спецификация v${supply.specificationVersion}`,
+    ],
+    [
+      'Позиция',
+      'Кол-во',
+      'Цена за ед. (исх. валюта)',
+      'Скидка строки, %',
+      `Цена без НДС (${commercial.currencySymbol})`,
+      `Себестоимость (${commercial.currencySymbol})`,
+      'Курс / пояснение',
+    ],
+  ];
+  for (const l of supply.lines) {
+    rows.push([
+      l.name,
+      l.quantity ?? 'неизвестно',
+      l.unitSale === null ? 'неизвестно' : `${l.unitSale} ${l.currency}`,
+      l.discountPercent ?? '',
+      l.sale === null ? 'неизвестно' : Number(roundDecimal(l.sale, 2)),
+      l.cost === null ? 'неизвестно' : Number(roundDecimal(l.cost, 2)),
+      l.rate ? `${l.rate.rate} (${l.rate.date}, ${l.rate.source})` : l.problems.join('; '),
+    ]);
+  }
+  for (const c of supply.costItems) {
+    rows.push([
+      `Статья: ${c.description}`,
+      c.quantity,
+      c.unitCost === null ? 'неизвестно' : `${c.unitCost} ${c.currency}`,
+      '',
+      '',
+      c.amount === null ? 'неизвестно' : Number(roundDecimal(c.amount, 2)),
+      c.state === 'linked'
+        ? 'себестоимость строки поставки'
+        : c.state === 'orphan'
+          ? c.problems.join('; ')
+          : 'входит в себестоимость услуг',
+    ]);
+  }
+  rows.push(
+    ['Поставка без НДС', '', supply.supplyPrice],
+    ['НДС поставки', '', supply.supplyVat],
+    ['Себестоимость итого (услуги + поставка)', '', commercial.total.cost],
+    ['Прибыль итого', '', commercial.total.profit],
+    [
+      'Маржа итого, без НДС',
+      commercial.total.marginPercent === null
+        ? 'Не определена'
+        : `${commercial.total.marginPercent.toFixed(2)}%`,
+      '',
+    ],
+  );
+  if (supply.incomplete)
+    rows.push(['Неполные данные (не считаются нулём)', supply.problems.join('; ')]);
+  return rows;
+}
+
 export function renderCalculationXlsx(
   calc: CalculationForExport,
   options?: { customRequirements?: Gost34RequirementItem[] },
@@ -93,7 +164,9 @@ export function renderCalculationXlsx(
     discountPercent: calc.discountPercent,
     vatPercent: calc.vatPercent,
     includeVat: calc.includeVat,
+    supply: calc.supply ?? null,
   });
+  const supply = commercial.supply;
 
   const wb = XLSX.utils.book_new();
 
@@ -113,7 +186,16 @@ export function renderCalculationXlsx(
       [],
       ['Стоимость без НДС, ' + commercial.currencySymbol, commercial.subtotalExVat],
       ['НДС (' + commercial.vatPercent + '%), ' + commercial.currencySymbol, commercial.vatAmount],
-      ['Итого к оплате, ' + commercial.currencySymbol, commercial.grandTotal],
+      ...(supply
+        ? [
+            ['Поставка без НДС, ' + commercial.currencySymbol, supply.supplyPrice],
+            ['НДС поставки, ' + commercial.currencySymbol, supply.supplyVat],
+          ]
+        : []),
+      ['Итого к оплате, ' + commercial.currencySymbol, commercial.total.grandTotal],
+      ...(commercial.total.incomplete
+        ? [['Сумма неполная', supply?.problems.join('; ') ?? '']]
+        : []),
     ]),
   );
   overviewSheet['!cols'] = [{ wch: 28 }, { wch: 40 }];
@@ -179,6 +261,9 @@ export function renderCalculationXlsx(
     ['Показатель', 'Параметр / %', `Сумма (${commercial.currencySymbol})`],
     ['Прямая себестоимость труда', '', commercial.directLaborCost],
     ['Накладные расходы (Overhead)', `${commercial.overheadPercent}%`, commercial.overheadAmount],
+    ...(commercial.costItemsCost > 0
+      ? [['Дополнительные статьи затрат', '', commercial.costItemsCost]]
+      : []),
     ['Полная себестоимость проекта', '', commercial.totalCost],
     [
       PRICING_MODE_LABELS[commercial.pricingMode],
@@ -201,7 +286,9 @@ export function renderCalculationXlsx(
       calc.includeVat ? `${commercial.vatPercent}%` : '0% (не облагается)',
       commercial.vatAmount,
     ],
-    ['ИТОГО К ОПЛАТЕ', '', commercial.grandTotal],
+    ...supplyRows(commercial),
+    ...(calc.supplyError ? [['Поставка и статьи затрат не рассчитаны', calc.supplyError]] : []),
+    ['ИТОГО К ОПЛАТЕ', '', commercial.total.grandTotal],
     [],
     [
       'Средневзвешенная ставка, ' + commercial.currencySymbol + '/ч',

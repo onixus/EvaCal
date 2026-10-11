@@ -11,6 +11,7 @@ vi.mock('@/lib/prisma', () => ({
     calculation: { findUnique: vi.fn(), update: vi.fn() },
     // ZIP включает ПСИ и акт: факты испытаний ищутся в комплектах расчёта.
     gostPackage: { findFirst: vi.fn(async () => null) },
+    costItem: { findMany: vi.fn(async () => []) },
   },
 }));
 vi.mock('@/lib/specification/store', () => ({ loadSpecification: vi.fn() }));

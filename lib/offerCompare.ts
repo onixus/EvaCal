@@ -17,6 +17,7 @@ import {
   type CommercialSummary,
 } from './commercial';
 import { describeTotal, summarizeSpecification } from './specification/totals';
+import type { SupplyBreakdown } from './supply';
 import type {
   SpecificationCurrencyTotal,
   SpecificationItem,
@@ -54,6 +55,10 @@ export interface OfferVersionInput {
   } | null;
   /** Последняя редакция спецификации любого статуса (для пояснения). */
   latestSpecification: { version: number; status: string } | null;
+  /** Поставка и статьи затрат версии (lib/supply.ts); null — только труд. */
+  supply?: SupplyBreakdown | null;
+  /** Поставку не удалось рассчитать: версия показывается с ошибкой. */
+  supplyError?: string | null;
 }
 
 export interface OfferSpecification {
@@ -106,9 +111,21 @@ export interface OfferVariant {
     riskHours: number;
     totalHours: number;
   };
+  /**
+   * Итог КП: услуги (труд + статьи затрат) и закреплённая поставка (#103 §4.2).
+   * totalCost/subtotalExVat/profit/marginPercent/vatAmount/grandTotal — итог с
+   * поставкой; services* — только услуги.
+   */
   money: {
     directLaborCost: number;
     overheadAmount: number;
+    costItemsCost: number;
+    servicesCost: number;
+    servicesPriceExVat: number;
+    supplyPrice: number;
+    supplyCost: number;
+    /** Неизвестные цены, себестоимость или курсы: суммы — по известной части. */
+    incomplete: boolean;
     totalCost: number;
     priceBeforeDiscount: number;
     discountAmount: number;
@@ -249,7 +266,13 @@ function parseStoredRates(raw: CommercialConfig['roleRates']): Record<string, un
 }
 
 function buildVariant(input: OfferVersionInput): OfferVariant {
-  const summary = calculateCommercialSummary(input.stages, input.pmHours, input.risks, input.terms);
+  if (input.supplyError) throw new Error(input.supplyError);
+  const summary = calculateCommercialSummary(input.stages, input.pmHours, input.risks, {
+    ...input.terms,
+    supply: input.supply ?? null,
+  });
+  const supply = summary.supply;
+  const total = summary.total;
   const decimals = summary.pricingMode === 'legacy_markup' ? 0 : 2;
   const fmt = (v: number) => formatCurrency(v, summary.currency, { decimals });
   const work = input.stages.filter((s) => !s.isApprovalTask);
@@ -325,15 +348,20 @@ function buildVariant(input: OfferVersionInput): OfferVariant {
     money: {
       directLaborCost: summary.directLaborCost,
       overheadAmount: summary.overheadAmount,
-      totalCost: summary.totalCost,
+      costItemsCost: summary.costItemsCost,
+      servicesCost: summary.totalCost,
+      servicesPriceExVat: summary.subtotalExVat,
+      supplyPrice: supply?.supplyPrice ?? 0,
+      supplyCost: supply?.supplyCost ?? 0,
+      incomplete: total.incomplete,
+      totalCost: total.cost,
       priceBeforeDiscount: summary.priceBeforeDiscount,
       discountAmount: summary.discountAmount,
-      subtotalExVat: summary.subtotalExVat,
-      profit: summary.profitAfterDiscount,
-      marginPercent:
-        summary.effectiveMarginPercent === null ? null : round2(summary.effectiveMarginPercent),
-      vatAmount: summary.vatAmount,
-      grandTotal: summary.grandTotal,
+      subtotalExVat: total.priceExVat,
+      profit: total.profit,
+      marginPercent: total.marginPercent === null ? null : round2(total.marginPercent),
+      vatAmount: total.vat,
+      grandTotal: total.grandTotal,
     },
     term,
     specification,
@@ -342,7 +370,14 @@ function buildVariant(input: OfferVersionInput): OfferVariant {
       cost:
         `Труд: ${roleCost || 'этапов нет'}; РП ${summary.pmHours} ч × ${fmt(summary.pmRate)} = ${fmt(summary.pmCost)}; ` +
         `риски ${summary.riskHours} ч × средняя ставка ${fmt(riskRate)} = ${fmt(summary.riskCost)}. ` +
-        `Итого труд ${fmt(summary.directLaborCost)} + накладные ${summary.overheadPercent}% ${fmt(summary.overheadAmount)} = ${fmt(summary.totalCost)}. ` +
+        `Итого труд ${fmt(summary.directLaborCost)} + накладные ${summary.overheadPercent}% ${fmt(summary.overheadAmount)}` +
+        (summary.costItemsCost > 0 ? ` + статьи затрат ${fmt(summary.costItemsCost)}` : '') +
+        ` = ${fmt(summary.totalCost)}` +
+        (supply
+          ? `; + себестоимость поставки ${fmt(supply.supplyCost)} = ${fmt(total.cost)}`
+          : '') +
+        (total.incomplete ? ' (неполная: есть неизвестные цены, себестоимость или курсы)' : '') +
+        '. ' +
         (ratesCoverage === 'stored'
           ? 'Ставки — сохранённые в версии.'
           : ratesCoverage === 'default'
@@ -353,12 +388,16 @@ function buildVariant(input: OfferVersionInput): OfferVariant {
         `скидка ${summary.discountPercent}% = ${fmt(summary.discountAmount)}; цена без НДС = ${fmt(summary.subtotalExVat)}; ` +
         (input.terms.includeVat === false
           ? 'НДС не начисляется.'
-          : `НДС ${summary.vatPercent}% = ${fmt(summary.vatAmount)}; к оплате ${fmt(summary.grandTotal)}.`),
-      profit: `Прибыль = цена без НДС ${fmt(summary.subtotalExVat)} − себестоимость ${fmt(summary.totalCost)} = ${fmt(summary.profitAfterDiscount)}.`,
+          : `НДС ${summary.vatPercent}% = ${fmt(summary.vatAmount)}.`) +
+        (supply
+          ? ` Поставка без НДС ${fmt(supply.supplyPrice)} (своя цена строк, без наценки и скидки расчёта): итого без НДС ${fmt(total.priceExVat)}.`
+          : '') +
+        ` К оплате ${fmt(total.grandTotal)}.`,
+      profit: `Прибыль = цена без НДС ${fmt(total.priceExVat)} − себестоимость ${fmt(total.cost)} = ${fmt(total.profit)}${total.incomplete ? ' (по известной части)' : ''}.`,
       margin:
-        summary.effectiveMarginPercent === null
+        total.marginPercent === null
           ? 'Маржа не определена: выручка без НДС равна 0.'
-          : `Маржа = прибыль / цена без НДС × 100 = ${round2(summary.effectiveMarginPercent)}% (после скидки, без НДС).`,
+          : `Маржа = прибыль / цена без НДС × 100 = ${round2(total.marginPercent)}% (после скидки, без НДС${supply ? ', с поставкой' : ''}).`,
       term: term
         ? `С ${term.start} по ${term.end} по сохранённым датам этапов Ганта (включая согласования): ${term.calendarDays} календ. дн.`
         : 'Срок не определён: в версии нет этапов.',
@@ -366,7 +405,9 @@ function buildVariant(input: OfferVersionInput): OfferVariant {
         (specification.state === 'confirmed'
           ? `Спецификация v${specification.version}: ${specification.lines.join('; ')}.`
           : specification.lines.join(' ')) +
-        ' Стоимость спецификации показывается отдельно и в цену труда не входит.',
+        (supply && supply.specificationVersion !== null
+          ? ` В КП закреплена редакция v${supply.specificationVersion}: её поставка входит в цену и себестоимость.`
+          : ' Спецификация в КП не закреплена: её стоимость в цену не входит.'),
     },
     delta: null,
   };

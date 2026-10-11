@@ -249,6 +249,22 @@ export default function OfferCompareModal({
                     </>
                   )}
                 </Row>
+                <Row title="Поставка и статьи" variants={variants}>
+                  {(v) => (
+                    <div className="text-slate-600 dark:text-nord-4">
+                      <div>
+                        поставка {money(v, v.money.supplyPrice)} (себест.{' '}
+                        {money(v, v.money.supplyCost)})
+                      </div>
+                      <div>статьи затрат {money(v, v.money.costItemsCost)}</div>
+                      {v.money.incomplete && (
+                        <div className="text-amber-700 dark:text-nord-yellow">
+                          сумма неполная — неизвестное не считается нулём
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Row>
                 <Row title="Цена без НДС" variants={variants}>
                   {(v) => (
                     <>

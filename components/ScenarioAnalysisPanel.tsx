@@ -122,6 +122,12 @@ export default function ScenarioAnalysisPanel({
           <div>
             <h2 className="text-base font-bold text-slate-900 dark:text-nord-6">
               Сценарное моделирование трудозатрат и сметы (Scenario Planning)
+              <span
+                className="ml-2 rounded bg-amber-50 px-1.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/30 dark:text-nord-yellow"
+                data-testid="labour-only-label"
+              >
+                без учёта поставки и прочих затрат
+              </span>
             </h2>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
               Сравнение вариантов оценки для согласования с заказчиком и фиксация в версиях проекта

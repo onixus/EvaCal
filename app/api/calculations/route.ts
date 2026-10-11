@@ -123,6 +123,8 @@ export async function POST(req: NextRequest) {
       createdBy,
       projectId: targetProjectId,
       version,
+      // #103 §4.3: порог маржи фиксируется в расчёте на момент создания.
+      minMarginPercent: template.minMarginPercent ?? null,
     },
   });
 
