@@ -10,6 +10,7 @@ import {
   type CommercialSummary,
 } from './commercial';
 import { buildFullTraceabilityMatrix } from './gost34/traceability/matrix';
+import { supplyItemsText } from './gost34/traceability/supply';
 import type { Gost34RequirementItem, Gost34StageItem } from './gost34/types';
 
 function fmtDate(d: Date | null): string {
@@ -419,7 +420,16 @@ export function renderCalculationXlsx(
     }
   }
 
-  const matrix = buildFullTraceabilityMatrix(reqsToTrace, stageItems, calc.answers, calc.fields);
+  const matrix = buildFullTraceabilityMatrix(
+    reqsToTrace,
+    stageItems,
+    calc.answers,
+    calc.fields,
+    [],
+    calc.specification?.items,
+  );
+  // #101 этап 3: графа позиций спецификации — только при наличии связей.
+  const withSupply = matrix.items.some((item) => item.supplyItems.length > 0);
 
   if (matrix.items.length > 0) {
     const matrixRows: (string | number)[][] = [
@@ -445,6 +455,7 @@ export function renderCalculationXlsx(
         'Роль исполнителя',
         'Метод сопоставления',
         'Статус покрытия',
+        ...(withSupply ? ['Позиции спецификации'] : []),
       ],
     ];
 
@@ -463,6 +474,7 @@ export function renderCalculationXlsx(
         item.stage?.roleLabel || '—',
         item.mappingMethod,
         item.status === 'covered' ? 'Покрыто' : 'Не покрыто',
+        ...(withSupply ? [supplyItemsText(item.supplyItems) || '—'] : []),
       ]);
     }
 
@@ -481,6 +493,7 @@ export function renderCalculationXlsx(
       { wch: 20 },
       { wch: 16 },
       { wch: 16 },
+      ...(withSupply ? [{ wch: 48 }] : []),
     ];
     XLSX.utils.book_append_sheet(wb, matrixSheet, 'Матрица прослеживаемости');
   }

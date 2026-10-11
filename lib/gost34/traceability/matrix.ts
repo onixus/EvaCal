@@ -6,6 +6,8 @@ import {
 } from '../requirements';
 import { buildTraceability } from './engine';
 import { TraceLink } from './types';
+import { buildRequirementSupplyIndex, type RequirementSupplyItem } from './supply';
+import type { SpecificationItem } from '@/lib/specification/types';
 import { roleLabel } from '@/lib/roles';
 
 export interface TraceabilityMatrixItem {
@@ -38,6 +40,8 @@ export interface TraceabilityMatrixItem {
   };
   mappingMethod: 'RULE' | 'MANUAL' | 'LLM' | 'UNMAPPED';
   status: 'covered' | 'unmapped';
+  /** #101 этап 3: позиции спецификации, обоснованные этим требованием. */
+  supplyItems: RequirementSupplyItem[];
 }
 
 export interface FullTraceabilityMatrix {
@@ -363,7 +367,9 @@ export function buildFullTraceabilityMatrix(
   answers: Record<string, unknown> = {},
   fields: { key: string; label: string }[] = [],
   manualLinks: TraceLink[] = [],
+  specificationItems?: SpecificationItem[],
 ): FullTraceabilityMatrix {
+  const supply = buildRequirementSupplyIndex(specificationItems);
   // Normalize requirements
   const normalizedReqs: Gost34RequirementV2[] = requirements.map((r) =>
     'approval' in r
@@ -453,6 +459,7 @@ export function buildFullTraceabilityMatrix(
         : undefined,
       mappingMethod: link ? link.method : 'UNMAPPED',
       status: isCovered ? 'covered' : 'unmapped',
+      supplyItems: supply.get(req.id) ?? [],
     });
 
     index++;

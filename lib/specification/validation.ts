@@ -173,6 +173,50 @@ export function parseSizingRef(input: unknown): SpecificationSizingRef {
   };
 }
 
+export const MAX_REQUIREMENT_LINKS = 100;
+
+/**
+ * #101 этап 3: связи строки с требованиями. Пустой список равен отсутствию связей
+ * (поле не сохраняется); ID уникальны; коды — только для связанных ID.
+ */
+export function parseRequirementLinks(
+  row: Record<string, unknown>,
+): Pick<SpecificationItem, 'requirementIds' | 'requirementCodes'> {
+  if (row.requirementIds === undefined || row.requirementIds === null) {
+    if (row.requirementCodes !== undefined && row.requirementCodes !== null)
+      throw new SpecificationError('Коды требований заданы без связей с требованиями');
+    return {};
+  }
+  if (!Array.isArray(row.requirementIds) || row.requirementIds.length > MAX_REQUIREMENT_LINKS)
+    throw new SpecificationError(
+      `Связи с требованиями: список до ${MAX_REQUIREMENT_LINKS} ID требований`,
+    );
+  const ids = row.requirementIds.map((id) => text(id, 'ID требования', 200));
+  if (ids.some((id) => !id)) throw new SpecificationError('Пустой ID требования');
+  if (new Set(ids).size !== ids.length)
+    throw new SpecificationError('ID требований в строке повторяются');
+  if (!ids.length) {
+    if (row.requirementCodes !== undefined && row.requirementCodes !== null)
+      throw new SpecificationError('Коды требований заданы без связей с требованиями');
+    return {};
+  }
+  let codes: Record<string, string> | undefined;
+  if (row.requirementCodes !== undefined && row.requirementCodes !== null) {
+    const raw = record(row.requirementCodes, 'Коды требований');
+    codes = {};
+    for (const [id, code] of Object.entries(raw)) {
+      if (!ids.includes(id))
+        throw new SpecificationError('Код задан для требования, не связанного со строкой');
+      const value = text(code, 'Код требования', 200);
+      if (value) codes[id] = value;
+    }
+  }
+  return {
+    requirementIds: ids,
+    ...(codes && Object.keys(codes).length ? { requirementCodes: codes } : {}),
+  };
+}
+
 /** Strict input validation also applies to reloaded snapshots and direct generation. */
 export function parseSpecification(input: unknown): SpecificationSnapshot {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -232,6 +276,7 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
       id,
       ...(row.origin === undefined ? {} : { origin: parseCatalogOrigin(row.origin) }),
       ...(row.sizingRef === undefined ? {} : { sizingRef: parseSizingRef(row.sizingRef) }),
+      ...parseRequirementLinks(row),
       ...(row.priceOverride === undefined ? {} : { priceOverride: row.priceOverride as boolean }),
       kind: row.kind as SpecificationItem['kind'],
       disposition: row.disposition as SpecificationItem['disposition'],

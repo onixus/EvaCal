@@ -1,6 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { withShareHeaders } from '@/lib/shareClient';
+import { supplyItemsText } from '@/lib/gost34/traceability/supply';
+import type { SpecificationItem } from '@/lib/specification/types';
+import type { RequirementOptions } from '@/lib/specification/requirements';
 import {
   buildFullTraceabilityMatrix,
   TraceabilityMatrixItem,
@@ -11,6 +15,11 @@ import { TraceLink } from '@/lib/gost34/traceability/types';
 import { StageRow } from '../StageTable';
 
 interface Props {
+  /**
+   * #101 этап 3: с ID расчета матрица берет требования комплекта ГОСТ 34 (если они
+   * есть) и показывает позиции спецификации, обоснованные каждым требованием.
+   */
+  calculationId?: string;
   stages: StageRow[];
   answers: Record<string, unknown>;
   fields: { key: string; label: string }[];
@@ -20,6 +29,7 @@ interface Props {
 }
 
 export default function TraceabilityMatrixView({
+  calculationId,
   stages,
   answers,
   fields,
@@ -31,12 +41,47 @@ export default function TraceabilityMatrixView({
   const [statusFilter, setStatusFilter] = useState<'all' | 'covered' | 'unmapped'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [localManualLinks, setLocalManualLinks] = useState<TraceLink[]>(manualLinks);
+  const [packageRequirements, setPackageRequirements] = useState<Gost34RequirementItem[]>([]);
+  const [specificationItems, setSpecificationItems] = useState<SpecificationItem[]>([]);
+
+  useEffect(() => {
+    if (!calculationId) return;
+    const controller = new AbortController();
+    const get = (url: string) =>
+      fetch(url, { headers: withShareHeaders(calculationId), signal: controller.signal }).then(
+        (res) => (res.ok ? res.json() : null),
+      );
+    Promise.all([
+      get(`/api/calculations/${calculationId}/specification/requirements`),
+      get(`/api/calculations/${calculationId}/specification`),
+    ])
+      .then(([options, spec]: [RequirementOptions | null, { specification?: unknown } | null]) => {
+        if (controller.signal.aborted) return;
+        setPackageRequirements(
+          (options?.requirements ?? []).map((r) => ({
+            id: r.id,
+            code: r.code,
+            category: (r.category || 'functional') as Gost34RequirementItem['category'],
+            title: r.title,
+            description: r.description,
+          })),
+        );
+        const snapshot = (spec?.specification as { snapshot?: { items?: SpecificationItem[] } })
+          ?.snapshot;
+        setSpecificationItems(snapshot?.items ?? []);
+      })
+      .catch(() => {
+        // Матрица остается рабочей и без комплекта/спецификации.
+      });
+    return () => controller.abort();
+  }, [calculationId]);
 
   // Prepare standard + custom requirements
   const allRequirements = useMemo(() => {
     if (customRequirements && customRequirements.length > 0) {
       return customRequirements;
     }
+    if (packageRequirements.length > 0) return packageRequirements;
     // Generate enriched requirements from answers
     const hasFz152 = Boolean(answers.fz_152 || answers.security || answers.personal_data);
     const enriched = getEnrichedGostRequirements({
@@ -63,7 +108,7 @@ export default function TraceabilityMatrixView({
     });
 
     return [...enriched, ...stageReqs];
-  }, [customRequirements, answers, stages]);
+  }, [customRequirements, packageRequirements, answers, stages]);
 
   const gostStages: Gost34StageItem[] = useMemo(() => {
     return stages
@@ -87,8 +132,10 @@ export default function TraceabilityMatrixView({
       answers,
       fields,
       localManualLinks,
+      specificationItems,
     );
-  }, [allRequirements, gostStages, answers, fields, localManualLinks]);
+  }, [allRequirements, gostStages, answers, fields, localManualLinks, specificationItems]);
+  const withSupply = matrix.items.some((item) => item.supplyItems.length > 0);
 
   const filteredItems = useMemo(() => {
     return matrix.items.filter((item) => {
@@ -262,13 +309,14 @@ export default function TraceabilityMatrixView({
                 <th className="w-56 px-3.5 py-3">3. Раздел ГОСТ 34.602</th>
                 <th className="w-64 px-3.5 py-3">4. Методика испытаний (ПМИ)</th>
                 <th className="w-56 px-3.5 py-3">5. Этап реализации</th>
+                {withSupply && <th className="w-64 px-3.5 py-3">6. Позиции спецификации</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-nord-3/60">
               {filteredItems.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={withSupply ? 6 : 5}
                     className="py-8 text-center text-xs text-slate-500 dark:text-nord-muted dark:text-nord-muted"
                   >
                     Требований, удовлетворяющих условиям фильтрации, не найдено.
@@ -389,6 +437,17 @@ export default function TraceabilityMatrixView({
                         </div>
                       </div>
                     </td>
+                    {withSupply && (
+                      <td className="px-3.5 py-3 align-top" data-testid="trace-supply">
+                        {item.supplyItems.length ? (
+                          <span className="text-slate-800 dark:text-nord-5">
+                            {supplyItemsText(item.supplyItems)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))
               )}

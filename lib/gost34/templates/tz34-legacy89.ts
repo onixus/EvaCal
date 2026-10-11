@@ -15,7 +15,12 @@ export function buildTZ34LegacySections(payload: Gost34InputPayload): Gost34Sect
   const reqs = payload.customRequirements || [];
   const citations = payload.standardProfile.citations;
 
-  const traceabilityTable = generateTraceabilityTable(reqs, stages);
+  const traceabilityTable = generateTraceabilityTable(
+    reqs,
+    stages,
+    undefined,
+    payload.specification?.items,
+  );
 
   const sections: Gost34Section[] = [
     {

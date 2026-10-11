@@ -18,6 +18,7 @@ vi.mock('@/lib/sizing/service', () => ({
   previewSizingImpact: vi.fn(),
   applySizingImpact: vi.fn(),
   linkSizing: vi.fn(),
+  proposeSizingCandidates: vi.fn(),
 }));
 vi.mock('@/lib/audit', () => ({
   writeAudit: vi.fn(),
@@ -34,6 +35,7 @@ import * as runs from '@/app/api/calculations/[id]/sizing/route';
 import * as impact from '@/app/api/calculations/[id]/sizing/impact/route';
 import * as apply from '@/app/api/calculations/[id]/sizing/apply/route';
 import * as link from '@/app/api/calculations/[id]/sizing/link/route';
+import * as candidates from '@/app/api/calculations/[id]/sizing/candidates/route';
 import * as profiles from '@/app/api/sizing/profiles/route';
 import * as versions from '@/app/api/sizing/versions/[versionId]/route';
 
@@ -90,6 +92,7 @@ describe('calculation sizing routes follow specification access rules', () => {
     vi.mocked(service.previewSizingImpact).mockResolvedValue({ rows: [] } as never);
     vi.mocked(service.applySizingImpact).mockResolvedValue({ snapshot: { version: 4 } } as never);
     vi.mocked(service.linkSizing).mockResolvedValue({ snapshot: { version: 4 } } as never);
+    vi.mocked(service.proposeSizingCandidates).mockResolvedValue({ candidates: [] } as never);
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -176,6 +179,40 @@ describe('calculation sizing routes follow specification access rules', () => {
       new SizingError('Спецификация изменена', 409),
     );
     expect((await apply.POST(req(`${base}/apply`, {}), context)).status).toBe(409);
+  });
+});
+
+describe('catalog candidates for a sizing metric (#101 §5)', () => {
+  const body = { runId: 'r', metric: 'eps' };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('SESSION_SECRET', 'sizing-route-test-secret');
+    vi.stubEnv('SHARE_TOKEN_SECRET', 'sizing-share-test-secret');
+    vi.stubEnv('ALLOW_ANONYMOUS_PRESALE', 'false');
+    vi.mocked(cookies).mockResolvedValue({ get: () => undefined } as never);
+    vi.mocked(service.proposeSizingCandidates).mockResolvedValue({ candidates: [] } as never);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+  it('catalog prices are staff-only: no token 401, shares and review roles 403', async () => {
+    expect((await candidates.POST(req(`${base}/candidates`, body), context)).status).toBe(401);
+    const share = createShareToken({ calculationId: 'calculation-1', scopes: ['write'] });
+    expect((await candidates.POST(req(`${base}/candidates`, body, share), context)).status).toBe(
+      403,
+    );
+    session('techwriter');
+    expect((await candidates.POST(req(`${base}/candidates`, body), context)).status).toBe(403);
+    expect(service.proposeSizingCandidates).not.toHaveBeenCalled();
+  });
+  it('catalog roles get the proposal; it never writes; errors keep their status', async () => {
+    session('presale');
+    const res = await candidates.POST(req(`${base}/candidates`, body), context);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toContain('no-store');
+    expect(service.proposeSizingCandidates).toHaveBeenCalledWith('calculation-1', body);
+    vi.mocked(service.proposeSizingCandidates).mockRejectedValue(
+      new SizingError('Метрика не рассчитана', 409),
+    );
+    expect((await candidates.POST(req(`${base}/candidates`, body), context)).status).toBe(409);
   });
 });
 

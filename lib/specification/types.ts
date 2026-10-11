@@ -45,6 +45,18 @@ export interface SpecificationSizingRef {
 export interface SpecificationItem {
   id: string;
   sizingRef?: SpecificationSizingRef;
+  /**
+   * #101 этап 3: требования ТЗ (ID требований снимка комплекта ГОСТ 34), которыми
+   * обоснована позиция. Необязательно; отсутствие — связей нет. Требования
+   * развиваются, поэтому ID, не найденный в комплекте, не блокирует сохранение.
+   */
+  requirementIds?: string[];
+  /**
+   * Коды связанных требований на момент сохранения (ID → код, например «ТР-Ф-01»),
+   * копируются сервером из комплекта: документ редакции печатает их без обращения к
+   * текущему комплекту. Ключи — подмножество requirementIds.
+   */
+  requirementCodes?: Record<string, string>;
   origin?: SpecificationCatalogOrigin;
   priceOverride?: boolean;
   kind: (typeof ITEM_KINDS)[number];
