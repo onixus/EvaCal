@@ -116,6 +116,14 @@ async function main() {
     console.log(`Импортировано отраслевых пресетов ИТ/ИБ: ${seededPresets.length} шт.`);
   }
 
+  // Библиотека решений (#103 WP-7a): пресеты и шаблоны ТЗ — системные наборы
+  // с утверждённой v1. Идемпотентно: существующие наборы не перезаписываются.
+  const { seedBuiltinSolutionKits } = await import('../lib/solutionKits/seed');
+  const seededKits = await seedBuiltinSolutionKits();
+  if (seededKits.created.length > 0) {
+    console.log(`Библиотека решений: создано встроенных наборов — ${seededKits.created.length}.`);
+  }
+
   // Проверка адресная, по имени демо-шаблона. Раньше здесь стоял findFirst()
   // без условия — и он находил отраслевые пресеты, импортированные строкой выше.
   // На пустой базе выход срабатывал всегда, поэтому демо-шаблон и демонстрационный

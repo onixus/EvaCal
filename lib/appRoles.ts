@@ -161,6 +161,11 @@ const CHANGELOG: NavItem = {
 const STANDARDS: NavItem = { href: '/standards', label: 'Чек-листы и стандарты', group: 'docs' };
 const SUPPLY_CATALOG: NavItem = { href: '/catalog', label: 'Каталог поставки', group: 'work' };
 const CATALOG: NavItem = { href: '/architect', label: 'Архитектурный каталог', group: 'docs' };
+const SOLUTION_KITS: NavItem = {
+  href: '/admin/solution-kits',
+  label: 'Библиотека решений',
+  group: 'docs',
+};
 const CAPACITY: NavItem = { href: '/capacity', label: 'Ресурсный план', group: 'analytics' };
 const ANALYTICS: NavItem = { href: '/analytics', label: 'Сделки и точность', group: 'analytics' };
 const LEADERBOARD: NavItem = { href: '/leaderboard', label: 'Рейтинг команды', group: 'analytics' };
@@ -188,6 +193,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     BOARD,
     CHANGELOG,
     CATALOG,
+    SOLUTION_KITS,
     SUPPLY_CATALOG,
     CAPACITY,
     ANALYTICS,
@@ -242,6 +248,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     CHANGELOG,
     STANDARDS,
     CATALOG,
+    SOLUTION_KITS,
     SUPPLY_CATALOG,
     CAPACITY,
     ANALYTICS,

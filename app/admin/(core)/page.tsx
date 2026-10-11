@@ -32,6 +32,9 @@ export default async function AdminPage(props: { searchParams: Promise<{ page?: 
         description="Визуальный конструктор форм: создавайте шаблоны опросников и настраивайте формулы этапов."
         actions={
           <>
+            <Link href="/admin/solution-kits" className="btn-secondary">
+              Библиотека решений
+            </Link>
             <Link href="/admin/capacity" className="btn-secondary">
               Ёмкость ролей
             </Link>
