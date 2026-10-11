@@ -2,9 +2,17 @@ import type { SpecificationItem } from './types';
 
 /** SPEC document sections; DOCX and XLSX list rows in this order. */
 export const SPEC_ITEM_SECTIONS = [
-  { num: 2, title: 'ПРОГРАММНОЕ ОБЕСПЕЧЕНИЕ И ЛИЦЕНЗИИ', kinds: ['software', 'license'] },
+  {
+    num: 2,
+    title: 'ПРОГРАММНОЕ ОБЕСПЕЧЕНИЕ И ЛИЦЕНЗИИ',
+    kinds: ['software', 'license', 'subscription'],
+  },
   { num: 3, title: 'ОБОРУДОВАНИЕ', kinds: ['hardware'] },
-  { num: 4, title: 'ПОДДЕРЖКА, УСЛУГИ И ПРОЧИЕ ПОЗИЦИИ', kinds: ['support', 'service', 'other'] },
+  {
+    num: 4,
+    title: 'ПОДДЕРЖКА, УСЛУГИ И ПРОЧИЕ ПОЗИЦИИ',
+    kinds: ['support', 'service', 'bundle', 'other'],
+  },
 ] as const satisfies ReadonlyArray<{
   num: number;
   title: string;

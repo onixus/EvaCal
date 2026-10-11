@@ -23,7 +23,12 @@ describe('Границы доступа общего каталога', () => {
     vi.clearAllMocks();
     vi.stubEnv('SESSION_SECRET', 'catalog-test-secret');
     vi.mocked(cookies).mockResolvedValue({ get: () => undefined } as never);
-    vi.mocked(loadCatalog).mockResolvedValue({ vendors: [], products: [] });
+    vi.mocked(loadCatalog).mockResolvedValue({
+      vendors: [],
+      products: [],
+      relations: [],
+      attributeDefinitions: [],
+    });
     vi.mocked(mutateCatalog).mockResolvedValue({ id: 'v' } as never);
   });
   afterEach(() => vi.unstubAllEnvs());

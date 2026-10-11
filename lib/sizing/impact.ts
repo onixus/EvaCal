@@ -4,12 +4,13 @@ import type {
   SpecificationSnapshot,
 } from '../specification/types';
 import {
-  lineAmount,
+  isBundleComponent,
+  lineAmount as rawLineAmount,
   subtractDecimal,
   summarizeSpecification,
   toScaled,
 } from '../specification/totals';
-import { isDecimal } from '../specification/validation';
+import { isDecimal, SpecificationError } from '../specification/validation';
 import { findMetric, metricDecimal } from './refs';
 import type { SizingOutputValue } from './types';
 
@@ -44,6 +45,11 @@ export interface SizingImpactRow {
   amountBefore: string | null;
   amountAfter: string | null;
   amountDelta: string | null;
+  /**
+   * Set for a bundle component (`includedIn`): its quantity follows the bundle, so the
+   * row is never applied directly; the change is proposed as a bundle quantity instead.
+   */
+  bundle?: { itemId: string; name: string; proposedQuantity: string | null };
 }
 
 export interface SizingImpactRun {
@@ -88,13 +94,17 @@ function sameDecimal(a: string, b: string): boolean {
   return toScaled(a) === toScaled(b);
 }
 function multiply(a: string, b: string): string {
-  return lineAmount({ quantity: a, unitPrice: b })!;
+  return rawLineAmount({ quantity: a, unitPrice: b })!;
 }
 function sign(value: string): number {
   return value.startsWith('-') ? -1 : /^0(\.0+)?$/.test(value) ? 0 : 1;
 }
 
 export function evaluateItem(item: SpecificationItem, run: SizingImpactRun): SizingImpactRow {
+  // Totals rule 3a: a bundle component carries no cost of its own (the bundle row does),
+  // so its amounts and cost delta stay null while quantity coverage is still checked.
+  const lineAmount = (row: Pick<SpecificationItem, 'quantity' | 'unitPrice'>) =>
+    isBundleComponent(item) ? null : rawLineAmount(row);
   const ref = item.sizingRef;
   const row: SizingImpactRow = {
     itemId: item.id,
@@ -190,6 +200,14 @@ export function applySizingSelections(
 ): SpecificationSnapshot {
   const byId = new Map(rows.map((r) => [r.itemId, r]));
   const chosen = new Map(selections.map((s) => [s.itemId, s]));
+  for (const selection of selections) {
+    const component = snapshot.items.find((i) => i.id === selection.itemId && i.includedIn);
+    if (component)
+      throw new SpecificationError(
+        `«${component.name || component.id}» — компонент комплекта: измените количество комплектов, а не компонента.`,
+        409,
+      );
+  }
   return {
     ...snapshot,
     status: 'draft',
@@ -223,12 +241,49 @@ export function applySizingSelections(
   };
 }
 
+/**
+ * A bundle component's quantity is bundles × per-bundle quantity: it is never
+ * pre-selected or applied; the needed bundle quantity is proposed instead.
+ */
+function markBundleComponents(snapshot: SpecificationSnapshot, rows: SizingImpactRow[]) {
+  const items = new Map(snapshot.items.map((i) => [i.id, i]));
+  for (const row of rows) {
+    const item = items.get(row.itemId);
+    if (!item?.includedIn) continue;
+    const bundle = items.get(item.includedIn);
+    row.defaultSelected = false;
+    let proposed: string | null = null;
+    if (
+      row.newRequired !== null &&
+      item.quantity !== null &&
+      bundle?.quantity &&
+      toScaled(item.quantity) > BigInt(0) &&
+      toScaled(bundle.quantity) > BigInt(0)
+    ) {
+      // per bundle = component / bundles; bundles needed = ceil(required × bundles / component × capacity).
+      const capacityPerBundle = multiply(item.quantity, row.unitCapacity);
+      const needed = ceilQuantity(multiply(row.newRequired, bundle.quantity), capacityPerBundle);
+      if (isDecimal(needed) && !sameDecimal(needed, bundle.quantity)) proposed = needed;
+    }
+    row.bundle = {
+      itemId: item.includedIn,
+      name: bundle?.name || item.includedIn,
+      proposedQuantity: proposed,
+    };
+    if (row.status === 'deficit')
+      row.reason += ` Компонент комплекта «${row.bundle.name}» — увеличьте количество комплектов${proposed ? ` до ${proposed}` : ''}; количество компонента отдельно не меняется.`;
+    else if (row.status === 'surplus')
+      row.reason += ` Компонент комплекта «${row.bundle.name}» — количество комплектов можно уменьшить${proposed ? ` до ${proposed}` : ''}; количество компонента отдельно не меняется.`;
+  }
+}
+
 export function buildSizingImpact(
   snapshot: SpecificationSnapshot,
   run: SizingImpactRun,
   selections?: SizingImpactSelection[],
 ): SizingImpactPreview {
   const rows = snapshot.items.map((item) => evaluateItem(item, run));
+  markBundleComponents(snapshot, rows);
   const linked = new Set(
     snapshot.items
       .filter((i) => i.sizingRef && (i.sizingRef.scenario ?? 'base') === 'base')
@@ -241,6 +296,11 @@ export function buildSizingImpact(
   const chosen = selections ?? defaults;
   const after = applySizingSelections(snapshot, rows, chosen, run);
   const warnings = [
+    ...(rows.some((r) => r.bundle && (r.status === 'deficit' || r.status === 'surplus'))
+      ? [
+          'Компоненты комплектов не обновляются по сайзингу: количество компонента = комплекты × количество на комплект. Измените количество комплектов.',
+        ]
+      : []),
     'Ручные количества и позиции без связи с сайзингом не изменяются автоматически.',
     'Цены не меняются: разница стоимости — количество × текущая цена позиции, без конвертации валют.',
   ];

@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
-import type { SpecificationItem, SpecificationSnapshot } from './types';
+import { ITEM_KIND_LABELS, type SpecificationSnapshot } from './types';
 import { DISPOSITION_LABELS, STATUS_LABELS, specificationSections } from './sections';
-import { lineAmount, normalizeDecimal, summarizeSpecification } from './totals';
+import { isBundleComponent, lineAmount, normalizeDecimal, summarizeSpecification } from './totals';
 
 export const SPEC_XLSX_SHEETS = {
   items: 'Спецификация',
@@ -30,16 +30,10 @@ export const SPEC_XLSX_HEADERS = [
   'Подтверждено',
   'Причина изменения',
   'ID строки',
+  'Входит в комплект (ID строки)',
 ] as const;
 
-const KIND_LABELS: Record<SpecificationItem['kind'], string> = {
-  hardware: 'Оборудование',
-  software: 'ПО',
-  license: 'Лицензия',
-  support: 'Поддержка',
-  service: 'Услуга',
-  other: 'Другое',
-};
+const KIND_LABELS = ITEM_KIND_LABELS;
 
 type Cell = string | number | null;
 
@@ -76,12 +70,14 @@ export function specificationXlsxRows(snapshot: SpecificationSnapshot): Cell[][]
       item.unit,
       decimalCell(item.unitPrice),
       item.currency,
-      decimalCell(lineAmount(item)),
+      // A bundle component is never summed (totals rule 3a): no amount, explicit note.
+      isBundleComponent(item) ? 'в составе комплекта' : decimalCell(lineAmount(item)),
       item.source,
       item.rationale,
       item.confirmed ? 'да' : 'нет',
       item.changeReason ?? '',
       item.id,
+      item.includedIn ?? '',
     ]),
   );
 }

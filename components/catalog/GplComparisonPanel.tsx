@@ -1,4 +1,5 @@
 'use client';
+import { ITEM_KIND_LABELS } from '@/lib/specification/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { productInput, offerInput } from '@/lib/catalog/validation';
 import { taxLabel } from '@/lib/catalog/import-values';
@@ -37,14 +38,7 @@ const fieldNames: Record<ComparisonField, string> = {
   taxRate: 'НДС, %',
   discountCategory: 'Скидочная категория',
 };
-const kindNames: Record<string, string> = {
-  hardware: 'Оборудование',
-  software: 'ПО',
-  license: 'Лицензия',
-  support: 'Поддержка',
-  service: 'Услуга',
-  other: 'Другое',
-};
+const kindNames: Record<string, string> = ITEM_KIND_LABELS;
 const PAGE_SIZE = 50;
 const sourceLabel = (source: SavedImport) =>
   `${source.filename} · ${source.createdAt} · ред. ${source.revision} · SHA-256 ${source.checksum}`;

@@ -1,4 +1,6 @@
 import type { SpecificationItem } from '../specification/types';
+import type { ProductRelation } from './relations';
+import type { AttributeDefinition } from './attributes';
 export const CATALOG_ROLES = ['admin', 'architect', 'presale'];
 export interface Vendor {
   id: string;
@@ -71,8 +73,13 @@ export interface Product extends ProductInput {
   archived: boolean;
   vendor: Vendor;
   offers: Offer[];
+  /** Attribute problems against the definitions (invalid values, unknown names); review only. */
+  attributeFlags?: string[];
 }
 export interface Catalog {
   vendors: Vendor[];
   products: Product[];
+  /** Active and archived relations (archived kept for history). */
+  relations?: ProductRelation[];
+  attributeDefinitions?: AttributeDefinition[];
 }

@@ -36,7 +36,12 @@ export async function saveSpecification(
   calculationId: string,
   input: unknown,
   actorId: string,
-  options: { allowOriginUpdates?: boolean; allowNewCatalogOrigins?: boolean } = {},
+  options: {
+    allowOriginUpdates?: boolean;
+    allowNewCatalogOrigins?: boolean;
+    /** Extra checks inside the write transaction (after the version lock). */
+    beforeWrite?: (tx: Prisma.TransactionClient) => Promise<void>;
+  } = {},
 ) {
   const snapshot = parseSpecification(input);
   if (snapshot.status === 'released')
@@ -128,6 +133,7 @@ export async function saveSpecification(
       }
     }
     // Связи с сайзингом проверяются по неизменяемым прогонам этого расчета.
+    if (options.beforeWrite) await options.beforeWrite(tx);
     const sizingRunIds = await verifySizingRefs(tx, calculationId, snapshot.items);
     const { sizingRunIds: _clientRunIds, ...rest } = clearStaleChangeReasons(previous, snapshot);
     const next = {

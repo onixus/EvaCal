@@ -5,6 +5,7 @@ import { object, text, revision, productInput, offerInput } from './validation';
 import { analyzeImport, importProfile } from './import-parser';
 import { analyzeWithSavedProfile, type Analysis } from './import-profile-analysis';
 import { technicalDiff } from './import-values';
+import { requireKindCompatibleWithRelations } from './store';
 import type { ImportDraft, ImportRow } from './import-types';
 import type { Prisma } from '../generated/prisma/client';
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -258,6 +259,7 @@ export async function mutateImport(id: string, input: unknown, actorId: string) 
                 `Строка ${row.rowNumber}: позиция каталога изменилась после проверки. Примените настройки и проверьте строки заново.`,
                 409,
               );
+            await requireKindCompatibleWithRelations(tx, product.id, product.kind, technical.kind);
             const updated = await tx.catalogProduct.updateMany({
               where: { id: product.id, revision: product.revision, archived: false },
               data: {

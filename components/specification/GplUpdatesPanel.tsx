@@ -1,4 +1,5 @@
 'use client';
+import { ITEM_KIND_LABELS } from '@/lib/specification/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { withShareHeaders } from '@/lib/shareClient';
 import type { SavedSpecification, SpecificationSnapshot } from '@/lib/specification/types';
@@ -31,14 +32,7 @@ const fieldNames: Record<GplUpdateField, string> = {
   unitPrice: 'Цена',
   currency: 'Валюта',
 };
-const kinds: Record<string, string> = {
-  hardware: 'Оборудование',
-  software: 'ПО',
-  license: 'Лицензия',
-  support: 'Поддержка',
-  service: 'Услуга',
-  other: 'Другое',
-};
+const kinds: Record<string, string> = ITEM_KIND_LABELS;
 function fieldText(field: GplUpdateField, value: string | null) {
   return value === null
     ? 'Неизвестно'

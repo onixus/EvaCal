@@ -6,6 +6,7 @@ import {
 import {
   ITEM_KINDS,
   ITEM_DISPOSITIONS,
+  LICENSED_KINDS,
   SPECIFICATION_STATUSES,
   type SpecificationSizingRef,
   FINAL_SPECIFICATION_STATUSES,
@@ -208,6 +209,17 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
       throw new SpecificationError('Валюта: код из 3 букв');
     const changeReason =
       row.changeReason === undefined ? '' : text(row.changeReason, 'Причина изменения', 1000);
+    const includedIn =
+      row.includedIn === undefined || row.includedIn === null || row.includedIn === ''
+        ? ''
+        : text(row.includedIn, 'Входит в комплект', 100);
+    if (
+      row.perBundle !== undefined &&
+      (!includedIn || !isDecimal(row.perBundle) || !/[1-9]/.test(row.perBundle))
+    )
+      throw new SpecificationError(
+        'Количество на комплект: положительное число только для компонента комплекта',
+      );
     return {
       id,
       ...(row.origin === undefined ? {} : { origin: parseCatalogOrigin(row.origin) }),
@@ -229,6 +241,8 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
       unitPrice: row.unitPrice as string | null,
       currency,
       ...(changeReason ? { changeReason } : {}),
+      ...(includedIn ? { includedIn } : {}),
+      ...(row.perBundle === undefined ? {} : { perBundle: row.perBundle as string }),
     };
   });
   let sizingRunIds: string[] | undefined;
@@ -236,6 +250,20 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
     if (!Array.isArray(data.sizingRunIds) || data.sizingRunIds.length > 500)
       throw new SpecificationError('Некорректный список прогонов сайзинга');
     sizingRunIds = data.sizingRunIds.map((id) => text(id, 'Прогон сайзинга', 100));
+  }
+  // Bundle composition: one level, the parent is a bundle row of this snapshot.
+  const byId = new Map(items.map((item) => [item.id, item]));
+  for (const item of items) {
+    if (!item.includedIn) continue;
+    const parent = byId.get(item.includedIn);
+    if (!parent || parent.id === item.id || parent.kind !== 'bundle' || parent.includedIn)
+      throw new SpecificationError(
+        `${item.name || item.id}: «входит в комплект» должно ссылаться на строку-комплект этой спецификации`,
+      );
+    if (item.kind === 'bundle')
+      throw new SpecificationError(
+        `${item.name || item.id}: вложенные комплекты не поддерживаются`,
+      );
   }
   return {
     version: Number(data.version),
@@ -273,7 +301,7 @@ export function specificationBlockers(spec?: SpecificationSnapshot): string[] {
         `${prefix}: нужны название, положительное количество, единица, источник, основание и подтверждение.`,
       );
     }
-    if (['software', 'license'].includes(item.kind) && !item.licensing) {
+    if (LICENSED_KINDS.includes(item.kind) && !item.licensing) {
       problems.push(
         `${prefix}: укажите модель лицензирования или право использования имеющегося ПО.`,
       );

@@ -2,6 +2,88 @@ import { prisma } from '../prisma';
 import { SpecificationError } from '../specification/validation';
 import { object, text, revision, productInput, offerInput } from './validation';
 import { Prisma } from '../generated/prisma/client';
+import { checkRelation, relationInput, type ProductRelation } from './relations';
+import {
+  attributeDefinitionInput,
+  attributeFlags,
+  checkAttributes,
+  type AttributeDefinition,
+} from './attributes';
+import type { Attribute } from './types';
+
+type DefinitionRow = Prisma.CatalogAttributeDefinitionGetPayload<object>;
+type RelationRow = Prisma.CatalogProductRelationGetPayload<object>;
+export function mapDefinition(row: DefinitionRow): AttributeDefinition {
+  const strings = (value: unknown) =>
+    Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : null;
+  return {
+    id: row.id,
+    key: row.key,
+    label: row.label,
+    valueType: row.valueType as AttributeDefinition['valueType'],
+    unit: row.unit,
+    allowedUnits: strings(row.allowedUnits),
+    enumValues: strings(row.enumValues),
+    archived: row.archived,
+    revision: row.revision,
+  };
+}
+export function mapRelation(row: RelationRow): ProductRelation {
+  return {
+    id: row.id,
+    fromProductId: row.fromProductId,
+    toProductId: row.toProductId,
+    type: row.type as ProductRelation['type'],
+    quantity: row.quantity?.toString() ?? null,
+    note: row.note,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt.toISOString(),
+    archivedAt: row.archivedAt?.toISOString() ?? null,
+    archivedBy: row.archivedBy,
+  };
+}
+/**
+ * A kind change must keep active bundle composition consistent: a bundle with
+ * components cannot stop being a bundle, and a component cannot become a bundle.
+ * The relations are archived explicitly first (409 with a clear message otherwise).
+ */
+export async function requireKindCompatibleWithRelations(
+  tx: Prisma.TransactionClient,
+  productId: string,
+  oldKind: string,
+  newKind: string,
+) {
+  if (oldKind === newKind) return;
+  if (oldKind === 'bundle') {
+    const components = await tx.catalogProductRelation.count({
+      where: { fromProductId: productId, type: 'bundleComponent', archivedAt: null },
+    });
+    if (components)
+      throw new SpecificationError(
+        `Позиция — комплект с компонентами (${components}): архивируйте связи состава перед сменой типа.`,
+        409,
+      );
+  }
+  if (newKind === 'bundle') {
+    const parents = await tx.catalogProductRelation.count({
+      where: { toProductId: productId, type: 'bundleComponent', archivedAt: null },
+    });
+    if (parents)
+      throw new SpecificationError(
+        'Позиция входит в состав комплекта и не может стать комплектом: вложенные комплекты не поддерживаются. Архивируйте связь состава.',
+        409,
+      );
+  }
+}
+/** Manual writes must satisfy existing definitions; unknown attributes stay allowed. */
+async function requireValidAttributes(tx: Prisma.TransactionClient, attributes: Attribute[]) {
+  if (!attributes.length) return;
+  const definitions = (
+    await tx.catalogAttributeDefinition.findMany({ where: { archived: false } })
+  ).map(mapDefinition);
+  const { errors } = checkAttributes(attributes, definitions);
+  if (errors.length) throw new SpecificationError(errors.join('\n'));
+}
 
 async function lockProduct(tx: Prisma.TransactionClient, id: string) {
   const rows = await tx.$queryRaw<
@@ -12,17 +94,23 @@ async function lockProduct(tx: Prisma.TransactionClient, id: string) {
 }
 
 export async function loadCatalog() {
-  const [vendors, rows] = await Promise.all([
+  const [vendors, rows, relations, definitionRows] = await Promise.all([
     prisma.catalogVendor.findMany({ orderBy: [{ name: 'asc' }, { id: 'asc' }] }),
     prisma.catalogProduct.findMany({
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
       include: { vendor: true, offers: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] } },
     }),
+    prisma.catalogProductRelation.findMany({ orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
+    prisma.catalogAttributeDefinition.findMany({ orderBy: [{ label: 'asc' }, { id: 'asc' }] }),
   ]);
+  const attributeDefinitions = definitionRows.map(mapDefinition);
   return {
     vendors,
+    relations: relations.map(mapRelation),
+    attributeDefinitions,
     products: rows.map((p) => ({
       ...p,
+      attributeFlags: attributeFlags(p.attributes as unknown as Attribute[], attributeDefinitions),
       offers: p.offers.map((o) => ({
         ...o,
         unitPrice: o.unitPrice?.toString() ?? null,
@@ -31,14 +119,72 @@ export async function loadCatalog() {
     })),
   };
 }
-export async function mutateCatalog(input: unknown, actorId: string) {
+/** Runs in its own transaction, or inside `db` when composed (suggestion acceptance). */
+export async function mutateCatalog(
+  input: unknown,
+  actorId: string,
+  db?: Prisma.TransactionClient,
+) {
   const d = object(input);
-  return prisma.$transaction(async (tx) => {
+  const run = async (tx: Prisma.TransactionClient) => {
     if (d.action === 'vendor.create')
       return tx.catalogVendor.create({
         data: { name: text(d.name, 'Вендор', 200, true), createdBy: actorId },
       });
+    if (d.action === 'relation.create') return createRelation(tx, d.relation, actorId);
+    if (d.action === 'attribute.create') {
+      const data = attributeDefinitionInput(d.definition);
+      const clash = await tx.catalogAttributeDefinition.findUnique({ where: { key: data.key } });
+      if (clash) throw new SpecificationError('Характеристика с таким ключом уже существует', 409);
+      return mapDefinition(
+        await tx.catalogAttributeDefinition.create({
+          data: {
+            ...data,
+            allowedUnits: data.allowedUnits ?? Prisma.DbNull,
+            enumValues: data.enumValues ?? Prisma.DbNull,
+            createdBy: actorId,
+          },
+        }),
+      );
+    }
     const id = d.action === 'product.create' ? '' : text(d.id, 'ID', 100, true);
+    if (d.action === 'relation.archive') {
+      const result = await tx.catalogProductRelation.updateMany({
+        where: { id, archivedAt: null },
+        data: { archivedAt: new Date(), archivedBy: actorId },
+      });
+      if (!result.count) throw new SpecificationError('Связь не найдена или уже в архиве', 409);
+      return mapRelation(await tx.catalogProductRelation.findUniqueOrThrow({ where: { id } }));
+    }
+    if (d.action === 'attribute.update' || d.action === 'attribute.archive') {
+      const data = d.action === 'attribute.update' ? attributeDefinitionInput(d.definition) : null;
+      if (
+        data &&
+        (await tx.catalogAttributeDefinition.findFirst({ where: { key: data.key, NOT: { id } } }))
+      )
+        throw new SpecificationError('Характеристика с таким ключом уже существует', 409);
+      const result = await tx.catalogAttributeDefinition.updateMany({
+        where: { id, revision: revision(d.revision), archived: false },
+        data: {
+          ...(data
+            ? {
+                ...data,
+                allowedUnits: data.allowedUnits ?? Prisma.DbNull,
+                enumValues: data.enumValues ?? Prisma.DbNull,
+              }
+            : { archived: true }),
+          revision: { increment: 1 },
+        },
+      });
+      if (!result.count)
+        throw new SpecificationError(
+          'Характеристика изменена или в архиве. Обновите каталог.',
+          409,
+        );
+      return mapDefinition(
+        await tx.catalogAttributeDefinition.findUniqueOrThrow({ where: { id } }),
+      );
+    }
     if (d.action === 'vendor.update' || d.action === 'vendor.archive') {
       const result = await tx.catalogVendor.updateMany({
         where: { id, revision: revision(d.revision) },
@@ -61,12 +207,14 @@ export async function mutateCatalog(input: unknown, actorId: string) {
         const current = await lockProduct(tx, id);
         if (current.archived || current.revision !== revision(d.revision))
           throw new SpecificationError('Позиция изменена или архивирована. Обновите каталог.', 409);
+        await requireKindCompatibleWithRelations(tx, id, current.kind, data.kind);
       }
       const vendor = await tx.$queryRaw<
         Array<{ archived: boolean }>
       >`SELECT archived FROM "CatalogVendor" WHERE id = ${data.vendorId} FOR UPDATE`;
       if (!vendor.length || vendor[0].archived)
         throw new SpecificationError('Выберите действующего вендора', 409);
+      await requireValidAttributes(tx, data.attributes);
       if (d.action === 'product.create')
         return tx.catalogProduct.create({
           data: { ...data, attributes: data.attributes.map((a) => ({ ...a })), createdBy: actorId },
@@ -163,5 +311,35 @@ export async function mutateCatalog(input: unknown, actorId: string) {
       };
     }
     throw new SpecificationError('Неизвестное действие каталога');
+  };
+  return db ? run(db) : prisma.$transaction(run);
+}
+
+/** Serialized by an advisory lock so concurrent writes cannot close a cycle together. */
+async function createRelation(tx: Prisma.TransactionClient, input: unknown, actorId: string) {
+  const data = relationInput(input);
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('catalog-product-relations'))`;
+  const ids = [data.fromProductId, data.toProductId].sort();
+  const products = await tx.$queryRaw<Array<{ id: string; archived: boolean; kind: string }>>`
+    SELECT id, archived, kind FROM "CatalogProduct" WHERE id IN (${ids[0]}, ${ids[1]})
+    ORDER BY id FOR SHARE
+  `;
+  const from = products.find((p) => p.id === data.fromProductId);
+  const to = products.find((p) => p.id === data.toProductId);
+  if (!from || !to) throw new SpecificationError('Позиция связи не найдена', 404);
+  // A replaced (old) product may already be archived; the replacement must be active.
+  if (from.archived || (data.type !== 'replaces' && to.archived))
+    throw new SpecificationError('Связь создается для действующих позиций', 409);
+  if (data.type === 'bundleComponent' && (from.kind !== 'bundle' || to.kind === 'bundle'))
+    throw new SpecificationError(
+      'Компоненты задаются для позиции типа «Комплект»; вложенные комплекты не поддерживаются',
+    );
+  const active = await tx.catalogProductRelation.findMany({
+    where: { archivedAt: null, type: data.type },
+    select: { fromProductId: true, toProductId: true, type: true },
   });
+  checkRelation(active as Parameters<typeof checkRelation>[0], data);
+  return mapRelation(
+    await tx.catalogProductRelation.create({ data: { ...data, createdBy: actorId } }),
+  );
 }
