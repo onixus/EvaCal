@@ -42,6 +42,39 @@ export function mapRelation(row: RelationRow): ProductRelation {
     archivedBy: row.archivedBy,
   };
 }
+/**
+ * A kind change must keep active bundle composition consistent: a bundle with
+ * components cannot stop being a bundle, and a component cannot become a bundle.
+ * The relations are archived explicitly first (409 with a clear message otherwise).
+ */
+export async function requireKindCompatibleWithRelations(
+  tx: Prisma.TransactionClient,
+  productId: string,
+  oldKind: string,
+  newKind: string,
+) {
+  if (oldKind === newKind) return;
+  if (oldKind === 'bundle') {
+    const components = await tx.catalogProductRelation.count({
+      where: { fromProductId: productId, type: 'bundleComponent', archivedAt: null },
+    });
+    if (components)
+      throw new SpecificationError(
+        `Позиция — комплект с компонентами (${components}): архивируйте связи состава перед сменой типа.`,
+        409,
+      );
+  }
+  if (newKind === 'bundle') {
+    const parents = await tx.catalogProductRelation.count({
+      where: { toProductId: productId, type: 'bundleComponent', archivedAt: null },
+    });
+    if (parents)
+      throw new SpecificationError(
+        'Позиция входит в состав комплекта и не может стать комплектом: вложенные комплекты не поддерживаются. Архивируйте связь состава.',
+        409,
+      );
+  }
+}
 /** Manual writes must satisfy existing definitions; unknown attributes stay allowed. */
 async function requireValidAttributes(tx: Prisma.TransactionClient, attributes: Attribute[]) {
   if (!attributes.length) return;
@@ -174,6 +207,7 @@ export async function mutateCatalog(
         const current = await lockProduct(tx, id);
         if (current.archived || current.revision !== revision(d.revision))
           throw new SpecificationError('Позиция изменена или архивирована. Обновите каталог.', 409);
+        await requireKindCompatibleWithRelations(tx, id, current.kind, data.kind);
       }
       const vendor = await tx.$queryRaw<
         Array<{ archived: boolean }>

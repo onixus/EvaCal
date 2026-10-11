@@ -146,6 +146,29 @@ export function componentQuantity(bundles: string | null, perBundle: string): st
 }
 
 /**
+ * After a bundle quantity edit: components with a recorded per-bundle quantity get
+ * bundles × per bundle (unknown when the bundle quantity is unknown or invalid);
+ * a changed component loses its confirmation.
+ */
+export function syncBundleComponents(items: SpecificationItem[], bundleId: string) {
+  const bundle = items.find((i) => i.id === bundleId);
+  if (!bundle || bundle.kind !== 'bundle') return items;
+  return items.map((item) => {
+    if (item.includedIn !== bundleId || !item.perBundle) return item;
+    let quantity: string | null = null;
+    try {
+      quantity =
+        bundle.quantity !== null && isDecimal(bundle.quantity)
+          ? componentQuantity(bundle.quantity, item.perBundle)
+          : null;
+    } catch {
+      quantity = null;
+    }
+    return quantity === item.quantity ? item : { ...item, quantity, confirmed: false };
+  });
+}
+
+/**
  * Expands a copied bundle row with copies of its components. Components reference the
  * bundle via `includedIn`, so totals count only the bundle row (no double counting).
  */
@@ -162,6 +185,7 @@ export function expandBundle(
       quantity: componentQuantity(bundle.quantity, perBundle),
       rationale: `Состав комплекта «${bundle.name}»: ${perBundle} ${item.unit} на 1 комплект`,
       includedIn: bundle.id,
+      perBundle,
     })),
   ];
 }

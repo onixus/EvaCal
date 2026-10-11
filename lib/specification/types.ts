@@ -70,6 +70,8 @@ export interface SpecificationItem {
    * the bundle row carries the price (see totals.ts, rule 3a).
    */
   includedIn?: string;
+  /** Component quantity per one bundle (with `includedIn`); the editor derives quantity from it. */
+  perBundle?: string;
 }
 
 /**

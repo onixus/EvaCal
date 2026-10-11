@@ -206,6 +206,37 @@ export async function verifyRelations(actor: string, templateId: string) {
     toProductId: newer.id,
     quantity: '2',
   });
+  // Kind changes must keep the composition consistent (409, nothing written).
+  const kitNow = await prisma.catalogProduct.findUniqueOrThrow({ where: { id: kit.id } });
+  await assert.rejects(
+    mutateCatalog(
+      {
+        action: 'product.update',
+        id: kit.id,
+        revision: kitNow.revision,
+        product: { ...base, name: 'Сервер KIT', sku: 'KIT', kind: 'hardware', unit: 'компл.' },
+      },
+      actor,
+    ),
+    (e) => rejects409(e) && /архивируйте связи состава/.test((e as Error).message),
+  );
+  const newerNow = await prisma.catalogProduct.findUniqueOrThrow({ where: { id: newer.id } });
+  await assert.rejects(
+    mutateCatalog(
+      {
+        action: 'product.update',
+        id: newer.id,
+        revision: newerNow.revision,
+        product: { ...base, name: 'Сервер NEWER', sku: 'NEWER', kind: 'bundle' },
+      },
+      actor,
+    ),
+    (e) => rejects409(e) && /вложенные комплекты/.test((e as Error).message),
+  );
+  assert.equal(
+    (await prisma.catalogProduct.findUniqueOrThrow({ where: { id: kit.id } })).kind,
+    'bundle',
+  );
   const alternative = await relation(actor, {
     type: 'alternative',
     fromProductId: c.id,
@@ -354,5 +385,94 @@ export async function verifyRelations(actor: string, templateId: string) {
     (await loadSpecification(calculation.id, 1))?.snapshot.items,
     released.snapshot.items,
     'suggestions never change the project',
+  );
+
+  // Bundle → bundle replacement rebuilds the composition; bundle → non-bundle needs consent.
+  const kit2 = await make('KIT2', { kind: 'bundle', unit: 'компл.' });
+  await relation(actor, {
+    type: 'bundleComponent',
+    fromProductId: kit2.id,
+    toProductId: c.id,
+    quantity: '3',
+  });
+  const kitReplaced = await relation(actor, {
+    type: 'replaces',
+    fromProductId: kit2.id,
+    toProductId: kit.id,
+  });
+  const plainForKit = await relation(actor, {
+    type: 'replaces',
+    fromProductId: d.id,
+    toProductId: kit.id,
+  });
+  catalog = await loadCatalog();
+  const current = JSON.parse(JSON.stringify(catalog.products)) as Product[];
+  const bundleCalc = await prisma.calculation.create({
+    data: { templateId, name: `${actor}-bundle`, customer: 'CI', answers: '{}' },
+  });
+  const bundleRows = expandBundle(
+    {
+      ...catalogItem(
+        current.find((p) => p.id === kit.id)!,
+        undefined,
+        'kit-row',
+      ),
+      quantity: '2',
+    },
+    [
+      {
+        item: catalogItem(
+          current.find((p) => p.id === newer.id)!,
+          undefined,
+          'kit-comp',
+        ),
+        perBundle: '2',
+      },
+    ],
+  );
+  await saveSpecification(
+    bundleCalc.id,
+    { version: 0, status: 'draft', emptySupplyReason: '', items: bundleRows },
+    actor,
+  );
+  await assert.rejects(
+    applyReplacement(
+      bundleCalc.id,
+      { version: 1, itemId: 'kit-row', relationId: plainForKit.id },
+      actor,
+    ),
+    /подтвердите удаление состава/,
+  );
+  const rebuilt = await applyReplacement(
+    bundleCalc.id,
+    { version: 1, itemId: 'kit-row', relationId: kitReplaced.id },
+    actor,
+  );
+  assert.deepEqual(
+    rebuilt.snapshot.items.map((i) => [i.sku, i.quantity, i.includedIn ?? '']),
+    [
+      ['KIT2', '2', ''],
+      ['C', '6', 'kit-row'],
+    ],
+  );
+  // Suggestions are removed together with their calculation (FK cascade).
+  const manualRow = {
+    ...catalogItem(
+      current.find((p) => p.id === c.id)!,
+      undefined,
+      'm',
+    ),
+  };
+  delete manualRow.origin;
+  await saveSpecification(
+    bundleCalc.id,
+    { ...rebuilt.snapshot, items: [...rebuilt.snapshot.items, { ...manualRow, name: 'Ручная' }] },
+    actor,
+  );
+  await createSuggestion(bundleCalc.id, { version: 3, itemId: 'm' }, actor);
+  await prisma.calculation.delete({ where: { id: bundleCalc.id } });
+  assert.equal(
+    await prisma.catalogSuggestion.count({ where: { calculationId: bundleCalc.id } }),
+    0,
   );
 }

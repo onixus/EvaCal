@@ -62,6 +62,8 @@ CREATE TABLE "CatalogSuggestion" (
  "reviewedAt" TIMESTAMP(3),
  "comment" TEXT NOT NULL DEFAULT '',
  "createdProductId" TEXT,
+ -- A suggestion belongs to its calculation: removed together with it.
+ CONSTRAINT "CatalogSuggestion_calculationId_fkey" FOREIGN KEY ("calculationId") REFERENCES "Calculation"("id") ON DELETE CASCADE ON UPDATE CASCADE,
  CONSTRAINT "CatalogSuggestion_createdProductId_fkey" FOREIGN KEY ("createdProductId") REFERENCES "CatalogProduct"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
  CHECK ("status" IN ('pending','accepted','rejected')),
  CHECK ("specificationVersion" > 0),

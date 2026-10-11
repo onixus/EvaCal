@@ -30,6 +30,7 @@ export const SPEC_XLSX_HEADERS = [
   'Подтверждено',
   'Причина изменения',
   'ID строки',
+  'Входит в комплект (ID строки)',
 ] as const;
 
 const KIND_LABELS = ITEM_KIND_LABELS;
@@ -76,6 +77,7 @@ export function specificationXlsxRows(snapshot: SpecificationSnapshot): Cell[][]
       item.confirmed ? 'да' : 'нет',
       item.changeReason ?? '',
       item.id,
+      item.includedIn ?? '',
     ]),
   );
 }

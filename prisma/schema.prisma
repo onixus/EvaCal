@@ -233,6 +233,8 @@ model Calculation {
   taskMappings    ExternalTaskMapping[]
   // #103 WP-5e: явные зависимости этапов
   stageDependencies StageDependency[]
+  // #101: предложения ручных строк спецификации в каталог
+  catalogSuggestions CatalogSuggestion[]
 
   // The calculation list is always sorted newest-first. `id` is part of the index
   // because it is the tie-breaker in the paged ordering: without it, rows sharing a
@@ -1229,6 +1231,7 @@ model CatalogAttributeDefinition {
 model CatalogSuggestion {
   id                   String          @id @default(cuid())
   calculationId        String
+  calculation          Calculation     @relation(fields: [calculationId], references: [id], onDelete: Cascade)
   specificationVersion Int
   itemSnapshot         Json
   status               String          @default("pending") // pending | accepted | rejected

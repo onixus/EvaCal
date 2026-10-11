@@ -158,6 +158,8 @@ const MISSING_NAME_ERROR = (() => {
  * are then mapped onto specification fields here. Nothing is saved.
  */
 const HEADER_PATTERNS: Array<[BomField, RegExp]> = [
+  ['includedIn', /^входит в комплект/i],
+  ['rowId', /^id строки$/i],
   ['sku', /артикул|sku|p\/n|part ?(number|no)|партномер/i],
   ['vendor', /вендор|производител|vendor|manufacturer|бренд/i],
   ['quantity', /кол-?во|количеств|qty|quantity/i],
@@ -185,6 +187,39 @@ export function guessBomMapping(headers: string[]): BomProfile['mapping'] {
     }
   }
   return mapping;
+}
+
+/**
+ * Restores bundle composition from the «ID строки» / «Входит в комплект» columns:
+ * a component gets the new ID of its bundle row from the same file. A component whose
+ * bundle row is missing, invalid or not a bundle is an error (never a priced row).
+ */
+function resolveBundles(rows: BomRow[], profile: BomProfile) {
+  const parentColumn = profile.mapping.includedIn;
+  if (parentColumn === undefined) return;
+  const idColumn = profile.mapping.rowId;
+  const cell = (row: BomRow, column: number | undefined) =>
+    column === undefined ? '' : (row.raw[column] ?? '').trim();
+  const bySourceId = new Map<string, BomRow>();
+  for (const row of rows) if (cell(row, idColumn)) bySourceId.set(cell(row, idColumn), row);
+  for (const row of rows) {
+    const parentId = cell(row, parentColumn);
+    if (!parentId || !row.item) continue;
+    const parent = bySourceId.get(parentId);
+    if (!parent?.item || parent.item.kind !== 'bundle' || parent === row) {
+      row.errors.push(
+        `Строка входит в комплект «${parentId}», но строка комплекта отсутствует, содержит ошибки или не является комплектом`,
+      );
+      row.item = null;
+      continue;
+    }
+    if (row.item.kind === 'bundle') {
+      row.errors.push('Вложенные комплекты не поддерживаются');
+      row.item = null;
+      continue;
+    }
+    row.item = { ...row.item, includedIn: parent.item.id };
+  }
 }
 
 export function analyzeBom(bytes: Uint8Array, filename: string, input: BomProfile): BomPreview {
@@ -300,6 +335,7 @@ export function analyzeBom(bytes: Uint8Array, filename: string, input: BomProfil
       errors,
     };
   });
+  resolveBundles(rows, profile);
   return {
     filename,
     sheets: priced.sheets,

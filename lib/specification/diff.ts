@@ -1,5 +1,15 @@
 import type { SpecificationCurrencyTotal, SpecificationItem, SpecificationSnapshot } from './types';
-import { lineAmount, normalizeDecimal, subtractDecimal, summarizeSpecification } from './totals';
+import {
+  isBundleComponent,
+  lineAmount as rawLineAmount,
+  normalizeDecimal,
+  subtractDecimal,
+  summarizeSpecification,
+} from './totals';
+
+/** A bundle component has no amount of its own (totals rule 3a): the bundle row carries it. */
+const lineAmount = (item: SpecificationItem) =>
+  isBundleComponent(item) ? null : rawLineAmount(item);
 
 /** Fields compared between revisions, in display order. */
 export const DIFF_FIELDS = [
@@ -53,9 +63,11 @@ export interface DiffItem {
   quantity: string | null;
   unitPrice: string | null;
   currency: string;
-  /** Exact quantity × price; null when unknown. */
+  /** Exact quantity × price; null when unknown or for a bundle component. */
   amount: string | null;
   changeReason: string;
+  /** Component of a bundle row: listed for composition, not summed. */
+  bundleComponent?: boolean;
 }
 
 export interface ChangedItem {
@@ -66,6 +78,8 @@ export interface ChangedItem {
   amount: { before: string | null; after: string | null } | null;
   changeReason: string;
   moved: boolean;
+  /** Present when the row is a bundle component in either revision (no own amount there). */
+  bundleComponent?: { before: boolean; after: boolean };
 }
 
 export interface TotalDiff {
@@ -109,6 +123,7 @@ function summary(item: SpecificationItem): DiffItem {
     currency: item.currency,
     amount: lineAmount(item),
     changeReason: item.changeReason ?? '',
+    ...(isBundleComponent(item) ? { bundleComponent: true } : {}),
   };
 }
 
@@ -171,7 +186,9 @@ export function diffSpecifications(
       unchangedCount++;
       continue;
     }
-    const money = changes.some((c) => ['quantity', 'unitPrice', 'currency'].includes(c.field));
+    const money = changes.some((c) =>
+      ['quantity', 'unitPrice', 'currency', 'includedIn'].includes(c.field),
+    );
     changed.push({
       id: item.id,
       name: item.name || previous.name,
@@ -183,6 +200,14 @@ export function diffSpecifications(
           ? (item.changeReason ?? '')
           : '',
       moved: isMoved,
+      ...(isBundleComponent(previous) || isBundleComponent(item)
+        ? {
+            bundleComponent: {
+              before: isBundleComponent(previous),
+              after: isBundleComponent(item),
+            },
+          }
+        : {}),
     });
   }
   // A removed row's note belongs to the edit that produced the old revision.

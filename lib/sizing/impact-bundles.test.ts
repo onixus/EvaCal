@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSizingImpact, type SizingImpactRun } from './impact';
+import { applySizingSelections, buildSizingImpact, type SizingImpactRun } from './impact';
 import type { SpecificationItem, SpecificationSnapshot } from '../specification/types';
 
 const row = (over: Partial<SpecificationItem>): SpecificationItem => ({
@@ -68,5 +68,31 @@ describe('sizing impact and bundles (totals rule 3a)', () => {
     // The bundle row carries the price; changing the component quantity does not change totals.
     expect(preview.totals.before[0].total).toBe('1000');
     expect(preview.totals.after[0].total).toBe('1000');
+  });
+  it('is never pre-selected; proposes the bundle quantity and blocks direct apply', () => {
+    const snapshot: SpecificationSnapshot = {
+      version: 1,
+      status: 'draft',
+      emptySupplyReason: '',
+      items: [
+        row({ id: 'kit', kind: 'bundle', quantity: '1', unitPrice: '1000' }),
+        // 2 nodes per bundle; 4 nodes needed → 2 bundles.
+        row({
+          id: 'node',
+          includedIn: 'kit',
+          sizingRef: { runId: 'run-1', metric: 'nodes', requiredQuantity: '2' },
+        }),
+      ],
+    };
+    const preview = buildSizingImpact(snapshot, run);
+    const component = preview.rows.find((r) => r.itemId === 'node')!;
+    expect(component.defaultSelected).toBe(false);
+    expect(preview.selections).toEqual([]);
+    expect(component.bundle).toEqual({ itemId: 'kit', name: 'Узел', proposedQuantity: '2' });
+    expect(component.reason).toMatch(/компонент комплекта.*увеличьте количество комплектов до 2/i);
+    expect(preview.warnings.join(' ')).toMatch(/Измените количество комплектов/);
+    expect(() => applySizingSelections(snapshot, preview.rows, [{ itemId: 'node' }], run)).toThrow(
+      /компонент комплекта/,
+    );
   });
 });

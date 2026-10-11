@@ -390,7 +390,10 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
                   className="border-t border-slate-100 align-top dark:border-nord-3"
                 >
                   <td>
-                    {r.status !== 'unknown' && r.status !== 'unlinked' && !preview.run.ephemeral ? (
+                    {r.status !== 'unknown' &&
+                    r.status !== 'unlinked' &&
+                    !r.bundle &&
+                    !preview.run.ephemeral ? (
                       <input
                         type="checkbox"
                         aria-label={`Применить к ${r.name}`}

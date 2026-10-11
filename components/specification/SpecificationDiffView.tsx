@@ -16,7 +16,7 @@ function ItemLine({ item }: { item: DiffItem }) {
   return (
     <li>
       {item.name || item.id}: {show(item.quantity)} × {show(item.unitPrice)} {item.currency} ={' '}
-      {show(item.amount)}
+      {item.bundleComponent ? 'в составе комплекта, в итог не входит' : show(item.amount)}
       {item.changeReason && <span> · причина: {item.changeReason}</span>}
     </li>
   );
@@ -69,7 +69,9 @@ export function DiffReport({ diff }: { diff: SpecificationDiff }) {
                 ))}
                 {row.amount && (
                   <li>
-                    Сумма строки: {show(row.amount.before)} → {show(row.amount.after)}
+                    Сумма строки:{' '}
+                    {row.bundleComponent?.before ? 'в составе комплекта' : show(row.amount.before)}{' '}
+                    → {row.bundleComponent?.after ? 'в составе комплекта' : show(row.amount.after)}
                   </li>
                 )}
               </ul>

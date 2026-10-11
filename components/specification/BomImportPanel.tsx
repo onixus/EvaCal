@@ -23,6 +23,8 @@ const fieldLabels: Record<BomField, string> = {
   currency: 'Валюта',
   source: 'Источник',
   rationale: 'Основание',
+  rowId: 'ID строки (для состава комплекта)',
+  includedIn: 'Входит в комплект (ID строки)',
 };
 
 /**

@@ -17,6 +17,7 @@ import { ITEM_KINDS, ITEM_DISPOSITIONS, ITEM_KIND_LABELS } from '@/lib/specifica
 import { specificationBlockers } from '@/lib/specification/validation';
 import { describeTotal, summarizeSpecification } from '@/lib/specification/totals';
 import { STATUS_LABELS } from '@/lib/specification/sections';
+import { syncBundleComponents } from '@/lib/catalog/relations';
 
 interface SpecificationPanelProps {
   calculationId: string;
@@ -158,26 +159,26 @@ export default function SpecificationPanel({
     setDirty(true);
     setError('');
   };
-  const edit = (id: string, field: keyof SpecificationItem, value: unknown) =>
-    change({
-      ...spec,
-      items: spec.items.map((i) =>
-        i.id === id
-          ? {
-              ...i,
-              [field]: value,
-              ...(field === 'unitPrice' || field === 'currency' ? { priceOverride: true } : {}),
-              // A change note documents the edit; it does not alter the confirmed facts.
-              confirmed:
-                field === 'confirmed'
-                  ? Boolean(value)
-                  : field === 'changeReason'
-                    ? i.confirmed
-                    : false,
-            }
-          : i,
-      ),
-    });
+  const edit = (id: string, field: keyof SpecificationItem, value: unknown) => {
+    const items = spec.items.map((i) =>
+      i.id === id
+        ? {
+            ...i,
+            [field]: value,
+            ...(field === 'unitPrice' || field === 'currency' ? { priceOverride: true } : {}),
+            // A change note documents the edit; it does not alter the confirmed facts.
+            confirmed:
+              field === 'confirmed'
+                ? Boolean(value)
+                : field === 'changeReason'
+                  ? i.confirmed
+                  : false,
+          }
+        : i,
+    );
+    // Component quantities follow the bundle: bundles × quantity per bundle.
+    change({ ...spec, items: field === 'quantity' ? syncBundleComponents(items, id) : items });
+  };
   const reorder = (index: number, offset: number) => {
     const items = [...spec.items];
     const target = index + offset;

@@ -22,7 +22,9 @@ export default function ReplacementsPanel({
   onApplied: (saved: SavedSpecification) => void;
 }) {
   const [candidates, setCandidates] = useState<ReplacementCandidate[]>([]);
-  const [choice, setChoice] = useState<Record<string, { relationId: string; offerId: string }>>({});
+  const [choice, setChoice] = useState<
+    Record<string, { relationId: string; offerId: string; drop?: boolean }>
+  >({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
@@ -63,6 +65,7 @@ export default function ReplacementsPanel({
           itemId: candidate.itemId,
           relationId: selected.relationId,
           offerId: selected.offerId || null,
+          dropComponents: Boolean(selected.drop),
         }),
       });
       const data = await res.json();
@@ -102,7 +105,10 @@ export default function ReplacementsPanel({
                 aria-label="Замена"
                 value={selected.relationId}
                 onChange={(e) =>
-                  setChoice({ ...choice, [c.itemId]: { relationId: e.target.value, offerId: '' } })
+                  setChoice({
+                    ...choice,
+                    [c.itemId]: { relationId: e.target.value, offerId: '', drop: false },
+                  })
                 }
               >
                 {c.options.map((o) => (
@@ -129,9 +135,40 @@ export default function ReplacementsPanel({
                 ))}
               </select>
             )}
+            {option?.isBundle && !option.blocked && (
+              <p>
+                Замена — комплект: состав строки пересобирается по каталогу ({option.componentCount}{' '}
+                поз.)
+                {c.componentCount ? `, текущие ${c.componentCount} поз. состава удаляются` : ''}.
+              </p>
+            )}
+            {option?.blocked && (
+              <p role="alert" className="text-red-600">
+                {option.blocked}
+              </p>
+            )}
+            {option?.dropsComponents && (
+              <label className="flex gap-2">
+                <input
+                  type="checkbox"
+                  checked={Boolean(selected.drop)}
+                  onChange={(e) =>
+                    setChoice({ ...choice, [c.itemId]: { ...selected, drop: e.target.checked } })
+                  }
+                />
+                Замена не является комплектом: удалить состав комплекта ({c.componentCount} поз.)
+              </label>
+            )}
             <button
               className="btn-secondary"
-              disabled={!enabled || busy || !option || option.archived}
+              disabled={
+                !enabled ||
+                busy ||
+                !option ||
+                option.archived ||
+                Boolean(option.blocked) ||
+                (option.dropsComponents && !selected.drop)
+              }
               onClick={() => apply(c)}
             >
               Заменить

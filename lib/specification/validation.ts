@@ -213,6 +213,13 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
       row.includedIn === undefined || row.includedIn === null || row.includedIn === ''
         ? ''
         : text(row.includedIn, 'Входит в комплект', 100);
+    if (
+      row.perBundle !== undefined &&
+      (!includedIn || !isDecimal(row.perBundle) || !/[1-9]/.test(row.perBundle))
+    )
+      throw new SpecificationError(
+        'Количество на комплект: положительное число только для компонента комплекта',
+      );
     return {
       id,
       ...(row.origin === undefined ? {} : { origin: parseCatalogOrigin(row.origin) }),
@@ -235,6 +242,7 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
       currency,
       ...(changeReason ? { changeReason } : {}),
       ...(includedIn ? { includedIn } : {}),
+      ...(row.perBundle === undefined ? {} : { perBundle: row.perBundle as string }),
     };
   });
   let sizingRunIds: string[] | undefined;

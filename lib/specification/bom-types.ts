@@ -16,6 +16,10 @@ export const BOM_FIELDS = [
   'currency',
   'source',
   'rationale',
+  /** Source row ID (XLSX «ID строки»): resolves bundle references within the file. */
+  'rowId',
+  /** Source bundle row ID (XLSX «Входит в комплект»): the row is imported as a component. */
+  'includedIn',
 ] as const;
 export type BomField = (typeof BOM_FIELDS)[number];
 
@@ -67,6 +71,13 @@ export function mergeBomRows<T extends { items: SpecificationItem[] }>(
       throw new SpecificationError(`Строка ${row.rowNumber} содержит ошибки и не импортируется`);
     return row.item;
   });
+  // Components are imported only with their bundle row: never as standalone priced rows.
+  const ids = new Set([...(mode === 'replace' ? [] : current.items), ...imported].map((i) => i.id));
+  for (const item of imported)
+    if (item.includedIn && !ids.has(item.includedIn))
+      throw new SpecificationError(
+        `«${item.name}» входит в комплект: выберите строку комплекта вместе с составом`,
+      );
   return {
     ...current,
     status: 'draft' as const,
