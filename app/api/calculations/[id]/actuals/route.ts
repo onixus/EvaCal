@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { actualsWriteGate, loadActualsSummary } from '@/lib/actualsData';
+import { parseHoursInput as hoursOrNull } from '@/lib/actuals';
 
 /** Сводка факта по расчёту: точность, маржа, состояние сделки. */
 export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -12,14 +13,6 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
   const summary = await loadActualsSummary(params.id);
   if (!summary) return NextResponse.json({ error: 'not found' }, { status: 404 });
   return NextResponse.json(summary);
-}
-
-/** null/'' — очистить; иначе неотрицательное конечное число; undefined — некорректно. */
-function hoursOrNull(v: unknown): number | null | undefined {
-  if (v === null || v === '') return null;
-  if (typeof v === 'boolean') return undefined;
-  const h = Number(v);
-  return Number.isFinite(h) && h >= 0 ? h : undefined;
 }
 
 /**
@@ -57,6 +50,19 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: 'Факт часов РП: неотрицательное число' }, { status: 400 });
   }
+  const before = await prisma.calculation.findUnique({
+    where: { id: params.id },
+    select: { actualPmHours: true, remainingPmHoursEstimate: true },
+  });
+  if (data.remainingPmHoursEstimate !== undefined) {
+    // Оценка привязывается к факту РП, при котором она подтверждена: изменение
+    // факта после неё делает оценку устаревшей.
+    const actualNow =
+      data.actualPmHours !== undefined
+        ? (data.actualPmHours as number | null)
+        : (before?.actualPmHours ?? null);
+    data.remainingPmActualBaseline = data.remainingPmHoursEstimate === null ? null : actualNow;
+  }
   await prisma.calculation.update({ where: { id: params.id }, data });
   if (data.actualPmHours !== undefined) {
     await writeAudit({
@@ -65,7 +71,11 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       action: 'calculation.actualPm',
       entityType: 'calculation',
       entityId: params.id,
-      meta: { actualPmHours: data.actualPmHours },
+      meta: {
+        actualPmHours: data.actualPmHours,
+        from: before?.actualPmHours ?? null,
+        to: data.actualPmHours,
+      },
       ip: clientIp(req),
     });
   }
@@ -76,7 +86,10 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       action: 'calculation.remainingPm',
       entityType: 'calculation',
       entityId: params.id,
-      meta: { remainingPmHoursEstimate: data.remainingPmHoursEstimate },
+      meta: {
+        from: before?.remainingPmHoursEstimate ?? null,
+        to: data.remainingPmHoursEstimate,
+      },
       ip: clientIp(req),
     });
   }

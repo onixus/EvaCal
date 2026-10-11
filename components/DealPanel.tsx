@@ -31,19 +31,7 @@ export interface DealProjectView {
     'status' | 'plannedEnd' | 'forecastEnd' | 'currentSlipDays' | 'done' | 'total' | 'overdue'
   > | null;
   /** Прогноз итоговой прибыли выигранной версии (#103 4.5); null — сделка не выиграна. */
-  forecast?: Pick<
-    ProfitForecast,
-    | 'currency'
-    | 'partial'
-    | 'incomplete'
-    | 'profit'
-    | 'profitUpperBound'
-    | 'marginPercent'
-    | 'forecastCost'
-    | 'knownCost'
-    | 'revenueSource'
-    | 'currencyMismatch'
-  > | null;
+  forecast?: DealForecastView | { error: string } | null;
   calculations: {
     id: string;
     version: number;
@@ -55,8 +43,30 @@ export interface DealProjectView {
   }[];
 }
 
+type DealForecastView = Pick<
+  ProfitForecast,
+  | 'currency'
+  | 'partial'
+  | 'incomplete'
+  | 'profit'
+  | 'profitUpperBound'
+  | 'marginPercent'
+  | 'forecastCost'
+  | 'knownCost'
+  | 'revenueSource'
+  | 'currencyMismatch'
+>;
+
 /** Краткий прогноз прибыли; разбор с вводом остатка — в панели факта расчёта. */
-function ForecastLine({ forecast: f }: { forecast: NonNullable<DealProjectView['forecast']> }) {
+function ForecastLine({ forecast }: { forecast: DealForecastView | { error: string } }) {
+  if ('error' in forecast) {
+    return (
+      <div className="text-xs text-rose-700 dark:text-rose-300" data-testid="deal-forecast">
+        {forecast.error}
+      </div>
+    );
+  }
+  const f = forecast;
   const cur = (v: number) => formatCurrency(v, f.currency);
   return (
     <div className="text-xs text-slate-600 dark:text-nord-4" data-testid="deal-forecast">
@@ -78,8 +88,8 @@ function ForecastLine({ forecast: f }: { forecast: NonNullable<DealProjectView['
       ) : (
         <span className="text-amber-700 dark:text-nord-yellow">
           неполный
-          {f.profitUpperBound !== null && `, не больше ${cur(f.profitUpperBound)}`} — нет факта или
-          оценки остатка: {f.incomplete.map((i) => i.name).join(', ')}
+          {f.profitUpperBound !== null && `, не больше ${cur(f.profitUpperBound)}`}:{' '}
+          {f.incomplete.map((i) => `${i.name} — ${i.reason}`).join('; ')}
         </span>
       )}
       {f.revenueSource === 'quote' && !f.currencyMismatch && ' · выручка по цене КП'}

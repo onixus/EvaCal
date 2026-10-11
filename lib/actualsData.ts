@@ -14,7 +14,7 @@ import {
   discountOutcomes,
   lossReasons,
   monthlyWins,
-  profitForecast,
+  tryProfitForecast,
   roleBias,
   winRate,
   winRateBy,
@@ -86,6 +86,7 @@ export async function loadActualsSummary(calculationId: string) {
       id: true,
       actualPmHours: true,
       remainingPmHoursEstimate: true,
+      remainingPmActualBaseline: true,
       remainingPmEstimatedBy: true,
       remainingPmEstimatedAt: true,
       pmHours: true,
@@ -114,6 +115,7 @@ export async function loadActualsSummary(calculationId: string) {
           actualNote: true,
           status: true,
           remainingHoursEstimate: true,
+          remainingActualBaseline: true,
           remainingEstimatedBy: true,
           remainingEstimatedAt: true,
         },
@@ -144,7 +146,7 @@ export async function loadActualsSummary(calculationId: string) {
   // #103 4.5: прогноз итоговой прибыли — только по выигранной версии и только
   // по сохранённым условиям этой версии.
   const forecast = isWonVersion
-    ? profitForecast({
+    ? tryProfitForecast({
         stages: calc.stages,
         risks: calc.risks,
         pmHours: calc.pmHours,
@@ -152,6 +154,7 @@ export async function loadActualsSummary(calculationId: string) {
         remainingPmHoursEstimate: calc.remainingPmHoursEstimate,
         remainingPmEstimatedBy: calc.remainingPmEstimatedBy,
         remainingPmEstimatedAt: calc.remainingPmEstimatedAt,
+        remainingPmActualBaseline: calc.remainingPmActualBaseline,
         terms: calc,
         contractAmount: calc.project?.contractAmount ?? null,
         contractCurrency: calc.project?.contractCurrency ?? null,

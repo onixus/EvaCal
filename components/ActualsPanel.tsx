@@ -27,6 +27,7 @@ interface StageView {
   actualNote: string | null;
   status: string;
   remainingHoursEstimate: number | null;
+  remainingActualBaseline: number | null;
   remainingEstimatedBy: string | null;
   remainingEstimatedAt: string | null;
 }
@@ -96,7 +97,7 @@ interface Summary {
   stages: StageView[];
   accuracy: CalculationAccuracy;
   margin: ActualMargin;
-  forecast: ProfitForecast | null;
+  forecast: ProfitForecast | { error: string } | null;
   schedule: ProjectSchedule | null;
   ledger: { sources: LedgerSource[]; stageSources: Record<string, string[]> } | null;
 }
@@ -399,7 +400,17 @@ export default function ActualsPanel({
         />
       </div>
 
-      {summary.forecast && <ForecastBlock forecast={summary.forecast} />}
+      {summary.forecast &&
+        ('error' in summary.forecast ? (
+          <div
+            className="mb-4 rounded-lg bg-rose-50 p-2 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+            data-testid="profit-forecast-error"
+          >
+            {summary.forecast.error}
+          </div>
+        ) : (
+          <ForecastBlock forecast={summary.forecast} />
+        ))}
 
       {summary.ledger && summary.ledger.sources.length > 0 && (
         <div
@@ -522,6 +533,16 @@ export default function ActualsPanel({
                           aria-label={`Остаток часов: ${s.name}`}
                         />
                       )}
+                      {!FINISHED.includes(s.status) &&
+                        s.remainingHoursEstimate !== null &&
+                        (s.remainingActualBaseline ?? null) !== (s.actualHours ?? null) && (
+                          <div
+                            className="text-[10px] text-amber-700 dark:text-nord-yellow"
+                            data-testid="remaining-stale"
+                          >
+                            устарела: факт {s.remainingActualBaseline ?? 0} → {s.actualHours ?? 0} ч
+                          </div>
+                        )}
                     </td>
                     <td
                       className={`py-2 pr-4 text-right text-xs font-semibold ${TONE[accuracyTone(dev)]}`}
@@ -806,7 +827,7 @@ function ForecastBlock({ forecast: f }: { forecast: ProfitForecast }) {
           data-testid="forecast-incomplete"
         >
           Нет данных — не считаются нулём:{' '}
-          {f.incomplete.map((i) => `${i.name} (${FORECAST_LINE_STATE_LABELS[i.state]})`).join('; ')}
+          {f.incomplete.map((i) => `${i.name} — ${i.reason}`).join('; ')}
         </div>
       )}
       <details className="text-xs">
@@ -851,7 +872,7 @@ function ForecastBlock({ forecast: f }: { forecast: ProfitForecast }) {
                   <td
                     className={`py-1 pr-3 ${l.state === 'known' || l.state === 'estimate_only' ? '' : 'text-amber-700 dark:text-nord-yellow'}`}
                   >
-                    {FORECAST_LINE_STATE_LABELS[l.state]}
+                    {l.reason ?? FORECAST_LINE_STATE_LABELS[l.state]}
                   </td>
                 </tr>
               ))}

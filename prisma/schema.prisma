@@ -185,6 +185,7 @@ model Calculation {
   actualPmHours          Float?
   // #103 4.5: подтверждённый остаток часов РП; null — не подтверждён.
   remainingPmHoursEstimate Float?
+  remainingPmActualBaseline Float?
   remainingPmEstimatedBy   String?
   remainingPmEstimatedAt   DateTime?
   createdBy             String       @default("presale")
@@ -337,6 +338,8 @@ model Stage {
   // («неизвестно», а не 0). Пишется только через PATCH этапа; перестройка плана
   // это поле не трогает.
   remainingHoursEstimate Float?
+  // Факт этапа в момент оценки: изменился — оценка устарела (прогноз неполный).
+  remainingActualBaseline Float?
   remainingEstimatedBy   String?
   remainingEstimatedAt   DateTime?
   // #103 WP-6a: actualHours/даты факта — агрегат этих записей

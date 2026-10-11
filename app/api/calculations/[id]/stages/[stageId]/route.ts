@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { actualsWriteGate } from '@/lib/actualsData';
+import { parseHoursInput } from '@/lib/actuals';
 import {
   isLedgerConflict,
   recordManualStageEdit,
@@ -80,23 +81,18 @@ export async function PATCH(
       const gate = await actualsWriteGate(params.id, auth.role);
       if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
     }
-    const raw = body.remainingHoursEstimate;
-    if (raw === null || raw === '') {
-      data.remainingHoursEstimate = null;
-      data.remainingEstimatedBy = null;
-      data.remainingEstimatedAt = null;
-    } else {
-      const h = typeof raw === 'number' ? raw : Number(raw);
-      if (typeof raw === 'boolean' || !Number.isFinite(h) || h < 0) {
-        return NextResponse.json(
-          { error: 'Оставшиеся часы: неотрицательное число или null' },
-          { status: 400 },
-        );
-      }
-      data.remainingHoursEstimate = h;
-      data.remainingEstimatedBy = auth.username;
-      data.remainingEstimatedAt = new Date();
+    const h = parseHoursInput(body.remainingHoursEstimate);
+    if (h === undefined) {
+      return NextResponse.json(
+        { error: 'Оставшиеся часы: неотрицательное число или null' },
+        { status: 400 },
+      );
     }
+    data.remainingHoursEstimate = h;
+    data.remainingEstimatedBy = h === null ? null : auth.username;
+    data.remainingEstimatedAt = h === null ? null : new Date();
+    // Базу факта (remainingActualBaseline) пишем в транзакции после правки
+    // журнала: оценка привязывается к факту, при котором она подтверждена.
   }
 
   const touchesLedger = Object.keys(ledger).length > 0;
@@ -123,6 +119,16 @@ export async function PATCH(
           stageId: params.stageId,
           ...ledger,
         });
+      }
+      if (touchesRemaining) {
+        const current = touchesLedger
+          ? await tx.stage.findUnique({
+              where: { id: params.stageId },
+              select: { actualHours: true },
+            })
+          : existing;
+        data.remainingActualBaseline =
+          data.remainingHoursEstimate === null ? null : (current?.actualHours ?? null);
       }
       return Object.keys(data).length
         ? tx.stage.update({ where: { id: params.stageId }, data })

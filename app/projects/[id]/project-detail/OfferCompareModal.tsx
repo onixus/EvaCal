@@ -3,7 +3,13 @@
 import { useState, type ReactNode } from 'react';
 import StatusBadge from '@/components/StatusBadge';
 import { formatCurrency } from '@/lib/commercial';
-import { MAX_COMPARED_OFFERS, type OfferComparison, type OfferVariant } from '@/lib/offerCompare';
+import {
+  MAX_COMPARED_OFFERS,
+  isOfferError,
+  type OfferComparison,
+  type OfferResult,
+  type OfferVariant,
+} from '@/lib/offerCompare';
 import type { SerializedCalculation } from './types';
 
 function signed(value: number, unit = ''): string {
@@ -190,11 +196,19 @@ export default function OfferCompareModal({
                         {v.currency}
                       </div>
                       <div className="text-slate-500 dark:text-nord-muted">
-                        Ставки: {v.rates.map((r) => `${r.label} ${money(v, r.rate)}`).join('; ')}
-                        {!v.ratesStored && (
+                        Ставки:{' '}
+                        {v.rates
+                          .map(
+                            (r) =>
+                              `${r.label} ${money(v, r.rate)}${r.source === 'default' ? ' (по умолчанию)' : ''}`,
+                          )
+                          .join('; ')}
+                        {v.ratesCoverage !== 'stored' && (
                           <span className="text-amber-700 dark:text-nord-yellow">
                             {' '}
-                            (не сохранены в версии — по умолчанию)
+                            {v.ratesCoverage === 'default'
+                              ? '— ставки не сохранены в версии'
+                              : '— часть ставок не сохранена в версии'}
                           </span>
                         )}
                       </div>
@@ -324,7 +338,7 @@ function Row({
   children,
 }: {
   title: string;
-  variants: OfferVariant[];
+  variants: OfferResult[];
   children: (v: OfferVariant) => ReactNode;
 }) {
   return (
@@ -332,7 +346,13 @@ function Row({
       <th className="py-2 pr-3 font-semibold text-slate-600 dark:text-nord-4">{title}</th>
       {variants.map((v) => (
         <td key={v.id} className="py-2 pr-3">
-          {children(v)}
+          {isOfferError(v) ? (
+            <span className="text-rose-700 dark:text-rose-300">
+              {title === 'Условия' ? v.error : '—'}
+            </span>
+          ) : (
+            children(v)
+          )}
         </td>
       ))}
     </tr>

@@ -11,6 +11,20 @@ import { rebuildStages } from '../lib/calc';
 import { recordManualStageEdit } from '../lib/actualsLedgerData';
 import { loadActualsSummary } from '../lib/actualsData';
 import { loadOfferComparison } from '../lib/offerCompareData';
+import type { ProfitForecast } from '../lib/actuals';
+import { isOfferError, type OfferResult, type OfferVariant } from '../lib/offerCompare';
+
+/** Прогноз из сводки факта; ошибка прогноза — провал проверки. */
+async function forecastOf(calculationId: string): Promise<ProfitForecast> {
+  const f = (await loadActualsSummary(calculationId))?.forecast;
+  assert(f && !('error' in f), `прогноз рассчитан: ${f && 'error' in f ? f.error : 'нет'}`);
+  return f;
+}
+
+function computed(v: OfferResult): OfferVariant {
+  assert(!isOfferError(v), isOfferError(v) ? v.error : '');
+  return v;
+}
 
 const day = (s: string) => new Date(`${s}T00:00:00Z`);
 
@@ -87,9 +101,12 @@ async function main() {
       recordManualStageEdit(tx, { calculationId: v1.id, stageId: dev.id, hours: 30 }),
     );
 
-    const before = (await loadActualsSummary(v1.id))!.forecast!;
+    const before = await forecastOf(v1.id);
     assert.equal(before.partial, true, 'разработка без оценки остатка — прогноз неполный');
-    assert.deepEqual(before.incomplete, [{ name: 'Разработка', state: 'missing_remaining' }]);
+    assert.deepEqual(
+      before.incomplete.map(({ name, state }) => ({ name, state })),
+      [{ name: 'Разработка', state: 'missing_remaining' }],
+    );
     assert.equal(before.profit, null, 'неизвестный остаток не превращается в 0');
     assert.equal(before.actualCost, 59400, '(12×2000 + 30×1000) × 1.1');
 
@@ -97,11 +114,30 @@ async function main() {
       where: { id: dev.id },
       data: {
         remainingHoursEstimate: 20,
+        remainingActualBaseline: 30,
         remainingEstimatedBy: 'ci',
         remainingEstimatedAt: new Date(),
       },
     });
-    const forecast = (await loadActualsSummary(v1.id))!.forecast!;
+    const forecast = await forecastOf(v1.id);
+    // Факт по журналу изменился после оценки — оценка устарела, прогноз неполный.
+    await prisma.$transaction((tx) =>
+      recordManualStageEdit(tx, { calculationId: v1.id, stageId: dev.id, hours: 35 }),
+    );
+    const stale = await forecastOf(v1.id);
+    assert.equal(stale.partial, true);
+    assert.deepEqual(
+      stale.incomplete.map((i) => i.state),
+      ['stale_estimate'],
+    );
+    assert.match(stale.incomplete[0].reason, /при факте 30 ч, сейчас 35 ч/);
+    await prisma.$transaction((tx) =>
+      recordManualStageEdit(tx, { calculationId: v1.id, stageId: dev.id, hours: 30 }),
+    );
+    await assert.rejects(
+      prisma.stage.update({ where: { id: dev.id }, data: { remainingActualBaseline: -1 } }),
+      /Stage_remainingActualBaseline_check|constraint/i,
+    );
     assert.equal(forecast.partial, false);
     assert.equal(forecast.forecastCost, 81400);
     assert.equal(forecast.profit, 18600);
@@ -196,7 +232,7 @@ async function main() {
     });
 
     const compared = await loadOfferComparison(project.id, [v1.id, v2.id]);
-    const [first, second] = compared.variants;
+    const [first, second] = compared.variants.map(computed);
     assert.equal(first.money.totalCost, 77000, '(10×2000 + 50×1000) × 1.1 по ставкам v1');
     assert.equal(second.money.totalCost, 198000, '60×3000 × 1.1 по ставкам v2');
     assert.equal(second.delta?.totalCost, 121000);
@@ -206,7 +242,7 @@ async function main() {
     assert.equal(first.specification.totals[0].total, '201');
     assert.equal(second.specification.state, 'none');
 
-    const after = (await loadActualsSummary(v1.id))!.forecast!;
+    const after = await forecastOf(v1.id);
     assert.deepEqual(after, forecast, 'новые ставки в v2 не меняют прогноз v1');
 
     console.log(

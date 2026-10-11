@@ -90,9 +90,12 @@ export interface OfferVariant {
     includeVat: boolean;
   };
   /** Ставки, применённые в варианте: только роли, которые есть в составе. */
-  rates: { role: string; label: string; rate: number }[];
-  /** false — ставки в версии не сохранены, взяты ставки по умолчанию приложения. */
-  ratesStored: boolean;
+  rates: { role: string; label: string; rate: number; source: 'stored' | 'default' }[];
+  /**
+   * `stored` — ставки всех ролей состава сохранены в версии; `partial` — часть
+   * ролей взята из ставок по умолчанию приложения; `default` — ставок в версии нет.
+   */
+  ratesCoverage: 'stored' | 'partial' | 'default';
   composition: {
     stageCount: number;
     stages: { name: string; role: string; hours: number }[];
@@ -144,10 +147,27 @@ export interface OfferDelta {
   stagesChanged: { name: string; from: number; to: number }[];
 }
 
+/** Версия, которую нельзя пересчитать (например, недопустимые сохранённые условия). */
+export interface OfferVariantError {
+  id: string;
+  version: number;
+  name: string;
+  status: string;
+  versionComment: string | null;
+  createdAt: string;
+  error: string;
+}
+
+export type OfferResult = OfferVariant | OfferVariantError;
+
+export function isOfferError(v: OfferResult): v is OfferVariantError {
+  return 'error' in v;
+}
+
 export interface OfferComparison {
   baselineId: string;
   sameCurrency: boolean;
-  variants: OfferVariant[];
+  variants: OfferResult[];
 }
 
 const DAY = 86_400_000;
@@ -214,17 +234,18 @@ export function offerSpecification(input: OfferVersionInput): OfferSpecification
   };
 }
 
-function storedRates(raw: CommercialConfig['roleRates']): boolean {
-  if (raw === null || raw === undefined || raw === '') return false;
+/** Ставки, сохранённые в версии (без подстановки значений по умолчанию). */
+function parseStoredRates(raw: CommercialConfig['roleRates']): Record<string, unknown> {
+  if (raw === null || raw === undefined || raw === '') return {};
   if (typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw);
-      return Boolean(parsed) && typeof parsed === 'object' && Object.keys(parsed).length > 0;
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
     } catch {
-      return false;
+      return {};
     }
   }
-  return Object.keys(raw).length > 0;
+  return raw;
 }
 
 function buildVariant(input: OfferVersionInput): OfferVariant {
@@ -247,13 +268,30 @@ function buildVariant(input: OfferVersionInput): OfferVariant {
       ? `себестоимость ${fmt(summary.totalCost)} / (1 − ${m}%)`
       : `себестоимость ${fmt(summary.totalCost)} + наценка ${m}% ${fmt(summary.marginAmount)}`;
 
+  const stored = parseStoredRates(input.terms.roleRates);
+  const source = (role: string): 'stored' | 'default' =>
+    typeof stored[role] === 'number' ? 'stored' : 'default';
   const rates = [
-    ...summary.rolesBreakdown.map((r) => ({ role: r.role, label: r.roleLabel, rate: r.rate })),
+    ...summary.rolesBreakdown.map((r) => ({
+      role: r.role,
+      label: r.roleLabel,
+      rate: r.rate,
+      source: source(r.role),
+    })),
     ...(summary.pmHours > 0
-      ? [{ role: 'pm', label: 'Руководитель проекта (РП)', rate: summary.pmRate }]
+      ? [
+          {
+            role: 'pm',
+            label: 'Руководитель проекта (РП)',
+            rate: summary.pmRate,
+            source: source('pm'),
+          },
+        ]
       : []),
   ];
-  const ratesStored = storedRates(input.terms.roleRates);
+  const defaulted = rates.filter((r) => r.source === 'default');
+  const ratesCoverage: OfferVariant['ratesCoverage'] =
+    defaulted.length === 0 ? 'stored' : defaulted.length === rates.length ? 'default' : 'partial';
 
   return {
     id: input.id,
@@ -273,7 +311,7 @@ function buildVariant(input: OfferVersionInput): OfferVariant {
       includeVat: input.terms.includeVat ?? true,
     },
     rates,
-    ratesStored,
+    ratesCoverage,
     composition: {
       stageCount: work.length,
       stages: work.map((s) => ({ name: s.name, role: s.role, hours: s.hours })),
@@ -305,9 +343,11 @@ function buildVariant(input: OfferVersionInput): OfferVariant {
         `Труд: ${roleCost || 'этапов нет'}; РП ${summary.pmHours} ч × ${fmt(summary.pmRate)} = ${fmt(summary.pmCost)}; ` +
         `риски ${summary.riskHours} ч × средняя ставка ${fmt(riskRate)} = ${fmt(summary.riskCost)}. ` +
         `Итого труд ${fmt(summary.directLaborCost)} + накладные ${summary.overheadPercent}% ${fmt(summary.overheadAmount)} = ${fmt(summary.totalCost)}. ` +
-        (ratesStored
+        (ratesCoverage === 'stored'
           ? 'Ставки — сохранённые в версии.'
-          : 'Ставки в версии не сохранены — применены ставки по умолчанию приложения.'),
+          : ratesCoverage === 'default'
+            ? 'Ставки в версии не сохранены — применены ставки по умолчанию приложения.'
+            : `Ставки частично не сохранены в версии: по умолчанию приложения — ${defaulted.map((r) => r.label).join(', ')}.`),
       price:
         `${summary.pricingMode === 'target_margin' ? 'Целевая маржа' : 'Наценка'} (${PRICING_MODE_LABELS[summary.pricingMode]}): цена до скидки = ${priceFormula} = ${fmt(summary.priceBeforeDiscount)}; ` +
         `скидка ${summary.discountPercent}% = ${fmt(summary.discountAmount)}; цена без НДС = ${fmt(summary.subtotalExVat)}; ` +
@@ -369,12 +409,31 @@ function variantDelta(base: OfferVariant, v: OfferVariant): OfferDelta {
  */
 export function compareOffers(inputs: OfferVersionInput[]): OfferComparison {
   if (inputs.length === 0) throw new Error('Нет версий для сравнения');
-  const variants = inputs.map(buildVariant);
+  // Одна версия с некорректными сохранёнными условиями не ломает сравнение:
+  // она показывается с ошибкой, остальные считаются.
+  const variants: OfferResult[] = inputs.map((input) => {
+    try {
+      return buildVariant(input);
+    } catch (e) {
+      return {
+        id: input.id,
+        version: input.version,
+        name: input.name,
+        status: input.status,
+        versionComment: input.versionComment,
+        createdAt: toDate(input.createdAt).toISOString(),
+        error: `Версию не удалось пересчитать: ${e instanceof Error ? e.message : 'некорректные условия'}`,
+      };
+    }
+  });
   const base = variants[0];
-  for (const v of variants.slice(1)) v.delta = variantDelta(base, v);
+  const computed = variants.filter((v): v is OfferVariant => !isOfferError(v));
+  if (!isOfferError(base)) {
+    for (const v of computed) if (v !== base) v.delta = variantDelta(base, v);
+  }
   return {
     baselineId: base.id,
-    sameCurrency: variants.every((v) => v.currency === base.currency),
+    sameCurrency: computed.every((v) => v.currency === computed[0]?.currency),
     variants,
   };
 }

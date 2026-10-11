@@ -742,6 +742,8 @@ export function matchActuals(
 
 /** Статусы этапа, после которых оставшейся работы нет. */
 export const FINISHED_STAGE_STATUSES = ['done', 'approved'];
+/** Статус этапа, по которому работа ещё не начиналась. */
+export const NOT_STARTED_STAGE_STATUS = 'planned';
 
 export interface ForecastStageRow {
   id: string;
@@ -754,6 +756,8 @@ export interface ForecastStageRow {
   actualHours: number | null;
   /** Подтверждённая оценка остатка; null — не подтверждена. */
   remainingHoursEstimate: number | null;
+  /** Факт часов этапа в момент подтверждения оценки (null — факта тогда не было). */
+  remainingActualBaseline: number | null;
   remainingEstimatedBy?: string | null;
   remainingEstimatedAt?: Date | string | null;
 }
@@ -764,6 +768,8 @@ export interface ProfitForecastInput {
   pmHours: number;
   actualPmHours: number | null;
   remainingPmHoursEstimate: number | null;
+  /** Факт часов РП в момент подтверждения оценки остатка РП. */
+  remainingPmActualBaseline: number | null;
   remainingPmEstimatedBy?: string | null;
   remainingPmEstimatedAt?: Date | string | null;
   /** Сохранённые условия версии: ставки и проценты берутся только отсюда. */
@@ -774,22 +780,26 @@ export interface ProfitForecastInput {
 
 /**
  * Состояние строки прогноза:
- * - `known` — факт и подтверждённый остаток (или этап завершён и факт внесён);
- * - `estimate_only` — факта нет, но специалист подтвердил всю оставшуюся работу;
+ * - `known` — факт и актуальный подтверждённый остаток (или этап завершён и факт внесён);
+ * - `estimate_only` — работа не начиналась, факта нет, специалист подтвердил весь остаток;
  * - `missing_remaining` — факт есть, остаток не подтверждён;
- * - `missing_actual` — этап завершён, а факт не внесён;
+ * - `missing_actual` — работа начата или завершена, а факт не внесён;
+ * - `stale_estimate` — после подтверждения остатка факт изменился: оценку нужно подтвердить заново;
  * - `unknown` — ни факта, ни подтверждённого остатка.
  */
 export type ForecastLineState =
-  'known' | 'estimate_only' | 'missing_remaining' | 'missing_actual' | 'unknown';
+  'known' | 'estimate_only' | 'missing_remaining' | 'missing_actual' | 'stale_estimate' | 'unknown';
 
 export const FORECAST_LINE_STATE_LABELS: Record<ForecastLineState, string> = {
   known: 'факт + подтверждённый остаток',
-  estimate_only: 'факта нет, учтён подтверждённый остаток',
+  estimate_only: 'работа не начата, учтён подтверждённый остаток',
   missing_remaining: 'остаток не подтверждён',
-  missing_actual: 'этап завершён, факт не внесён',
+  missing_actual: 'работа начата или завершена, факт не внесён',
+  stale_estimate: 'факт изменился после оценки остатка — подтвердите остаток заново',
   unknown: 'нет ни факта, ни оценки остатка',
 };
+
+const KNOWN_STATES: readonly ForecastLineState[] = ['known', 'estimate_only'];
 
 export interface ForecastLine {
   /** null — строка РП. */
@@ -805,13 +815,17 @@ export interface ForecastLine {
   remainingSource: 'done' | 'estimate' | null;
   remainingEstimatedBy: string | null;
   remainingEstimatedAt: string | null;
-  /** Стоимость без накладных; null — неизвестна. */
+  /** Факт на момент оценки; заполнен у устаревшей оценки, чтобы показать разницу. */
+  remainingActualBaseline: number | null;
+  /** Стоимость без накладных; null — неизвестна (у устаревшей оценки остаток не учитывается). */
   actualCost: number | null;
   remainingCost: number | null;
   /** Итог строки; null, если строка неполна. */
   forecastHours: number | null;
   forecastCost: number | null;
   state: ForecastLineState;
+  /** Почему строка неполна; null у известных строк. */
+  reason: string | null;
 }
 
 export interface ProfitForecast {
@@ -819,7 +833,7 @@ export interface ProfitForecast {
   overheadPercent: number;
   lines: ForecastLine[];
   /** Строки, без которых прогноз неполон: перечисляются явно, нулём не считаются. */
-  incomplete: { name: string; state: ForecastLineState }[];
+  incomplete: { name: string; state: ForecastLineState; reason: string }[];
   partial: boolean;
   /** Известные части с накладными. При partial их сумма — нижняя граница затрат. */
   actualCost: number;
@@ -850,39 +864,82 @@ function isoOrNull(v: Date | string | null | undefined): string | null {
   return typeof v === 'string' ? v : v.toISOString();
 }
 
+/** Факт изменился с момента оценки (null и число считаются разными значениями). */
+function actualChanged(baseline: number | null, actual: number | null): boolean {
+  if (baseline === null || actual === null) return baseline !== actual;
+  return Math.abs(baseline - actual) > 1e-9;
+}
+
+/**
+ * Разбор часов из API: null/'' — очистить; число или строка из цифр (с точкой)
+ * — значение ≥ 0; иначе (пробелы, буквы, массивы, логические) — undefined.
+ */
+export function parseHoursInput(v: unknown): number | null | undefined {
+  if (v === null || v === '') return null;
+  if (typeof v === 'number') return Number.isFinite(v) && v >= 0 ? v : undefined;
+  if (typeof v === 'string' && /^\d+(\.\d+)?$/.test(v)) return Number(v);
+  return undefined;
+}
+
+interface LineFacts {
+  actualHours: number | null;
+  remaining: number | null;
+  baseline: number | null;
+  finished: boolean;
+  notStarted: boolean;
+  by: string | null;
+  at: string | null;
+}
+
 function forecastLine(
   base: Pick<ForecastLine, 'stageId' | 'name' | 'role' | 'status' | 'rate' | 'plannedHours'>,
-  actualHours: number | null,
-  remaining: number | null,
-  finished: boolean,
-  by: string | null,
-  at: string | null,
+  f: LineFacts,
 ): ForecastLine {
-  const remainingHours = finished ? 0 : remaining;
-  const remainingSource = finished ? 'done' : remaining === null ? null : 'estimate';
+  const { actualHours, finished } = f;
+  const remainingHours = finished ? 0 : f.remaining;
+  const remainingSource = finished ? 'done' : f.remaining === null ? null : 'estimate';
+  const stale = !finished && f.remaining !== null && actualChanged(f.baseline, actualHours);
   let state: ForecastLineState;
-  if (finished) state = actualHours === null ? 'missing_actual' : 'known';
-  else if (actualHours === null && remainingHours === null) state = 'unknown';
-  else if (remainingHours === null) state = 'missing_remaining';
-  else if (actualHours === null) state = 'estimate_only';
-  else state = 'known';
-  // «Только оценка»: подтверждённый остаток покрывает всю работу этапа, часов
-  // по нему ещё не тратили. Это решение специалиста, а не ноль вместо пустого факта.
+  let reason: string | null = null;
+  if (finished) {
+    state = actualHours === null ? 'missing_actual' : 'known';
+    if (state === 'missing_actual') reason = 'этап завершён, а факт не внесён';
+  } else if (actualHours === null && remainingHours === null) {
+    state = 'unknown';
+    reason = 'нет ни факта, ни подтверждённой оценки остатка';
+  } else if (remainingHours === null) {
+    state = 'missing_remaining';
+    reason = 'факт внесён, остаток не подтверждён';
+  } else if (stale) {
+    state = 'stale_estimate';
+    reason = `остаток подтверждён при факте ${f.baseline ?? 0} ч, сейчас ${actualHours ?? 0} ч — подтвердите заново`;
+  } else if (actualHours === null) {
+    // «Только оценка» допустима, лишь пока работа не начата: у начатой работы
+    // пустой факт — это незаполненный факт, а не ноль часов.
+    if (f.notStarted) state = 'estimate_only';
+    else {
+      state = 'missing_actual';
+      reason = 'работа начата, а факт не внесён';
+    }
+  } else state = 'known';
+  const known = KNOWN_STATES.includes(state);
   const actualCost = actualHours === null ? null : money2(actualHours * base.rate);
-  const remainingCost = remainingHours === null ? null : money2(remainingHours * base.rate);
-  const known = state === 'known' || state === 'estimate_only';
+  const remainingCost =
+    remainingHours === null || stale ? null : money2(remainingHours * base.rate);
   return {
     ...base,
     actualHours,
     remainingHours,
     remainingSource,
-    remainingEstimatedBy: finished ? null : by,
-    remainingEstimatedAt: finished ? null : at,
+    remainingEstimatedBy: finished ? null : f.by,
+    remainingEstimatedAt: finished ? null : f.at,
+    remainingActualBaseline: stale ? f.baseline : null,
     actualCost,
     remainingCost,
     forecastHours: known ? round2((actualHours ?? 0) + (remainingHours ?? 0)) : null,
     forecastCost: known ? money2((actualCost ?? 0) + (remainingCost ?? 0)) : null,
     state,
+    reason,
   };
 }
 
@@ -913,13 +970,22 @@ export function profitForecast(input: ProfitForecastInput): ProfitForecast {
           rate: rateOf(s.role),
           plannedHours: s.hours,
         },
-        s.actualHours,
-        s.remainingHoursEstimate,
-        FINISHED_STAGE_STATUSES.includes(s.status),
-        s.remainingEstimatedBy ?? null,
-        isoOrNull(s.remainingEstimatedAt),
+        {
+          actualHours: s.actualHours,
+          remaining: s.remainingHoursEstimate,
+          baseline: s.remainingActualBaseline,
+          finished: FINISHED_STAGE_STATUSES.includes(s.status),
+          notStarted: s.status === NOT_STARTED_STAGE_STATUS,
+          by: s.remainingEstimatedBy ?? null,
+          at: isoOrNull(s.remainingEstimatedAt),
+        },
       ),
     );
+  // РП не имеет статуса: его работа считается начатой, как только начат или
+  // имеет факт хотя бы один этап.
+  const projectStarted = input.stages.some(
+    (s) => !s.isApprovalTask && (s.status !== NOT_STARTED_STAGE_STATUS || s.actualHours !== null),
+  );
   if (
     input.pmHours > 0 ||
     input.actualPmHours !== null ||
@@ -935,11 +1001,15 @@ export function profitForecast(input: ProfitForecastInput): ProfitForecast {
           rate: rates.pm ?? DEFAULT_ROLE_RATES.pm,
           plannedHours: input.pmHours,
         },
-        input.actualPmHours,
-        input.remainingPmHoursEstimate,
-        false,
-        input.remainingPmEstimatedBy ?? null,
-        isoOrNull(input.remainingPmEstimatedAt),
+        {
+          actualHours: input.actualPmHours,
+          remaining: input.remainingPmHoursEstimate,
+          baseline: input.remainingPmActualBaseline,
+          finished: false,
+          notStarted: !projectStarted,
+          by: input.remainingPmEstimatedBy ?? null,
+          at: isoOrNull(input.remainingPmEstimatedAt),
+        },
       ),
     );
   }
@@ -950,8 +1020,8 @@ export function profitForecast(input: ProfitForecastInput): ProfitForecast {
   const remainingCost = withOverhead(sum((l) => l.remainingCost));
   const knownCost = money2(actualCost + remainingCost);
   const incomplete = lines
-    .filter((l) => l.state !== 'known' && l.state !== 'estimate_only')
-    .map((l) => ({ name: l.name, state: l.state }));
+    .filter((l) => !KNOWN_STATES.includes(l.state))
+    .map((l) => ({ name: l.name, state: l.state, reason: l.reason ?? '' }));
   const partial = incomplete.length > 0;
 
   const currency = quote.currency;
@@ -982,7 +1052,7 @@ export function profitForecast(input: ProfitForecastInput): ProfitForecast {
         ? `Выручка — сумма договора без НДС: ${fmt(revenue)}.`
         : `Сумма договора не указана: выручка — цена КП версии без НДС после скидки, ${fmt(revenue)}.`,
     partial
-      ? `Прогноз неполный: ${incomplete.length} строк(и) без факта или подтверждённого остатка не считаются нулём. Затраты не меньше ${fmt(knownCost)}${profitUpperBound === null ? '' : `, прибыль не больше ${fmt(profitUpperBound)}`}.`
+      ? `Прогноз неполный: ${incomplete.length} строк(и) без факта, без подтверждённого или с устаревшим остатком не считаются нулём. Затраты не меньше ${fmt(knownCost)}${profitUpperBound === null ? '' : `, прибыль не больше ${fmt(profitUpperBound)}`}.`
       : `Прогноз прибыли = выручка − (фактические + оставшиеся затраты)${profit === null ? '' : ` = ${fmt(profit)}`}.`,
   ];
 
@@ -1006,4 +1076,19 @@ export function profitForecast(input: ProfitForecastInput): ProfitForecast {
     plannedProfit: quote.profitAfterDiscount,
     explanation,
   };
+}
+
+/**
+ * Прогноз без исключения: некорректные сохранённые условия версии (неизвестный
+ * режим цены, недопустимая целевая маржа) дают состояние ошибки, а не падение
+ * страницы или API.
+ */
+export function tryProfitForecast(input: ProfitForecastInput): ProfitForecast | { error: string } {
+  try {
+    return profitForecast(input);
+  } catch (e) {
+    return {
+      error: `Прогноз не рассчитан: ${e instanceof Error ? e.message : 'некорректные условия версии'}`,
+    };
+  }
 }

@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { profitForecast, type ProfitForecastInput, type ForecastStageRow } from '@/lib/actuals';
+import {
+  parseHoursInput,
+  profitForecast,
+  tryProfitForecast,
+  type ForecastStageRow,
+  type ProfitForecast,
+  type ProfitForecastInput,
+} from '@/lib/actuals';
+
+/** Пары «строка — состояние» без текста причины. */
+const states = (f: ProfitForecast) => f.incomplete.map(({ name, state }) => ({ name, state }));
 
 const stage = (over: Partial<ForecastStageRow>): ForecastStageRow => ({
   id: over.id ?? 's',
@@ -10,6 +20,8 @@ const stage = (over: Partial<ForecastStageRow>): ForecastStageRow => ({
   isApprovalTask: false,
   actualHours: null,
   remainingHoursEstimate: null,
+  // По умолчанию оценка подтверждена при текущем факте (не устарела).
+  remainingActualBaseline: over.actualHours ?? null,
   ...over,
 });
 
@@ -23,6 +35,7 @@ function input(over: Partial<ProfitForecastInput> = {}): ProfitForecastInput {
     pmHours: 0,
     actualPmHours: null,
     remainingPmHoursEstimate: null,
+    remainingPmActualBaseline: over.actualPmHours ?? null,
     terms: {
       currency: 'RUB',
       pricingMode: 'markup',
@@ -64,7 +77,7 @@ describe('profitForecast', () => {
       }),
     );
     expect(f.partial).toBe(true);
-    expect(f.incomplete).toEqual([{ name: 'Внедрение', state: 'unknown' }]);
+    expect(states(f)).toEqual([{ name: 'Внедрение', state: 'unknown' }]);
     expect(f.forecastCost).toBeNull();
     expect(f.profit).toBeNull();
     expect(f.profitUpperBound).toBe(100000 - 81400);
@@ -83,7 +96,7 @@ describe('profitForecast', () => {
         ],
       }),
     );
-    expect(f.incomplete).toEqual([
+    expect(states(f)).toEqual([
       { name: 'А', state: 'missing_remaining' },
       { name: 'Б', state: 'missing_actual' },
     ]);
@@ -92,7 +105,9 @@ describe('profitForecast', () => {
   it('подтверждённый остаток без факта — известен (этап ещё не начат)', () => {
     const f = profitForecast(
       input({
-        stages: [stage({ id: 'a', actualHours: null, remainingHoursEstimate: 8 })],
+        stages: [
+          stage({ id: 'a', status: 'planned', actualHours: null, remainingHoursEstimate: 8 }),
+        ],
       }),
     );
     expect(f.partial).toBe(false);
@@ -113,7 +128,7 @@ describe('profitForecast', () => {
   it('РП: плановые часы без факта и оценки делают прогноз неполным', () => {
     const f = profitForecast(input({ pmHours: 16 }));
     expect(f.partial).toBe(true);
-    expect(f.incomplete).toEqual([{ name: 'Руководство проектом', state: 'unknown' }]);
+    expect(states(f)).toEqual([{ name: 'Руководство проектом', state: 'unknown' }]);
     const done = profitForecast(
       input({ pmHours: 16, actualPmHours: 6, remainingPmHoursEstimate: 4 }),
     );
@@ -151,5 +166,108 @@ describe('profitForecast', () => {
     );
     expect(b.forecastCost).toBeGreaterThan(a.forecastCost!);
     expect(profitForecast(input()).forecastCost).toBe(a.forecastCost);
+  });
+
+  it('начатый этап с оценкой, но без факта — факт не внесён, прогноз неполный', () => {
+    const f = profitForecast(
+      input({
+        stages: [
+          stage({ id: 'a', name: 'А', status: 'in_progress', remainingHoursEstimate: 8 }),
+          stage({ id: 'b', name: 'Б', status: 'rejected', remainingHoursEstimate: 4 }),
+        ],
+      }),
+    );
+    expect(f.partial).toBe(true);
+    expect(states(f)).toEqual([
+      { name: 'А', state: 'missing_actual' },
+      { name: 'Б', state: 'missing_actual' },
+    ]);
+    expect(f.incomplete[0].reason).toContain('работа начата');
+    expect(f.forecastCost).toBeNull();
+  });
+
+  it('РП: оценка без факта допустима только до начала работ по проекту', () => {
+    const notStarted = profitForecast(
+      input({
+        stages: [stage({ status: 'planned', remainingHoursEstimate: 10 })],
+        pmHours: 8,
+        remainingPmHoursEstimate: 8,
+      }),
+    );
+    expect(notStarted.partial).toBe(false);
+    const started = profitForecast(input({ pmHours: 8, remainingPmHoursEstimate: 8 }));
+    expect(states(started)).toEqual([{ name: 'Руководство проектом', state: 'missing_actual' }]);
+  });
+
+  it('факт изменился после оценки — оценка устарела, прогноз неполный с причиной', () => {
+    const f = profitForecast(
+      input({
+        stages: [
+          stage({
+            id: 'b',
+            name: 'Разработка',
+            actualHours: 30,
+            remainingHoursEstimate: 20,
+            remainingActualBaseline: 10,
+          }),
+        ],
+      }),
+    );
+    expect(f.partial).toBe(true);
+    expect(states(f)).toEqual([{ name: 'Разработка', state: 'stale_estimate' }]);
+    expect(f.incomplete[0].reason).toContain('при факте 10 ч, сейчас 30 ч');
+    const line = f.lines[0];
+    expect(line).toMatchObject({ remainingHours: 20, remainingCost: null, forecastCost: null });
+    expect(line.remainingActualBaseline).toBe(10);
+    // Устаревший остаток не входит даже в нижнюю границу затрат.
+    expect(f.remainingCost).toBe(0);
+    expect(f.knownCost).toBe(33000);
+  });
+
+  it('оценка до появления факта устаревает, когда факт внесён', () => {
+    const f = profitForecast(
+      input({
+        stages: [
+          stage({
+            status: 'in_progress',
+            actualHours: 5,
+            remainingHoursEstimate: 8,
+            remainingActualBaseline: null,
+          }),
+        ],
+      }),
+    );
+    expect(f.incomplete.map((i) => i.state)).toEqual(['stale_estimate']);
+  });
+
+  it('устаревшая оценка РП тоже делает прогноз неполным', () => {
+    const f = profitForecast(
+      input({ actualPmHours: 9, remainingPmHoursEstimate: 4, remainingPmActualBaseline: 6 }),
+    );
+    expect(states(f)).toEqual([{ name: 'Руководство проектом', state: 'stale_estimate' }]);
+  });
+
+  it('некорректные условия версии — ошибка прогноза, а не исключение', () => {
+    const r = tryProfitForecast(
+      input({ terms: { ...input().terms, pricingMode: 'unknown_mode' } }),
+    );
+    expect('error' in r && r.error).toContain('Прогноз не рассчитан');
+    expect('error' in tryProfitForecast(input())).toBe(false);
+  });
+});
+
+describe('parseHoursInput', () => {
+  it('принимает числа и строки из цифр, null и пустую строку — очистить', () => {
+    expect(parseHoursInput(5)).toBe(5);
+    expect(parseHoursInput('12.5')).toBe(12.5);
+    expect(parseHoursInput(0)).toBe(0);
+    expect(parseHoursInput(null)).toBeNull();
+    expect(parseHoursInput('')).toBeNull();
+  });
+
+  it('отвергает пробелы, нечисловые строки, массивы, логические и отрицательные', () => {
+    for (const v of [' ', '  3 ', 'abc', '1e3', '-1', -1, [], [5], true, {}, Infinity, NaN]) {
+      expect(parseHoursInput(v)).toBeUndefined();
+    }
   });
 });

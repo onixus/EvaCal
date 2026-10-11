@@ -222,4 +222,61 @@ describe('оценка оставшейся работы', () => {
       (await patchActuals(patch({ remainingPmHoursEstimate: 'x' }), params('c1'))).status,
     ).toBe(400);
   });
+
+  it('пробелы, нечисловые строки и массивы — 400', async () => {
+    vi.mocked(requireApiRole).mockResolvedValue(session('architect') as never);
+    vi.mocked(prisma.calculation.findUnique).mockResolvedValue(wonCalc());
+    for (const bad of [' ', 'abc', [3], true]) {
+      const res = await patchStage(patch({ remainingHoursEstimate: bad }), stageParams);
+      expect(res.status).toBe(400);
+      expect(
+        (await patchActuals(patch({ remainingPmHoursEstimate: bad }), params('c1'))).status,
+      ).toBe(400);
+      expect((await patchActuals(patch({ actualPmHours: bad }), params('c1'))).status).toBe(400);
+    }
+    expect(prisma.stage.update).not.toHaveBeenCalled();
+    expect(prisma.calculation.update).not.toHaveBeenCalled();
+  });
+
+  it('оценка запоминает факт этапа на момент подтверждения', async () => {
+    vi.mocked(requireApiRole).mockResolvedValue(session('architect') as never);
+    vi.mocked(prisma.calculation.findUnique).mockResolvedValue(wonCalc());
+    vi.mocked(prisma.stage.findUnique).mockResolvedValue({
+      id: 's1',
+      calculationId: 'c1',
+      isApprovalTask: false,
+      actualHours: 14,
+      remainingHoursEstimate: null,
+    } as never);
+    vi.mocked(prisma.stage.update).mockResolvedValue({ id: 's1' } as never);
+    await patchStage(patch({ remainingHoursEstimate: '6' }), stageParams);
+    expect(vi.mocked(prisma.stage.update).mock.calls[0][0].data).toMatchObject({
+      remainingHoursEstimate: 6,
+      remainingActualBaseline: 14,
+    });
+  });
+
+  it('оценка РП запоминает факт РП; аудит хранит было/стало', async () => {
+    vi.mocked(requireApiRole).mockResolvedValue(session('admin') as never);
+    vi.mocked(prisma.calculation.findUnique).mockResolvedValue({
+      ...(wonCalc() as object),
+      actualPmHours: 3,
+      remainingPmHoursEstimate: 2,
+    } as never);
+    await patchActuals(patch({ remainingPmHoursEstimate: 5 }), params('c1'));
+    expect(vi.mocked(prisma.calculation.update).mock.calls[0][0].data).toMatchObject({
+      remainingPmHoursEstimate: 5,
+      remainingPmActualBaseline: 3,
+    });
+    expect(writeAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'calculation.remainingPm', meta: { from: 2, to: 5 } }),
+    );
+
+    vi.mocked(prisma.calculation.update).mockClear();
+    await patchActuals(patch({ actualPmHours: 7, remainingPmHoursEstimate: 1 }), params('c1'));
+    expect(vi.mocked(prisma.calculation.update).mock.calls[0][0].data).toMatchObject({
+      actualPmHours: 7,
+      remainingPmActualBaseline: 7,
+    });
+  });
 });

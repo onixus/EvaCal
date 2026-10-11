@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { calculateCommercialSummary } from '@/lib/commercial';
-import { compareOffers, offerTerm, type OfferVersionInput } from '@/lib/offerCompare';
+import {
+  compareOffers,
+  isOfferError,
+  offerTerm,
+  type OfferVariant,
+  type OfferVersionInput,
+} from '@/lib/offerCompare';
 import type { SpecificationItem } from '@/lib/specification/types';
 
 const item = (over: Partial<SpecificationItem>): SpecificationItem => ({
@@ -76,10 +82,20 @@ function version(over: Partial<OfferVersionInput> = {}): OfferVersionInput {
   };
 }
 
+/** Сравнение, где все версии пересчитаны (иначе тест падает с текстом ошибки). */
+function cmp(inputs: OfferVersionInput[]) {
+  const result = compareOffers(inputs);
+  const variants: OfferVariant[] = result.variants.map((v) => {
+    if (isOfferError(v)) throw new Error(v.error);
+    return v;
+  });
+  return { ...result, variants };
+}
+
 describe('compareOffers', () => {
   it('цифры варианта совпадают с КП по сохранённым условиям версии', () => {
     const v = version();
-    const [variant] = compareOffers([v, version({ id: 'c2', version: 2 })]).variants;
+    const [variant] = cmp([v, version({ id: 'c2', version: 2 })]).variants;
     const summary = calculateCommercialSummary(v.stages, v.pmHours, v.risks, v.terms);
     expect(variant.money.totalCost).toBe(summary.totalCost);
     expect(variant.money.subtotalExVat).toBe(summary.subtotalExVat);
@@ -92,7 +108,7 @@ describe('compareOffers', () => {
       totalHours: 138,
     });
     expect(variant.rates.find((r) => r.role === 'developer')?.rate).toBe(1000);
-    expect(variant.ratesStored).toBe(true);
+    expect(variant.ratesCoverage).toBe('stored');
     expect(variant.explain.cost).toContain('Ставки — сохранённые в версии');
     expect(variant.explain.price).toContain('наценка 20%');
     expect(variant.explain.profit).toContain('Прибыль = цена без НДС');
@@ -100,13 +116,13 @@ describe('compareOffers', () => {
 
   it('исторические ставки версии сохраняются: новая версия с другими ставками не меняет старую', () => {
     const v1 = version();
-    const before = compareOffers([v1, version({ id: 'x', version: 9 })]).variants[0];
+    const before = cmp([v1, version({ id: 'x', version: 9 })]).variants[0];
     const v2 = version({
       id: 'c2',
       version: 2,
       terms: { ...v1.terms, roleRates: '{"developer":5000,"analyst":6000,"pm":7000}' },
     });
-    const result = compareOffers([v1, v2]);
+    const result = cmp([v1, v2]);
     expect(result.variants[0].money).toEqual(before.money);
     expect(result.variants[1].money.totalCost).toBeGreaterThan(before.money.totalCost);
     expect(result.variants[1].delta?.totalCost).toBe(
@@ -117,14 +133,14 @@ describe('compareOffers', () => {
 
   it('без сохранённых ставок вариант явно помечен', () => {
     const v = version({ terms: { ...version().terms, roleRates: null } });
-    const [variant] = compareOffers([v, version({ id: 'c2' })]).variants;
-    expect(variant.ratesStored).toBe(false);
+    const [variant] = cmp([v, version({ id: 'c2' })]).variants;
+    expect(variant.ratesCoverage).toBe('default');
     expect(variant.explain.cost).toContain('ставки по умолчанию');
   });
 
   it('target_margin объясняется делением на (1 − маржа)', () => {
     const v = version({ terms: { ...version().terms, pricingMode: 'target_margin' } });
-    const [variant] = compareOffers([v, version({ id: 'c2' })]).variants;
+    const [variant] = cmp([v, version({ id: 'c2' })]).variants;
     expect(variant.explain.price).toContain('/ (1 − 20%)');
   });
 
@@ -150,7 +166,7 @@ describe('compareOffers', () => {
         },
       ],
     });
-    const delta = compareOffers([base, next]).variants[1].delta!;
+    const delta = cmp([base, next]).variants[1].delta!;
     expect(delta.stagesAdded).toEqual(['Внедрение']);
     expect(delta.stagesRemoved).toEqual(['Анализ']);
     expect(delta.stagesChanged).toEqual([{ name: 'Разработка', from: 100, to: 140 }]);
@@ -159,7 +175,7 @@ describe('compareOffers', () => {
 
   it('разные валюты: денежная разница не считается', () => {
     const usd = version({ id: 'c2', terms: { ...version().terms, currency: 'USD' } });
-    const result = compareOffers([version(), usd]);
+    const result = cmp([version(), usd]);
     expect(result.sameCurrency).toBe(false);
     expect(result.variants[1].delta).toMatchObject({ totalCost: null, profit: null });
   });
@@ -174,7 +190,7 @@ describe('compareOffers', () => {
       },
       latestSpecification: { version: 3, status: 'confirmed' },
     });
-    const spec = compareOffers([v, version({ id: 'c2' })]).variants[0].specification;
+    const spec = cmp([v, version({ id: 'c2' })]).variants[0].specification;
     expect(spec.state).toBe('confirmed');
     expect(spec.incomplete).toBe(true);
     expect(spec.totals).toEqual([
@@ -185,9 +201,34 @@ describe('compareOffers', () => {
 
   it('неподтверждённая спецификация не сравнивается по суммам', () => {
     const v = version({ latestSpecification: { version: 2, status: 'draft' } });
-    const [variant, second] = compareOffers([v, version({ id: 'c2' })]).variants;
+    const [variant, second] = cmp([v, version({ id: 'c2' })]).variants;
     expect(variant.specification).toMatchObject({ state: 'not_confirmed', totals: [] });
     expect(second.specification.state).toBe('none');
     expect(variant.explain.specification).toContain('не входит');
+  });
+
+  it('частично сохранённые ставки помечаются по ролям', () => {
+    const v = version({ terms: { ...version().terms, roleRates: '{"developer":1000}' } });
+    const [variant] = cmp([v, version({ id: 'c2' })]).variants;
+    expect(variant.ratesCoverage).toBe('partial');
+    expect(variant.rates.find((r) => r.role === 'developer')?.source).toBe('stored');
+    expect(variant.rates.find((r) => r.role === 'analyst')?.source).toBe('default');
+    expect(variant.explain.cost).toContain('частично');
+  });
+
+  it('некорректные сохранённые условия одной версии не ломают сравнение', () => {
+    const broken = version({
+      id: 'bad',
+      terms: { ...version().terms, pricingMode: 'target_margin', marginPercent: 100 },
+    });
+    const result = compareOffers([version(), broken]);
+    const bad = result.variants[1];
+    expect(isOfferError(bad)).toBe(true);
+    expect(isOfferError(bad) && bad.error).toContain('Целевая маржа');
+    expect(isOfferError(result.variants[0])).toBe(false);
+
+    const baseBroken = compareOffers([broken, version({ id: 'c2' })]);
+    const second = baseBroken.variants[1];
+    expect(!isOfferError(second) && second.delta).toBeNull();
   });
 });
