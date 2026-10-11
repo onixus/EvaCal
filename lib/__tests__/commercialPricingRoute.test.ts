@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-vi.mock('@/lib/prisma', () => ({
-  prisma: { calculation: { findUnique: vi.fn(), update: vi.fn() } },
-}));
+vi.mock('@/lib/prisma', () => {
+  const prisma: Record<string, unknown> = {
+    calculation: { findUnique: vi.fn(), update: vi.fn() },
+    stage: { findMany: vi.fn(async () => []) },
+  };
+  prisma.$transaction = async (fn: (tx: unknown) => unknown) => fn(prisma);
+  return { prisma };
+});
+vi.mock('@/lib/actualsLedgerData', () => ({ lockCalculationLedger: vi.fn() }));
 vi.mock('@/lib/access', () => ({
   requireCalcAccess: vi.fn(async () => ({ kind: 'staff', actorId: 'architect' })),
   requireStaff: vi.fn(async () => ({ userId: 'architect' })),
@@ -15,6 +21,7 @@ vi.mock('@/lib/audit', () => ({
 vi.mock('@/lib/calc', () => ({
   primaryStagesFromTemplate: () => [],
   rebuildStages: vi.fn(),
+  rebuildStagesTx: vi.fn(),
   pmHoursFor: () => 0,
   scheduleConfigFromTemplate: () => ({}),
 }));

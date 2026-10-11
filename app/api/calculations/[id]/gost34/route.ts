@@ -193,6 +193,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       vendorFiles,
       manualLinks,
       sectionOverrides,
+      kitFragments,
       tzAuthor,
       // Проектный контекст принимают проверка мастера и предпросмотр, поэтому
       // выпуск обязан принимать его тоже: иначе вердикт «пробелов нет»
@@ -269,6 +270,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
             projectContext,
             manualTraceLinks: manualLinks,
             sectionOverrides,
+            kitFragments,
             tzAuthor,
             metadataOverride: {
               docType: entry.docType,
@@ -318,6 +320,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         manualLinks,
         signatures: commonSignatures,
         sectionOverrides,
+        kitFragments,
         acceptance: acceptanceSnapshot(acceptance),
         updatedAt: new Date().toISOString(),
       };
@@ -375,6 +378,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       projectContext,
       manualTraceLinks: manualLinks,
       sectionOverrides,
+      kitFragments,
       tzAuthor,
       metadataOverride: {
         docType,
@@ -405,6 +409,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       manualLinks,
       signatures: commonSignatures,
       sectionOverrides,
+      kitFragments,
       acceptance: acceptanceSnapshot(acceptance),
       updatedAt: new Date().toISOString(),
     };

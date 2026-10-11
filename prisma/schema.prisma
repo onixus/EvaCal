@@ -244,6 +244,8 @@ model Calculation {
   // #103 4.2–4.3: дополнительные статьи затрат и согласование скидки
   costItems         CostItem[]
   discountApprovals DiscountApproval[]
+  // #103 WP-7b: применения наборов решений
+  kitApplications KitApplication[]
 
   // The calculation list is always sorted newest-first. `id` is part of the index
   // because it is the tie-breaker in the paged ordering: without it, rows sharing a
@@ -321,6 +323,8 @@ model GostPackage {
   acceptanceChecks AcceptanceCheck[]
   // #103 WP-4b: решения приёмочной комиссии по редакции
   acceptanceDecisions AcceptanceDecision[]
+  // #103 WP-7b: применения наборов решений к черновику комплекта
+  kitApplications KitApplication[]
 }
 
 // A stage on the Gantt chart. Approval tasks (auto-inserted whenever a stage's
@@ -356,6 +360,9 @@ model Stage {
   remainingActualBaseline Float?
   remainingEstimatedBy   String?
   remainingEstimatedAt   DateTime?
+  // #103 WP-7b: происхождение из набора решений `kit:<kitId>@<version>#<elementId>`;
+  // null — этап заведён вручную. Перестройка плана (rebuildStages) его сохраняет.
+  originRef          String?
   // #103 WP-6a: actualHours/даты факта — агрегат этих записей
   actualEntries      ActualEntry[]
   taskMappings       ExternalTaskMapping[]
@@ -379,6 +386,8 @@ model Risk {
   description   String
   hours         Float       @default(0)
   order         Int         @default(0)
+  // #103 WP-7b: происхождение из набора решений (см. Stage.originRef).
+  originRef     String?
   createdAt     DateTime    @default(now())
 
   @@index([calculationId, order])
@@ -1194,6 +1203,9 @@ model SolutionKitVersion {
   archivedBy String?
   archivedAt DateTime?
 
+  applications KitApplication[] @relation("KitApplicationVersion")
+  updatesFrom  KitApplication[] @relation("KitApplicationFromVersion")
+
   @@unique([kitId, version])
   @@index([kitId, status])
 }
@@ -1348,4 +1360,35 @@ model ComplianceEvidence {
   archivedAt      DateTime?
 
   @@index([productId, archivedAt])
+}
+
+// ==== #103 WP-7b: kit application ====
+
+// Применение утверждённой версии набора решений к черновику расчёта и/или
+// комплекта (kind = apply) либо перенос выбранных изменений новой версии
+// набора в новую черновую версию расчёта (kind = update). Запись неизменна
+// (триггер): по `selection` применение воспроизводится, `mapping` связывает
+// elementId набора с созданными строками. Правила — docs/kit-application.md.
+model KitApplication {
+  id            String             @id @default(cuid())
+  kind          String             @default("apply") // apply | update
+  kitId         String
+  kitVersionId  String
+  kitVersion    SolutionKitVersion @relation("KitApplicationVersion", fields: [kitVersionId], references: [id], onDelete: Restrict)
+  /// Версия набора, с которой проект обновлялся (только kind = update).
+  fromVersionId String?
+  fromVersion   SolutionKitVersion? @relation("KitApplicationFromVersion", fields: [fromVersionId], references: [id], onDelete: Restrict)
+  calculationId String
+  calculation   Calculation        @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  packageId     String?
+  package       GostPackage?       @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  /// Адаптация: выбранные элементы, правки, значения драйверов, цели.
+  selection     Json
+  /// elementId → созданные id: { stages, risks, requirements, fragments, checks, links, skipped }.
+  mapping       Json
+  appliedBy     String
+  appliedAt     DateTime           @default(now())
+
+  @@index([calculationId, appliedAt])
+  @@index([kitId, appliedAt])
 }

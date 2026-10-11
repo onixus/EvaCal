@@ -148,13 +148,8 @@ export interface KitContentIssue {
   elementId?: string;
 }
 
-/** Провенанс элемента, применённого к проекту (#103 7.3, следующий шаг). */
-export interface KitElementProvenance {
-  kitId: string;
-  kitKey: string;
-  kitVersion: number;
-  elementId: string;
-}
+/** Провенанс элемента, применённого к проекту (#103 WP-7b). */
+export type KitElementProvenance = import('@/lib/gost34/requirements/v2').KitElementOrigin;
 
 export function emptyKitContent(): SolutionKitContent {
   return {

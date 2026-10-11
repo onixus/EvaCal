@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCalcAccess } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 import {
+  DraftConflictError,
   getGostPackageDraft,
   getGostPackageStudioState,
   saveGostPackageDraft,
@@ -103,15 +104,33 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     if (!snapshot) {
       return NextResponse.json({ error: 'snapshot is required' }, { status: 400 });
     }
+    // Оптимистичная блокировка: updatedAt загруженного черновика (ISO) или null.
+    const expectedUpdatedAt = body.expectedUpdatedAt;
+    if (
+      expectedUpdatedAt !== undefined &&
+      expectedUpdatedAt !== null &&
+      (typeof expectedUpdatedAt !== 'string' || Number.isNaN(Date.parse(expectedUpdatedAt)))
+    ) {
+      return NextResponse.json({ error: 'expectedUpdatedAt: ISO-дата или null' }, { status: 400 });
+    }
 
-    const draft = await saveGostPackageDraft({
-      calculationId: params.id,
-      snapshot,
-      standardProfileId,
-      standardProfileVersion,
-      generatorVersion,
-      createdBy: access.actorId,
-    });
+    let draft;
+    try {
+      draft = await saveGostPackageDraft({
+        calculationId: params.id,
+        snapshot,
+        standardProfileId,
+        standardProfileVersion,
+        generatorVersion,
+        createdBy: access.actorId,
+        expectedUpdatedAt,
+      });
+    } catch (err) {
+      if (err instanceof DraftConflictError) {
+        return NextResponse.json({ error: err.message, code: 'draft_conflict' }, { status: 409 });
+      }
+      throw err;
+    }
 
     await writeAudit({
       actorType: actorTypeFromAccess(access.kind),

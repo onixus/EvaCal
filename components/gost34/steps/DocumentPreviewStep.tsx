@@ -10,6 +10,7 @@ import LlmSettingsPanel from './requirements/LlmSettingsPanel';
 import TzDraftReviewPanel from './TzDraftReviewPanel';
 import { useTzAuthorBatch } from '../hooks/useTzAuthorBatch';
 import { getShareToken, withShareHeaders } from '@/lib/shareClient';
+import { editableParagraphs } from '@/lib/gost34/generation/kitAppendices';
 
 interface DocumentPreviewStepProps extends WizardStepProps {
   calculationId: string;
@@ -100,6 +101,7 @@ export default function DocumentPreviewStep({
             applicabilityOverrides: decisions.applicabilityOverrides,
             manualLinks: decisions.manualLinks,
             sectionOverrides,
+            kitFragments: decisions.kitFragments,
             tzAuthor: decisions.tzAuthor,
           }),
         });
@@ -151,6 +153,7 @@ export default function DocumentPreviewStep({
     decisions.applicabilityOverrides,
     decisions.manualLinks,
     sectionOverrides,
+    decisions.kitFragments,
     decisions.tzAuthor,
   ]);
 
@@ -452,7 +455,9 @@ export default function DocumentPreviewStep({
 
   function startEditing(sec: Gost34Section) {
     setEditingSectionTitle(sec.title);
-    setEditParagraphs((sec.paragraphs || []).join('\n\n'));
+    // Абзацы, дописанные из наборов решений, не редактируются здесь: они
+    // добавляются к разделу при сборке после правки (#103 WP-7b).
+    setEditParagraphs(editableParagraphs(sec).join('\n\n'));
   }
 
   function saveSectionEdit(title: string) {

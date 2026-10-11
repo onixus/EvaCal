@@ -11,6 +11,7 @@ import AcceptanceChecksModal from './project-detail/AcceptanceChecksModal';
 import CommercialTab from './project-detail/CommercialTab';
 import ChangeRequestsTab from './project-detail/ChangeRequestsTab';
 import ChangeSummaryPanel from './project-detail/ChangeSummaryPanel';
+import KitsTab from './project-detail/KitsTab';
 import { canEditChangeRequests } from '@/lib/changeRequests/workflow';
 import ProjectSettingsPanel from './project-detail/ProjectSettingsPanel';
 import ProjectEditModal from './project-detail/ProjectEditModal';
@@ -33,7 +34,7 @@ export type {
   SerializedProject,
 } from './project-detail/types';
 
-type ActiveTab = 'calculations' | 'packages' | 'changes' | 'commercial' | 'settings';
+type ActiveTab = 'calculations' | 'packages' | 'changes' | 'kits' | 'commercial' | 'settings';
 
 interface ReviewRequest {
   pkg: SerializedGostPackage;
@@ -71,6 +72,8 @@ export default function ProjectDetailClient({
   const latestCalculation = project.calculations[0] ?? null;
   // Вкладка видна только ролям, которым API отдаёт запросы (ГАП, тех.писатель — нет).
   const showChangeRequests = canEditChangeRequests(sessionRole);
+  // Наборы решений (#103 WP-7b) применяют архитектор и администратор.
+  const showKits = sessionRole === 'architect' || sessionRole === 'admin';
 
   return (
     <div className="page">
@@ -163,6 +166,14 @@ export default function ProjectDetailClient({
               <span>Запросы на изменение</span>
             </button>
           )}
+          {showKits && (
+            <button
+              onClick={() => setActiveTab('kits')}
+              className={`tab-btn ${activeTab === 'kits' ? 'tab-btn-active' : ''}`}
+            >
+              <span>Наборы решений</span>
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('commercial')}
             className={`tab-btn ${activeTab === 'commercial' ? 'tab-btn-active' : ''}`}
@@ -210,6 +221,8 @@ export default function ProjectDetailClient({
           sessionRole={sessionRole}
         />
       )}
+
+      {activeTab === 'kits' && showKits && <KitsTab calculation={latestCalculation} />}
 
       {activeTab === 'commercial' && (
         <CommercialTab calculation={latestCalculation} changeSummary={project.changeSummary} />

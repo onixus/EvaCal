@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
       projectContext,
       manualTraceLinks,
       sectionOverrides,
+      kitFragments,
       tzAuthor,
     } = body;
 
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
       projectContext,
       manualTraceLinks,
       sectionOverrides,
+      kitFragments,
       tzAuthor,
     });
 

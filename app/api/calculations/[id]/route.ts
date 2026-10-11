@@ -9,10 +9,12 @@ import { validateCommercialUpdate } from '@/lib/commercial';
 import {
   primaryStagesFromTemplate,
   rebuildStages,
+  rebuildStagesTx,
   pmHoursFor,
   scheduleConfigFromTemplate,
 } from '@/lib/calc';
 import { primaryInputsFromStageRows } from '@/lib/scheduling';
+import { lockCalculationLedger } from '@/lib/actualsLedgerData';
 import { requireCalcAccess, requireStaff } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 
@@ -68,8 +70,8 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
     existing.template.defaultStartDate ??
     (body.startDate ? new Date(body.startDate) : existing.startDate);
 
-  const primary = primaryStagesFromTemplate(existing.template.stageTemplates, answers);
-  const pmHours = pmHoursFor(existing.template.fields, answers, primary);
+  const templatePrimary = primaryStagesFromTemplate(existing.template.stageTemplates, answers);
+  const scheduleConfig = await scheduleConfigFromTemplate(existing.template);
 
   try {
     validateCommercialUpdate(body, existing);
@@ -84,39 +86,52 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
         : body.roleRates
       : existing.roleRates;
 
-  const calculation = await prisma.calculation.update({
-    where: { id: params.id },
-    data: {
-      name: body.name ?? existing.name,
-      customer: body.customer ?? existing.customer,
-      answers: JSON.stringify(answers),
-      startDate,
-      pmHours,
-      status: existing.status === 'pending_approval' ? 'draft' : existing.status,
-      stageEnteredAt: existing.status === 'pending_approval' ? new Date() : undefined,
-      pricingMode: body.pricingMode ?? existing.pricingMode,
-      currency: body.currency ?? existing.currency,
-      roleRates: roleRatesJson,
-      overheadPercent:
-        body.overheadPercent !== undefined
-          ? Number(body.overheadPercent)
-          : existing.overheadPercent,
-      marginPercent:
-        body.marginPercent !== undefined ? Number(body.marginPercent) : existing.marginPercent,
-      discountPercent:
-        body.discountPercent !== undefined
-          ? Number(body.discountPercent)
-          : existing.discountPercent,
-      vatPercent: body.vatPercent !== undefined ? Number(body.vatPercent) : existing.vatPercent,
-      includeVat: body.includeVat !== undefined ? Boolean(body.includeVat) : existing.includeVat,
+  // Этапы шаблона пересчитываются по ответам; этапы из наборов решений
+  // (#103 WP-7b, originRef) шаблону не принадлежат — переносятся как есть
+  // после них, со своими часами и происхождением. Этапы читаются под той же
+  // блокировкой расчёта, что и перестройка: параллельное применение набора не
+  // потеряется между чтением и записью.
+  await prisma.$transaction(
+    async (tx) => {
+      await lockCalculationLedger(tx, params.id);
+      const rows = await tx.stage.findMany({
+        where: { calculationId: params.id },
+        orderBy: { order: 'asc' },
+      });
+      const kitStages = primaryInputsFromStageRows(rows).filter((p) => p.originRef);
+      const primary = [...templatePrimary, ...kitStages];
+      const pmHours = pmHoursFor(existing.template.fields, answers, primary);
+      await tx.calculation.update({
+        where: { id: params.id },
+        data: {
+          name: body.name ?? existing.name,
+          customer: body.customer ?? existing.customer,
+          answers: JSON.stringify(answers),
+          startDate,
+          pmHours,
+          status: existing.status === 'pending_approval' ? 'draft' : existing.status,
+          stageEnteredAt: existing.status === 'pending_approval' ? new Date() : undefined,
+          pricingMode: body.pricingMode ?? existing.pricingMode,
+          currency: body.currency ?? existing.currency,
+          roleRates: roleRatesJson,
+          overheadPercent:
+            body.overheadPercent !== undefined
+              ? Number(body.overheadPercent)
+              : existing.overheadPercent,
+          marginPercent:
+            body.marginPercent !== undefined ? Number(body.marginPercent) : existing.marginPercent,
+          discountPercent:
+            body.discountPercent !== undefined
+              ? Number(body.discountPercent)
+              : existing.discountPercent,
+          vatPercent: body.vatPercent !== undefined ? Number(body.vatPercent) : existing.vatPercent,
+          includeVat:
+            body.includeVat !== undefined ? Boolean(body.includeVat) : existing.includeVat,
+        },
+      });
+      await rebuildStagesTx(tx, params.id, primary, startDate, scheduleConfig);
     },
-  });
-
-  await rebuildStages(
-    calculation.id,
-    primary,
-    startDate,
-    await scheduleConfigFromTemplate(existing.template),
+    { timeout: 30_000 },
   );
 
   await writeAudit({

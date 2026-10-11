@@ -40,7 +40,8 @@
     "test:stage-deps:postgres": "tsx scripts/verify-stage-dependencies.ts",
     "test:sizing:postgres": "tsx scripts/verify-sizing.ts",
     "test:profit-forecast:postgres": "tsx scripts/verify-profit-forecast.ts",
-    "test:solution-kits:postgres": "tsx scripts/verify-solution-kits.ts"
+    "test:solution-kits:postgres": "tsx scripts/verify-solution-kits.ts",
+    "test:kit-application:postgres": "tsx scripts/verify-kit-application.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1131.0",

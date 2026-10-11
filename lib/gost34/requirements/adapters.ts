@@ -56,6 +56,23 @@ export function toGost34RequirementItem(
 
   if (requirement.assumptions) item.assumptions = requirement.assumptions;
   if (requirement.source?.filename !== undefined) item.sourceFile = requirement.source.filename;
+  if (requirement.source?.origin) {
+    item.origin = { ...requirement.source.origin };
+    // Требование из набора: критерии списком, метод и служебные значения
+    // пересчёта переносятся как есть (у прочих — прежняя legacy-строка).
+    if (requirement.acceptanceCriteria?.length) {
+      item.acceptanceCriteria = [...requirement.acceptanceCriteria];
+    }
+    if (requirement.verificationMethod) item.verificationMethod = requirement.verificationMethod;
+    if (requirement.kitTracking) {
+      item.kitCriterion = requirement.kitTracking.criterion;
+      item.kitAutoCriteria = requirement.kitTracking.autoCriteria
+        ? [...requirement.kitTracking.autoCriteria]
+        : null;
+      item.kitAutoCriterion = requirement.kitTracking.autoCriterion;
+      item.kitAutoMethod = requirement.kitTracking.autoMethod;
+    }
+  }
   if (requirement.legacy?.normalizedBy !== undefined)
     item.normalizedBy = requirement.legacy.normalizedBy;
   if (requirement.legacy?.stageName !== undefined) item.stageName = requirement.legacy.stageName;
@@ -101,6 +118,26 @@ export function fromGost34RequirementItem(
     requirement.source = {};
     if (filename !== undefined) requirement.source.filename = filename;
     if (opts.sourceSection !== undefined) requirement.source.section = opts.sourceSection;
+  }
+  if (item.origin) {
+    requirement.source = { ...(requirement.source ?? {}), origin: { ...item.origin } };
+    if (Array.isArray(item.acceptanceCriteria) && item.acceptanceCriteria.length > 0) {
+      requirement.acceptanceCriteria = [...item.acceptanceCriteria];
+    }
+    if (item.verificationMethod) requirement.verificationMethod = item.verificationMethod;
+    if (
+      item.kitCriterion !== undefined ||
+      item.kitAutoCriteria !== undefined ||
+      item.kitAutoCriterion !== undefined ||
+      item.kitAutoMethod !== undefined
+    ) {
+      requirement.kitTracking = {
+        criterion: item.kitCriterion ?? null,
+        autoCriteria: item.kitAutoCriteria ? [...item.kitAutoCriteria] : null,
+        autoCriterion: item.kitAutoCriterion ?? null,
+        autoMethod: item.kitAutoMethod ?? null,
+      };
+    }
   }
 
   const legacy: NonNullable<Gost34RequirementV2['legacy']> = {};

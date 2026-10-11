@@ -20,6 +20,8 @@ export interface WizardDecisions {
   signatures: Record<string, string>;
   sectionOverrides?: Record<string, { title?: string; paragraphs?: string[] }>;
   tzAuthor?: TzAuthorState;
+  /** Фрагменты наборов решений (#103 WP-7b): дописываются в разделы после правок. */
+  kitFragments?: unknown[];
 }
 
 export interface WizardStepProps {
