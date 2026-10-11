@@ -8,6 +8,8 @@ pipeline {
     booleanParam(name: 'MULTIARCH', defaultValue: true, description: 'linux/amd64 + linux/arm64; otherwise the native agent architecture.')
   }
   options {
+    // The job SCM is a macOS path; Linux agents check out SOURCE_URL in 'Checkout ref' instead.
+    skipDefaultCheckout()
     timestamps()
     disableConcurrentBuilds()
     buildDiscarder(logRotator(numToKeepStr: '30'))
