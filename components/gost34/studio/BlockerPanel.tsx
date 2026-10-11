@@ -133,7 +133,7 @@ export default function BlockerPanel({
               <button
                 type="button"
                 onClick={() => onGoToIssue(issue)}
-                className="btn-secondary shrink-0 !px-2.5 !py-1 !text-[11px] !font-bold"
+                className="btn-secondary shrink-0 px-2.5! py-1! text-[11px]! font-bold!"
               >
                 Перейти к полю →
               </button>

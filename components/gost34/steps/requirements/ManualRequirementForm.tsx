@@ -45,21 +45,21 @@ export default function ManualRequirementForm({
           placeholder="Код (ТР-Ф-01)"
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          className="bg-slate-50 dark:bg-nord-1 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-nord-6 placeholder-slate-400 focus:border-brand-500 focus:outline-none"
+          className="bg-slate-50 dark:bg-nord-1 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-nord-6 placeholder-slate-400 focus:border-brand-500 focus:outline-hidden"
         />
         <input
           type="text"
           placeholder="Название пункта ТЗ"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="bg-slate-50 dark:bg-nord-1 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-nord-6 placeholder-slate-400 focus:border-brand-500 focus:outline-none"
+          className="bg-slate-50 dark:bg-nord-1 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-nord-6 placeholder-slate-400 focus:border-brand-500 focus:outline-hidden"
         />
         <input
           type="text"
           placeholder="Полный текст требования"
           value={desc}
           onChange={(e) => setDesc(e.target.value)}
-          className="bg-slate-50 dark:bg-nord-1 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-nord-6 placeholder-slate-400 focus:border-brand-500 focus:outline-none"
+          className="bg-slate-50 dark:bg-nord-1 border border-slate-300 dark:border-nord-3 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-nord-6 placeholder-slate-400 focus:border-brand-500 focus:outline-hidden"
         />
         <button
           type="submit"

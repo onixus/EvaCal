@@ -117,13 +117,13 @@ export default function ScenarioAnalysisPanel({
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-nord-3 dark:bg-nord-1/60">
+      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs dark:border-nord-3 dark:bg-nord-1/60">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-base font-bold text-slate-900 dark:text-nord-6">
               Сценарное моделирование трудозатрат и сметы (Scenario Planning)
               <span
-                className="ml-2 rounded bg-amber-50 px-1.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/30 dark:text-nord-yellow"
+                className="ml-2 rounded-sm bg-amber-50 px-1.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/30 dark:text-nord-yellow"
                 data-testid="labour-only-label"
               >
                 без учёта поставки и прочих затрат

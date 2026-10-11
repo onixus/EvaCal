@@ -611,7 +611,7 @@ export default function Gost34Studio({
         <div className="flex shrink-0 items-center gap-2">
           <Link
             href={`/calculations/${calculationId}/changelog`}
-            className="btn-ghost !px-2.5 !py-1.5 !text-xs"
+            className="btn-ghost px-2.5! py-1.5! text-xs!"
           >
             Лист изменений
           </Link>
@@ -619,7 +619,7 @@ export default function Gost34Studio({
             type="button"
             onClick={handleSaveDraft}
             disabled={isSavingDraft || isDraftLoading || Boolean(studioLoadError)}
-            className="btn-secondary !text-xs"
+            className="btn-secondary text-xs!"
             title="Сохранить текущие требования и решения студии"
           >
             {isSavingDraft ? 'Сохранение…' : 'Сохранить черновик'}
@@ -633,7 +633,7 @@ export default function Gost34Studio({
                 ? undefined
                 : `Устраните ${blockerCount} ${pluralRu(blockerCount, 'блокер', 'блокера', 'блокеров')}`
             }
-            className="btn-primary !text-xs"
+            className="btn-primary text-xs!"
           >
             Выпустить комплект
           </button>
@@ -668,7 +668,7 @@ export default function Gost34Studio({
 
       {/* Баннер замечаний ревьюера при отклонении комплекта */}
       {latestPackage?.status === 'rejected' && !isRejectionBannerDismissed && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-4 shadow-sm dark:border-nord-red/40 dark:bg-nord-red/15 space-y-3">
+        <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-4 shadow-xs dark:border-nord-red/40 dark:bg-nord-red/15 space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="flex items-center gap-2.5">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-600 text-xs font-bold text-white dark:bg-nord-red">
@@ -696,7 +696,7 @@ export default function Gost34Studio({
             <div className="flex items-center gap-2">
               <Link
                 href={`/review/${latestPackage.id}`}
-                className="btn-ghost !border-rose-200 !text-rose-800 hover:!bg-rose-100 !px-2.5 !py-1 !text-xs dark:!border-nord-red/30 dark:!text-nord-redText"
+                className="btn-ghost border-rose-200! text-rose-800! hover:bg-rose-100! px-2.5! py-1! text-xs! dark:border-nord-red/30! dark:!text-nord-redText"
               >
                 📋 Лист ревью
               </Link>
@@ -768,7 +768,7 @@ export default function Gost34Studio({
                     <button
                       type="button"
                       onClick={() => goToSection(comment.sectionId)}
-                      className="btn-secondary shrink-0 !px-2.5 !py-1 !text-[11px] !font-bold self-start sm:self-auto"
+                      className="btn-secondary shrink-0 px-2.5! py-1! text-[11px]! font-bold! self-start sm:self-auto"
                     >
                       ✏️ Исправить раздел →
                     </button>
@@ -788,7 +788,7 @@ export default function Gost34Studio({
               <a
                 href={`/api/gost34/packages/${latestPackage.id}/tw-version`}
                 download
-                className="btn-secondary !text-[11px] !py-0.5 !px-2"
+                className="btn-secondary text-[11px]! py-0.5! px-2!"
               >
                 ⬇ Скачать DOCX
               </a>
@@ -846,7 +846,7 @@ export default function Gost34Studio({
                         {step.order}. {step.title}
                       </span>
                       {hasReviewRemarks && (
-                        <span className="chip-block !text-[9px] !px-1 !py-0">замечания</span>
+                        <span className="chip-block text-[9px]! px-1! py-0!">замечания</span>
                       )}
                     </span>
                     <span
@@ -990,7 +990,7 @@ export default function Gost34Studio({
                 <button
                   type="button"
                   onClick={() => setActiveStep(prevStep)}
-                  className="btn-secondary !text-xs"
+                  className="btn-secondary text-xs!"
                 >
                   ← Назад
                 </button>
@@ -999,7 +999,7 @@ export default function Gost34Studio({
                 <button
                   type="button"
                   onClick={() => setActiveStep(nextStep)}
-                  className="btn-primary !text-xs"
+                  className="btn-primary text-xs!"
                 >
                   Далее →
                 </button>

@@ -82,7 +82,7 @@ export default function CalculationsTab({
             return (
               <div
                 key={calc.id}
-                className={`card p-5 transition-all ${isLatest ? 'border-brand-200 shadow-sm dark:border-nord-frost4/40' : 'opacity-90 hover:opacity-100'}`}
+                className={`card p-5 transition-all ${isLatest ? 'border-brand-200 shadow-xs dark:border-nord-frost4/40' : 'opacity-90 hover:opacity-100'}`}
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-1.5">
@@ -97,7 +97,7 @@ export default function CalculationsTab({
                         {calc.name}
                       </Link>
                       {isLatest && (
-                        <span className="rounded bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700 dark:bg-nord-3 dark:text-nord-frost3">
+                        <span className="rounded-sm bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700 dark:bg-nord-3 dark:text-nord-frost3">
                           ТЕКУЩАЯ
                         </span>
                       )}

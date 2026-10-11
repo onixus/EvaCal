@@ -102,7 +102,7 @@ export default function ApplicabilityStep({
               onClick={() => setStatusFilter(filter.id)}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
                 statusFilter === filter.id
-                  ? 'bg-brand-600 text-white shadow-sm'
+                  ? 'bg-brand-600 text-white shadow-xs'
                   : 'bg-white dark:bg-nord-1 text-slate-600 dark:text-nord-4 hover:bg-slate-50 dark:hover:bg-nord-3 border border-slate-200 dark:border-nord-3'
               }`}
             >
@@ -138,12 +138,12 @@ export default function ApplicabilityStep({
                         {item.title}
                       </span>
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold border ${style.chip}`}
+                        className={`px-2 py-0.5 rounded-sm text-[10px] font-bold border ${style.chip}`}
                       >
                         {style.label}
                       </span>
                       {isOverridden && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold border bg-blue-500/15 text-blue-300 border-blue-500/40">
+                        <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border bg-blue-500/15 text-blue-300 border-blue-500/40">
                           ручное решение
                         </span>
                       )}

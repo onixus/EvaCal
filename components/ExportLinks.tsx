@@ -81,7 +81,7 @@ export default function ExportLinks({
       <div className="flex flex-wrap items-center gap-2">
         <Link
           href={`/calculations/${calculationId}/studio`}
-          className="btn-primary !py-1.5 !px-3 text-xs font-semibold shadow-xs"
+          className="btn-primary py-1.5! px-3! text-xs font-semibold shadow-xs"
           title="Студия ГОСТ 34: профиль, требования, применимость, трассируемость и выпуск"
         >
           <span className="text-sm">📑</span>

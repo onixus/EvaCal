@@ -518,7 +518,10 @@ export default function SpecificationPanel({
           </p>
         )}
         {saveWarnings.length > 0 && (
-          <div className="rounded border border-amber-300 p-3 text-sm" data-testid="save-warnings">
+          <div
+            className="rounded-sm border border-amber-300 p-3 text-sm"
+            data-testid="save-warnings"
+          >
             <p>Сохранено с предупреждениями:</p>
             <ul className="list-inside list-disc">
               {saveWarnings.map((w) => (
@@ -563,7 +566,7 @@ export default function SpecificationPanel({
           <p>Загрузка…</p>
         ) : (
           blockers.length > 0 && (
-            <div className="rounded border border-amber-300 p-3 text-sm">
+            <div className="rounded-sm border border-amber-300 p-3 text-sm">
               <p>Для выпуска требуется:</p>
               <ul className="list-inside list-disc">
                 {blockers.map((b, i) => (

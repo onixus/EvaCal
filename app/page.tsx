@@ -188,7 +188,7 @@ export default async function HomePage() {
     return (
       <div className="page-narrow py-8">
         <div className="card overflow-hidden">
-          <div className="bg-gradient-to-br from-brand-600 to-brand-800 p-8 text-white dark:from-nord-1 dark:to-nord-0">
+          <div className="bg-linear-to-br/srgb from-brand-600 to-brand-800 p-8 text-white dark:from-nord-1 dark:to-nord-0">
             <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
               Сметы трудозатрат и комплект ГОСТ 34
             </h1>

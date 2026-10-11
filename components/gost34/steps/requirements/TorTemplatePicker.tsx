@@ -129,7 +129,7 @@ export default function TorTemplatePicker({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/70 dark:bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/70 dark:bg-black/80 backdrop-blur-xs animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-labelledby="tor-template-picker-title"
@@ -177,7 +177,7 @@ export default function TorTemplatePicker({
                   onClick={() => setSelectedCategoryId(tab.id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
                     active
-                      ? 'bg-brand-600 text-white shadow-sm font-semibold'
+                      ? 'bg-brand-600 text-white shadow-xs font-semibold'
                       : 'bg-slate-100 text-slate-700 dark:bg-nord-2 dark:text-nord-4 hover:bg-slate-200 dark:hover:bg-nord-3 hover:text-slate-900 dark:hover:text-nord-6'
                   }`}
                 >
@@ -194,7 +194,7 @@ export default function TorTemplatePicker({
               placeholder="Поиск по названию или типу..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-nord-3 bg-slate-50 dark:bg-nord-1 text-slate-900 dark:text-nord-6 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-nord-3 bg-slate-50 dark:bg-nord-1 text-slate-900 dark:text-nord-6 focus:outline-hidden focus:ring-1 focus:ring-brand-500"
             />
           </div>
         </div>
@@ -227,7 +227,7 @@ export default function TorTemplatePicker({
                           {template.name}
                         </h4>
                       </div>
-                      <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30">
+                      <span className="shrink-0 px-2 py-0.5 rounded-sm text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30">
                         {template.requirements.length} треб.
                       </span>
                     </div>
@@ -237,10 +237,10 @@ export default function TorTemplatePicker({
                     </p>
 
                     <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 dark:bg-nord-3 text-slate-700 dark:text-nord-4">
+                      <span className="px-1.5 py-0.5 rounded-sm text-[9px] font-medium bg-slate-100 dark:bg-nord-3 text-slate-700 dark:text-nord-4">
                         {template.categoryLabel}
                       </span>
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-50 dark:bg-nord-2 text-blue-700 dark:text-nord-frost2">
+                      <span className="px-1.5 py-0.5 rounded-sm text-[9px] font-medium bg-blue-50 dark:bg-nord-2 text-blue-700 dark:text-nord-frost2">
                         {template.systemType}
                       </span>
                     </div>
@@ -303,7 +303,7 @@ export default function TorTemplatePicker({
                       return (
                         <span
                           key={catKey}
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${cfg.style}`}
+                          className={`px-2 py-0.5 rounded-sm text-[10px] font-semibold border ${cfg.style}`}
                         >
                           {cfg.label}: {count}
                         </span>
@@ -336,7 +336,7 @@ export default function TorTemplatePicker({
                         >
                           <div className="flex items-start justify-between gap-2 flex-wrap">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-mono text-xs font-bold text-brand-700 dark:text-nord-frost2 bg-brand-50 dark:bg-nord-2 px-1.5 py-0.5 rounded border border-brand-200 dark:border-nord-3">
+                              <span className="font-mono text-xs font-bold text-brand-700 dark:text-nord-frost2 bg-brand-50 dark:bg-nord-2 px-1.5 py-0.5 rounded-sm border border-brand-200 dark:border-nord-3">
                                 {req.code}
                               </span>
                               <span className="text-xs font-bold text-slate-900 dark:text-nord-6">
@@ -344,7 +344,7 @@ export default function TorTemplatePicker({
                               </span>
                             </div>
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${catConfig.style}`}
+                              className={`px-2 py-0.5 rounded-sm text-[10px] font-semibold border ${catConfig.style}`}
                             >
                               {catConfig.label}
                             </span>

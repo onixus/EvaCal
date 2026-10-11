@@ -41,7 +41,7 @@ export default function InternalChangelogView({
           </p>
         </div>
 
-        <a href={exportUrl} download className="btn-secondary shrink-0 !text-xs">
+        <a href={exportUrl} download className="btn-secondary shrink-0 text-xs!">
           ⬇ Выгрузить (.xlsx)
         </a>
       </div>

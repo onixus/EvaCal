@@ -69,7 +69,7 @@ export default function CommercialTab({
                 <span className="text-slate-600 dark:text-nord-4">Рисковый резерв</span>
                 <span className="font-bold">{commercial.riskHours} ч</span>
               </div>
-              <div className="flex justify-between py-2.5 font-bold text-base bg-slate-50 px-2 rounded dark:bg-nord-1">
+              <div className="flex justify-between py-2.5 font-bold text-base bg-slate-50 px-2 rounded-sm dark:bg-nord-1">
                 <span>Всего трудозатрат</span>
                 <span className="text-brand-700 dark:text-nord-frost2">
                   {commercial.directLaborHours} ч
@@ -182,7 +182,7 @@ export default function CommercialTab({
                   <span className="font-mono">{money(commercial.total.vat)}</span>
                 </div>
               )}
-              <div className="flex justify-between py-3 font-extrabold text-lg bg-emerald-50 px-3 rounded text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <div className="flex justify-between py-3 font-extrabold text-lg bg-emerald-50 px-3 rounded-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
                 <span>Итоговое КП для заказчика</span>
                 <span className="font-mono">{money(commercial.total.grandTotal)}</span>
               </div>

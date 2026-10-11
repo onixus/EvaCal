@@ -134,7 +134,7 @@ export default function PresetImportPanel() {
           return (
             <div
               key={preset.id}
-              className="flex flex-col justify-between p-4 rounded-xl border border-slate-200 dark:border-nord-3 bg-white dark:bg-nord-2 hover:border-brand-500/50 transition-all shadow-sm"
+              className="flex flex-col justify-between p-4 rounded-xl border border-slate-200 dark:border-nord-3 bg-white dark:bg-nord-2 hover:border-brand-500/50 transition-all shadow-xs"
             >
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-2">

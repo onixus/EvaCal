@@ -469,13 +469,13 @@ export default function PackageReviewClient({
                 </div>
                 <Link
                   href={`/calculations/${pkg.calculationId}/studio`}
-                  className="btn-primary !bg-rose-600 hover:!bg-rose-700 dark:!bg-nord-red !px-3 !py-1 !text-xs !font-bold"
+                  className="btn-primary bg-rose-600! hover:bg-rose-700! dark:bg-nord-red! px-3! py-1! text-xs! font-bold!"
                 >
                   ✏️ Открыть в Студии ГОСТ 34 для исправления →
                 </Link>
               </div>
               {pkg.reviewComment && (
-                <div className="rounded border-l-2 border-rose-600 bg-white dark:bg-nord-2 p-2.5 text-xs italic text-slate-800 dark:text-nord-5">
+                <div className="rounded-sm border-l-2 border-rose-600 bg-white dark:bg-nord-2 p-2.5 text-xs italic text-slate-800 dark:text-nord-5">
                   «{pkg.reviewComment}»
                 </div>
               )}
@@ -593,7 +593,7 @@ export default function PackageReviewClient({
 
           <div className="flex gap-2">
             {pkg.hasArtifact && (
-              <a href={downloadUrl} download className="btn-secondary flex-1 !px-2 !text-[11px]">
+              <a href={downloadUrl} download className="btn-secondary flex-1 px-2! text-[11px]!">
                 ⬇ Скачать v{pkg.version}
               </a>
             )}
@@ -601,7 +601,7 @@ export default function PackageReviewClient({
               type="button"
               onClick={() => fileInput.current?.click()}
               disabled={isUploading || isFinal || !canReview}
-              className="btn-secondary flex-1 !px-2 !text-[11px]"
+              className="btn-secondary flex-1 px-2! text-[11px]!"
             >
               {isUploading ? 'Загрузка…' : '⬆ Загрузить свою'}
             </button>
@@ -724,13 +724,13 @@ export default function PackageReviewClient({
                 ✕ Комплект отклонён с замечаниями
               </div>
               {pkg.reviewComment && (
-                <div className="rounded bg-white/70 dark:bg-nord-2/70 p-2 italic text-rose-800 dark:text-nord-redText">
+                <div className="rounded-sm bg-white/70 dark:bg-nord-2/70 p-2 italic text-rose-800 dark:text-nord-redText">
                   «{pkg.reviewComment}»
                 </div>
               )}
               <Link
                 href={`/calculations/${pkg.calculationId}/studio`}
-                className="btn-primary !bg-rose-600 hover:!bg-rose-700 dark:!bg-nord-red w-full block text-center !py-1.5 !text-xs !font-bold"
+                className="btn-primary bg-rose-600! hover:bg-rose-700! dark:bg-nord-red! w-full block text-center py-1.5! text-xs! font-bold!"
               >
                 ✏️ Исправить в Студии ГОСТ 34 →
               </Link>
@@ -758,7 +758,7 @@ export default function PackageReviewClient({
                 value={reviewerName}
                 onChange={(e) => setReviewerName(e.target.value)}
                 placeholder="ФИО и должность"
-                className="input !py-1.5 !text-[11px]"
+                className="input py-1.5! text-[11px]!"
               />
 
               <div className="grid grid-cols-2 gap-1.5">
@@ -791,7 +791,7 @@ export default function PackageReviewClient({
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="Итоговый комментарий (войдёт в протокол ревью)"
-                className="input !py-1.5 !text-[11px]"
+                className="input py-1.5! text-[11px]!"
               />
 
               <button
@@ -924,20 +924,20 @@ function SectionCard({
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="Текст замечания"
-              className="input !py-1.5 !text-[11px]"
+              className="input py-1.5! text-[11px]!"
             />
             <div className="flex gap-1.5">
               <button
                 type="button"
                 onClick={submit}
-                className="btn-primary !px-2.5 !py-1 !text-[10px]"
+                className="btn-primary px-2.5! py-1! text-[10px]!"
               >
                 Добавить
               </button>
               <button
                 type="button"
                 onClick={() => setIsAdding(false)}
-                className="btn-ghost !px-2.5 !py-1 !text-[10px]"
+                className="btn-ghost px-2.5! py-1! text-[10px]!"
               >
                 Отмена
               </button>
@@ -1120,13 +1120,13 @@ function CommentItem({
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
             placeholder="Ответ: что исправлено или почему замечание неприменимо"
-            className="input !py-1.5 !text-[11px]"
+            className="input py-1.5! text-[11px]!"
           />
           <button
             type="button"
             disabled={busy}
             onClick={sendReply}
-            className="btn-primary !px-2.5 !py-1 !text-[10px]"
+            className="btn-primary px-2.5! py-1! text-[10px]!"
           >
             Отправить
           </button>
@@ -1243,7 +1243,7 @@ function AssignmentsCard({
                     setAssigneeId(e.target.value);
                     setDeputyId('');
                   }}
-                  className="input !py-1 !text-[11px]"
+                  className="input py-1! text-[11px]!"
                 >
                   <option value="">Исполнитель…</option>
                   {options.map((u) => (
@@ -1256,7 +1256,7 @@ function AssignmentsCard({
                   value={deputyId}
                   onChange={(e) => setDeputyId(e.target.value)}
                   disabled={!assignee}
-                  className="input !py-1 !text-[11px]"
+                  className="input py-1! text-[11px]!"
                 >
                   <option value="">Без замещающего</option>
                   {deputyOptions.map((u) => (
@@ -1269,21 +1269,21 @@ function AssignmentsCard({
                   type="date"
                   value={dueAt}
                   onChange={(e) => setDueAt(e.target.value)}
-                  className="input !py-1 !text-[11px]"
+                  className="input py-1! text-[11px]!"
                 />
                 <div className="flex gap-1.5">
                   <button
                     type="button"
                     disabled={busy || !assigneeId || !dueAt}
                     onClick={save}
-                    className="btn-primary !px-2.5 !py-1 !text-[10px]"
+                    className="btn-primary px-2.5! py-1! text-[10px]!"
                   >
                     Сохранить
                   </button>
                   <button
                     type="button"
                     onClick={() => setEditing(null)}
-                    className="btn-ghost !px-2.5 !py-1 !text-[10px]"
+                    className="btn-ghost px-2.5! py-1! text-[10px]!"
                   >
                     Отмена
                   </button>

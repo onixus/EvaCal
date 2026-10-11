@@ -224,7 +224,7 @@ export default function CommercialContourPanel({ calculationId }: { calculationI
           <ul className="space-y-1 text-xs" data-testid="cost-items">
             {supply.costItems.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center gap-2">
-                <span className="rounded bg-slate-100 px-1.5 dark:bg-nord-3">
+                <span className="rounded-sm bg-slate-100 px-1.5 dark:bg-nord-3">
                   {COST_ITEM_KIND_LABELS[c.kind as CostItemKind] ?? c.kind}
                 </span>
                 <span className={c.problems.length ? 'text-amber-700 dark:text-nord-yellow' : ''}>

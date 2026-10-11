@@ -238,7 +238,7 @@ export default function StudioPickerClient({
                     </div>
 
                     {pkg.reviewComment && (
-                      <blockquote className="rounded border-l-2 border-rose-500 bg-rose-50/60 p-2 text-xs italic text-rose-900 dark:bg-nord-red/15 dark:text-nord-redText">
+                      <blockquote className="rounded-sm border-l-2 border-rose-500 bg-rose-50/60 p-2 text-xs italic text-rose-900 dark:bg-nord-red/15 dark:text-nord-redText">
                         «{pkg.reviewComment}»
                       </blockquote>
                     )}
@@ -324,7 +324,7 @@ export default function StudioPickerClient({
                   </div>
 
                   {hasRejected && calc.rejectedPackage?.reviewComment && (
-                    <div className="rounded bg-rose-50 px-2 py-1 text-[11px] text-rose-800 italic truncate dark:bg-nord-red/15 dark:text-nord-redText">
+                    <div className="rounded-sm bg-rose-50 px-2 py-1 text-[11px] text-rose-800 italic truncate dark:bg-nord-red/15 dark:text-nord-redText">
                       «{calc.rejectedPackage.reviewComment}»
                     </div>
                   )}

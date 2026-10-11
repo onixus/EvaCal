@@ -97,7 +97,7 @@ export default function AppHeader() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md dark:border-nord-3 dark:bg-nord-2/95">
-      <div className="flex h-[var(--app-header-h)] items-center justify-between gap-4 px-5 sm:px-6">
+      <div className="flex h-(--app-header-h) items-center justify-between gap-4 px-5 sm:px-6">
         <div className="flex min-w-0 items-baseline gap-2">
           <span className="hidden text-[11px] font-semibold text-slate-400 sm:inline dark:text-nord-muted">
             {root}

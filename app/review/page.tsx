@@ -180,7 +180,7 @@ export default async function ReviewQueuePage() {
                   </div>
 
                   {pkg.reviewComment && (
-                    <blockquote className="truncate rounded border-l-2 border-rose-500 bg-rose-50/60 p-2 text-xs italic text-rose-900 dark:bg-nord-red/15 dark:text-nord-redText">
+                    <blockquote className="truncate rounded-sm border-l-2 border-rose-500 bg-rose-50/60 p-2 text-xs italic text-rose-900 dark:bg-nord-red/15 dark:text-nord-redText">
                       «{pkg.reviewComment}»
                     </blockquote>
                   )}

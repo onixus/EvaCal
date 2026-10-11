@@ -236,7 +236,7 @@ export default function CapacityClient({
                       <td key={c.week} className="p-0">
                         <button
                           onClick={() => setSelected({ role: r.role, cell: c })}
-                          className={`h-9 w-full rounded px-1 text-center tabular-nums ${SIGNAL_CLS[sig]} ${selected?.cell === c ? 'ring-2 ring-brand-500' : ''}`}
+                          className={`h-9 w-full rounded-sm px-1 text-center tabular-nums ${SIGNAL_CLS[sig]} ${selected?.cell === c ? 'ring-2 ring-brand-500' : ''}`}
                           title={`${roleLabel(r.role)} · нед. ${fmtWeek(c.week)}: ${hours(c)} ч${c.capacityHours !== null ? ` из ${c.capacityHours}` : ''}`}
                         >
                           {u === null ? `${hours(c)}ч` : `${Math.round(u * 100)}%`}
@@ -256,19 +256,20 @@ export default function CapacityClient({
           </table>
           <div className="mt-2 flex flex-wrap gap-3 text-[10px] text-slate-500 dark:text-nord-muted">
             <span>
-              <i className="inline-block h-2.5 w-2.5 rounded bg-rose-300 align-middle" /> &gt; 100%
-              перегруз
+              <i className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-300 align-middle" /> &gt;
+              100% перегруз
             </span>
             <span>
-              <i className="inline-block h-2.5 w-2.5 rounded bg-amber-300 align-middle" /> 85–100%
-              предел
+              <i className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-300 align-middle" />{' '}
+              85–100% предел
             </span>
             <span>
-              <i className="inline-block h-2.5 w-2.5 rounded bg-emerald-200 align-middle" /> норма
+              <i className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-200 align-middle" />{' '}
+              норма
             </span>
             <span>
-              <i className="inline-block h-2.5 w-2.5 rounded bg-slate-200 align-middle" /> &lt; 40%
-              простой
+              <i className="inline-block h-2.5 w-2.5 rounded-sm bg-slate-200 align-middle" /> &lt;
+              40% простой
             </span>
             <span>белое — ёмкость роли не задана, показаны часы</span>
           </div>

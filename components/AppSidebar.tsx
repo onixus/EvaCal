@@ -81,7 +81,7 @@ export default function AppSidebar() {
 
   return (
     <aside className="hidden shrink-0 flex-col border-r border-slate-200 bg-white lg:flex dark:border-nord-3 dark:bg-nord-2">
-      <div className="flex h-[var(--app-header-h)] items-center border-b border-slate-200 px-4 dark:border-nord-3">
+      <div className="flex h-(--app-header-h) items-center border-b border-slate-200 px-4 dark:border-nord-3">
         <Link href="/" className="group flex items-center gap-2.5">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 text-[11px] font-bold text-white transition-colors group-hover:bg-brand-700 dark:bg-nord-frost4">
             EC

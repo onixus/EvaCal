@@ -103,7 +103,7 @@ export default function RequirementsStep({
         <button
           type="button"
           onClick={() => setIsTemplatePickerOpen(true)}
-          className="shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-brand-600 hover:bg-brand-700 text-white shadow-sm transition-all flex items-center gap-1.5 cursor-pointer ml-auto"
+          className="shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-brand-600 hover:bg-brand-700 text-white shadow-xs transition-all flex items-center gap-1.5 cursor-pointer ml-auto"
         >
           <span>📋</span>
           <span>Выбрать шаблон ТЗ (ГОСТ 34)</span>
