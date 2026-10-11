@@ -372,7 +372,11 @@ export default async function HomePage() {
                         {p.name}
                       </Link>
                       <span className="block truncate text-[11px] text-slate-500 dark:text-nord-muted">
-                        {p.customer} · {p.lifecycle.note}
+                        {p.customer} · {p.lifecycle.reason ?? p.lifecycle.note}
+                      </span>
+                      <span className="block truncate text-[11px] text-slate-500 dark:text-nord-muted">
+                        Ответственный: {p.lifecycle.responsible.label}
+                        {p.lifecycle.next ? ` · далее: ${p.lifecycle.next.label}` : ''}
                       </span>
                     </span>
                     <StageChip state={p.lifecycle} />

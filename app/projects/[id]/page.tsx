@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth';
 import { projectSchedule } from '@/lib/schedule';
 import { tryProfitForecast } from '@/lib/actuals';
 import { resolveLifecycle } from '@/lib/lifecycle';
-import { lifecycleInputFromRow } from '@/lib/lifecycleData';
+import { lifecycleInputFromRow, loadLifecycleReviewContext } from '@/lib/lifecycleData';
 import ProjectDetailClient from './ProjectDetailClient';
 import type { SerializedProject } from './project-detail/types';
 
@@ -165,7 +165,9 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
   };
 
   // Списки уже отсортированы по версии вниз — первый элемент и есть текущий.
-  const lifecycle = resolveLifecycle(lifecycleInputFromRow(project));
+  // Для задержавшегося комплекта видны причина, ответственный и следующий шаг (#103).
+  const review = await loadLifecycleReviewContext(project.packages.slice(0, 1));
+  const lifecycle = resolveLifecycle(lifecycleInputFromRow(project, review));
 
   return (
     <ProjectDetailClient

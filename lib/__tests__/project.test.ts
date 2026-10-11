@@ -254,7 +254,8 @@ describe('lib/project', () => {
           calculationId: 'calc_1',
           version: 2,
           standardProfileId: 'ru-gost34-current',
-          documentTypes: JSON.stringify(['tz', 'pmi']),
+          // Состав нормализуется: порядок выбора документов не создаёт новую линию ревью.
+          documentTypes: JSON.stringify(['pmi', 'tz']),
           checksum: 'sha256-mock',
         }),
       });

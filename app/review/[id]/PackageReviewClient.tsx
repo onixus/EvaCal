@@ -1217,7 +1217,7 @@ function AssignmentsCard({
                 {a.deputyName && (
                   <span className="text-slate-400 dark:text-nord-muted">
                     {' '}
-                    · замещает {a.deputyName}
+                    (зам.: {a.deputyName})
                   </span>
                 )}
                 <span

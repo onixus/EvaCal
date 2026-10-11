@@ -14,6 +14,13 @@ import {
   type CommentRuleSubject,
 } from '@/lib/review/workflow';
 import type { CommentStatus } from '@/lib/gost34/review/types';
+import {
+  fixedDrafts,
+  notificationActorName,
+  notifySafe,
+  replyDrafts,
+  resolvedDrafts,
+} from '@/lib/review/notifications';
 
 type Props = { params: Promise<{ id: string; commentId: string }> };
 
@@ -166,6 +173,43 @@ export async function PATCH(req: NextRequest, props: Props) {
       ip: clientIp(req),
     });
 
+    if (action === 'fix') {
+      // Проверить исправление вправе автор или роль этапа: сообщаем автору и
+      // персональному ответственному за этап в комплекте исправления.
+      await notifySafe(async () =>
+        fixedDrafts({
+          pkg: fixedIn!,
+          comment: { ...comment, stage: subject.stage },
+          verifierIds: (
+            await prisma.reviewAssignment.findMany({
+              where: { packageId: fixedIn!.id, stage: subject.stage, active: true },
+              select: { assigneeId: true, deputyId: true },
+            })
+          ).flatMap((a) => [a.assigneeId, a.deputyId]),
+          actorId: actor.actorId,
+          actorName: notificationActorName(access),
+        }),
+      );
+    } else if (comment.fixedBy) {
+      // Проверено, отклонено или возвращено — тому, кто отметил исправление.
+      // fixedBy хранит логин сотрудника (у гостя — share:…, такого User нет).
+      const fixedBy = comment.fixedBy;
+      await notifySafe(async () => {
+        const fixer = await prisma.user.findUnique({
+          where: { username: fixedBy },
+          select: { id: true },
+        });
+        return resolvedDrafts({
+          pkg,
+          comment,
+          action,
+          fixerId: fixer?.id ?? null,
+          actorId: actor.actorId,
+          actorName: notificationActorName(access),
+        });
+      });
+    }
+
     return NextResponse.json({ comment: serializeComment((await findComment(comment.id))!) });
   } catch (err) {
     return handleApiError(err, 'Failed to update review comment', 500);
@@ -177,7 +221,7 @@ export async function POST(req: NextRequest, props: Props) {
   try {
     const loaded = await load(req, props);
     if (loaded instanceof NextResponse) return loaded;
-    const { access, comment } = loaded;
+    const { access, pkg, comment } = loaded;
 
     const body = await req.json().catch(() => ({}));
     const text = String(body?.text ?? '')
@@ -206,6 +250,18 @@ export async function POST(req: NextRequest, props: Props) {
       meta: { commentId: comment.id },
       ip: clientIp(req),
     });
+
+    // Ответ видят автор замечания и прежние участники ветки.
+    await notifySafe(async () =>
+      replyDrafts({
+        pkg,
+        comment,
+        participantIds: comment.replies.map((r) => r.authorId),
+        actorId: actor.actorId,
+        actorName: notificationActorName(access),
+        text,
+      }),
+    );
 
     return NextResponse.json(
       { comment: serializeComment((await findComment(comment.id))!) },

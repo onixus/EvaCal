@@ -115,7 +115,7 @@ export default function PackageReviewModal({
             {assignment ? (
               <div className="text-slate-600 dark:text-nord-4">
                 Ответственный: {assignment.assigneeName}
-                {assignment.deputyName && ` · замещает ${assignment.deputyName}`} ·{' '}
+                {assignment.deputyName && ` (зам.: ${assignment.deputyName})`} ·{' '}
                 <span
                   className={
                     isAssignmentOverdue(assignment.dueAt)

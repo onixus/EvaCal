@@ -1096,3 +1096,27 @@ model AcceptanceDecision {
 
   @@index([packageId, decidedAt])
 }
+
+// ==== #103 WP-3b: notifications ====
+
+// Уведомление внутри приложения (почты нет: у User нет адреса). Получатель —
+// User.id без @relation, как ReviewAssignment.assigneeId: удаление пользователя
+// не стирает историю. Уведомление ничего не разрешает — право решения
+// по-прежнему выдаёт только роль этапа.
+// Уникальность (userId, kind, entityId, dueAt) делает просрочку идемпотентной:
+// у прочих видов dueAt пуст, а NULL в Postgres с NULL не совпадает, поэтому
+// повторные ответы в одной ветке не схлопываются.
+model Notification {
+  id         String    @id @default(cuid())
+  userId     String
+  kind       String // assigned | deputy_assigned | returned | overdue | comment_reply | comment_fixed | comment_verified | comment_rejected | comment_reopened
+  entityType String // gost_package | review_assignment | review_comment
+  entityId   String
+  payload    Json?
+  dueAt      DateTime?
+  createdAt  DateTime  @default(now())
+  readAt     DateTime?
+
+  @@unique([userId, kind, entityId, dueAt])
+  @@index([userId, readAt])
+}

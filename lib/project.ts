@@ -3,6 +3,7 @@ import { prisma } from './prisma';
 import { storePackageArtifact } from './gost34/storage';
 import { countOpenBlockers } from './review/store';
 import { releasedSpecificationVersion, withSpecificationRelease } from './specification/store';
+import { normalizeDocumentTypes } from './review/workflow';
 
 export interface CreateProjectInput {
   name: string;
@@ -281,7 +282,8 @@ export async function createGostPackageVersion(input: CreateGostPackageInput) {
         ? input.metadata
         : null;
 
-  const docTypesJson = JSON.stringify(input.documentTypes);
+  // Канонический порядок: ["pmi","tz"] и ["tz","pmi"] — одна линия ревью (#103).
+  const docTypesJson = normalizeDocumentTypes(input.documentTypes);
 
   const snapshotJson =
     typeof input.snapshot === 'object'
@@ -501,7 +503,8 @@ export async function releaseGostPackage(input: {
 
   const snapshotJson =
     typeof input.snapshot === 'string' ? input.snapshot : JSON.stringify(input.snapshot);
-  const docTypesJson = JSON.stringify(input.documentTypes);
+  // Канонический порядок: ["pmi","tz"] и ["tz","pmi"] — одна линия ревью (#103).
+  const docTypesJson = normalizeDocumentTypes(input.documentTypes);
 
   const pkg = await prisma.gostPackage.create({
     data: {

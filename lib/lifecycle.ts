@@ -88,7 +88,37 @@ export interface LifecycleInput {
     releasedAt: DateLike;
     approvedAt: DateLike;
     stageEnteredAt?: DateLike;
+    /** Комментарий к последнему решению ревью (причина возврата). */
+    reviewComment?: string | null;
   } | null;
+  /**
+   * Персональная ответственность по последнему комплекту (#103): активное
+   * назначение на текущий этап ревью и автор выпуска. Без этого блока
+   * ответственным считается роль шага.
+   */
+  review?: LifecycleReviewContext | null;
+}
+
+export interface LifecycleReviewContext {
+  /** Активное назначение на этап, где сейчас стоит комплект. */
+  assignment: {
+    assigneeName: string;
+    deputyName: string | null;
+    dueAt: DateLike;
+  } | null;
+  /** Логин автора выпуска (он исправляет возвращённый комплект). */
+  authorName: string | null;
+}
+
+/** Кто сейчас держит проект: конкретный сотрудник или, если не назначен, роль. */
+export interface LifecycleResponsible {
+  /** Имя сотрудника; null — назначения нет, отвечает роль. */
+  name: string | null;
+  deputy: string | null;
+  /** Роль шага (из `LIFECYCLE_STEPS.owner`). */
+  role: string;
+  /** Готовая подпись: «tw.ivanov (зам.: tw.petrov)» или «роль: тех.писатель». */
+  label: string;
 }
 
 export interface LifecycleAction {
@@ -109,6 +139,17 @@ export interface LifecycleState {
   note: string;
   /** Что сделать, чтобы проект сдвинулся дальше. */
   next: LifecycleAction | null;
+  /** Кто сейчас отвечает за движение (#103). */
+  responsible: LifecycleResponsible;
+  /**
+   * Почему проект задержался — заполняется, когда он возвращён, завис дольше
+   * нормы или ответственный пропустил срок; иначе null.
+   */
+  reason: string | null;
+  /** Срок персонального назначения текущего этапа (ISO) или null. */
+  dueAt: string | null;
+  /** Срок назначения прошёл, а этап не закрыт. */
+  overdue: boolean;
 }
 
 /**
@@ -167,6 +208,11 @@ export function resolveLifecycle(input: LifecycleInput, now: Date = new Date()):
   let note: string;
   let next: LifecycleAction | null;
   let attention: LifecycleAttention = 'none';
+  let responsibleName: string | null = null;
+  let deputyName: string | null = null;
+  let dueAt: Date | null = null;
+  let returnedReason: string | null = null;
+  let unassignedReview = false;
 
   if (project.dealStatus && project.dealStatus !== 'open') {
     stage = 'deal_closed';
@@ -196,12 +242,24 @@ export function resolveLifecycle(input: LifecycleInput, now: Date = new Date()):
       label: gap ? 'Открыть финальное ревью' : 'Открыть нормоконтроль',
       href: `/review/${pkg.id}`,
     };
+    const assignment = input.review?.assignment ?? null;
+    if (assignment) {
+      responsibleName = assignment.assigneeName;
+      deputyName = assignment.deputyName;
+      dueAt = toDate(assignment.dueAt);
+    } else {
+      unassignedReview = true;
+    }
   } else if (pkg && (pkg.status === 'draft' || pkg.status === 'rejected')) {
     stage = 'package';
     enteredAt = firstDate(pkg.stageEnteredAt, pkg.updatedAt, pkg.createdAt);
+    responsibleName = input.review?.authorName ?? null;
     if (pkg.status === 'rejected') {
       attention = 'rejected';
       note = 'Комплект возвращён с замечаниями';
+      const at = pkg.reviewStage === 'gap' ? 'ревью ГАП' : 'нормоконтроле';
+      const why = pkg.reviewComment?.trim();
+      returnedReason = `Возвращён на ${at}${why ? `: ${why}` : ''}`;
       next = { label: 'Исправить в Студии', href: `/calculations/${pkg.calculationId}/studio` };
     } else {
       note = 'Комплект собирается в Студии';
@@ -238,7 +296,36 @@ export function resolveLifecycle(input: LifecycleInput, now: Date = new Date()):
   const days = daysSince(enteredAt, now);
   const freshness =
     attention === 'paused' || attention === 'lost' ? 'fresh' : freshnessFor(stage, days);
-  if (attention === 'none' && freshness === 'stale') attention = 'stale';
+  const overdue = dueAt !== null && dueAt.getTime() < now.getTime() && attention !== 'paused';
+  // Пропущенный срок ответственного — такая же задержка, как превышение нормы.
+  if (attention === 'none' && (freshness === 'stale' || overdue)) attention = 'stale';
+
+  let reason: string | null = null;
+  if (attention === 'rejected') {
+    reason = returnedReason;
+  } else if (attention === 'stale') {
+    const parts: string[] = [];
+    if (overdue) parts.push(`срок ответственного истёк ${dueAt!.toLocaleDateString('ru-RU')}`);
+    if (freshness === 'stale') {
+      parts.push(`на шаге ${days} дн. при норме до ${STAGE_THRESHOLDS[stage].warn} дн.`);
+    }
+    if (unassignedReview) parts.push('ответственный не назначен');
+    reason = parts.length ? parts.join('; ').replace(/^./, (c) => c.toUpperCase()) : null;
+    // Зависшее ревью без ответственного двигается назначением, а не ожиданием.
+    if (unassignedReview && pkg) {
+      next = { label: 'Назначить ответственного', href: `/review/${pkg.id}` };
+    }
+  }
+
+  const role = lifecycleStep(stage).owner;
+  const responsible: LifecycleResponsible = {
+    name: responsibleName,
+    deputy: deputyName,
+    role,
+    label: responsibleName
+      ? `${responsibleName}${deputyName ? ` (зам.: ${deputyName})` : ''}`
+      : `роль: ${role}`,
+  };
 
   return {
     stage,
@@ -249,6 +336,10 @@ export function resolveLifecycle(input: LifecycleInput, now: Date = new Date()):
     attention,
     note,
     next,
+    responsible,
+    reason,
+    dueAt: dueAt ? dueAt.toISOString() : null,
+    overdue,
   };
 }
 

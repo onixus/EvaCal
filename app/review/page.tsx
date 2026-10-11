@@ -123,7 +123,7 @@ export default async function ReviewQueuePage() {
                           <>
                             <span>
                               Ответственный: {assignment.assigneeName}
-                              {assignment.deputyName && ` · замещает ${assignment.deputyName}`}
+                              {assignment.deputyName && ` (зам.: ${assignment.deputyName})`}
                             </span>
                             <span>
                               · {overdue ? 'просрочено, срок' : 'срок'}{' '}

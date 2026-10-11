@@ -210,3 +210,84 @@ describe('свежесть и сводка', () => {
     expect(summary.attention).toBe(2);
   });
 });
+
+describe('resolveLifecycle: задержавшийся комплект — причина, ответственный, следующий шаг (#103)', () => {
+  it('возвращённый комплект: причина из решения ревью, ответственный — автор выпуска', () => {
+    const s = resolveLifecycle(
+      input({
+        gostPackage: pkg('rejected', 'gap', { reviewComment: 'Нет таблицы трассировки' }),
+        review: { assignment: null, authorName: 'arch.ivanov' },
+      }),
+      NOW,
+    );
+    expect(s.attention).toBe('rejected');
+    expect(s.reason).toBe('Возвращён на ревью ГАП: Нет таблицы трассировки');
+    expect(s.responsible).toMatchObject({ name: 'arch.ivanov', label: 'arch.ivanov' });
+    expect(s.next?.label).toBe('Исправить в Студии');
+  });
+
+  it('без данных об авторе ответственным остаётся роль шага', () => {
+    const s = resolveLifecycle(input({ gostPackage: pkg('rejected', 'tw') }), NOW);
+    expect(s.reason).toBe('Возвращён на нормоконтроле');
+    expect(s.responsible).toMatchObject({
+      name: null,
+      role: 'архитектор',
+      label: 'роль: архитектор',
+    });
+  });
+
+  it('просроченное назначение делает ревью зависшим даже в пределах нормы', () => {
+    const s = resolveLifecycle(
+      input({
+        gostPackage: pkg('under_review', 'gap', { stageEnteredAt: daysAgo(1) }),
+        review: {
+          assignment: {
+            assigneeName: 'gap.petrov',
+            deputyName: 'gap.sidorov',
+            dueAt: daysAgo(0.5),
+          },
+          authorName: 'arch',
+        },
+      }),
+      NOW,
+    );
+    expect(s.freshness).toBe('fresh');
+    expect(s.overdue).toBe(true);
+    expect(s.attention).toBe('stale');
+    expect(s.reason).toMatch(/^Срок ответственного истёк/);
+    expect(s.responsible.label).toBe('gap.petrov (зам.: gap.sidorov)');
+    expect(s.next).toEqual({ label: 'Открыть финальное ревью', href: '/review/g1' });
+  });
+
+  it('зависшее ревью без назначения ведёт к назначению ответственного', () => {
+    const s = resolveLifecycle(
+      input({
+        gostPackage: pkg('under_review', 'tw', { stageEnteredAt: daysAgo(9) }),
+        review: { assignment: null, authorName: null },
+      }),
+      NOW,
+    );
+    expect(s.attention).toBe('stale');
+    expect(s.reason).toMatch(/^На шаге 9 дн\. при норме до 2 дн\./);
+    expect(s.reason).toContain('ответственный не назначен');
+    expect(s.responsible.label).toBe('роль: тех.писатель');
+    expect(s.next).toEqual({ label: 'Назначить ответственного', href: '/review/g1' });
+  });
+
+  it('проект в норме не получает причины задержки', () => {
+    const s = resolveLifecycle(
+      input({
+        gostPackage: pkg('under_review', 'tw', { stageEnteredAt: daysAgo(0) }),
+        review: {
+          assignment: { assigneeName: 'tw.a', deputyName: null, dueAt: daysAgo(-3) },
+          authorName: null,
+        },
+      }),
+      NOW,
+    );
+    expect(s.attention).toBe('none');
+    expect(s.reason).toBeNull();
+    expect(s.overdue).toBe(false);
+    expect(s.dueAt).not.toBeNull();
+  });
+});

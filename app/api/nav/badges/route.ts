@@ -1,13 +1,20 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getInternalSession } from '@/lib/access';
-import { hasArchitectPowers, isGapRole, isTechWriterRole } from '@/lib/appRoles';
+import { hasArchitectPowers, isGapRole, isTechWriterRole, navItemsFor } from '@/lib/appRoles';
 import { handleApiError } from '@/lib/apiHelpers';
+import { loadQueueBadge } from '@/lib/review/queue';
+import { actorFromSession } from '@/lib/review/workflow';
 
 /**
  * Счётчики у пунктов навигации. Считаются по ролям: тех.писатель и рецензент
  * видят очередь нормоконтроля, ГАП и архитектор — очередь финального ревью, а
  * архитектор дополнительно незакрытые черновики студии.
+ *
+ * «Требует моего действия» (`myQueue`) — личный счётчик ролей с пунктом
+ * `/inbox`: различимые дела — задачи и непрочитанные уведомления о других
+ * сущностях; `myQueueOverdue` — сколько задач просрочено. Просрочки
+ * дописываются в уведомления здесь же (не чаще окна кэша на процесс).
  *
  * Гостю по share-ссылке счётчики не выдаются: это агрегат по всему архиву, а
  * ссылка ограничена одним расчётом.
@@ -18,6 +25,13 @@ export async function GET() {
     if (!session) return NextResponse.json({ badges: {} });
 
     const badges: Record<string, number> = {};
+
+    // Роли без пункта «Требует моего действия» (пресейл) очередь не считают.
+    if (navItemsFor(session.role).some((item) => item.href === '/inbox')) {
+      const queue = await loadQueueBadge(actorFromSession(session));
+      badges.myQueue = queue.count;
+      badges.myQueueOverdue = queue.overdue;
+    }
 
     if (isTechWriterRole(session.role) || session.role === 'admin') {
       badges.reviewQueue = await prisma.gostPackage.count({

@@ -7,6 +7,7 @@ import { parsePackageSnapshot } from '@/lib/gost34/diff';
 import { handleApiError } from '@/lib/apiHelpers';
 import { recordInternalChangeSafe } from '@/lib/changelog';
 import { countOpenBlockers } from '@/lib/review/store';
+import { notificationActorName, notifySafe, returnedDrafts } from '@/lib/review/notifications';
 import {
   REVIEW_STAGE_LABELS,
   REVIEW_STAGE_ROLES,
@@ -41,6 +42,15 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     if (pkg.status === 'approved') {
       return NextResponse.json(
         { error: 'Утверждённый комплект документов неизменяем' },
+        { status: 409 },
+      );
+    }
+
+    // Возвращённый комплект ждёт новой версии: повторное решение по нему
+    // ничего не меняло бы, но разослало бы уведомления о возврате ещё раз.
+    if (pkg.status === 'rejected') {
+      return NextResponse.json(
+        { error: 'Комплект уже возвращён с замечаниями: решение выносится по новой версии' },
         { status: 409 },
       );
     }
@@ -117,6 +127,24 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       },
       ip: clientIp(req),
     });
+
+    if (decision === 'reject') {
+      // Возврат: автору выпуска и ответственным за этапы комплекта.
+      await notifySafe(async () =>
+        returnedDrafts({
+          pkg,
+          stage: stageBefore === 'gap' ? 'gap' : 'tw',
+          authorIds: [pkg.releasedBy, pkg.createdBy],
+          assignments: await prisma.reviewAssignment.findMany({
+            where: { packageId: pkg.id, active: true },
+            select: { assigneeId: true, deputyId: true },
+          }),
+          actorId: access.kind === 'staff' ? (access.session?.userId ?? null) : access.actorId,
+          actorName: notificationActorName(access),
+          comment: comment?.trim() || null,
+        }),
+      );
+    }
 
     return NextResponse.json({
       package: {
