@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.8.0 - 2026-10-11
+
+- Catalog in the database: vendors, technical products and revision-bound price offers; reviewed vendor GPL imports with reusable import profiles, snapshot comparison and applying selected GPL updates to a project as a new draft (#101, #108).
+- Specification totals, XLSX output, revision diff, lifecycle with confirmed release and BOM import; manual supply composition and pinned revisions in studio preview and export (#101).
+- Versioned sizing profiles and runs with impact on the specification (#101, see [docs/sizing.md](docs/sizing.md)).
+- Commercial offer: target margin separated from markup (historical quotes preserved), variant comparison, profit forecast, supply and cost items, exchange rates and a margin threshold with discount approvals (#102, #103, see [docs/commercial-pricing.md](docs/commercial-pricing.md)).
+- Change requests: card, impact view, specialist estimate, accept/reject/defer/reopen with a versioned result and a "baseline + changes" summary (#103, see [docs/change-requests.md](docs/change-requests.md)).
+- Acceptance checks bound to an approved package edition, commission decision and PSI/act generated from recorded facts (#103, see [docs/acceptance.md](docs/acceptance.md)).
+- Personal review stage assignments and comment lifecycle (#103).
+- Actuals ledger with idempotent sync and template norm proposals from actuals (#103, see [docs/actuals-ledger.md](docs/actuals-ledger.md), [docs/norm-proposals.md](docs/norm-proposals.md)).
+- Versioned solution library and applying solution kits to projects with update proposals (#103, see [docs/solution-library.md](docs/solution-library.md), [docs/kit-application.md](docs/kit-application.md)).
+- GOST 34 PZ/TZ no longer invent platforms or supply items; presale sizing defaults are marked as unconfirmed assumptions.
+- Presale picks the template and product for a calculation itself; hidden templates are no longer returned.
+- Migrated to Tailwind CSS 4; runtime dependency vulnerabilities fixed.
 - Specification rows can reference GOST package requirements (`requirementIds`); unknown ids are saved with a warning, requirement codes are copied into the revision and printed in SPEC DOCX/XLSX, and the traceability matrix shows the supplying rows. Sizing metrics propose catalog candidates (several alternatives with quantity and cost from confirmed offers, unknown price stays unknown); a candidate is added to a draft only on explicit choice. Sizing inputs are no longer reset when the profile list reloads (#101, see [docs/specification.md](docs/specification.md), [docs/sizing.md](docs/sizing.md)).
 
 - Compliance evidence (software/hardware registry entries and certificates) per catalog product with source, check date, exact applicability, status and validity; SPEC and PZ print only current confirmed evidence of confirmed rows, otherwise «Не подтверждено»; the static vendor registry is removed (#101, see [docs/specification.md](docs/specification.md)).
@@ -13,6 +27,8 @@
 - Explicit stage dependencies (FS + lag in working days), nearest available start date by role capacity, and side-by-side what-if variants (start shift / contractor / team change) on the capacity plan (#103, see [docs/stage-dependencies.md](docs/stage-dependencies.md)).
 - **Behaviour change:** applying what-if shifts (`POST /api/capacity/apply`) no longer moves stage dates by the same number of calendar days. The Gantt is rescheduled in place from the new start date using the template's production calendar and stage dependencies, so a holiday or weekend in the new window lengthens stages and the end date may move by more or fewer days than the shift. Stage ids and recorded actuals are kept.
 - **Behaviour change:** editing stages or the start date updates stage rows in place instead of recreating them: stage actuals, actuals-ledger entries, tracker task mappings and dependencies are kept; ledger entries of a removed stage stay unassigned (`stageId` null). Custom customer-approval durations are kept across reload/save.
+
+See [release notes](docs/releases/v0.8.0.md) for upgrade notes and installation instructions.
 
 ## 0.7.0 - 2026-09-30
 
