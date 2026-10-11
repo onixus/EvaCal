@@ -225,6 +225,46 @@ describe('lib/project', () => {
       expect(result).toBeDefined();
     });
 
+    it('проект для непривязанного расчёта создаётся в транзакции вызывающего', async () => {
+      const tx = {
+        calculation: {
+          findUnique: vi
+            .fn()
+            .mockResolvedValueOnce({
+              id: 'calc_1',
+              name: 'Расчёт',
+              customer: 'Банк',
+              createdBy: 'presale',
+              projectId: null,
+              version: 1,
+              stages: [],
+              risks: [],
+            })
+            .mockResolvedValueOnce({ id: 'calc_2' }),
+          findFirst: vi.fn(async () => null),
+          create: vi.fn(async () => ({ id: 'calc_2' })),
+          update: vi.fn(),
+        },
+        project: {
+          findFirst: vi.fn(async () => null),
+          create: vi.fn(async () => ({ id: 'proj_tx' })),
+        },
+        stageDependency: { findMany: vi.fn(async () => []) },
+        $executeRaw: vi.fn(),
+      };
+      await createCalculationVersion({ parentCalculationId: 'calc_1' }, tx as any);
+      expect(tx.project.create).toHaveBeenCalled();
+      expect(prisma.project.create).not.toHaveBeenCalled();
+      expect(prisma.project.findFirst).not.toHaveBeenCalled();
+      expect(tx.calculation.update).toHaveBeenCalledWith({
+        where: { id: 'calc_1' },
+        data: { projectId: 'proj_tx' },
+      });
+      expect(tx.calculation.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ projectId: 'proj_tx' }),
+      });
+    });
+
     it('переводит согласование и зависимости этапов на id клонов', async () => {
       const stage = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
         id,

@@ -189,11 +189,13 @@ vi.mock('@/lib/project', () => ({
   })),
   createDraftPackageVersion: vi.fn(async () => ({ id: 'p-new', version: 2 })),
 }));
+vi.mock('@/lib/changeRequests/notify', () => ({ notifyChangeRequest: vi.fn() }));
 vi.mock('@/lib/changelog', () => ({ recordInternalChangeTx: vi.fn(async () => ({ id: 'ic1' })) }));
 
 import { requireApiRole } from '@/lib/auth';
 import { createCalculationVersion, createDraftPackageVersion } from '@/lib/project';
 import { recordInternalChangeTx } from '@/lib/changelog';
+import { notifyChangeRequest } from '@/lib/changeRequests/notify';
 import { GET as list, POST as create } from '@/app/api/projects/[id]/change-requests/route';
 import { DELETE, GET as getOne, PATCH } from '@/app/api/projects/[id]/change-requests/[crId]/route';
 
@@ -642,11 +644,44 @@ describe('Маршруты запросов на изменение', () => {
     expect(ok.status).toBe(201);
   });
 
-  it('черновик комплекта не может быть базой', async () => {
-    db.state.packages[0].status = 'draft';
-    const res = await create(req(draft), props());
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/выпущенный комплект/);
+  it('черновик и архивный комплект не могут быть базой', async () => {
+    for (const status of ['draft', 'archived']) {
+      db.state.packages[0].status = status;
+      const res = await create(req(draft), props());
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/выпущенный действующий комплект/);
+    }
+  });
+
+  it('события запроса уведомляют: подача, оценка, решение; правка черновика — нет', async () => {
+    const cr = await (await create(req(draft), props())).json();
+    await PATCH(
+      patch({ ...draft, action: 'update', updatedAt: cr.updatedAt, title: 'Новое' }),
+      crProps(cr.id),
+    );
+    expect(notifyChangeRequest).not.toHaveBeenCalled();
+    await PATCH(patch({ action: 'submit', comment: 'Прошу оценить' }), crProps(cr.id));
+    await PATCH(
+      patch({ action: 'estimate', hours: 8, cost: '1000', scheduleDays: 1, comment: 'SAML' }),
+      crProps(cr.id),
+    );
+    await PATCH(patch({ action: 'defer', comment: 'Бюджет' }), crProps(cr.id));
+    await PATCH(patch({ action: 'reopen' }), crProps(cr.id));
+    await PATCH(patch({ action: 'reject', comment: 'Вне рамок' }), crProps(cr.id));
+    const calls = vi.mocked(notifyChangeRequest).mock.calls;
+    expect(calls.map((c) => [c[0], c[3]])).toEqual([
+      ['submitted', 'Прошу оценить'],
+      ['estimated', 'SAML'],
+      ['deferred', 'Бюджет'],
+      ['reopened', null],
+      ['rejected', 'Вне рамок'],
+    ]);
+    expect(calls[0][1]).toMatchObject({ id: cr.id, projectId: 'pr1', createdBy: 'architect' });
+    expect(calls[0][2]).toEqual({ userId: 'u-architect', username: 'architect' });
+    // Отказ в действии не уведомляет.
+    vi.mocked(notifyChangeRequest).mockClear();
+    expect((await PATCH(patch({ action: 'accept' }), crProps(cr.id))).status).toBe(409);
+    expect(notifyChangeRequest).not.toHaveBeenCalled();
   });
 
   it('удалить можно только черновик запроса', async () => {

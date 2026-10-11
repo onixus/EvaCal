@@ -10,6 +10,7 @@ const KIND_LABELS: Record<QueueItem['kind'], string> = {
   assignment: 'Этап ревью',
   verify: 'Проверка исправления',
   returned: 'Возврат',
+  change_request: 'Запрос на изменение',
 };
 
 const fmtDateTime = (iso: string) =>
@@ -140,8 +141,14 @@ export default function InboxClient({ initial }: { initial: MyQueue }) {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-semibold text-slate-900 dark:text-nord-6">
-                    {n.payload.packageName ?? 'Комплект'}
-                    {n.payload.version ? ` v${n.payload.version}` : ''}
+                    {n.payload.crLabel ? (
+                      `${n.payload.crLabel} «${n.payload.crTitle ?? ''}»`
+                    ) : (
+                      <>
+                        {n.payload.packageName ?? 'Комплект'}
+                        {n.payload.version ? ` v${n.payload.version}` : ''}
+                      </>
+                    )}
                   </span>
                   <span className="block truncate text-[11px] text-slate-500 dark:text-nord-muted">
                     {fmtDateTime(n.createdAt)}

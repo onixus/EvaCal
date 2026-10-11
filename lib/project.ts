@@ -110,8 +110,12 @@ export interface CreateGostPackageInput {
 /**
  * Creates or fetches an existing Project matching customer and project name.
  */
-export async function getOrCreateProject(input: CreateProjectInput) {
-  const existing = await prisma.project.findFirst({
+export async function getOrCreateProject(
+  input: CreateProjectInput,
+  // Транзакция вызывающего: версия расчёта создаёт проект в той же транзакции.
+  db: Prisma.TransactionClient = prisma,
+) {
+  const existing = await db.project.findFirst({
     where: {
       customer: input.customer.trim(),
       name: input.name.trim(),
@@ -130,7 +134,7 @@ export async function getOrCreateProject(input: CreateProjectInput) {
     return existing;
   }
 
-  return prisma.project.create({
+  return db.project.create({
     data: {
       name: input.name.trim(),
       customer: input.customer.trim(),
@@ -186,11 +190,14 @@ async function createCalculationVersionIn(
   // Ensure Project association exists
   let projectId = source.projectId;
   if (!projectId) {
-    const project = await getOrCreateProject({
-      name: source.name,
-      customer: source.customer,
-      createdBy: source.createdBy,
-    });
+    const project = await getOrCreateProject(
+      {
+        name: source.name,
+        customer: source.customer,
+        createdBy: source.createdBy,
+      },
+      db,
+    );
     projectId = project.id;
     // Link source to the project if not linked
     await db.calculation.update({

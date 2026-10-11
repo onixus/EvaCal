@@ -11,8 +11,13 @@ import type { SerializedProject } from './project-detail/types';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ProjectDetailPage(props: { params: Promise<{ id: string }> }) {
+export default async function ProjectDetailPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ tab?: string }>;
+}) {
   const params = await props.params;
+  // Ссылки из уведомлений и очереди открывают нужную вкладку (?tab=changes).
+  const initialTab = (await props.searchParams)?.tab;
   const [project, session] = await Promise.all([getProjectDetails(params.id), getSession()]);
 
   if (!project) {
@@ -179,6 +184,7 @@ export default async function ProjectDetailPage(props: { params: Promise<{ id: s
       lifecycle={lifecycle}
       canEditDeal={canEditDeal}
       sessionRole={session?.role ?? null}
+      initialTab={initialTab}
     />
   );
 }

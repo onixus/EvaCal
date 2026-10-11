@@ -1123,8 +1123,8 @@ model AcceptanceDecision {
 model Notification {
   id         String    @id @default(cuid())
   userId     String
-  kind       String // assigned | deputy_assigned | returned | overdue | comment_reply | comment_fixed | comment_verified | comment_rejected | comment_reopened
-  entityType String // gost_package | review_assignment | review_comment
+  kind       String // assigned | deputy_assigned | returned | overdue | comment_reply | comment_fixed | comment_verified | comment_rejected | comment_reopened | cr_submitted | cr_reopened | cr_estimated | cr_accepted | cr_rejected | cr_deferred
+  entityType String // gost_package | review_assignment | review_comment | change_request
   entityId   String
   payload    Json?
   dueAt      DateTime?

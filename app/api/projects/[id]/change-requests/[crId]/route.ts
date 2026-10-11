@@ -3,6 +3,7 @@ import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { changeRequestErrorResponse } from '@/lib/changeRequests/http';
 import { decideChangeRequest, deleteDraftChangeRequest } from '@/lib/changeRequests/decisions';
+import { notifyChangeRequest, type ChangeRequestEvent } from '@/lib/changeRequests/notify';
 import {
   getChangeRequest,
   recordEstimate,
@@ -21,6 +22,16 @@ import {
 } from '@/lib/changeRequests/workflow';
 
 type Props = { params: Promise<{ id: string; crId: string }> };
+
+/** Действие → событие уведомления (правка черновика не уведомляет). */
+const NOTIFY_EVENTS: Record<string, ChangeRequestEvent | undefined> = {
+  submit: 'submitted',
+  estimate: 'estimated',
+  accept: 'accepted',
+  reject: 'rejected',
+  defer: 'deferred',
+  reopen: 'reopened',
+};
 
 export async function GET(_req: NextRequest, props: Props) {
   const auth = await requireApiRole(CHANGE_REQUEST_EDIT_ROLES);
@@ -95,6 +106,16 @@ export async function PATCH(req: NextRequest, props: Props) {
       meta: { projectId: id, status: result.status },
       ip: clientIp(req),
     });
+    const event = NOTIFY_EVENTS[String(action)];
+    if (event) {
+      const last = result.events?.at(-1);
+      await notifyChangeRequest(
+        event,
+        result,
+        { userId: auth.userId, username: auth.username },
+        event === 'estimated' ? result.estimateComment : (last?.comment ?? null),
+      );
+    }
     return NextResponse.json(result);
   } catch (error) {
     return changeRequestErrorResponse(error);

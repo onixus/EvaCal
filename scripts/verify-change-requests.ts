@@ -26,6 +26,8 @@ import {
   isChangeRequestRestrictViolation,
 } from '../lib/changeRequests/decisions';
 import { parseDraftInput, parseEstimateInput } from '../lib/changeRequests/workflow';
+import { notifyChangeRequest } from '../lib/changeRequests/notify';
+import { createCalculationVersion } from '../lib/project';
 
 const asArchitect = (decision: 'accept' | 'reject' | 'defer' | 'reopen', comment?: string) => ({
   decision,
@@ -42,6 +44,7 @@ async function rejects(label: string, action: () => Promise<unknown>) {
 
 async function main() {
   const marker = randomUUID().slice(0, 8);
+  const userIds: string[] = [];
   const template = await prisma.formTemplate.create({ data: { name: `cr-probe-${marker}` } });
   const project = await prisma.project.create({
     data: { name: `cr-probe-${marker}`, customer: 'CI' },
@@ -380,7 +383,7 @@ async function main() {
         parseDraftInput({ ...draftBody, baseCalculationId: next.id, basePackageId: nextPkg.id }),
         'ci',
       ),
-      (error: unknown) => /выпущенный комплект/.test(String(error)),
+      (error: unknown) => /выпущенный действующий комплект/.test(String(error)),
     );
     const onHead = await createChangeRequest(
       project.id,
@@ -477,8 +480,119 @@ async function main() {
     // 5. Удаление запроса уносит журнал каскадом.
     await prisma.changeRequest.delete({ where: { id: cr.id } });
     assert.equal(await prisma.changeRequestEvent.count({ where: { crId: cr.id } }), 0);
-    // Запросов на базу больше нет — расчёт снова удаляем (триггер пропускает).
+
+    // 6. Архивный комплект базой не бывает (как и черновик). Принятый запрос
+    // удалён выше, поэтому голова цепочки снова базовый расчёт.
+    await prisma.gostPackage.update({ where: { id: pkg.id }, data: { status: 'archived' } });
+    await assert.rejects(
+      createChangeRequest(project.id, parseDraftInput(draftBody), 'ci'),
+      (error: unknown) => /действующий комплект/.test(String(error)),
+    );
+    await prisma.gostPackage.update({ where: { id: pkg.id }, data: { status: 'approved' } });
+
+    // 7. Уведомления о событиях запроса: получатели по логину, неизвестные
+    // (инициатор — ФИО заказчика) пропускаются, себе не пишем.
+    const presaleUser = await prisma.user.create({
+      data: { username: `cr-presale-${marker}`, role: 'presale', passwordHash: 'x' },
+    });
+    const archUser = await prisma.user.create({
+      data: { username: `cr-arch-${marker}`, role: 'architect', passwordHash: 'x' },
+    });
+    userIds.push(presaleUser.id, archUser.id);
+    const ref = {
+      id: pair[1].id,
+      projectId: project.id,
+      seq: pair[1].seq,
+      title: pair[1].title,
+      basePackageId: null,
+      createdBy: presaleUser.username,
+      initiator: 'Заказчик, ИТ-директор',
+    };
+    await notifyChangeRequest('submitted', ref, {
+      userId: presaleUser.id,
+      username: presaleUser.username,
+    });
+    const archInbox = await prisma.notification.findMany({ where: { userId: archUser.id } });
+    assert.deepEqual(
+      archInbox.map((n) => [n.kind, n.entityType, n.entityId]),
+      [['cr_submitted', 'change_request', pair[1].id]],
+      'estimators are notified about a submitted request',
+    );
+    assert.equal(
+      await prisma.notification.count({ where: { userId: presaleUser.id } }),
+      0,
+      'no notification to the actor',
+    );
+    await notifyChangeRequest(
+      'accepted',
+      ref,
+      { userId: archUser.id, username: archUser.username },
+      'Согласовано',
+    );
+    const presaleInbox = await prisma.notification.findMany({
+      where: { userId: presaleUser.id },
+    });
+    assert.equal(presaleInbox.length, 1);
+    assert.equal(presaleInbox[0].kind, 'cr_accepted');
+    assert.equal((presaleInbox[0].payload as { crLabel?: string }).crLabel, `ЗИ-0${pair[1].seq}`);
+    await rejects('cr kind on a package entity', () =>
+      prisma.notification.create({
+        data: {
+          userId: archUser.id,
+          kind: 'cr_accepted',
+          entityType: 'gost_package',
+          entityId: 'x',
+        },
+      }),
+    );
+    await rejects('package kind on a change request entity', () =>
+      prisma.notification.create({
+        data: {
+          userId: archUser.id,
+          kind: 'assigned',
+          entityType: 'change_request',
+          entityId: 'x',
+        },
+      }),
+    );
+
+    // 8. Версия непривязанного расчёта создаёт проект в транзакции вызывающего:
+    // откат транзакции не оставляет проекта.
+    const orphan = await prisma.calculation.create({
+      data: {
+        templateId: template.id,
+        name: `cr-orphan-${marker}`,
+        customer: 'CI-orphan',
+        answers: '{}',
+      },
+    });
+    await assert.rejects(
+      prisma.$transaction(async (tx) => {
+        await createCalculationVersion({ parentCalculationId: orphan.id }, tx);
+        throw new Error('rollback');
+      }),
+      /rollback/,
+    );
+    assert.equal(
+      await prisma.project.count({ where: { name: `cr-orphan-${marker}` } }),
+      0,
+      'project creation rolled back with the transaction',
+    );
+    assert.equal(
+      (await prisma.calculation.findUniqueOrThrow({ where: { id: orphan.id } })).projectId,
+      null,
+    );
   } finally {
+    const crIds = (
+      await prisma.changeRequest.findMany({
+        where: { projectId: project.id },
+        select: { id: true },
+      })
+    ).map((r) => r.id);
+    await prisma.notification.deleteMany({
+      where: { OR: [{ userId: { in: userIds } }, { entityId: { in: crIds } }] },
+    });
+    await prisma.user.deleteMany({ where: { id: { in: userIds } } });
     await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS "ci_fail_risk" ON "Risk"');
     await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS "ci_fail_risk"()');
     await prisma.changeRequest.deleteMany({ where: { projectId: project.id } });
@@ -488,7 +602,8 @@ async function main() {
   }
   console.log(
     'Change requests integration passed: base untouched, CHECKs, unique seq, append-only history, cascade, ' +
-      'atomic accept with rollback, traceable result, re-estimate policy, delete guard.',
+      'atomic accept with rollback, traceable result, re-estimate policy, delete guard, ' +
+      'archived base rejected, notifications, project created inside the transaction.',
   );
 }
 

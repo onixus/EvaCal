@@ -24,7 +24,15 @@ export type NotificationKind =
   | 'comment_fixed'
   | 'comment_verified'
   | 'comment_rejected'
-  | 'comment_reopened';
+  | 'comment_reopened'
+  // Запросы на изменение (#103 §1): поданные/возвращённые — оценщикам,
+  // оценка и решения — автору и инициатору запроса.
+  | 'cr_submitted'
+  | 'cr_reopened'
+  | 'cr_estimated'
+  | 'cr_accepted'
+  | 'cr_rejected'
+  | 'cr_deferred';
 
 export const NOTIFICATION_KINDS: NotificationKind[] = [
   'assigned',
@@ -36,9 +44,16 @@ export const NOTIFICATION_KINDS: NotificationKind[] = [
   'comment_verified',
   'comment_rejected',
   'comment_reopened',
+  'cr_submitted',
+  'cr_reopened',
+  'cr_estimated',
+  'cr_accepted',
+  'cr_rejected',
+  'cr_deferred',
 ];
 
-export type NotificationEntity = 'gost_package' | 'review_assignment' | 'review_comment';
+export type NotificationEntity =
+  'gost_package' | 'review_assignment' | 'review_comment' | 'change_request';
 
 export const NOTIFICATION_LABELS: Record<NotificationKind, string> = {
   assigned: 'Назначение на этап',
@@ -50,6 +65,12 @@ export const NOTIFICATION_LABELS: Record<NotificationKind, string> = {
   comment_verified: 'Исправление проверено',
   comment_rejected: 'Замечание отклонено',
   comment_reopened: 'Исправление не принято',
+  cr_submitted: 'Запрос на изменение ждёт оценки',
+  cr_reopened: 'Запрос на изменение возвращён на оценку',
+  cr_estimated: 'Запрос на изменение оценён',
+  cr_accepted: 'Запрос на изменение принят',
+  cr_rejected: 'Запрос на изменение отклонён',
+  cr_deferred: 'Запрос на изменение отложен',
 };
 
 /**
@@ -68,7 +89,8 @@ export function notificationActorName(access: {
 
 /** Что показать в уведомлении без дополнительных запросов. */
 export interface NotificationPayload {
-  packageId: string;
+  /** Комплект ревью; у уведомлений о запросе на изменение — его базовый комплект, если есть. */
+  packageId?: string;
   packageName?: string;
   version?: number;
   stage?: AssignableStage;
@@ -77,6 +99,11 @@ export interface NotificationPayload {
   /** Короткий текст: комментарий к возврату, ответ, фрагмент замечания. */
   text?: string | null;
   commentId?: string;
+  /** Запрос на изменение: проект, id, номер «ЗИ-01» и название. */
+  projectId?: string;
+  changeRequestId?: string;
+  crLabel?: string;
+  crTitle?: string;
 }
 
 export interface NotificationDraft {
@@ -445,8 +472,14 @@ export interface SerializedNotification {
   readAt: string | null;
 }
 
-/** Куда ведёт уведомление: все виды касаются комплекта и открывают его ревью. */
+/**
+ * Куда ведёт уведомление: о запросе на изменение — на вкладку запросов
+ * проекта, остальные виды касаются комплекта и открывают его ревью.
+ */
 export function notificationHref(payload: NotificationPayload | null | undefined): string {
+  if (payload?.changeRequestId && payload.projectId) {
+    return `/projects/${payload.projectId}?tab=changes`;
+  }
   return payload?.packageId ? `/review/${payload.packageId}` : '/review';
 }
 
