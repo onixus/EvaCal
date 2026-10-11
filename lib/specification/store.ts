@@ -12,6 +12,7 @@ import { snapshotEvidence } from '../catalog/compliance';
 import { mapEvidence } from '../catalog/store';
 import { clearStaleChangeReasons } from './diff';
 import { verifySizingRefs } from '../sizing/refs';
+import { applyRequirementCodes, type RequirementOptions } from './requirements';
 
 export async function loadSpecification(
   calculationId: string,
@@ -111,9 +112,14 @@ export async function saveSpecification(
     beforeWrite?: (tx: Prisma.TransactionClient) => Promise<void>;
     /** Rows (or all) whose compliance evidence is re-copied from the catalog. */
     refreshEvidence?: string[] | 'all';
+    /**
+     * Requirements of the GOST package: codes of linked requirements are copied
+     * into the revision. Absent — codes carried by the rows are kept as loaded.
+     */
+    requirements?: RequirementOptions;
   } = {},
 ) {
-  const snapshot = parseSpecification(input);
+  let snapshot = parseSpecification(input);
   if (snapshot.status === 'released')
     throw new SpecificationError(
       'Статус «выпущена» присваивается только при выпуске комплекта ГОСТ 34. Новая редакция сохраняется как черновик, на согласовании или подтвержденная.',
@@ -135,6 +141,8 @@ export async function saveSpecification(
       );
     }
     const previous = latest ? parseSpecification(JSON.parse(latest.data)) : null;
+    if (options.requirements)
+      snapshot = applyRequirementCodes(snapshot, previous, options.requirements);
     if (!options.allowOriginUpdates) {
       for (const item of snapshot.items) {
         const old = previous?.items.find((row) => row.id === item.id);

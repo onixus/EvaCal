@@ -22,6 +22,7 @@ import { syncBundleComponents } from '@/lib/catalog/relations';
 import { evidenceText, itemEvidence } from '@/lib/catalog/compliance';
 import { businessDate } from '@/lib/catalog/business-date';
 import { newRowId } from '@/lib/rowId';
+import type { RequirementOptions } from '@/lib/specification/requirements';
 
 interface SpecificationPanelProps {
   calculationId: string;
@@ -60,6 +61,79 @@ const newItem = (): SpecificationItem => ({
   unitPrice: null,
   currency: 'RUB',
 });
+
+/** #101 этап 3: выбор требований комплекта ГОСТ 34, которыми обоснована позиция. */
+function RequirementLinks({
+  item,
+  options,
+  onChange,
+}: {
+  item: SpecificationItem;
+  options: RequirementOptions | null;
+  onChange: (ids: string[]) => void;
+}) {
+  const linked = item.requirementIds ?? [];
+  const known = new Set((options?.requirements ?? []).map((r) => r.id));
+  const missing = linked.filter((id) => !known.has(id));
+  const toggle = (id: string, on: boolean) =>
+    onChange(on ? [...linked, id] : linked.filter((value) => value !== id));
+  return (
+    <details className="text-sm" data-testid="requirement-links">
+      <summary>
+        Требования (обоснование):{' '}
+        {linked.length
+          ? linked
+              .map(
+                (id) =>
+                  item.requirementCodes?.[id] ||
+                  options?.requirements.find((r) => r.id === id)?.code ||
+                  id,
+              )
+              .join(', ')
+          : 'не связаны'}
+      </summary>
+      {options === null ? (
+        <p className="text-slate-500">Загрузка требований…</p>
+      ) : options.requirements.length === 0 ? (
+        <p className="text-slate-500">
+          В комплекте ГОСТ 34 расчета нет требований. Добавьте их в студии ГОСТ 34.
+        </p>
+      ) : (
+        <>
+          <p className="text-xs text-slate-500">
+            Требования из {options.source?.kind === 'draft' ? 'черновика студии' : 'комплекта'} ГОСТ
+            34 v{options.source?.version}. Связь не меняет подтверждение строки.
+          </p>
+          <ul className="max-h-48 overflow-y-auto">
+            {options.requirements.map((r) => (
+              <li key={r.id}>
+                <label className="flex gap-2">
+                  <input
+                    type="checkbox"
+                    aria-label={`Требование ${r.code}`}
+                    checked={linked.includes(r.id)}
+                    onChange={(e) => toggle(r.id, e.target.checked)}
+                  />
+                  <span>
+                    <b>{r.code}</b> {r.title}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {missing.map((id) => (
+        <p key={id} className="text-amber-700">
+          {item.requirementCodes?.[id] || id}: не найдено в текущем комплекте.{' '}
+          <button className="underline" onClick={() => toggle(id, false)}>
+            Снять связь
+          </button>
+        </p>
+      ))}
+    </details>
+  );
+}
 
 function PriceOrigin({ item, canUseCatalog }: { item: SpecificationItem; canUseCatalog: boolean }) {
   if (!item.origin) return null;
@@ -120,7 +194,27 @@ export default function SpecificationPanel({
   const [selectedVersion, setSelectedVersion] = useState('');
   const [reload, setReload] = useState(0);
   const [notice, setNotice] = useState('');
+  const [saveWarnings, setSaveWarnings] = useState<string[]>([]);
+  const [requirementOptions, setRequirementOptions] = useState<RequirementOptions | null>(null);
   const answersKey = JSON.stringify(answers);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setRequirementOptions(null);
+    fetch(`/api/calculations/${calculationId}/specification/requirements`, {
+      headers: withShareHeaders(calculationId),
+      signal: controller.signal,
+    })
+      .then(async (res) => (res.ok ? ((await res.json()) as RequirementOptions) : null))
+      .then((data) => {
+        if (!controller.signal.aborted)
+          setRequirementOptions(data ?? { source: null, requirements: [] });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setRequirementOptions({ source: null, requirements: [] });
+      });
+    return () => controller.abort();
+  }, [calculationId, reload]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -193,6 +287,7 @@ export default function SpecificationPanel({
   const save = async (status: SpecificationSnapshot['status']) => {
     setBusy(true);
     setError('');
+    setSaveWarnings([]);
     try {
       const res = await fetch(`/api/calculations/${calculationId}/specification`, {
         method: 'POST',
@@ -203,6 +298,9 @@ export default function SpecificationPanel({
       if (!res.ok) throw new Error(data.error || 'Не удалось сохранить');
       setSpec((data as SavedSpecification).snapshot);
       setDirty(false);
+      // Связи с требованиями, которых нет в комплекте, не блокируют сохранение.
+      const warnings: string[] = Array.isArray(data.warnings) ? data.warnings : [];
+      setSaveWarnings(warnings);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка сохранения');
     } finally {
@@ -419,6 +517,16 @@ export default function SpecificationPanel({
             {notice}
           </p>
         )}
+        {saveWarnings.length > 0 && (
+          <div className="rounded border border-amber-300 p-3 text-sm" data-testid="save-warnings">
+            <p>Сохранено с предупреждениями:</p>
+            <ul className="list-inside list-disc">
+              {saveWarnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         {spec.status === 'released' && !dirty && (
           <p className="text-sm text-slate-600">
             Редакция выпущена в комплекте ГОСТ 34 и неизменяема. Любая правка сохраняется новой
@@ -586,6 +694,30 @@ export default function SpecificationPanel({
                 </p>
               )}
               <PriceOrigin item={item} canUseCatalog={canUseCatalog} />
+              <RequirementLinks
+                item={item}
+                options={requirementOptions}
+                onChange={(ids) => {
+                  // Обоснование не меняет сведения позиции: подтверждение сохраняется.
+                  const { requirementIds: _ids, requirementCodes: _codes, ...rest } = item;
+                  void _ids;
+                  void _codes;
+                  const codes = Object.fromEntries(
+                    Object.entries(item.requirementCodes ?? {}).filter(([id]) => ids.includes(id)),
+                  );
+                  const next: SpecificationItem = ids.length
+                    ? {
+                        ...rest,
+                        requirementIds: ids,
+                        ...(Object.keys(codes).length ? { requirementCodes: codes } : {}),
+                      }
+                    : rest;
+                  change({
+                    ...spec,
+                    items: spec.items.map((row) => (row.id === item.id ? next : row)),
+                  });
+                }}
+              />
               {item.origin && (
                 <p className="text-sm text-slate-600" data-testid="item-evidence">
                   Реестры / сертификаты:{' '}

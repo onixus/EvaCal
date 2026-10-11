@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { withShareHeaders } from '@/lib/shareClient';
 import { detectImplementationSizingProfile } from '@/lib/presets/implementationSizing';
 import { describeTotal } from '@/lib/specification/totals';
@@ -13,6 +13,7 @@ import type {
 } from '@/lib/sizing/types';
 import { SIZING_METRIC_KINDS } from '@/lib/sizing/types';
 import type { SizingImpactPreview } from '@/lib/sizing/impact';
+import type { CandidateProposal, CatalogCandidate } from '@/lib/sizing/candidates';
 
 interface SizingPanelProps {
   calculationId: string;
@@ -83,6 +84,11 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
   const [spec, setSpec] = useState<SavedSpecification | null>(null);
   const [canWrite, setCanWrite] = useState(false);
   const [canEditProfiles, setCanEditProfiles] = useState(false);
+  const [canUseCatalog, setCanUseCatalog] = useState(false);
+  const [candidates, setCandidates] = useState<
+    (CandidateProposal & { run: { id: string; label: string } }) | null
+  >(null);
+  const [notice, setNotice] = useState('');
   const [versionId, setVersionId] = useState('');
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<SizingImpactPreview | null>(null);
@@ -125,6 +131,13 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
     [profiles],
   );
   const version = versions.find((v) => v.id === versionId);
+  // Ответы опросника нужны только для выбора профиля по умолчанию и начальных входов:
+  // новая ссылка на тот же объект не должна перезагружать панель и сбрасывать ввод.
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
+  /** Входы, введенные пользователем: перезагрузка профилей их не сбрасывает. */
+  const touched = useRef<Set<string>>(new Set());
+  const initializedFor = useRef('');
 
   const load = useCallback(async () => {
     try {
@@ -136,11 +149,12 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
       setRuns(sizing.runs);
       setCanWrite(sizing.canWrite);
       setCanEditProfiles(sizing.canEditProfiles);
+      setCanUseCatalog(Boolean(specification?.canUseCatalog));
       setSpec(specification?.specification ?? null);
       setVersionId((current) => {
         if (current) return current;
         // Профиль предлагается по ключам опросника, не по названию проекта.
-        const detected = detectImplementationSizingProfile(answers);
+        const detected = detectImplementationSizingProfile(answersRef.current);
         const list = (sizing.profiles as SizingProfileView[]).flatMap((p) =>
           p.versions.filter((v) => v.status === 'approved'),
         );
@@ -149,21 +163,31 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [call, calculationId, answers]);
+  }, [call, calculationId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  // Входы профиля заполняются из ответов опросника; дальше редактируются отдельно.
+  // Входы профиля заполняются из ответов опросника один раз на версию профиля, дальше
+  // редактируются отдельно. Повторная загрузка списка профилей (новые объекты той же
+  // версии) ввод не сбрасывает; значения, введенные вручную, сохраняются и при смене
+  // версии.
   useEffect(() => {
-    if (!version) return;
-    const next: Record<string, string> = {};
-    for (const def of version.rules.inputs) {
-      const v = answers[def.key];
-      next[def.key] = v === undefined || v === null ? '' : String(v);
-    }
-    setInputs(next);
+    if (!version || initializedFor.current === version.id) return;
+    initializedFor.current = version.id;
+    setInputs((current) => {
+      const next: Record<string, string> = {};
+      for (const def of version.rules.inputs) {
+        const v = answersRef.current[def.key];
+        next[def.key] = touched.current.has(def.key)
+          ? (current[def.key] ?? '')
+          : v === undefined || v === null
+            ? ''
+            : String(v);
+      }
+      return next;
+    });
     setRulesDraft(
       JSON.stringify(
         { rules: version.rules, assumptions: version.assumptions, source: version.source },
@@ -171,7 +195,7 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
         2,
       ),
     );
-  }, [version, answers]);
+  }, [version]);
 
   const payloadInputs = () =>
     Object.fromEntries(Object.entries(inputs).filter(([, v]) => v.trim() !== ''));
@@ -253,6 +277,38 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
       setLinkForm(null);
       await load();
     });
+  const findCandidates = (runId: string, scenario: string, metric: string) =>
+    run(async () => {
+      setNotice('');
+      setCandidates(
+        await call(`/api/calculations/${calculationId}/sizing/candidates`, {
+          runId,
+          metric,
+          ...(scenario === 'base' ? {} : { scenario }),
+        }),
+      );
+    });
+  // Выбранный кандидат добавляется новой строкой черновой редакции обычным сохранением.
+  const addCandidate = (candidate: CatalogCandidate) =>
+    run(async () => {
+      const latest = await call(`/api/calculations/${calculationId}/specification`);
+      const snapshot = latest.specification?.snapshot ?? {
+        version: 0,
+        status: 'draft',
+        emptySupplyReason: '',
+        items: [],
+      };
+      const saved = await call(`/api/calculations/${calculationId}/specification`, {
+        ...snapshot,
+        status: 'draft',
+        items: [...snapshot.items, candidate.item],
+      });
+      setCandidates(null);
+      setNotice(
+        `«${candidate.name}» добавлена в черновую редакцию ${saved.snapshot.version}: ${candidate.quantity} ${candidate.unit}. Проверьте и подтвердите строку во вкладке спецификации.`,
+      );
+      await load();
+    });
   const newProfileVersion = () =>
     run(async () => {
       if (!version) return;
@@ -287,6 +343,11 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
         {error ? (
           <p role="alert" className="mt-3 text-sm text-red-700 dark:text-nord-11">
             {error}
+          </p>
+        ) : null}
+        {notice ? (
+          <p role="status" className="mt-3 text-sm text-emerald-700 dark:text-nord-14">
+            {notice}
           </p>
         ) : null}
         {spec ? (
@@ -340,7 +401,11 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
                         ? 'не задано — метрика будет неизвестна'
                         : `допущение: ${String(def.default)}`
                     }
-                    onChange={(e) => setInputs({ ...inputs, [def.key]: e.target.value })}
+                    onChange={(e) => {
+                      touched.current.add(def.key);
+                      const value = e.target.value;
+                      setInputs((current) => ({ ...current, [def.key]: value }));
+                    }}
                   />
                 </label>
               ))}
@@ -445,12 +510,28 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
             </tbody>
           </table>
           {preview.uncovered.length ? (
-            <p className="text-xs text-slate-500">
+            <div className="text-xs text-slate-500">
               Метрики без покрывающих позиций:{' '}
               {preview.uncovered
                 .map((u) => `${u.label} = ${fmt(u.value)} ${u.value === null ? '' : u.unit}`)
                 .join('; ')}
-            </p>
+              {canWrite && canUseCatalog && preview.run.id && !preview.run.ephemeral ? (
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {preview.uncovered
+                    .filter((u) => u.value !== null)
+                    .map((u) => (
+                      <button
+                        key={u.key}
+                        className="btn-secondary"
+                        disabled={busy}
+                        onClick={() => findCandidates(preview.run.id!, 'base', u.key)}
+                      >
+                        Подобрать из каталога: {u.label}
+                      </button>
+                    ))}
+                </div>
+              ) : null}
+            </div>
           ) : null}
           <div className="text-sm">
             <div>До: {preview.totals.before.map(describeTotal).join('; ') || '—'}</div>
@@ -471,6 +552,108 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
               версии.
             </p>
           ) : null}
+        </div>
+      ) : null}
+
+      {candidates ? (
+        <div className="card space-y-3 p-5" data-testid="sizing-candidates">
+          <h3 className="font-semibold text-slate-900 dark:text-nord-6">
+            Кандидаты каталога: {candidates.metric.label || candidates.metric.key} ={' '}
+            {candidates.metric.required} {candidates.metric.unit}
+          </h3>
+          <p className="text-xs text-slate-500">
+            {candidates.run.label}
+            {candidates.metric.scenario !== 'base'
+              ? `, сценарий ${candidates.metric.scenario}`
+              : ''}
+            . Позиции подобраны по характеристике, задающей ёмкость единицы по метрике. Цена берется
+            только из подтвержденных действующих предложений; без них стоимость неизвестна. Ничего
+            не добавляется автоматически: выбранная позиция сохраняется новой черновой редакцией без
+            подтверждения строки.
+          </p>
+          {candidates.candidates.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              В каталоге нет позиций с характеристикой «{candidates.metric.key}» или «
+              {candidates.metric.label}». Добавьте позицию вручную или задайте характеристику в
+              каталоге.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-slate-500">
+                  <th>Позиция</th>
+                  <th>Ёмкость единицы</th>
+                  <th>Количество</th>
+                  <th>Избыток</th>
+                  <th>Цена</th>
+                  <th>Стоимость</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {candidates.candidates.map((c) => (
+                  <tr
+                    key={`${c.productId}-${c.offerId ?? 'none'}`}
+                    className="border-t border-slate-100 align-top dark:border-nord-3"
+                  >
+                    <td>
+                      {c.name}
+                      <div className="text-xs text-slate-500">
+                        {[c.vendor, c.sku, c.edition].filter(Boolean).join(' / ')}
+                        {c.offer ? ` · ${c.offer.source}` : ''}
+                      </div>
+                    </td>
+                    <td>
+                      {c.attribute}: {c.unitCapacity}
+                    </td>
+                    <td>
+                      {c.quantity} {c.unit}
+                    </td>
+                    <td>{c.surplus}</td>
+                    <td>
+                      {c.unitPrice === null ? (
+                        <span className="text-amber-700 dark:text-nord-13">неизвестна</span>
+                      ) : (
+                        `${c.unitPrice} ${c.currency}`
+                      )}
+                    </td>
+                    <td>
+                      {c.amount === null ? (
+                        <span className="text-amber-700 dark:text-nord-13">неизвестна</span>
+                      ) : (
+                        `${c.amount} ${c.currency}`
+                      )}
+                    </td>
+                    <td>
+                      {canWrite ? (
+                        <button
+                          className="btn-secondary"
+                          disabled={busy}
+                          aria-label={`Добавить в черновик: ${c.name}${c.offer ? ` (${c.offer.source})` : ''}`}
+                          onClick={() => addCandidate(c)}
+                        >
+                          Добавить в черновик
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {candidates.skipped.length ? (
+            <details className="text-xs text-slate-500">
+              <summary>Не подходят ({candidates.skipped.length})</summary>
+              <ul className="list-disc pl-5">
+                {candidates.skipped.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+          <button className="btn-secondary" onClick={() => setCandidates(null)}>
+            Закрыть
+          </button>
         </div>
       ) : null}
 
@@ -498,23 +681,36 @@ export default function SizingPanel({ calculationId, answers }: SizingPanelProps
                 <OutputsTable
                   outputs={s.outputs}
                   link={
-                    canWrite && spec && items.length
+                    canWrite && ((spec && items.length) || canUseCatalog)
                       ? (o) =>
                           o.value === null ? null : (
-                            <button
-                              className="text-xs text-brand-600 hover:underline dark:text-nord-frost2"
-                              onClick={() =>
-                                setLinkForm({
-                                  runId: r.id,
-                                  scenario: s.key,
-                                  metric: o.key,
-                                  itemId: items[0].id,
-                                  unitCapacity: '1',
-                                })
-                              }
-                            >
-                              Связать с позицией
-                            </button>
+                            <div className="flex flex-col items-start gap-1">
+                              {spec && items.length ? (
+                                <button
+                                  className="text-xs text-brand-600 hover:underline dark:text-nord-frost2"
+                                  onClick={() =>
+                                    setLinkForm({
+                                      runId: r.id,
+                                      scenario: s.key,
+                                      metric: o.key,
+                                      itemId: items[0].id,
+                                      unitCapacity: '1',
+                                    })
+                                  }
+                                >
+                                  Связать с позицией
+                                </button>
+                              ) : null}
+                              {canUseCatalog ? (
+                                <button
+                                  className="text-xs text-brand-600 hover:underline dark:text-nord-frost2"
+                                  disabled={busy}
+                                  onClick={() => findCandidates(r.id, s.key, o.key)}
+                                >
+                                  Подобрать из каталога
+                                </button>
+                              ) : null}
+                            </div>
                           )
                       : undefined
                   }

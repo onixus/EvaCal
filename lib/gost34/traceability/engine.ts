@@ -3,6 +3,8 @@ import { Gost34RequirementV2, getRequirementEffectiveText } from '../requirement
 import { Gost34RequirementItem, Gost34StageItem, Gost34TableData } from '../types';
 import { TraceLink, TraceabilityResult } from './types';
 import { normalizeRoleKey } from '@/lib/roles';
+import type { SpecificationItem } from '../../specification/types';
+import { buildRequirementSupplyIndex, supplyItemsText } from './supply';
 
 /**
  * Ручное решение «требование намеренно не распределено»: связь без целевого
@@ -232,6 +234,8 @@ export function generateTraceabilityTable(
   requirements: TraceabilityRequirement[],
   stages: Gost34StageItem[],
   result?: TraceabilityResult,
+  /** Строки спецификации: при наличии связей добавляется графа «Позиции спецификации». */
+  specificationItems?: SpecificationItem[],
 ): Gost34TableData {
   const normalizedRequirements = normalizeRequirements(requirements);
   const resolvedResult =
@@ -239,6 +243,9 @@ export function generateTraceabilityTable(
     buildTraceability(normalizedRequirements, stages, legacyManualLinks(requirements, stages));
 
   const rows: (string | number)[][] = [];
+  const supply = buildRequirementSupplyIndex(specificationItems);
+  // Графа появляется только когда хотя бы одно требование связано с позицией.
+  const withSupply = normalizedRequirements.some((req) => supply.has(req.id));
 
   for (const req of normalizedRequirements) {
     const link = resolvedResult.links.find((l) => l.sourceId === req.id);
@@ -250,6 +257,7 @@ export function generateTraceabilityTable(
       stage ? stage.name : '[НЕ РАСПРЕДЕЛЕНО]',
       stage ? stage.role : '',
       req.source?.filename || 'ТЗ',
+      ...(withSupply ? [supplyItemsText(supply.get(req.id) ?? []) || '—'] : []),
     ]);
   }
 
@@ -261,6 +269,7 @@ export function generateTraceabilityTable(
       'Ответственный этап работ',
       'Роль исполнителя',
       'Источник',
+      ...(withSupply ? ['Позиции спецификации'] : []),
     ],
     rows,
   };

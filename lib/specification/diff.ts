@@ -6,6 +6,7 @@ import {
   subtractDecimal,
   summarizeSpecification,
 } from './totals';
+import { requirementBasisText } from './requirements';
 
 /** A bundle component has no amount of its own (totals rule 3a): the bundle row carries it. */
 const lineAmount = (item: SpecificationItem) =>
@@ -29,6 +30,7 @@ export const DIFF_FIELDS = [
   'currency',
   'confirmed',
   'includedIn',
+  'requirementIds',
 ] as const;
 export type DiffField = (typeof DIFF_FIELDS)[number];
 
@@ -49,6 +51,7 @@ export const DIFF_FIELD_LABELS: Record<DiffField, string> = {
   currency: 'Валюта',
   confirmed: 'Подтверждение',
   includedIn: 'Входит в комплект (ID строки)',
+  requirementIds: 'Требования (обоснование)',
 };
 
 export interface FieldChange {
@@ -103,9 +106,19 @@ export interface SpecificationDiff {
 }
 
 function value(item: SpecificationItem, field: DiffField): string | null {
+  if (field === 'requirementIds') return requirementBasisText(item) || null;
   const v = item[field];
   if (typeof v === 'boolean') return v ? 'да' : 'нет';
   return v ?? null;
+}
+
+/** Связи с требованиями сравниваются как множество ID: порядок и коды не меняют связь. */
+function sameField(field: DiffField, before: SpecificationItem, after: SpecificationItem) {
+  if (field === 'requirementIds') {
+    const ids = (item: SpecificationItem) => [...(item.requirementIds ?? [])].sort().join('\n');
+    return ids(before) === ids(after);
+  }
+  return same(field, value(before, field), value(after, field));
 }
 
 function same(field: DiffField, a: string | null, b: string | null) {
@@ -177,9 +190,8 @@ export function diffSpecifications(
     }
     const changes: FieldChange[] = [];
     for (const field of DIFF_FIELDS) {
-      const a = value(previous, field),
-        b = value(item, field);
-      if (!same(field, a, b)) changes.push({ field, before: a, after: b });
+      if (!sameField(field, previous, item))
+        changes.push({ field, before: value(previous, field), after: value(item, field) });
     }
     const isMoved = moved.has(item.id);
     if (!changes.length && !isMoved) {
@@ -242,7 +254,7 @@ export function diffSpecifications(
 
 /** True when any compared field differs (decimals exactly, unknown ≠ 0). */
 export function rowChanged(before: SpecificationItem, after: SpecificationItem) {
-  return DIFF_FIELDS.some((field) => !same(field, value(before, field), value(after, field)));
+  return DIFF_FIELDS.some((field) => !sameField(field, before, after));
 }
 
 /**

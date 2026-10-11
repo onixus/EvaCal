@@ -627,4 +627,200 @@ test.describe('Issue #101: сквозная приемка', () => {
     const reopened: SpecificationSnapshot = (await spec(page, id)).snapshot;
     expect(reopened.items).toEqual(saved.snapshot.items);
   });
+
+  test('кандидаты каталога по метрике сайзинга и связь позиции с требованиями ТЗ', async ({
+    page,
+  }) => {
+    test.setTimeout(240000);
+    await loginAs(page, 'architect', E2E_PASSWORD!);
+    const stamp = Date.now();
+    // Уникальная метрика: характеристики позиций других сценариев с ней не совпадают.
+    const metric = `e2e_nodes_${stamp}`;
+
+    // Каталог: две альтернативы с ёмкостью единицы по метрике.
+    const vendor = await catalogAction(page, {
+      action: 'vendor.create',
+      name: `Вендор S ${stamp}`,
+    });
+    const productOf = async (name: string, capacity: string) =>
+      catalogAction(page, {
+        action: 'product.create',
+        product: {
+          vendorId: vendor.id,
+          name: `${name} ${stamp}`,
+          sku: `${name}-${stamp}`,
+          edition: '',
+          kind: 'hardware',
+          unit: 'шт.',
+          licensing: '',
+          attributes: [{ name: metric, value: capacity, unit: 'шт.' }],
+        },
+      });
+    const offerFor = async (product: { id: string; revision: number }, unitPrice: string) =>
+      catalogAction(page, {
+        action: 'offer.create',
+        id: product.id,
+        revision: product.revision,
+        offer: {
+          source: `Прайс ${stamp}`,
+          unitPrice,
+          currency: 'RUB',
+          region: '',
+          terms: '',
+          priceDate: null,
+          validUntil: null,
+        },
+      });
+    const priced = await productOf('Узел-2', '2');
+    const offer = await offerFor(priced, '300');
+    const confirmed = await page.request.post('/api/catalog', {
+      data: { action: 'offer.confirm', id: priced.id, offerId: offer.id },
+    });
+    expect(confirmed.status(), await confirmed.text()).toBeLessThan(300);
+    const unpriced = await productOf('Узел-4', '4');
+    // Неподтвержденная цена не используется: стоимость кандидата неизвестна.
+    await offerFor(unpriced, '1');
+
+    // Сайзинг: 3 узла.
+    const profileRes = await page.request.post('/api/sizing/profiles', {
+      data: { key: `e2e-cand-${stamp}`, name: `E2E кандидаты ${stamp}`, domain: 'e2e' },
+    });
+    expect(profileRes.status(), await profileRes.text()).toBe(201);
+    const created = await page.request.post(
+      `/api/sizing/profiles/${(await profileRes.json()).id}/versions`,
+      {
+        data: {
+          rules: {
+            inputs: [{ key: 'clusters', label: 'Кластеры', type: 'number', min: 0 }],
+            outputs: [
+              {
+                key: metric,
+                label: 'Узлы кластера',
+                kind: 'nodes',
+                unit: 'шт.',
+                formula: 'clusters * 3',
+                round: 'ceil',
+              },
+            ],
+          },
+          assumptions: [],
+          source: 'E2E: узлы = кластеры × 3',
+        },
+      },
+    );
+    expect(created.status(), await created.text()).toBe(201);
+    const version = await created.json();
+    const approved = await page.request.post(`/api/sizing/versions/${version.id}`, {
+      data: { action: 'approve', expectedHash: version.contentHash },
+    });
+    expect(approved.status(), await approved.text()).toBeLessThan(300);
+
+    await createProject(page, `Кандидаты 101 ${stamp}`, 'Заказчик кандидатов');
+    const id = await createCalculationViaWizard(page);
+    const run = await page.request.post(`/api/calculations/${id}/sizing`, {
+      data: { profileVersionId: version.id, inputs: { clusters: 1 } },
+    });
+    expect(run.status(), await run.text()).toBe(201);
+
+    // Кандидаты: несколько альтернатив, известная цена раньше неизвестной; ничего не сохранено.
+    await page.goto(`/calculations/${id}`);
+    await page.getByRole('button', { name: 'Сайзинг', exact: true }).click();
+    const runs = page
+      .locator('.card')
+      .filter({ has: page.getByRole('heading', { name: 'Прогоны расчета' }) });
+    await runs.locator('summary').first().click();
+    await runs.getByRole('button', { name: 'Подобрать из каталога' }).first().click();
+    const candidates = page.getByTestId('sizing-candidates');
+    await expect(candidates).toContainText('Узлы кластера = 3 шт.');
+    const rows = candidates.locator('tbody tr');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText(`Узел-2 ${stamp}`);
+    await expect(rows.nth(0)).toContainText('600 RUB');
+    await expect(rows.nth(1)).toContainText(`Узел-4 ${stamp}`);
+    await expect(rows.nth(1)).toContainText('неизвестна');
+    expect(await maybeSpec(page, id)).toBeNull();
+
+    // Явный выбор: новая строка черновой редакции со связью с сайзингом, без подтверждения.
+    await rows
+      .nth(0)
+      .getByRole('button', { name: /Добавить в черновик/ })
+      .click();
+    await expect.poll(async () => (await maybeSpec(page, id))?.snapshot.items.length).toBe(1);
+    const added = (await spec(page, id)).snapshot;
+    expect(added.status).toBe('draft');
+    expect(added.items[0]).toMatchObject({
+      quantity: '2',
+      unitPrice: '300',
+      confirmed: false,
+      origin: { productId: priced.id, offerId: offer.id },
+      sizingRef: { metric, requiredQuantity: '3', unitCapacity: '2' },
+    });
+
+    // Требования комплекта ГОСТ 34 (черновик студии) — обоснование позиции.
+    const draft = await page.request.post(`/api/calculations/${id}/gost34/draft`, {
+      data: {
+        snapshot: {
+          requirements: [
+            {
+              id: 'req-nodes',
+              code: 'ТР-УЗ-01',
+              category: 'hardware_pac',
+              title: 'Узлы кластера СУБД',
+              description: 'Не менее трех узлов кластера.',
+            },
+            {
+              id: 'req-other',
+              code: 'ТР-Ф-02',
+              category: 'functional',
+              title: 'Отчеты',
+              description: 'Формирование отчетов.',
+            },
+          ],
+        },
+      },
+    });
+    expect(draft.status(), await draft.text()).toBe(200);
+    await openSpecification(page, id);
+    const links = page.getByTestId('requirement-links').first();
+    await links.locator('summary').click();
+    await links.getByLabel('Требование ТР-УЗ-01').check();
+    await page.getByRole('button', { name: 'Сохранить новую редакцию' }).click();
+    await expect
+      .poll(async () => (await maybeSpec(page, id))?.snapshot.items[0].requirementIds)
+      .toEqual(['req-nodes']);
+    const linked = (await spec(page, id)).snapshot;
+    expect(linked.items[0].requirementCodes).toEqual({ 'req-nodes': 'ТР-УЗ-01' });
+
+    // Неизвестное требование не блокирует сохранение: предупреждение.
+    const withUnknown = await page.request.post(`/api/calculations/${id}/specification`, {
+      data: {
+        ...linked,
+        items: [{ ...linked.items[0], requirementIds: ['req-nodes', 'req-removed'] }],
+      },
+    });
+    expect(withUnknown.status(), await withUnknown.text()).toBe(201);
+    const unknownBody = await withUnknown.json();
+    expect(unknownBody.warnings).toHaveLength(1);
+    expect(unknownBody.warnings[0]).toContain('req-removed');
+
+    // SPEC.xlsx редакции: графа обоснования требованиями.
+    const xlsx = await page.request.get(
+      `/api/calculations/${id}/specification/xlsx?version=${linked.version}`,
+    );
+    expect(xlsx.status()).toBe(200);
+    const sheet = XLSX.utils.sheet_to_json<unknown[]>(
+      XLSX.read(await xlsx.body(), { type: 'buffer' }).Sheets['Спецификация'],
+      { header: 1 },
+    );
+    expect(sheet[1][sheet[0].indexOf('Требования (обоснование)')]).toBe('ТР-УЗ-01');
+
+    // Матрица прослеживаемости: требование → обеспечивающая позиция.
+    await page.goto(`/calculations/${id}`);
+    await page.getByRole('button', { name: 'Трассируемость', exact: true }).click();
+    const traceRow = page.locator('tr').filter({ hasText: 'ТР-УЗ-01' });
+    await expect(traceRow.getByTestId('trace-supply')).toContainText(`Узел-2 ${stamp}`);
+    await expect(
+      page.locator('tr').filter({ hasText: 'ТР-Ф-02' }).getByTestId('trace-supply'),
+    ).toContainText('—');
+  });
 });

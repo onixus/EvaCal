@@ -5,6 +5,8 @@ import { loadSpecification, saveSpecification } from '@/lib/specification/store'
 import { SpecificationError } from '@/lib/specification/validation';
 import { handleApiError } from '@/lib/apiHelpers';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
+import { linkedRequirementIds, requirementLinkWarnings } from '@/lib/specification/requirements';
+import { loadRequirementOptions } from '@/lib/specification/requirementStore';
 
 export const dynamic = 'force-dynamic';
 type Params = { params: Promise<{ id: string }> };
@@ -47,10 +49,19 @@ export async function POST(req: NextRequest, props: Params) {
     const { id } = await props.params;
     const access = await requireCalcAccess(req, id, ['write']);
     if (access instanceof NextResponse) return access;
-    const result = await saveSpecification(id, await req.json(), access.actorId, {
+    const body = await req.json();
+    // #101 этап 3: связи с требованиями проверяются по комплекту ГОСТ 34 без блокировки.
+    const requirements = linkedRequirementIds((body as { items?: unknown } | null)?.items).length
+      ? await loadRequirementOptions(id)
+      : undefined;
+    const result = await saveSpecification(id, body, access.actorId, {
       allowNewCatalogOrigins:
         access.kind === 'staff' && CATALOG_ROLES.includes(access.session?.role || ''),
+      ...(requirements ? { requirements } : {}),
     });
+    const warnings = requirements
+      ? requirementLinkWarnings(result.snapshot.items, requirements)
+      : [];
     await writeAudit({
       actorType: actorTypeFromAccess(access.kind),
       actorId: access.actorId,
@@ -60,7 +71,7 @@ export async function POST(req: NextRequest, props: Params) {
       meta: { version: result.snapshot.version, status: result.snapshot.status },
       ip: clientIp(req),
     });
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json({ ...result, warnings }, { status: 201 });
   } catch (error) {
     return handleApiError(
       error,

@@ -8,6 +8,8 @@ import {
 import { renderCalculationXlsx } from '@/lib/xlsx';
 import { requireCalcAccess } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
+import { loadRequirementOptions } from '@/lib/specification/requirementStore';
+import { requirementItemsFromOptions } from '@/lib/specification/requirements';
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -17,7 +19,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const calc = await loadCalculationForExport(params.id, undefined, { withSupply: true });
   if (!calc) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
-  const buffer = renderCalculationXlsx(calc);
+  // Матрица прослеживаемости берет требования из того же источника, что и вкладка
+  // «Трассируемость»: комплект ГОСТ 34 (свежий черновик или последний комплект), иначе
+  // требования, выведенные из этапов. Тогда связи позиций спецификации совпадают по ID.
+  const customRequirements = requirementItemsFromOptions(await loadRequirementOptions(params.id));
+  const buffer = renderCalculationXlsx(
+    calc,
+    customRequirements.length ? { customRequirements } : undefined,
+  );
 
   await writeAudit({
     actorType: actorTypeFromAccess(access.kind),

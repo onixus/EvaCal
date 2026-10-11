@@ -5,6 +5,10 @@ import { applySizingSelections, buildSizingImpact, type SizingImpactRun } from '
 import { findMetric, metricDecimal } from './refs';
 import { evaluateVersion, loadRun } from './store';
 import type { SizingRunView } from './types';
+import { proposeCatalogCandidates } from './candidates';
+import { loadCatalog } from '../catalog/store';
+import { businessDate } from '../catalog/business-date';
+import type { Product } from '../catalog/types';
 
 function obj(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -179,4 +183,38 @@ export async function linkSizing(calculationId: string, input: unknown, actorId:
     };
   }
   return saveSpecification(calculationId, next, actorId);
+}
+
+/**
+ * #101 §5: кандидаты каталога для метрики сохраненного прогона ({ runId, metric,
+ * scenario? }). Только предложение: спецификация не меняется, выбор кандидата
+ * сохраняется пользователем обычным путем как новая черновая редакция.
+ */
+export async function proposeSizingCandidates(calculationId: string, input: unknown) {
+  const d = obj(input);
+  const run = await loadRun(calculationId, id(d.runId, 'Прогон'));
+  const metric = id(d.metric, 'Метрика');
+  const scenario = d.scenario === undefined ? 'base' : id(d.scenario, 'Сценарий');
+  const output = findMetric(run.outputs, scenario, metric);
+  if (!output) throw new SizingError('Метрика или сценарий не найдены в прогоне', 404);
+  const required = metricDecimal(output.value);
+  if (required === null)
+    throw new SizingError(
+      `Метрика «${output.label}» не рассчитана (не хватает входных данных): подбор невозможен`,
+      409,
+    );
+  const catalog = await loadCatalog();
+  const proposal = proposeCatalogCandidates({
+    products: catalog.products as unknown as Product[],
+    definitions: catalog.attributeDefinitions,
+    metric: { key: output.key, label: output.label, unit: output.unit, required, scenario },
+    run: { id: run.id, label: runLabel(run) },
+    today: businessDate(new Date()) ?? new Date().toISOString().slice(0, 10),
+  });
+  const saved = await loadSpecification(calculationId);
+  return {
+    ...proposal,
+    run: { id: run.id, label: runLabel(run) },
+    specificationVersion: saved?.snapshot.version ?? 0,
+  };
 }

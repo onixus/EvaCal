@@ -285,6 +285,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
       {/* Tab: Traceability Matrix */}
       {activeTab === 'traceability' && (
         <TraceabilityMatrixView
+          calculationId={calculation.id}
           stages={calculation.stages}
           answers={calculation.answers}
           fields={calculation.template.fields}

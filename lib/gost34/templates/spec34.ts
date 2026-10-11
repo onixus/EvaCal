@@ -6,6 +6,7 @@ import {
   specificationSections,
 } from '../../specification/sections';
 import { describeTotal, summarizeSpecification } from '../../specification/totals';
+import { requirementBasisText } from '../../specification/requirements';
 import type { ContextGap } from '../context/types';
 import { evidenceAsOf, evidenceGaps, itemEvidenceText } from './evidence';
 
@@ -45,7 +46,13 @@ export function buildSPEC34Document(payload: Gost34InputPayload): {
         ? `${dispositions[item.disposition]}; в составе комплекта «${items.find((row) => row.id === item.includedIn)?.name || item.includedIn}», в итог не входит`
         : dispositions[item.disposition],
       item.unitPrice === null ? 'Цена неизвестна' : `${item.unitPrice} ${item.currency}`,
-      `${item.source || 'Источник не указан'}; ${item.rationale || 'Основание не указано'}; ${item.confirmed ? 'Подтверждено пользователем' : 'Не подтверждено'}`,
+      [
+        item.source || 'Источник не указан',
+        item.rationale || 'Основание не указано',
+        // #101 этап 3: требования ТЗ, которыми обоснована позиция (коды из редакции).
+        ...(item.requirementIds?.length ? [`Обоснование: ${requirementBasisText(item)}`] : []),
+        item.confirmed ? 'Подтверждено пользователем' : 'Не подтверждено',
+      ].join('; '),
       itemEvidenceText(item, asOf),
     ]);
   const section = (num: number, title: string, selected: SpecificationItem[]): Gost34Section => ({

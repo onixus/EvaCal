@@ -30,7 +30,7 @@ export const sectionWorkScope: SchemaNode = {
       });
     }
     if (reqs.length > 0 && stages.length > 0) {
-      tables.push(generateTraceabilityTable(reqs, stages));
+      tables.push(generateTraceabilityTable(reqs, stages, undefined, payload.specification?.items));
     }
     if (risks.length > 0) {
       tables.push({

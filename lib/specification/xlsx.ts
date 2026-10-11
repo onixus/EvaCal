@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { ITEM_KIND_LABELS, type SpecificationSnapshot } from './types';
 import { DISPOSITION_LABELS, STATUS_LABELS, specificationSections } from './sections';
 import { isBundleComponent, lineAmount, normalizeDecimal, summarizeSpecification } from './totals';
+import { requirementBasisText } from './requirements';
 
 export const SPEC_XLSX_SHEETS = {
   items: 'Спецификация',
@@ -31,6 +32,8 @@ export const SPEC_XLSX_HEADERS = [
   'Причина изменения',
   'ID строки',
   'Входит в комплект (ID строки)',
+  'Требования (обоснование)',
+  'ID требований',
 ] as const;
 
 const KIND_LABELS = ITEM_KIND_LABELS;
@@ -78,6 +81,8 @@ export function specificationXlsxRows(snapshot: SpecificationSnapshot): Cell[][]
       item.changeReason ?? '',
       item.id,
       item.includedIn ?? '',
+      requirementBasisText(item),
+      (item.requirementIds ?? []).join(', '),
     ]),
   );
 }
