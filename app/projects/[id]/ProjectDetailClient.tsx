@@ -45,13 +45,22 @@ export default function ProjectDetailClient({
   lifecycle,
   canEditDeal = false,
   sessionRole = null,
+  initialTab,
 }: {
   project: SerializedProject;
   lifecycle: LifecycleState;
   canEditDeal?: boolean;
   sessionRole?: string | null;
+  /** Вкладка из `?tab=` (ссылки из уведомлений и очереди). */
+  initialTab?: string;
 }) {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('calculations');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(
+    initialTab === 'changes' && canEditChangeRequests(sessionRole)
+      ? 'changes'
+      : initialTab === 'packages' || initialTab === 'commercial' || initialTab === 'settings'
+        ? initialTab
+        : 'calculations',
+  );
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [versionCalculation, setVersionCalculation] = useState<SerializedCalculation | null>(null);
   const [reviewRequest, setReviewRequest] = useState<ReviewRequest | null>(null);

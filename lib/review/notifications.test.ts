@@ -665,11 +665,10 @@ describe('Маршруты очереди и уведомлений', () => {
     expect((await res.json()).badges).toMatchObject({ myQueue: 2, myQueueOverdue: 0 });
   });
 
-  it('пресейлу (нет пункта «Требует моего действия») очередь не считается', async () => {
+  it('пресейлу очередь считается: уведомления о его запросах на изменение (#103 §1)', async () => {
     loginAs('pre', 'presale');
     const res = await getBadges();
-    expect((await res.json()).badges).not.toHaveProperty('myQueue');
-    expect(db.reviewAssignment.findMany).not.toHaveBeenCalled();
+    expect((await res.json()).badges).toHaveProperty('myQueue');
   });
 
   it('отметить прочитанными можно только свои уведомления', async () => {

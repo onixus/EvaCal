@@ -27,6 +27,14 @@ import {
   type ChangeRequestDraftInput,
 } from './workflow';
 
+/**
+ * Комплект годится в базу запроса: выпущен и действует. Черновик мастер
+ * перезаписывает, архивный заменён более новым выпуском.
+ */
+export function isUsableBasePackageStatus(status: string): boolean {
+  return status !== 'draft' && status !== 'archived';
+}
+
 /** Отпечаток текущего состояния базы запроса; null — база удалена. */
 export async function loadBaseFingerprint(
   db: Prisma.TransactionClient,
@@ -270,8 +278,11 @@ async function loadBasePackage(projectId: string, packageId: string) {
   if (!pkg) throw new ChangeRequestError('Базовый комплект не найден в проекте', 400);
   // Черновик комплекта мастер перезаписывает при каждом сохранении — базой
   // договора он быть не может.
-  if (pkg.status === 'draft') {
-    throw new ChangeRequestError('Базой может быть только выпущенный комплект, не черновик', 400);
+  if (!isUsableBasePackageStatus(pkg.status)) {
+    throw new ChangeRequestError(
+      'Базой может быть только выпущенный действующий комплект, не черновик и не архивный',
+      400,
+    );
   }
   return {
     id: pkg.id,

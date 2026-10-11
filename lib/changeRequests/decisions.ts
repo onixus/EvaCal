@@ -8,6 +8,7 @@ import { lockCalculationLedger } from '@/lib/actualsLedgerData';
 import {
   assertBaseIsHead,
   getChangeRequest,
+  isUsableBasePackageStatus,
   loadBaseFingerprint,
   toChangeRequestDto,
   type ChangeRequestDto,
@@ -226,8 +227,11 @@ async function acceptChangeRequest(
       if (cr.basePackageId) {
         const basePkg = await tx.gostPackage.findUnique({ where: { id: cr.basePackageId } });
         if (!basePkg) throw new ChangeRequestError('Базовый комплект удалён', 409);
-        if (basePkg.status === 'draft') {
-          throw new ChangeRequestError('Базовый комплект — черновик, принять нельзя', 409);
+        if (!isUsableBasePackageStatus(basePkg.status)) {
+          throw new ChangeRequestError(
+            'Базовый комплект — черновик или архивный, принять нельзя',
+            409,
+          );
         }
         const applied = applyProposedChanges(
           safeJsonParse<unknown>(basePkg.snapshot ?? null, {}),

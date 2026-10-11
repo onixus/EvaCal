@@ -134,8 +134,8 @@ export interface NavItem {
 const DASHBOARD: NavItem = { href: '/', label: 'Рабочий стол', group: 'work' };
 /**
  * Личная очередь (#103): назначения, проверки исправлений, возвраты и
- * уведомления. Есть у всех ролей, участвующих в ревью; пресейл в маршруте
- * ревью не участвует и пункта не получает.
+ * уведомления. Есть у всех ролей ревью и у пресейла: он получает уведомления
+ * об оценке и решениях по своим запросам на изменение.
  */
 const INBOX: NavItem = {
   href: '/inbox',
@@ -180,7 +180,16 @@ const ADMIN: NavItem = { href: '/admin', label: 'Шаблоны и пользо�
  * и для пресейла, и для архитектора.
  */
 export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
-  presale: [DASHBOARD, PROJECTS, PRESALE, CALCULATIONS, SUPPLY_CATALOG, ANALYTICS, LEADERBOARD],
+  presale: [
+    DASHBOARD,
+    INBOX,
+    PROJECTS,
+    PRESALE,
+    CALCULATIONS,
+    SUPPLY_CATALOG,
+    ANALYTICS,
+    LEADERBOARD,
+  ],
   architect: [
     DASHBOARD,
     INBOX,

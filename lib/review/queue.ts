@@ -13,6 +13,7 @@
  * проверяет маршрут (роль этапа, автор замечания).
  */
 import { prisma } from '@/lib/prisma';
+import { canDecideChangeRequests, formatChangeRequestNumber } from '@/lib/changeRequests/workflow';
 import { REVIEW_STAGE_LABELS } from '@/lib/gost34/review/types';
 import {
   canResolveComment,
@@ -32,7 +33,7 @@ import {
   type SerializedNotification,
 } from './notifications';
 
-export type QueueItemKind = 'assignment' | 'verify' | 'returned';
+export type QueueItemKind = 'assignment' | 'verify' | 'returned' | 'change_request';
 
 export interface QueueItem {
   /** Стабильный ключ для React и тестов. */
@@ -44,9 +45,10 @@ export interface QueueItem {
    * уведомление о ней дважды.
    */
   entityId: string;
-  packageId: string;
-  packageName: string;
-  version: number;
+  /** Комплект задачи; у запроса на изменение — его базовый комплект или null. */
+  packageId: string | null;
+  packageName: string | null;
+  version: number | null;
   stage: AssignableStage | null;
   title: string;
   detail: string;
@@ -97,6 +99,18 @@ export interface QueueCommentSource {
   package: PkgInfo;
 }
 
+/** Запрос на изменение на оценке (#103 §1). */
+export interface QueueChangeRequestSource {
+  id: string;
+  projectId: string;
+  seq: number;
+  title: string;
+  status: string;
+  basePackageId: string | null;
+  estimatedAt: Date | null;
+  updatedAt: Date;
+}
+
 export interface QueueReturnedSource extends PkgInfo {
   reviewComment: string | null;
   stageEnteredAt: Date | null;
@@ -120,6 +134,11 @@ export function composeQueue(input: {
    * и замечание, после которого линия уже утверждена, в очередь не идут.
    */
   lines: LinePackage[];
+  /**
+   * Запросы на изменение на оценке: архитектору и админу — «оценить», а с
+   * оценкой — «принять решение». Права проверяет маршрут запроса.
+   */
+  changeRequests?: QueueChangeRequestSource[];
   now?: Date;
 }): QueueItem[] {
   const now = input.now ?? new Date();
@@ -228,6 +247,33 @@ export function composeQueue(input: {
       overdue: false,
       since: (p.stageEnteredAt ?? p.updatedAt).toISOString(),
     });
+  }
+
+  // 4. Запросы на изменение, ждущие оценки или решения.
+  if (canDecideChangeRequests(input.actor.role)) {
+    for (const cr of input.changeRequests ?? []) {
+      if (cr.status !== 'submitted') continue;
+      const label = formatChangeRequestNumber(cr.seq);
+      items.push({
+        key: `change_request:${cr.id}`,
+        kind: 'change_request',
+        entityId: cr.id,
+        packageId: cr.basePackageId,
+        packageName: null,
+        version: null,
+        stage: null,
+        title: cr.estimatedAt
+          ? `Принять решение по ${label} «${cr.title}»`
+          : `Оценить ${label} «${cr.title}»`,
+        detail: cr.estimatedAt
+          ? 'Запрос на изменение оценён специалистом'
+          : 'Запрос на изменение ждёт оценки часов, стоимости и срока',
+        href: `/projects/${cr.projectId}?tab=changes`,
+        dueAt: null,
+        overdue: false,
+        since: cr.updatedAt.toISOString(),
+      });
+    }
   }
 
   // Просроченные первыми, затем по сроку, затем — кто дольше ждёт.
@@ -339,8 +385,27 @@ export async function loadQueueItems(actor: ReviewActor, now: Date = new Date())
       : Promise.resolve([]),
   ]);
 
+  const changeRequests = canDecideChangeRequests(actor.role)
+    ? await prisma.changeRequest.findMany({
+        where: { status: 'submitted' },
+        orderBy: { updatedAt: 'asc' },
+        take: 100,
+        select: {
+          id: true,
+          projectId: true,
+          seq: true,
+          title: true,
+          status: true,
+          basePackageId: true,
+          estimatedAt: true,
+          updatedAt: true,
+        },
+      })
+    : [];
+
   return composeQueue({
     actor,
+    changeRequests,
     assignments,
     fixedComments,
     fixedInPackages,

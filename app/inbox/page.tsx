@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function InboxPage() {
   const session = await requireRole(
-    ['architect', 'techwriter', 'gap', 'reviewer', 'admin'],
+    ['presale', 'architect', 'techwriter', 'gap', 'reviewer', 'admin'],
     '/inbox',
   );
   const queue = await loadMyQueue(actorFromSession(session));
