@@ -42,6 +42,8 @@ export interface GostWizardSnapshot {
   manualLinks?: unknown[];
   signatures?: Record<string, string>;
   sectionOverrides?: Record<string, { title?: string; paragraphs?: string[]; items?: string[] }>;
+  /** Редакция и решение, из которых взяты факты испытаний для ПСИ и акта (#103 WP-4b). */
+  acceptance?: { packageId: string; packageVersion: number; decisionId: string | null };
   activeStep?: string;
   updatedAt?: string;
 }

@@ -15,25 +15,29 @@ import { TzAuthorHardFlagsError } from '../../llm/tzAuthor/validate';
 const calculation = { name: 'Система заявок', customer: 'Заказчик', stages: [], risks: [] };
 
 describe('Shared GOST preparation and export', () => {
-  it.each(GOLDEN_SCENARIOS)('keeps preview and export equal for $id', async (scenario) => {
-    const params = {
-      calculation: scenario.calculation,
-      projectContext: scenario.projectContext,
-      vendorFiles: ['source.pdf'],
-      metadataOverride: {
-        docType: scenario.docType,
-        standardProfileId: scenario.standardProfileId,
-      },
-    };
-    const preview = prepareGost34Document(params, { mode: 'preview' });
-    const exported = await generateGost34Document(params);
-    expect(exported.ast).toEqual(preview.ast);
-    expect(exported.diagnostics.issues).toEqual([]);
-    const zip = await JSZip.loadAsync(exported.buffer);
-    if (scenario.standardProfileId !== LEGACY_GOST34_PROFILE_ID) {
-      expect(await zip.file('word/document.xml')!.async('string')).toContain('source.pdf');
-    }
-  });
+  // Сценарии ПСИ/акта печатают факты испытаний, а не перечень исходных файлов.
+  it.each(GOLDEN_SCENARIOS.filter((s) => s.docType === 'TZ'))(
+    'keeps preview and export equal for $id',
+    async (scenario) => {
+      const params = {
+        calculation: scenario.calculation,
+        projectContext: scenario.projectContext,
+        vendorFiles: ['source.pdf'],
+        metadataOverride: {
+          docType: scenario.docType,
+          standardProfileId: scenario.standardProfileId,
+        },
+      };
+      const preview = prepareGost34Document(params, { mode: 'preview' });
+      const exported = await generateGost34Document(params);
+      expect(exported.ast).toEqual(preview.ast);
+      expect(exported.diagnostics.issues).toEqual([]);
+      const zip = await JSZip.loadAsync(exported.buffer);
+      if (scenario.standardProfileId !== LEGACY_GOST34_PROFILE_ID) {
+        expect(await zip.file('word/document.xml')!.async('string')).toContain('source.pdf');
+      }
+    },
+  );
 
   it.each([[], ['   '], ['1.1 ']].map((paragraphs) => ({ paragraphs })))(
     'rejects an emptied mandatory section: $paragraphs',

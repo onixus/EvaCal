@@ -3,7 +3,13 @@ import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 import { handleApiError } from '@/lib/apiHelpers';
 import { loadPackageForRead, loadPackageForWrite } from '@/lib/acceptance/http';
 import { canRecordAcceptance, isPackageEligibleForChecks } from '@/lib/acceptance/rules';
-import { countPendingSeeds, listChecks, seedChecks, summarize } from '@/lib/acceptance/store';
+import {
+  countPendingSeeds,
+  listChecksWithFlags,
+  seedChecks,
+  summarize,
+} from '@/lib/acceptance/store';
+import { loadDecisionState } from '@/lib/acceptance/decisionStore';
 import type { ChecksResponse } from '@/lib/acceptance/types';
 
 type Props = { params: Promise<{ id: string }> };
@@ -16,7 +22,7 @@ export async function GET(req: NextRequest, props: Props) {
     if (loaded instanceof NextResponse) return loaded;
     const { pkg, access, actor } = loaded;
     const eligible = isPackageEligibleForChecks(pkg);
-    const checks = await listChecks(pkg.id);
+    const checks = await listChecksWithFlags(pkg);
     const body: ChecksResponse = {
       packageId: pkg.id,
       packageVersion: pkg.version,
@@ -25,6 +31,8 @@ export async function GET(req: NextRequest, props: Props) {
       pendingSeeds: eligible ? await countPendingSeeds(pkg) : 0,
       checks,
       summary: summarize(checks),
+      needsReviewCount: checks.filter((c) => c.needsReview.length > 0).length,
+      decision: await loadDecisionState(pkg.id, checks),
     };
     return NextResponse.json(body);
   } catch (err) {

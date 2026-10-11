@@ -30,6 +30,10 @@ export interface GoldenSnapshot {
   validation: { ERROR: number; WARNING: number; INFO: number };
   traceabilityCoveragePercent: number;
   contextGapPaths: string[];
+  /** Пробелы документа (для ПСИ и акта — отсутствие фактов и решения). */
+  documentGapPaths: string[];
+  /** Строки таблиц: для ПСИ видно, что именно напечатано из журнала проверок. */
+  tableRows?: string[][];
   schemaIssues: { nodeId: string; kind: string }[];
 }
 
@@ -52,7 +56,7 @@ function snapshotSections(sections: Gost34Section[]): GoldenSectionSnapshot[] {
 }
 
 export function buildGoldenSnapshot(scenario: GoldenScenario): GoldenSnapshot {
-  const payload = analyzeAndNormalizeInput({
+  const analyzed = analyzeAndNormalizeInput({
     calculation: scenario.calculation,
     projectContext: scenario.projectContext,
     includeStageRequirements: true,
@@ -62,7 +66,9 @@ export function buildGoldenSnapshot(scenario: GoldenScenario): GoldenSnapshot {
       enrichRequirements: true,
     },
   });
+  const payload = { ...analyzed, acceptance: scenario.acceptance };
   const ast = buildGost34DocumentAST(payload);
+  const isAcceptanceDoc = scenario.docType === 'PSI' || scenario.docType === 'ACT';
 
   const applicability: Record<string, string> = {};
   for (const result of payload.applicability || []) {
@@ -88,6 +94,14 @@ export function buildGoldenSnapshot(scenario: GoldenScenario): GoldenSnapshot {
     },
     traceabilityCoveragePercent: payload.traceability?.metrics.coveragePercentage ?? 0,
     contextGapPaths: (payload.projectContext?.gaps || []).map((gap) => gap.path),
+    documentGapPaths: ast.diagnostics.gaps.map((gap) => gap.path),
+    ...(isAcceptanceDoc
+      ? {
+          tableRows: ast.sections.flatMap((section) =>
+            (section.tables || []).flatMap((table) => table.rows.map((row) => row.map(String))),
+          ),
+        }
+      : {}),
     schemaIssues: ast.diagnostics.issues.map((issue) => ({
       nodeId: issue.nodeId,
       kind: issue.kind,

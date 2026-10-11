@@ -300,6 +300,8 @@ model GostPackage {
 
   // #103 WP-4a: проверки приёмки конкретной редакции комплекта
   acceptanceChecks AcceptanceCheck[]
+  // #103 WP-4b: решения приёмочной комиссии по редакции
+  acceptanceDecisions AcceptanceDecision[]
 }
 
 // A stage on the Gantt chart. Approval tasks (auto-inserted whenever a stage's
@@ -1056,4 +1058,28 @@ model SizingRun {
 
   @@index([calculationId, createdAt])
   @@index([profileVersionId])
+}
+
+// ==== #103 WP-4b: acceptance decision ====
+// Решение приёмочной комиссии по утверждённой редакции комплекта. Решения
+// только дописываются (UPDATE запрещён триггером): действующее — последнее;
+// если после него записаны новые результаты проверок, оно устарело и в акт
+// не попадает. checksSnapshot фиксирует, по каким фактам принято решение.
+model AcceptanceDecision {
+  id             String      @id @default(cuid())
+  packageId      String
+  package        GostPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  decision       String // accepted | accepted_with_remarks | rejected
+  /// Состав комиссии: [{ name, position?, organization? }].
+  commission     Json
+  basis          String
+  /// Для accepted_with_remarks: [{ checkId, requirementCode, note }].
+  exceptions     Json        @default("[]")
+  /// Факты на момент решения: [{ checkId, requirementCode, status, resultId, openRemarks, needsReview }].
+  checksSnapshot Json
+  decidedBy      String
+  decidedById    String
+  decidedAt      DateTime    @default(now())
+
+  @@index([packageId, decidedAt])
 }

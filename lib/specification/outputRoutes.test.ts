@@ -7,7 +7,11 @@ vi.mock('@/lib/auth', async () => ({
   getSession: vi.fn(async () => null),
 }));
 vi.mock('@/lib/prisma', () => ({
-  prisma: { calculation: { findUnique: vi.fn(), update: vi.fn() } },
+  prisma: {
+    calculation: { findUnique: vi.fn(), update: vi.fn() },
+    // ZIP включает ПСИ и акт: факты испытаний ищутся в комплектах расчёта.
+    gostPackage: { findFirst: vi.fn(async () => null) },
+  },
 }));
 vi.mock('@/lib/specification/store', () => ({ loadSpecification: vi.fn() }));
 vi.mock('@/lib/project', () => ({

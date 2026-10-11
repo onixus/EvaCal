@@ -10,6 +10,7 @@ import {
 } from '@/lib/acceptance/rules';
 import type { ChecksResponse, SerializedCheck, SerializedRemark } from '@/lib/acceptance/types';
 import type { SerializedGostPackage } from './types';
+import AcceptanceDecisionPanel from './AcceptanceDecisionPanel';
 
 const STATUS_STYLES: Record<AcceptanceStatus, string> = {
   not_run: 'bg-slate-100 text-slate-700 dark:bg-nord-1 dark:text-nord-4',
@@ -365,6 +366,17 @@ function CheckCard({
               {check.title}
             </span>
             <StatusBadge status={check.status} />
+            {check.needsReview.length > 0 && (
+              <span
+                className="rounded bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                title={check.needsReview.map((f) => `${f.label}: ${f.title}`).join('\n')}
+              >
+                Требует пересмотра:{' '}
+                {check.needsReview
+                  .map((f) => `${f.label} (${f.status === 'accepted' ? 'принят' : 'на оценке'})`)
+                  .join(', ')}
+              </span>
+            )}
             {check.method && (
               <span className="text-[11px] text-slate-500 dark:text-nord-muted">
                 Метод: {VERIFICATION_METHOD_LABELS[check.method]}
@@ -561,7 +573,21 @@ export default function AcceptanceChecksModal({
                   Незакрытых замечаний: {summary.openRemarks}
                 </span>
               )}
+              {data && data.needsReviewCount > 0 && (
+                <span className="font-semibold text-amber-700 dark:text-amber-300">
+                  Требуют пересмотра по запросам на изменение: {data.needsReviewCount}
+                </span>
+              )}
             </div>
+          )}
+          {data && data.eligible && data.checks.length > 0 && (
+            <AcceptanceDecisionPanel
+              pkgId={pkg.id}
+              checks={data.checks}
+              state={data.decision}
+              canRecord={data.canRecord}
+              onSaved={() => void load()}
+            />
           )}
           {data && data.canRecord && data.pendingSeeds > 0 && (
             <div className="flex items-center justify-between rounded border border-dashed border-slate-300 p-3 text-xs dark:border-nord-3">

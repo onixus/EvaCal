@@ -236,4 +236,65 @@ export interface Gost34InputPayload {
   validation?: ValidationReport;
   /** Предварительно рассчитанные или вручную отредактированные связи трассировки (Traceability Engine, PR-07). */
   traceability?: import('./traceability/types').TraceabilityResult;
+  /**
+   * Фактические результаты испытаний и решение комиссии по утверждённой
+   * редакции комплекта (#103 WP-4b). Загружается сервером из журнала
+   * проверок, клиент его не передаёт. Нет — ПСИ и акт печатают пустые поля
+   * для комиссии и сообщают пробел в диагностике.
+   */
+  acceptance?: Gost34AcceptanceFacts;
+}
+
+export type Gost34AcceptanceStatus = 'not_run' | 'passed' | 'failed' | 'blocked';
+
+/** Факт проверки требования: последний записанный результат или «не проводилась». */
+export interface Gost34AcceptanceCheckFact {
+  requirementId: string;
+  requirementCode: string;
+  title: string;
+  criteria: string[];
+  status: Gost34AcceptanceStatus;
+  actualResult: string | null;
+  executorName: string | null;
+  /** ISO-дата проведения. */
+  executedAt: string | null;
+  openRemarks: number;
+}
+
+export type Gost34AcceptanceDecisionKind = 'accepted' | 'accepted_with_remarks' | 'rejected';
+
+export interface Gost34CommissionMember {
+  name: string;
+  position?: string;
+  organization?: string;
+}
+
+export interface Gost34AcceptanceDecisionFact {
+  id: string;
+  decision: Gost34AcceptanceDecisionKind;
+  commission: Gost34CommissionMember[];
+  basis: string;
+  /** Для «принять с замечаниями»: проверки, принятые с замечанием, и что устранить. */
+  exceptions: { requirementCode: string; note: string }[];
+  decidedBy: string;
+  /** ISO-дата решения. */
+  decidedAt: string;
+}
+
+export interface Gost34AcceptanceFacts {
+  packageId: string;
+  packageVersion: number;
+  checks: Gost34AcceptanceCheckFact[];
+  /**
+   * Действующее решение комиссии. Решение, после которого записаны новые
+   * результаты, сюда не попадает: выводы по устаревшим фактам не печатаются.
+   */
+  decision: Gost34AcceptanceDecisionFact | null;
+  /** Последнее решение устарело (после него менялись результаты). */
+  decisionStale?: boolean;
+  /**
+   * Версия последней утверждённой редакции расчёта, если она новее редакции
+   * фактов: протокол печатается по более старой редакции — это пробел.
+   */
+  newerApprovedVersion?: number;
 }

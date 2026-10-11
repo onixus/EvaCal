@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireCalcAccess, type AccessContext } from '@/lib/access';
 import { canRecordAcceptance, EVIDENCE_MAX_BYTES, isPackageEligibleForChecks } from './rules';
+import type { Gost34AcceptanceFacts } from '@/lib/gost34/types';
+import { AcceptanceSourceError, loadAcceptanceFacts, needsAcceptanceFacts } from './decisionStore';
 
 export type PackageRow = NonNullable<Awaited<ReturnType<typeof prisma.gostPackage.findUnique>>>;
 
@@ -113,4 +115,49 @@ export async function evidenceFormData(req: Request): Promise<FormData | NextRes
   } catch {
     return NextResponse.json({ error: 'Некорректная multipart-загрузка' }, { status: 400 });
   }
+}
+
+/**
+ * Факты испытаний для выгрузки ПСИ/акта (или комплекта, где они есть).
+ * `packageId` — явный выбор редакции (`acceptancePackageId`); без него берётся
+ * последняя утверждённая редакция расчёта с проверками. Другим документам
+ * факты не нужны — запрос в БД не делается.
+ */
+export async function acceptanceFactsFor(
+  calculationId: string,
+  docTypes: string[],
+  packageId: unknown,
+): Promise<NextResponse | Gost34AcceptanceFacts | undefined> {
+  const upper = docTypes.map((d) => String(d).toUpperCase());
+  if (!needsAcceptanceFacts(upper)) return undefined;
+  if (
+    packageId !== undefined &&
+    packageId !== null &&
+    packageId !== '' &&
+    typeof packageId !== 'string'
+  ) {
+    return NextResponse.json(
+      { error: 'Некорректная редакция для фактов испытаний' },
+      { status: 400 },
+    );
+  }
+  try {
+    return await loadAcceptanceFacts({ calculationId, packageId: (packageId as string) || null });
+  } catch (err) {
+    if (err instanceof AcceptanceSourceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
+  }
+}
+
+/** Ссылка на источник фактов для снимка выпуска. */
+export function acceptanceSnapshot(facts: Gost34AcceptanceFacts | undefined) {
+  return facts
+    ? {
+        packageId: facts.packageId,
+        packageVersion: facts.packageVersion,
+        decisionId: facts.decision?.id ?? null,
+      }
+    : undefined;
 }

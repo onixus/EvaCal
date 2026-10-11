@@ -7,7 +7,13 @@ vi.mock('@/lib/audit', () => ({
   clientIp: vi.fn(() => '127.0.0.1'),
   actorTypeFromAccess: vi.fn(() => 'user'),
 }));
-vi.mock('@/lib/prisma', () => ({ prisma: { calculation: { update: vi.fn() } } }));
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    calculation: { update: vi.fn() },
+    // ZIP включает ПСИ и акт: факты испытаний ищутся в комплектах расчёта.
+    gostPackage: { findFirst: vi.fn(async () => null) },
+  },
+}));
 vi.mock('@/lib/export', async () => {
   const actual = await vi.importActual<typeof import('@/lib/export')>('@/lib/export');
   return { ...actual, loadCalculationForExport: vi.fn() };

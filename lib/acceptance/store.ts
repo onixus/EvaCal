@@ -29,6 +29,7 @@ import {
   type RuleResult,
 } from './rules';
 import type { SerializedCheck, SerializedRemark, SerializedResult } from './types';
+import { REVIEW_TRIGGER_STATUSES, reviewFlagsByRequirement, type ReviewFlag } from './review';
 import type { VerificationMethod } from '@/lib/gost34/requirements/v2';
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
@@ -141,19 +142,62 @@ export function serializeCheck(row: CheckRow): SerializedCheck {
     history,
     remarks,
     openRemarks: remarks.filter((r) => r.status !== 'verified').length,
+    needsReview: [],
   };
 }
 
 const CHECK_INCLUDE = { results: true, remarks: { include: REMARK_INCLUDE } } as const;
 
 /** Проверки редакции комплекта с полной историей результатов и замечаний. */
-export async function listChecks(packageId: string): Promise<SerializedCheck[]> {
+export async function listChecks(
+  packageId: string,
+  flags?: Map<string, ReviewFlag[]>,
+): Promise<SerializedCheck[]> {
   const rows = (await prisma.acceptanceCheck.findMany({
     where: { packageId },
     orderBy: [{ order: 'asc' }, { id: 'asc' }],
     include: CHECK_INCLUDE,
   })) as CheckRow[];
-  return rows.map(serializeCheck);
+  return rows.map((row) => ({
+    ...serializeCheck(row),
+    needsReview: flags?.get(row.requirementId) ?? [],
+  }));
+}
+
+/**
+ * Пометки «требует пересмотра» для проверок редакции: запросы на изменение
+ * проекта в состоянии «на оценке» или «принят», нацеленные на эту редакцию.
+ */
+export async function loadReviewFlags(pkg: {
+  id: string;
+  calculationId: string;
+  projectId: string | null;
+}): Promise<Map<string, ReviewFlag[]>> {
+  if (!pkg.projectId) return new Map();
+  const crs = await prisma.changeRequest.findMany({
+    where: { projectId: pkg.projectId, status: { in: [...REVIEW_TRIGGER_STATUSES] } },
+    select: {
+      id: true,
+      seq: true,
+      title: true,
+      status: true,
+      basePackageId: true,
+      baseCalculationId: true,
+      resultPackageId: true,
+      affectedRequirements: true,
+      proposedChanges: true,
+    },
+  });
+  return reviewFlagsByRequirement(pkg, crs);
+}
+
+/** Проверки редакции вместе с пометками пересмотра. */
+export async function listChecksWithFlags(pkg: {
+  id: string;
+  calculationId: string;
+  projectId: string | null;
+}): Promise<SerializedCheck[]> {
+  return listChecks(pkg.id, await loadReviewFlags(pkg));
 }
 
 export async function loadCheck(

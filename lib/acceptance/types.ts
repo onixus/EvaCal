@@ -1,6 +1,8 @@
 /** Сериализованные формы проверок приёмки для API и экрана испытаний (#103 WP-4a). */
 import type { VerificationMethod } from '@/lib/gost34/requirements/v2';
 import type { AcceptanceStatus, AcceptanceSummary, EvidenceRef, RemarkStatus } from './rules';
+import type { DecisionKind, CommissionMember, DecisionException } from './decision';
+import type { ReviewFlag } from './review';
 
 export interface SerializedResult {
   id: string;
@@ -54,6 +56,11 @@ export interface SerializedCheck {
   history: SerializedResult[];
   remarks: SerializedRemark[];
   openRemarks: number;
+  /**
+   * Запросы на изменение, затрагивающие требование проверки (на оценке или
+   * принятые): проверку нужно пересмотреть. Вычисляется, не хранится.
+   */
+  needsReview: ReviewFlag[];
 }
 
 export interface ChecksResponse {
@@ -65,4 +72,26 @@ export interface ChecksResponse {
   pendingSeeds: number;
   checks: SerializedCheck[];
   summary: AcceptanceSummary;
+  /** Проверок с пометкой «требует пересмотра». */
+  needsReviewCount: number;
+  decision: DecisionState;
+}
+
+export interface SerializedDecision {
+  id: string;
+  packageId: string;
+  decision: DecisionKind;
+  commission: CommissionMember[];
+  basis: string;
+  exceptions: DecisionException[];
+  decidedBy: string;
+  decidedAt: string;
+}
+
+export interface DecisionState {
+  /** Действующее решение; null — нет или устарело. */
+  current: SerializedDecision | null;
+  /** Последнее решение устарело: после него менялись результаты. */
+  stale: boolean;
+  history: SerializedDecision[];
 }

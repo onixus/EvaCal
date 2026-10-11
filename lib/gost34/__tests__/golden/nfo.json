@@ -153,5 +153,16 @@
     "performance",
     "funding"
   ],
+  "documentGapPaths": [
+    "funding",
+    "lifecycle.startDate",
+    "lifecycle.endDate",
+    "goals",
+    "measurableGoalCriteria",
+    "users",
+    "roles",
+    "integrations",
+    "performance"
+  ],
   "schemaIssues": []
 }

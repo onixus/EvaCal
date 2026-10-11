@@ -22,6 +22,7 @@ import {
   resolveLayoutProfileId,
 } from '@/lib/gost34';
 import { requireCalcAccess } from '@/lib/access';
+import { acceptanceFactsFor, acceptanceSnapshot } from '@/lib/acceptance/http';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 import { handleApiError } from '@/lib/apiHelpers';
 import { renderSpecificationXlsx } from '@/lib/specification/xlsx';
@@ -85,8 +86,16 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     const standardProfileId = searchParams.get('profile') || undefined;
     const layoutProfileId = resolveLayoutProfileId(searchParams.get('layout'));
 
+    const acceptance = await acceptanceFactsFor(
+      params.id,
+      [docType],
+      searchParams.get('acceptancePackageId'),
+    );
+    if (acceptance instanceof NextResponse) return acceptance;
+
     const { buffer, filename } = await generateGost34Document({
       calculation: calc,
+      acceptance,
       metadataOverride: {
         docType,
         contractNumber,
@@ -115,6 +124,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       {
         specification: calc.specification,
         specificationVersion: calc.specification?.version ?? null,
+        acceptance: acceptanceSnapshot(acceptance),
       },
       access.actorId,
     );
@@ -241,12 +251,19 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       const zip = new JSZip();
 
       const zipEntries = getZipEntries(resolveGost34Profile(standardProfileId));
+      const acceptance = await acceptanceFactsFor(
+        params.id,
+        zipEntries.map((e) => e.docType),
+        body.acceptancePackageId,
+      );
+      if (acceptance instanceof NextResponse) return acceptance;
 
       // Generate all 5 GOST 34 documents in parallel
       const generatedDocs = await Promise.all(
         zipEntries.map(async (entry) => {
           const { buffer } = await generateGost34Document({
             calculation: calc,
+            acceptance,
             rawRequirements,
             vendorFiles,
             projectContext,
@@ -301,6 +318,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         manualLinks,
         signatures: commonSignatures,
         sectionOverrides,
+        acceptance: acceptanceSnapshot(acceptance),
         updatedAt: new Date().toISOString(),
       };
 
@@ -347,8 +365,11 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     }
 
     // Standard single file export
+    const acceptance = await acceptanceFactsFor(params.id, [docType], body.acceptancePackageId);
+    if (acceptance instanceof NextResponse) return acceptance;
     const { buffer, filename } = await generateGost34Document({
       calculation: calc,
+      acceptance,
       rawRequirements,
       vendorFiles,
       projectContext,
@@ -384,6 +405,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       manualLinks,
       signatures: commonSignatures,
       sectionOverrides,
+      acceptance: acceptanceSnapshot(acceptance),
       updatedAt: new Date().toISOString(),
     };
 
