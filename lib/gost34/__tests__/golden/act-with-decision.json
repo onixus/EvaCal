@@ -1,0 +1,81 @@
+{
+  "scenario": "act-with-decision",
+  "title": "Акт приёмки по решению комиссии",
+  "docType": "ACT",
+  "profile": {
+    "id": "ru-gost34-current",
+    "version": "2020",
+    "primaryStandard": "ГОСТ 34.602-2020"
+  },
+  "sections": [
+    {
+      "numStr": "1",
+      "title": "ОБЩИЕ ПОЛОЖЕНИЯ",
+      "paragraphs": 2
+    },
+    {
+      "numStr": "2",
+      "title": "СОСТАВ ПРИЕМОЧНОЙ КОМИССИИ И СРОКИ",
+      "paragraphs": 3
+    },
+    {
+      "numStr": "3",
+      "title": "РЕЗУЛЬТАТЫ ПРИЕМКИ",
+      "paragraphs": 2
+    },
+    {
+      "numStr": "4",
+      "title": "ЗАКЛЮЧЕНИЕ КОМИССИИ",
+      "paragraphs": 2
+    }
+  ],
+  "requirementCodes": [
+    "ТР-ЭТ-01",
+    "ТР-ЭТ-02",
+    "ТР-ЭТ-03"
+  ],
+  "applicability": {
+    "fstek_21": "UNKNOWN",
+    "fz_152": "UNKNOWN",
+    "fz_187_kii": "UNKNOWN",
+    "fstek_239": "UNKNOWN",
+    "fstek_117": "UNKNOWN",
+    "fz_188_reestr": "UNKNOWN",
+    "gost_57580": "UNKNOWN",
+    "cb_683p": "UNKNOWN",
+    "cb_757p": "UNKNOWN",
+    "cb_719p": "UNKNOWN",
+    "fsb_282_gossopka": "UNKNOWN",
+    "sla_999": "UNKNOWN",
+    "wcag_52872": "UNKNOWN"
+  },
+  "validation": {
+    "ERROR": 0,
+    "WARNING": 3,
+    "INFO": 0
+  },
+  "traceabilityCoveragePercent": 66.67,
+  "contextGapPaths": [
+    "automationObject",
+    "systemPurpose",
+    "goals",
+    "measurableGoalCriteria",
+    "users",
+    "roles",
+    "architecture.style",
+    "integrations",
+    "deploymentModel",
+    "infrastructure.platforms",
+    "infrastructure.computeResources",
+    "availability",
+    "performance",
+    "security",
+    "dataClasses",
+    "funding"
+  ],
+  "documentGapPaths": [
+    "acceptance.notRun"
+  ],
+  "tableRows": [],
+  "schemaIssues": []
+}

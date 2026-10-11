@@ -13,6 +13,7 @@ vi.mock('@/lib/prisma', () => ({
 }));
 vi.mock('@/lib/acceptance/store', () => ({
   listChecks: vi.fn(async () => []),
+  listChecksWithFlags: vi.fn(async () => []),
   countPendingSeeds: vi.fn(async () => 2),
   summarize: vi.fn(() => ({ total: 0, byStatus: {}, openRemarks: 0 })),
   seedChecks: vi.fn(async () => ({ created: 2, total: 2 })),
@@ -27,6 +28,16 @@ vi.mock('@/lib/acceptance/store', () => ({
   createRemark: vi.fn(async () => ({ id: 'm1' })),
   transitionRemark: vi.fn(),
   editRemarkText: vi.fn(),
+}));
+vi.mock('@/lib/acceptance/decisionStore', async () => ({
+  decisionInputs: (await vi.importActual<typeof import('./decision')>('./decision')).decisionInputs,
+  loadDecisionState: vi.fn(async () => ({ current: null, stale: false, history: [] })),
+  recordDecision: vi.fn(async () => ({ id: 'd1', decision: 'rejected', exceptions: [] })),
+  loadAcceptanceFacts: vi.fn(),
+  needsAcceptanceFacts: (d: string[]) => d.some((x) => x === 'PSI' || x === 'ACT'),
+  AcceptanceSourceError: class extends Error {
+    readonly status = 400;
+  },
 }));
 vi.mock('@/lib/audit', () => ({
   writeAudit: vi.fn(),
@@ -45,7 +56,14 @@ import {
   POST as evidencePost,
 } from '@/app/api/gost34/packages/[id]/checks/[checkId]/evidence/route';
 import {
+  GET as decisionGet,
+  POST as decisionPost,
+} from '@/app/api/gost34/packages/[id]/decision/route';
+import { loadAcceptanceFacts, recordDecision } from '@/lib/acceptance/decisionStore';
+import { acceptanceFactsFor } from './http';
+import {
   editRemarkText,
+  listChecksWithFlags,
   findEvidence,
   loadCheck,
   recordResult,
@@ -302,5 +320,79 @@ describe('Маршруты проверок приёмки', () => {
     });
     expect((await evidenceGet(req, checkProps)).status).toBe(404);
     expect(findEvidence).toHaveBeenCalledWith('c1', 'acceptance/p1/c1/a.pdf');
+  });
+
+  describe('решение комиссии', () => {
+    const decisionBody = {
+      decision: 'rejected',
+      commission: [{ name: 'Петров' }],
+      basis: 'Протокол №1',
+    };
+    const failedCheck = {
+      id: 'c1',
+      requirementCode: 'ТР-01',
+      status: 'failed',
+      openRemarks: 0,
+      needsReview: [],
+      latest: { id: 'r1' },
+    };
+
+    it('share-ссылка читает решение, но не записывает', async () => {
+      const share = token(['read', 'write', 'review', 'export']);
+      expect((await decisionGet(request(undefined, share), pkgProps)).status).toBe(200);
+      expect((await decisionPost(request(decisionBody, share), pkgProps)).status).toBe(403);
+      expect(recordDecision).not.toHaveBeenCalled();
+    });
+
+    it('без проверок решение не записывается', async () => {
+      asRole('gap');
+      vi.mocked(listChecksWithFlags).mockResolvedValue([]);
+      expect((await decisionPost(request(decisionBody), pkgProps)).status).toBe(409);
+      expect(recordDecision).not.toHaveBeenCalled();
+    });
+
+    it('«принять» при непройденной проверке — 409; «не принимать» — 201 со снимком', async () => {
+      asRole('gap');
+      vi.mocked(listChecksWithFlags).mockResolvedValue([failedCheck] as never);
+      const accepted = await decisionPost(
+        request({ ...decisionBody, decision: 'accepted' }),
+        pkgProps,
+      );
+      expect(accepted.status).toBe(409);
+      const res = await decisionPost(request(decisionBody), pkgProps);
+      expect(res.status).toBe(201);
+      expect(recordDecision).toHaveBeenCalledWith(
+        expect.objectContaining({
+          decidedBy: 'gap-login',
+          decidedById: 'u-gap',
+          value: expect.objectContaining({
+            decision: 'rejected',
+            checksSnapshot: [
+              { checkId: 'c1', requirementCode: 'ТР-01', status: 'failed', resultId: 'r1' },
+            ],
+          }),
+        }),
+      );
+    });
+
+    it('роли без права испытаний решение не записывают', async () => {
+      asRole('techwriter');
+      expect((await decisionPost(request(decisionBody), pkgProps)).status).toBe(403);
+    });
+  });
+
+  describe('факты для выгрузки ПСИ/акта', () => {
+    it('другие документы не читают журнал проверок', async () => {
+      expect(await acceptanceFactsFor('calc1', ['TZ', 'PMI'], undefined)).toBeUndefined();
+      expect(loadAcceptanceFacts).not.toHaveBeenCalled();
+    });
+
+    it('ПСИ и акт берут факты сервером; некорректная редакция — 400', async () => {
+      vi.mocked(loadAcceptanceFacts).mockResolvedValue(undefined);
+      await acceptanceFactsFor('calc1', ['psi'], 'p1');
+      expect(loadAcceptanceFacts).toHaveBeenCalledWith({ calculationId: 'calc1', packageId: 'p1' });
+      const bad = await acceptanceFactsFor('calc1', ['ACT'], { id: 'x' });
+      expect((bad as Response).status).toBe(400);
+    });
   });
 });

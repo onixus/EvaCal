@@ -8,6 +8,15 @@ import path from 'node:path';
 import { prisma } from '../lib/prisma';
 import { loadStoredFile, setArtifactBackend } from '../lib/gost34/storage';
 import { evidenceKeyPrefix, validateResultInput } from '../lib/acceptance/rules';
+import { validateDecisionInput } from '../lib/acceptance/decision';
+import {
+  AcceptanceSourceError,
+  decisionInputs,
+  loadAcceptanceFacts,
+  loadDecisionState,
+  recordDecision,
+} from '../lib/acceptance/decisionStore';
+import { prepareGost34Document } from '../lib/gost34/generation/prepareDocument';
 import {
   cleanupOrphanEvidence,
   countPendingSeeds,
@@ -15,6 +24,7 @@ import {
   editRemarkText,
   findEvidence,
   listChecks,
+  listChecksWithFlags,
   recordResult,
   seedChecks,
   transitionRemark,
@@ -22,6 +32,10 @@ import {
 } from '../lib/acceptance/store';
 
 const constraint = /constraint|unique|violat|check/i;
+
+function decisionGapLabel(gaps: { path: string; label: string }[]) {
+  return gaps.find((g) => g.path === 'acceptance.decision')?.label;
+}
 
 function valid(input: Parameters<typeof validateResultInput>[0]) {
   const r = validateResultInput(input);
@@ -336,10 +350,158 @@ async function main() {
     assert.equal(checks[0].openRemarks, 0);
     assert.equal(checks[1].status, 'not_run');
 
-    // Каскад: удаление комплекта удаляет проверки, несмотря на запрет UPDATE.
+    // ===== WP-4b: факты для ПСИ, пересмотр по запросу на изменение, решение комиссии.
+    let facts = await loadAcceptanceFacts({ calculationId: calc.id });
+    assert.equal(facts?.packageId, pkg.id, 'latest approved edition with checks is used');
+    assert.deepEqual(
+      facts?.checks.map((c) => [c.requirementCode, c.status]),
+      [
+        ['ТР-Ф-01', 'passed'],
+        ['ТР-Ф-02', 'not_run'],
+      ],
+    );
+    assert.equal(facts?.decision, null);
+    const psi = prepareGost34Document({
+      calculation: { name: 'Приёмка', customer: 'CI' },
+      acceptance: facts,
+      metadataOverride: { docType: 'PSI' },
+    });
+    const psiRows = psi.ast.sections.find((s) => s.id === 'sec-3')!.tables![0].rows;
+    assert.deepEqual(
+      psiRows.map((r) => r[5]),
+      ['Пройдена', 'Не проводилась'],
+      'PSI table is filled from facts',
+    );
+    assert.ok(psi.diagnostics.gaps.some((g) => g.path === 'acceptance.decision'));
+    await assert.rejects(
+      loadAcceptanceFacts({ calculationId: 'other-calc', packageId: pkg.id }),
+      AcceptanceSourceError,
+    );
+
+    // Запрос на изменение «на оценке» по r2 помечает проверку к пересмотру.
+    await prisma.changeRequest.create({
+      data: {
+        projectId: project.id,
+        seq: 1,
+        title: 'Изменить вход',
+        initiator: 'Заказчик',
+        reason: 'Новый провайдер SSO',
+        status: 'submitted',
+        baseCalculationId: calc.id,
+        basePackageId: pkg.id,
+        affectedRequirements: [{ id: 'r2', code: 'ТР-Ф-02', text: 'Вход' }],
+        createdBy: 'architect',
+      },
+    });
+    const flagged = await listChecksWithFlags(pkg);
+    assert.deepEqual(
+      flagged.map((c) => c.needsReview.map((f) => f.label)),
+      [[], ['ЗИ-01']],
+      'check of the affected requirement needs review',
+    );
+
+    const inputs = decisionInputs(flagged);
+    const commission = [{ name: 'Петров П.П.', position: 'Председатель' }];
+    const acceptedRule = validateDecisionInput(
+      { decision: 'accepted', commission, basis: 'Протокол №1' },
+      inputs,
+    );
+    assert.equal(acceptedRule.ok, false, 'accepted is impossible with a not-run check');
+    const withRemarks = validateDecisionInput(
+      {
+        decision: 'accepted_with_remarks',
+        commission,
+        basis: 'Протокол №1',
+        exceptions: [{ checkId: flagged[1].id, note: 'провести после изменения SSO' }],
+      },
+      inputs,
+    );
+    assert.ok(withRemarks.ok);
+    const decision = await recordDecision({
+      packageId: pkg.id,
+      value: withRemarks.value,
+      decidedBy: 'gap',
+      decidedById: 'u-gap',
+    });
+    let state = await loadDecisionState(pkg.id, flagged);
+    assert.equal(state.current?.id, decision.id);
+    assert.equal(state.stale, false);
+    facts = await loadAcceptanceFacts({ calculationId: calc.id });
+    assert.equal(facts?.decision?.decision, 'accepted_with_remarks');
+    const act = prepareGost34Document({
+      calculation: { name: 'Приёмка', customer: 'CI' },
+      acceptance: facts,
+      metadataOverride: { docType: 'ACT' },
+    });
+    const actText = act.ast.sections.flatMap((s) => s.paragraphs).join('\n');
+    assert.ok(actText.includes('принять с замечаниями'), 'ACT conclusion from the decision');
+    assert.ok(actText.includes('ТР-Ф-02 — провести после изменения SSO'));
+
+    // CHECK и неизменяемость решений.
+    const decisionBase = {
+      packageId: pkg.id,
+      basis: 'x',
+      checksSnapshot: [{ checkId: c1.id }],
+      decidedBy: 'x',
+      decidedById: 'x',
+    };
+    for (const data of [
+      { ...decisionBase, decision: 'accepted_with_remarks', commission, exceptions: [] },
+      { ...decisionBase, decision: 'accepted', commission, exceptions: [{ checkId: c1.id }] },
+      { ...decisionBase, decision: 'rejected', commission: [] },
+      { ...decisionBase, decision: 'rejected', commission, basis: ' ' },
+      { ...decisionBase, decision: 'maybe', commission },
+    ]) {
+      await assert.rejects(
+        prisma.acceptanceDecision.create({ data: data as never }),
+        constraint,
+        JSON.stringify(data),
+      );
+    }
+    await assert.rejects(
+      prisma.acceptanceDecision.update({ where: { id: decision.id }, data: { basis: 'другое' } }),
+      /append-only/,
+    );
+
+    // Новый результат после решения делает его устаревшим: в акт оно не попадает.
+    await new Promise((r) => setTimeout(r, 5));
+    const late = await recordResult({
+      checkId: flagged[1].id,
+      result: valid({
+        status: 'passed',
+        executorName: 'Петров',
+        executedAt: new Date().toISOString(),
+        actualResult: 'Вход через новый SSO',
+      }),
+      executorId: null,
+      evidenceIds: [],
+      recordedBy: 'gap',
+      recordedById: 'u-gap',
+    });
+    assert.ok(late.ok);
+    state = await loadDecisionState(pkg.id, await listChecksWithFlags(pkg));
+    assert.equal(state.current, null);
+    assert.equal(state.stale, true);
+    facts = await loadAcceptanceFacts({ calculationId: calc.id });
+    assert.equal(facts?.decision, null);
+    assert.equal(facts?.decisionStale, true);
+    assert.equal(
+      decisionGapLabel(
+        prepareGost34Document({
+          calculation: { name: 'Приёмка', customer: 'CI' },
+          acceptance: facts,
+          metadataOverride: { docType: 'ACT' },
+        }).diagnostics.gaps,
+      ),
+      'Решение комиссии устарело',
+    );
+    checks = await listChecks(pkg.id);
+
+    // Каскад: удаление комплекта удаляет проверки и решения, несмотря на запрет UPDATE.
     await prisma.gostPackage.delete({ where: { id: pkg.id } });
     assert.equal(await prisma.acceptanceCheck.count({ where: { packageId: pkg.id } }), 0);
     assert.equal(await prisma.acceptanceResult.count({ where: { checkId: c1.id } }), 0);
+    assert.equal(await prisma.acceptanceDecision.count({ where: { packageId: pkg.id } }), 0);
 
     console.log('[verify-acceptance] OK');
   } finally {

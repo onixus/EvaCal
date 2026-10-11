@@ -10,8 +10,8 @@ import { buildPMI34Sections } from './templates/pmi34';
 import { buildSPEC34Sections } from './templates/spec34';
 import { buildRP34Sections } from './templates/rp34';
 import { buildRA34Sections } from './templates/ra34';
-import { buildPSI34Sections } from './templates/psi34';
-import { buildACT34Sections } from './templates/akt34';
+import { buildPSI34Document } from './templates/psi34';
+import { buildACT34Document } from './templates/akt34';
 
 export interface Gost34BuildDiagnostics {
   /** Сведения проектного контекста, требующие уточнения. */
@@ -41,8 +41,9 @@ const BUILDERS: Record<string, DocumentBuilder> = {
   }),
   RP: (payload) => ({ sections: buildRP34Sections(payload) }),
   RA: (payload) => ({ sections: buildRA34Sections(payload) }),
-  PSI: (payload) => ({ sections: buildPSI34Sections(payload) }),
-  ACT: (payload) => ({ sections: buildACT34Sections(payload) }),
+  // ПСИ и акт печатают факты испытаний; их отсутствие — пробел, не блокер.
+  PSI: buildPSI34Document,
+  ACT: buildACT34Document,
   TZ: buildTZ34Document,
 };
 

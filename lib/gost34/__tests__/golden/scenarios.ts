@@ -9,7 +9,7 @@
  * видимым в диффе ревью, а не обнаруживается у Заказчика.
  */
 
-import type { GostDocumentType } from '../../types';
+import type { Gost34AcceptanceFacts, GostDocumentType } from '../../types';
 import type { ProjectContext } from '../../context/types';
 import { CURRENT_GOST34_PROFILE_ID, LEGACY_GOST34_PROFILE_ID } from '../../standards';
 
@@ -36,6 +36,8 @@ export interface GoldenScenario {
   standardProfileId: string;
   calculation: GoldenCalculation;
   projectContext?: Partial<ProjectContext>;
+  /** Факты испытаний для ПСИ и акта (#103 WP-4b). */
+  acceptance?: Gost34AcceptanceFacts;
 }
 
 /** Этапы, встречающиеся почти в каждом проекте: обследование → разработка → испытания. */
@@ -67,6 +69,69 @@ function baseStages(prefix: string): GoldenCalculation['stages'] {
     },
   ];
 }
+
+const ACCEPTANCE_CALCULATION: GoldenCalculation = {
+  id: 'golden-acceptance',
+  name: 'Система учёта обращений',
+  customer: 'АО «Заказчик»',
+  pmHours: 16,
+  stages: baseStages('acceptance'),
+};
+
+const ACCEPTANCE_FACTS: Gost34AcceptanceFacts = {
+  packageId: 'golden-acceptance-pkg',
+  packageVersion: 2,
+  checks: [
+    {
+      requirementId: 'acc-r1',
+      requirementCode: 'ТР-Ф-01',
+      title: 'Регистрация обращения',
+      criteria: ['Обращение регистрируется за 2 с'],
+      status: 'passed',
+      actualResult: 'Регистрация за 1,4 с',
+      executorName: 'Иванов И.И.',
+      executedAt: '2026-10-27T10:00:00.000Z',
+      openRemarks: 0,
+    },
+    {
+      requirementId: 'acc-r2',
+      requirementCode: 'ТР-Ф-02',
+      title: 'Отчёт по обращениям',
+      criteria: ['Отчёт формируется за 5 с'],
+      status: 'failed',
+      actualResult: 'Отчёт за 12 с',
+      executorName: 'Иванов И.И.',
+      executedAt: '2026-10-28T10:00:00.000Z',
+      openRemarks: 1,
+    },
+    {
+      requirementId: 'acc-r3',
+      requirementCode: 'ТР-Ф-03',
+      title: 'Резервное копирование',
+      criteria: [],
+      status: 'not_run',
+      actualResult: null,
+      executorName: null,
+      executedAt: null,
+      openRemarks: 0,
+    },
+  ],
+  decision: {
+    id: 'golden-decision',
+    decision: 'accepted_with_remarks',
+    commission: [
+      { name: 'Петров П.П.', position: 'Председатель комиссии', organization: 'АО «Заказчик»' },
+      { name: 'Сидоров С.С.', position: 'Руководитель проекта' },
+    ],
+    basis: 'Протокол заседания комиссии № 1 от 29.10.2026',
+    exceptions: [
+      { requirementCode: 'ТР-Ф-02', note: 'сократить время формирования отчёта до 5 с' },
+      { requirementCode: 'ТР-Ф-03', note: 'провести проверку до 15.11.2026' },
+    ],
+    decidedBy: 'gap',
+    decidedAt: '2026-10-29T12:00:00.000Z',
+  },
+};
 
 export const GOLDEN_SCENARIOS: GoldenScenario[] = [
   {
@@ -307,5 +372,30 @@ export const GOLDEN_SCENARIOS: GoldenScenario[] = [
       systemPurpose: 'Учёт и хранение документов',
       security: { personalDataProcessed: false, kiiObject: false },
     },
+  },
+  // ПСИ и акт (#103 WP-4b): без фактов — пустые поля и пробелы диагностики;
+  // с фактами — таблица из журнала проверок и выводы из решения комиссии.
+  {
+    id: 'psi-without-facts',
+    title: 'Протокол испытаний без записанных результатов',
+    docType: 'PSI',
+    standardProfileId: CURRENT_GOST34_PROFILE_ID,
+    calculation: ACCEPTANCE_CALCULATION,
+  },
+  {
+    id: 'psi-with-facts',
+    title: 'Протокол испытаний по журналу проверок',
+    docType: 'PSI',
+    standardProfileId: CURRENT_GOST34_PROFILE_ID,
+    calculation: ACCEPTANCE_CALCULATION,
+    acceptance: ACCEPTANCE_FACTS,
+  },
+  {
+    id: 'act-with-decision',
+    title: 'Акт приёмки по решению комиссии',
+    docType: 'ACT',
+    standardProfileId: CURRENT_GOST34_PROFILE_ID,
+    calculation: ACCEPTANCE_CALCULATION,
+    acceptance: ACCEPTANCE_FACTS,
   },
 ];

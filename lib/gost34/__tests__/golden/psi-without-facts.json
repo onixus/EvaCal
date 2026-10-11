@@ -1,0 +1,110 @@
+{
+  "scenario": "psi-without-facts",
+  "title": "Протокол испытаний без записанных результатов",
+  "docType": "PSI",
+  "profile": {
+    "id": "ru-gost34-current",
+    "version": "2020",
+    "primaryStandard": "ГОСТ 34.602-2020"
+  },
+  "sections": [
+    {
+      "numStr": "1",
+      "title": "ОБЪЕКТ И ОБЩИЕ ПОЛОЖЕНИЯ",
+      "paragraphs": 3
+    },
+    {
+      "numStr": "2",
+      "title": "УСЛОВИЯ И ПОРЯДОК ПРОВЕДЕНИЯ ИСПЫТАНИЙ",
+      "paragraphs": 4
+    },
+    {
+      "numStr": "3",
+      "title": "РЕЗУЛЬТАТЫ ИСПЫТАНИЙ ПО ФУНКЦИОНАЛЬНЫМ И ТЕХНИЧЕСКИМ ТРЕБОВАНИЯМ",
+      "paragraphs": 2,
+      "tables": [
+        "Таблица 1 — Фактические результаты проверок"
+      ]
+    },
+    {
+      "numStr": "4",
+      "title": "ВЫВОДЫ КОМИССИИ",
+      "paragraphs": 3
+    }
+  ],
+  "requirementCodes": [
+    "ТР-ЭТ-01",
+    "ТР-ЭТ-02",
+    "ТР-ЭТ-03"
+  ],
+  "applicability": {
+    "fstek_21": "UNKNOWN",
+    "fz_152": "UNKNOWN",
+    "fz_187_kii": "UNKNOWN",
+    "fstek_239": "UNKNOWN",
+    "fstek_117": "UNKNOWN",
+    "fz_188_reestr": "UNKNOWN",
+    "gost_57580": "UNKNOWN",
+    "cb_683p": "UNKNOWN",
+    "cb_757p": "UNKNOWN",
+    "cb_719p": "UNKNOWN",
+    "fsb_282_gossopka": "UNKNOWN",
+    "sla_999": "UNKNOWN",
+    "wcag_52872": "UNKNOWN"
+  },
+  "validation": {
+    "ERROR": 0,
+    "WARNING": 3,
+    "INFO": 0
+  },
+  "traceabilityCoveragePercent": 66.67,
+  "contextGapPaths": [
+    "automationObject",
+    "systemPurpose",
+    "goals",
+    "measurableGoalCriteria",
+    "users",
+    "roles",
+    "architecture.style",
+    "integrations",
+    "deploymentModel",
+    "infrastructure.platforms",
+    "infrastructure.computeResources",
+    "availability",
+    "performance",
+    "security",
+    "dataClasses",
+    "funding"
+  ],
+  "documentGapPaths": [
+    "acceptance.results",
+    "acceptance.decision"
+  ],
+  "tableRows": [
+    [
+      "1",
+      "ТР-ЭТ-01",
+      "Требования к этапу «Предпроектное обследование»",
+      "Критерий не задан",
+      "",
+      ""
+    ],
+    [
+      "2",
+      "ТР-ЭТ-02",
+      "Требования к этапу «Разработка подсистем»",
+      "Критерий не задан",
+      "",
+      ""
+    ],
+    [
+      "3",
+      "ТР-ЭТ-03",
+      "Требования к этапу «Приёмочные испытания»",
+      "Критерий не задан",
+      "",
+      ""
+    ]
+  ],
+  "schemaIssues": []
+}

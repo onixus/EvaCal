@@ -24,6 +24,9 @@ describe('Контрольные документы ГОСТ 34', () => {
       'high-availability-as',
       'simple-internal-system',
       'legacy-gost34-602-89',
+      'psi-without-facts',
+      'psi-with-facts',
+      'act-with-decision',
     ]);
   });
 
@@ -36,7 +39,7 @@ describe('Контрольные документы ГОСТ 34', () => {
 
   it('строит документы действующего профиля по обязательным разделам ГОСТ 34.602-2020', () => {
     const modern = GOLDEN_SCENARIOS.filter(
-      (s) => s.standardProfileId === CURRENT_GOST34_PROFILE_ID,
+      (s) => s.standardProfileId === CURRENT_GOST34_PROFILE_ID && s.docType === 'TZ',
     );
     expect(modern.length).toBe(8);
 
@@ -64,6 +67,23 @@ describe('Контрольные документы ГОСТ 34', () => {
           : 'ГОСТ 34.602-2020';
       expect(golden.profile.primaryStandard, scenario.id).toBe(expected);
     }
+  });
+
+  it('ПСИ без фактов не печатает результатов и сообщает пробелы', () => {
+    const golden = readGolden('psi-without-facts');
+    expect(golden.documentGapPaths).toEqual(['acceptance.results', 'acceptance.decision']);
+    for (const row of golden.tableRows) expect(row.slice(4)).toEqual(['', '']);
+  });
+
+  it('ПСИ с фактами печатает журнал проверок, акт — решение без пробелов', () => {
+    const psi = readGolden('psi-with-facts');
+    expect(psi.tableRows.map((r: string[]) => r[5])).toEqual([
+      'Пройдена',
+      'Не пройдена',
+      'Не проводилась',
+    ]);
+    expect(psi.documentGapPaths).toEqual(['acceptance.notRun']);
+    expect(readGolden('act-with-decision').documentGapPaths).toEqual(['acceptance.notRun']);
   });
 
   it('признаёт нормативы применимыми там, где контекст даёт основание', () => {

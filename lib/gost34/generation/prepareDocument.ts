@@ -9,10 +9,16 @@ import { validateTzAuthorProposals, TzAuthorHardFlagsError } from '../llm/tzAuth
 import type { TzAuthorDiagnostic, TzAuthorState } from '../llm/tzAuthor/types';
 import { applySectionOverrides } from './overrides';
 import { Gost34StructureError } from './errors';
+import type { Gost34AcceptanceFacts } from '../types';
 
 export type Gost34GenerationParams = Parameters<typeof analyzeAndNormalizeInput>[0] & {
   sectionOverrides?: Record<string, { title?: string; paragraphs?: string[] }>;
   tzAuthor?: TzAuthorState;
+  /**
+   * Факты испытаний и решение комиссии для ПСИ и акта (#103 WP-4b). Маршруты
+   * загружают их из БД (`loadAcceptanceFacts`), клиент их не передаёт.
+   */
+  acceptance?: Gost34AcceptanceFacts;
 };
 
 /** One preparation path for preview and export. Preview can show rejected edits with diagnostics. */
@@ -22,7 +28,7 @@ export function prepareGost34Document(
 ) {
   const preview = options.mode === 'preview';
   const includeProposed = preview && Boolean(options.includeProposed);
-  const payload = analyzeAndNormalizeInput(params);
+  const payload = { ...analyzeAndNormalizeInput(params), acceptance: params.acceptance };
   if (!preview && payload.metadata.docType === 'SPEC')
     requireConfirmedSpecification(payload.specification);
   const baselineAst = buildGost34DocumentAST(payload);

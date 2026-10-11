@@ -3,6 +3,7 @@ import { loadCalculationForExport } from '@/lib/export';
 import { prepareGost34Document } from '@/lib/gost34/generation/prepareDocument';
 import { gost34ErrorResponse } from '@/lib/gost34/generation/apiError';
 import { requireCalcAccess } from '@/lib/access';
+import { acceptanceFactsFor } from '@/lib/acceptance/http';
 import { handleApiError } from '@/lib/apiHelpers';
 
 export const dynamic = 'force-dynamic';
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
       sectionOverrides = {},
       tzAuthor,
       includeProposed = false,
+      acceptancePackageId,
     } = body;
 
     if (!calculationId) {
@@ -50,9 +52,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'not found' }, { status: 404 });
     }
 
+    // Предпросмотр ПСИ/акта показывает те же факты, что попадут в выпуск.
+    const acceptance = await acceptanceFactsFor(calculationId, [docType], acceptancePackageId);
+    if (acceptance instanceof NextResponse) return acceptance;
+
     const prepared = prepareGost34Document(
       {
         calculation,
+        acceptance,
         rawRequirements,
         vendorFiles,
         projectContext,

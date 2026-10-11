@@ -151,5 +151,18 @@
     "dataClasses",
     "funding"
   ],
+  "documentGapPaths": [
+    "funding",
+    "lifecycle.startDate",
+    "lifecycle.endDate",
+    "goals",
+    "measurableGoalCriteria",
+    "users",
+    "dataClasses",
+    "roles",
+    "integrations",
+    "availability",
+    "performance"
+  ],
   "schemaIssues": []
 }
