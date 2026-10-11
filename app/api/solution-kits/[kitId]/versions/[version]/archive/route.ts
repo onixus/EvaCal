@@ -20,6 +20,10 @@ export async function POST(req: NextRequest, props: Params) {
   if (!version) return badVersion();
   const result = await archiveVersion(actorOf(auth), kitId, version);
   if (!result.ok) return failure(result);
-  await auditKit(req, auth, 'version.archive', kitId, { version });
-  return NextResponse.json({ version: result.version, status: 'archived' });
+  await auditKit(req, auth, 'version.archive', kitId, { version, kitStatus: result.kitStatus });
+  return NextResponse.json({
+    version: result.version,
+    status: 'archived',
+    kitStatus: result.kitStatus,
+  });
 }

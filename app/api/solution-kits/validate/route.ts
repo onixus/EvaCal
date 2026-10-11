@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireKitLibrary();
   if (auth instanceof NextResponse) return auth;
   const body = await readJson(req);
-  if (!body) return NextResponse.json({ error: 'Ожидается JSON-объект' }, { status: 400 });
+  if (body instanceof NextResponse) return body;
   const checked = checkKitContent(body.content);
   return NextResponse.json({
     valid: !!checked.content && checked.issues.length === 0,

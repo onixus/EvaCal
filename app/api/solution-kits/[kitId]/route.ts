@@ -23,7 +23,7 @@ export async function PATCH(req: NextRequest, props: Params) {
   if (auth instanceof NextResponse) return auth;
   const { kitId } = await props.params;
   const body = await readJson(req);
-  if (!body) return NextResponse.json({ error: 'Ожидается JSON-объект' }, { status: 400 });
+  if (body instanceof NextResponse) return body;
   const result = await updateKitPassport(actorOf(auth), kitId, body);
   if (!result.ok) return failure(result);
   await auditKit(req, auth, 'update', kitId, { fields: Object.keys(body) });

@@ -35,7 +35,7 @@ export async function PATCH(req: NextRequest, props: Params) {
   const version = parseVersionParam(raw);
   if (!version) return badVersion();
   const body = await readJson(req);
-  if (!body) return NextResponse.json({ error: 'Ожидается JSON-объект' }, { status: 400 });
+  if (body instanceof NextResponse) return body;
   const result = await updateDraftVersion(actorOf(auth), kitId, version, body);
   if (!result.ok) return failure(result);
   await auditKit(req, auth, 'version.update', kitId, {

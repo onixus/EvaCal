@@ -207,6 +207,27 @@ describe('validateKitContent — целостность', () => {
     );
   });
 
+  it('поле-список без вариантов — замечание', () => {
+    const c = sample();
+    c.fields.push({
+      elementId: 'field-kind',
+      key: 'kind',
+      label: 'Вид',
+      type: 'select',
+      options: [' '],
+      required: false,
+    });
+    expect(validateKitContent(c)).toEqual([
+      expect.objectContaining({ code: 'select-without-options', path: 'fields[1].options' }),
+    ]);
+  });
+
+  it('слишком большое содержимое — ошибка формы', () => {
+    const r = parseKitContent({ notes: 'x'.repeat(2 * 1024 * 1024 + 1) });
+    expect(r.content).toBeNull();
+    expect(r.issues[0].path).toBe('$');
+  });
+
   it('checkKitContent разделяет форму и целостность', () => {
     expect(checkKitContent({ stages: 'x' }).shapeIssues).toHaveLength(1);
     const c = sample();

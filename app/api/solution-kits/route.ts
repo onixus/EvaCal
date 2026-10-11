@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireKitLibrary();
   if (auth instanceof NextResponse) return auth;
   const body = await readJson(req);
-  if (!body) return NextResponse.json({ error: 'Ожидается JSON-объект' }, { status: 400 });
+  if (body instanceof NextResponse) return body;
   const result = await createKit(actorOf(auth), body);
   if (!result.ok) return failure(result);
   await auditKit(req, auth, 'create', result.kit.id, { key: result.kit.key });

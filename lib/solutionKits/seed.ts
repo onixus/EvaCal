@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@/lib/generated/prisma/client';
 import { builtinKits, type BuiltinKit } from './builtin';
 import { checkKitContent } from './content';
+import { isUniqueViolation } from './store';
 
 export const SYSTEM_ACTOR = 'system';
 
@@ -78,7 +79,7 @@ export async function seedBuiltinSolutionKits(
       result.created.push(kit.key);
     } catch (e) {
       // Параллельный сид успел создать тот же набор — это не ошибка.
-      if ((e as { code?: string })?.code === 'P2002') {
+      if (isUniqueViolation(e)) {
         result.skipped.push(kit.key);
         continue;
       }

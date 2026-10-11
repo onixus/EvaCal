@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireApiRole, type SessionPayload } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { KIT_LIBRARY_ROLES } from './rules';
+import { KIT_BODY_MAX_BYTES } from './content';
 import type { KitResult, KitActorWithName } from './store';
 
 export async function requireKitLibrary(): Promise<SessionPayload | NextResponse> {
@@ -34,11 +35,52 @@ export function failure(result: Extract<KitResult<object>, { ok: false }>) {
   );
 }
 
-export async function readJson(req: NextRequest): Promise<Record<string, unknown> | null> {
-  const body = await req.json().catch(() => null);
+/**
+ * Тело запроса библиотеки — JSON-объект не больше `KIT_BODY_MAX_BYTES`.
+ * Размер проверяется до разбора: сначала по Content-Length, затем по
+ * фактическому потоку (заголовка может не быть). Как `lib/acceptance/http.ts`.
+ */
+export async function readJson(req: Request): Promise<Record<string, unknown> | NextResponse> {
+  const tooLarge = () =>
+    NextResponse.json(
+      { error: `Тело запроса больше ${Math.round(KIT_BODY_MAX_BYTES / 1024 / 1024)} МБ` },
+      { status: 413 },
+    );
+  const notObject = () => NextResponse.json({ error: 'Ожидается JSON-объект' }, { status: 400 });
+  if (Number(req.headers.get('content-length')) > KIT_BODY_MAX_BYTES) return tooLarge();
+  const reader = req.body?.getReader();
+  if (!reader) return notObject();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > KIT_BODY_MAX_BYTES) {
+        await reader.cancel();
+        return tooLarge();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  let body: unknown;
+  try {
+    body = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return notObject();
+  }
   return body && typeof body === 'object' && !Array.isArray(body)
     ? (body as Record<string, unknown>)
-    : null;
+    : notObject();
 }
 
 export async function auditKit(

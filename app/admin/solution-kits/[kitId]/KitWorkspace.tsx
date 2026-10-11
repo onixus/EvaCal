@@ -31,6 +31,7 @@ interface VersionMeta {
   changelog: string;
   createdBy: string;
   createdAt: string;
+  updatedAt: string;
   approvedBy: string | null;
   approvedAt: string | null;
   archivedBy: string | null;
@@ -251,9 +252,13 @@ export default function KitWorkspace({
     }
   }
 
-  async function action(path: string, okText: string, method = 'POST') {
+  async function action(path: string, okText: string, method = 'POST', body?: unknown) {
     if (!version) return;
-    const data = await call(`${base}/versions/${version.version}${path}`, { method }, okText);
+    const data = await call(
+      `${base}/versions/${version.version}${path}`,
+      { method, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) },
+      okText,
+    );
     if (data) {
       router.refresh();
       if (method === 'DELETE') {
@@ -418,7 +423,12 @@ export default function KitWorkspace({
                 <button
                   className="btn-primary"
                   disabled={busy}
-                  onClick={() => action('/approve', 'Версия утверждена')}
+                  onClick={() =>
+                    // Утверждается ровно просмотренный черновик: сервер сверяет updatedAt.
+                    action('/approve', 'Версия утверждена', 'POST', {
+                      expectedUpdatedAt: version.updatedAt,
+                    })
+                  }
                 >
                   Утвердить
                 </button>

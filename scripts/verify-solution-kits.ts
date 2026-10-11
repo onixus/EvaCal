@@ -77,7 +77,13 @@ async function main() {
   });
   assert.ok(created.ok);
   const kitId = created.kit.id;
-  const approved = await approveVersion(actor, kitId, 1);
+  const seen = async (version: number) =>
+    (
+      await prisma.solutionKitVersion.findUniqueOrThrow({
+        where: { kitId_version: { kitId, version } },
+      })
+    ).updatedAt;
+  const approved = await approveVersion(actor, kitId, 1, await seen(1));
   assert.ok(approved.ok, 'владелец-архитектор утверждает');
   const v1 = await prisma.solutionKitVersion.findUniqueOrThrow({
     where: { kitId_version: { kitId, version: 1 } },
@@ -135,8 +141,11 @@ async function main() {
   assert.ok(v2);
   const next = structuredClone(v2.content);
   next.requirements[0].title = 'A и B';
+  const viewed = await seen(2);
   assert.ok((await updateDraftVersion(actor, kitId, 2, { content: next, changelog: 'B' })).ok);
-  assert.ok((await approveVersion(actor, kitId, 2)).ok);
+  const stale = await approveVersion(actor, kitId, 2, viewed);
+  assert.ok(!stale.ok && stale.status === 409, 'черновик изменён после просмотра — 409');
+  assert.ok((await approveVersion(actor, kitId, 2, await seen(2))).ok);
 
   const v1After = await prisma.solutionKitVersion.findUniqueOrThrow({ where: { id: v1.id } });
   assert.deepEqual(v1After.content, v1.content, 'новая версия не меняет старую');
@@ -155,6 +164,11 @@ async function main() {
     () => prisma.solutionKitVersion.update({ where: { id: v1.id }, data: { status: 'approved' } }),
     /immutable/,
   );
+  // Архив последней утверждённой версии возвращает набор в черновик.
+  const last = await archiveVersion(actor, kitId, 2);
+  assert.ok(last.ok && last.kitStatus === 'draft');
+  const kitAfter = await prisma.solutionKit.findUniqueOrThrow({ where: { id: kitId } });
+  assert.equal(kitAfter.status, 'draft');
   console.log('[kits] утверждённые версии неизменны, новая версия не трогает старую');
 }
 

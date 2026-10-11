@@ -45,7 +45,8 @@ const MAX_SOURCE = 200;
 const fail = (status: number, error: string, issues?: KitContentIssue[]) =>
   ({ ok: false, status, error, ...(issues ? { issues } : {}) }) as const;
 
-function isUniqueViolation(e: unknown): boolean {
+/** Нарушение уникальности: P2002 Prisma или 23505 PostgreSQL (через адаптер). */
+export function isUniqueViolation(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false;
   const err = e as { code?: string; message?: string };
   return err.code === 'P2002' || err.code === '23505' || /23505|unique/i.test(err.message ?? '');
@@ -355,28 +356,51 @@ export async function updateDraftVersion(
   return { ok: true, issues };
 }
 
+/**
+ * Удаление черновика: автор черновика или тот, кто управляет набором
+ * (владелец-архитектор, администратор). Чужой черновик архитектор не удаляет.
+ */
 export async function deleteDraftVersion(
-  actor: KitActor,
+  actor: KitActorWithName,
   kitId: string,
   version: number,
 ): Promise<KitResult<object>> {
   if (!canEditKitDrafts(actor)) return fail(403, 'Недостаточно прав');
+  const row = await prisma.solutionKitVersion.findUnique({
+    where: { kitId_version: { kitId, version } },
+    include: { kit: true },
+  });
+  if (!row) return fail(404, 'Версия не найдена');
+  if (row.status !== 'draft') return fail(409, 'Удалить можно только черновик');
+  if (row.createdBy !== actor.username && !canGovernKit(actor, row.kit)) {
+    return fail(403, 'Черновик удаляет его автор, владелец набора или администратор');
+  }
   const res = await prisma.solutionKitVersion.deleteMany({
-    where: { kitId, version, status: 'draft' },
+    where: { id: row.id, status: 'draft' },
   });
   if (res.count === 0) return fail(409, 'Удалить можно только черновик');
   return { ok: true };
 }
 
+/** Метка версии для оптимистической блокировки: ISO-строка `updatedAt`. */
+export function parseExpectedUpdatedAt(raw: unknown): Date | null {
+  if (typeof raw !== 'string' || !raw) return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /**
  * Утверждение черновика: содержимое без замечаний целостности, журнал
- * изменений обязателен начиная со второй версии. Набор становится
+ * изменений обязателен начиная со второй версии. `expectedUpdatedAt` — метка
+ * черновика, который видел утверждающий: если черновик успели поправить,
+ * ответ 409 (утверждается только просмотренное). Набор становится
  * утверждённым; прежние утверждённые версии не меняются.
  */
 export async function approveVersion(
   actor: KitActorWithName,
   kitId: string,
   version: number,
+  expectedUpdatedAt: Date,
 ): Promise<KitResult<{ version: number }>> {
   const row = await prisma.solutionKitVersion.findUnique({
     where: { kitId_version: { kitId, version } },
@@ -390,6 +414,8 @@ export async function approveVersion(
     return fail(409, 'Утвердить можно только черновик');
   }
   if (row.kit.status === 'archived') return fail(409, 'Набор в архиве');
+  const stale = () => fail(409, 'Черновик изменён после просмотра: обновите страницу и проверьте');
+  if (new Date(row.updatedAt).getTime() !== expectedUpdatedAt.getTime()) return stale();
   const checked = checkKitContent(row.content);
   if (!checked.content) return fail(409, 'Содержимое не соответствует схеме', checked.shapeIssues);
   if (checked.issues.length > 0) {
@@ -401,7 +427,7 @@ export async function approveVersion(
   const now = new Date();
   const ok = await prisma.$transaction(async (tx) => {
     const res = await tx.solutionKitVersion.updateMany({
-      where: { id: row.id, status: 'draft' },
+      where: { id: row.id, status: 'draft', updatedAt: expectedUpdatedAt },
       data: {
         status: 'approved',
         approvedBy: actor.username,
@@ -416,16 +442,20 @@ export async function approveVersion(
     }
     return true;
   });
-  if (!ok) return fail(409, 'Версию изменили параллельно');
+  if (!ok) return stale();
   return { ok: true, version };
 }
 
-/** Архив утверждённой версии: содержимое не меняется, ссылки на неё остаются. */
+/**
+ * Архив утверждённой версии: содержимое не меняется, ссылки на неё остаются.
+ * Если утверждённых версий у набора не осталось, статус набора пересчитывается
+ * в `draft` (применять нечего); архивный набор остаётся архивным.
+ */
 export async function archiveVersion(
   actor: KitActorWithName,
   kitId: string,
   version: number,
-): Promise<KitResult<{ version: number }>> {
+): Promise<KitResult<{ version: number; kitStatus: string }>> {
   const row = await prisma.solutionKitVersion.findUnique({
     where: { kitId_version: { kitId, version } },
     include: { kit: true },
@@ -437,12 +467,23 @@ export async function archiveVersion(
   if (!canTransitionVersion(row.status as KitVersionStatus, 'archived')) {
     return fail(409, 'В архив переводится только утверждённая версия');
   }
-  const res = await prisma.solutionKitVersion.updateMany({
-    where: { id: row.id, status: 'approved' },
-    data: { status: 'archived', archivedBy: actor.username, archivedAt: new Date() },
+  const kitStatus = await prisma.$transaction(async (tx) => {
+    const res = await tx.solutionKitVersion.updateMany({
+      where: { id: row.id, status: 'approved' },
+      data: { status: 'archived', archivedBy: actor.username, archivedAt: new Date() },
+    });
+    if (res.count === 0) return null;
+    const kit = await tx.solutionKit.findUnique({ where: { id: kitId } });
+    if (!kit || kit.status === 'archived') return kit?.status ?? 'archived';
+    const approved = await tx.solutionKitVersion.count({ where: { kitId, status: 'approved' } });
+    const next = nextKitStatusOnRestore(approved > 0);
+    if (next !== kit.status) {
+      await tx.solutionKit.update({ where: { id: kitId }, data: { status: next } });
+    }
+    return next;
   });
-  if (res.count === 0) return fail(409, 'Версию изменили параллельно');
-  return { ok: true, version };
+  if (kitStatus === null) return fail(409, 'Версию изменили параллельно');
+  return { ok: true, version, kitStatus };
 }
 
 export type { KitScope };

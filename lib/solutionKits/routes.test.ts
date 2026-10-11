@@ -15,12 +15,15 @@ const db = vi.hoisted(() => {
   const users: Row[] = [];
   let seq = 0;
   const id = (p: string) => `${p}-${++seq}`;
+  let clock = Date.UTC(2026, 0, 1);
+  const tick = () => new Date((clock += 1000));
   const pick = (r: Row | undefined) => (r ? { ...r } : null);
   const versionMatch = (v: Row, where: Record<string, unknown>) =>
     Object.entries(where).every(([k, val]) => {
       if (k === 'version' && val && typeof val === 'object') {
         return (v.version as number) < (val as { lt: number }).lt;
       }
+      if (val instanceof Date) return (v[k] as Date)?.getTime() === val.getTime();
       return v[k] === val;
     });
   const byVersionDesc = (a: Row, b: Row) => (b.version as number) - (a.version as number);
@@ -69,6 +72,7 @@ const db = vi.hoisted(() => {
             approvedBy: null,
             approvedAt: null,
             createdAt: new Date(),
+            updatedAt: tick(),
             ...nested.create,
           });
         }
@@ -114,6 +118,7 @@ const db = vi.hoisted(() => {
           status: 'draft',
           approvedBy: null,
           approvedAt: null,
+          updatedAt: tick(),
           ...data,
         } as Row;
         versions.push(row);
@@ -127,7 +132,7 @@ const db = vi.hoisted(() => {
         data: Record<string, unknown>;
       }) => {
         const rows = versions.filter((v) => versionMatch(v, where));
-        rows.forEach((r) => Object.assign(r, data));
+        rows.forEach((r) => Object.assign(r, data, { updatedAt: tick() }));
         return { count: rows.length };
       },
       deleteMany: async ({ where }: { where: Record<string, unknown> }) => {
@@ -215,6 +220,13 @@ const content = {
   checks: [{ elementId: 'chk-1', requirementIds: ['req-1'], criteria: 'События видны' }],
 };
 
+/** Утверждение как из UI: с updatedAt просмотренного черновика. */
+async function approve(kitId: string, version: number, expected?: string) {
+  const v = db.versions.find((x) => x.kitId === kitId && x.version === version);
+  const expectedUpdatedAt = expected ?? (v?.updatedAt as Date | undefined)?.toISOString();
+  return APPROVE(req('POST', { expectedUpdatedAt }), verProps(kitId, version));
+}
+
 async function createKit(key = 'siem.basic') {
   const res = await CREATE(req('POST', { key, name: 'SIEM базовый', content }));
   expect(res.status).toBe(201);
@@ -258,13 +270,13 @@ describe('API библиотеки решений', () => {
   it('утверждение: чужой архитектор 403, владелец-архитектор утверждает', async () => {
     const kitId = await createKit();
     as('architect', 'u-other', 'other');
-    expect((await APPROVE(req('POST'), verProps(kitId, 1))).status).toBe(403);
+    expect((await approve(kitId, 1)).status).toBe(403);
     // чужой архитектор при этом правит черновик
     expect(
       (await PATCH_VERSION(req('PATCH', { changelog: 'правка' }), verProps(kitId, 1))).status,
     ).toBe(200);
     as('architect');
-    const ok = await APPROVE(req('POST'), verProps(kitId, 1));
+    const ok = await approve(kitId, 1);
     expect(ok.status).toBe(200);
     expect(db.versions[0]).toMatchObject({ status: 'approved', approvedBy: 'owner' });
     expect(db.kits[0].status).toBe('approved');
@@ -276,7 +288,7 @@ describe('API библиотеки решений', () => {
     const saved = await PATCH_VERSION(req('PATCH', { content: broken }), verProps(kitId, 1));
     expect(saved.status).toBe(200);
     expect((await saved.json()).issues[0].code).toBe('dangling-ref');
-    const res = await APPROVE(req('POST'), verProps(kitId, 1));
+    const res = await approve(kitId, 1);
     expect(res.status).toBe(409);
     expect((await res.json()).issues[0]).toMatchObject({
       code: 'dangling-ref',
@@ -288,14 +300,14 @@ describe('API библиотеки решений', () => {
   it('утверждённая версия неизменна; новая версия копирует последнюю и не трогает старую', async () => {
     const kitId = await createKit();
     as('admin', 'u-admin', 'admin');
-    expect((await APPROVE(req('POST'), verProps(kitId, 1))).status).toBe(200);
+    expect((await approve(kitId, 1)).status).toBe(200);
     const v1Before = structuredClone(db.versions[0]);
 
     expect((await PATCH_VERSION(req('PATCH', { changelog: 'x' }), verProps(kitId, 1))).status).toBe(
       409,
     );
     expect((await DELETE_VERSION(req('DELETE'), verProps(kitId, 1))).status).toBe(409);
-    expect((await APPROVE(req('POST'), verProps(kitId, 1))).status).toBe(409);
+    expect((await approve(kitId, 1)).status).toBe(409);
 
     const created = await NEW_VERSION(req('POST'), kitProps(kitId));
     expect(created.status).toBe(201);
@@ -311,7 +323,7 @@ describe('API библиотеки решений', () => {
       (await PATCH_VERSION(req('PATCH', { content: changed }), verProps(kitId, 2))).status,
     ).toBe(200);
     // Журнал изменений обязателен со второй версии.
-    expect((await APPROVE(req('POST'), verProps(kitId, 2))).status).toBe(409);
+    expect((await approve(kitId, 2)).status).toBe(409);
     await PATCH_VERSION(req('PATCH', { changelog: 'Уточнено требование' }), verProps(kitId, 2));
 
     const diff = await (await DIFF(req('GET'), verProps(kitId, 2))).json();
@@ -319,14 +331,14 @@ describe('API библиотеки решений', () => {
       elementId: 'req-1',
       fields: ['title'],
     });
-    expect((await APPROVE(req('POST'), verProps(kitId, 2))).status).toBe(200);
+    expect((await approve(kitId, 2)).status).toBe(200);
     expect(db.versions.find((v) => v.version === 1)).toEqual(v1Before);
   });
 
   it('архив версии: только утверждённую и только владелец/админ', async () => {
     const kitId = await createKit();
     expect((await ARCHIVE(req('POST'), verProps(kitId, 1))).status).toBe(409); // черновик
-    await APPROVE(req('POST'), verProps(kitId, 1));
+    await approve(kitId, 1);
     as('architect', 'u-other', 'other');
     expect((await ARCHIVE(req('POST'), verProps(kitId, 1))).status).toBe(403);
     as('architect');
@@ -356,9 +368,9 @@ describe('API библиотеки решений', () => {
   it('системный набор (без владельца) утверждает только администратор', async () => {
     const kitId = await createKit();
     db.kits[0].ownerId = null;
-    expect((await APPROVE(req('POST'), verProps(kitId, 1))).status).toBe(403);
+    expect((await approve(kitId, 1)).status).toBe(403);
     as('admin', 'u-admin', 'admin');
-    expect((await APPROVE(req('POST'), verProps(kitId, 1))).status).toBe(200);
+    expect((await approve(kitId, 1)).status).toBe(200);
   });
 
   it('смена владельца: только на архитектора или админа', async () => {
@@ -398,5 +410,66 @@ describe('API библиотеки решений', () => {
     ).json();
     expect(bad.valid).toBe(false);
     expect(bad.issues[0].code).toBe('check-without-requirement');
+  });
+  it('утверждение сверяет updatedAt просмотренного черновика', async () => {
+    const kitId = await createKit();
+    expect((await APPROVE(req('POST', {}), verProps(kitId, 1))).status).toBe(400);
+    const seen = (db.versions[0].updatedAt as Date).toISOString();
+    await PATCH_VERSION(req('PATCH', { changelog: 'правка после просмотра' }), verProps(kitId, 1));
+    const stale = await approve(kitId, 1, seen);
+    expect(stale.status).toBe(409);
+    expect(db.versions[0].status).toBe('draft');
+    expect((await approve(kitId, 1)).status).toBe(200);
+  });
+
+  it('черновик удаляет автор или управляющий набором, не чужой архитектор', async () => {
+    const kitId = await createKit();
+    await approve(kitId, 1);
+    as('architect', 'u-author', 'author');
+    expect((await NEW_VERSION(req('POST'), kitProps(kitId))).status).toBe(201);
+    as('architect', 'u-other', 'other');
+    expect((await DELETE_VERSION(req('DELETE'), verProps(kitId, 2))).status).toBe(403);
+    as('architect');
+    expect((await DELETE_VERSION(req('DELETE'), verProps(kitId, 2))).status).toBe(200);
+    as('architect', 'u-author', 'author');
+    await NEW_VERSION(req('POST'), kitProps(kitId));
+    expect((await DELETE_VERSION(req('DELETE'), verProps(kitId, 2))).status).toBe(200);
+  });
+
+  it('архив единственной утверждённой версии возвращает набор в черновик', async () => {
+    const kitId = await createKit();
+    await approve(kitId, 1);
+    expect(db.kits[0].status).toBe('approved');
+    const res = await ARCHIVE(req('POST'), verProps(kitId, 1));
+    expect(await res.json()).toMatchObject({ status: 'archived', kitStatus: 'draft' });
+    expect(db.kits[0].status).toBe('draft');
+  });
+
+  it('ограничения размера: тело запроса 413, лишние ссылки — ошибка формы', async () => {
+    const big = 'x'.repeat(3 * 1024 * 1024);
+    const res = await VALIDATE(req('POST', { content: { notes: big } }));
+    expect(res.status).toBe(413);
+    const noLength = new NextRequest('http://localhost/x', {
+      method: 'POST',
+      body: new ReadableStream({
+        start(c) {
+          c.enqueue(new TextEncoder().encode(JSON.stringify({ content: { notes: big } })));
+          c.close();
+        },
+      }),
+      // duplex обязателен для потокового тела в Node
+      duplex: 'half',
+    });
+    expect((await VALIDATE(noLength)).status).toBe(413);
+    const refs = Array.from({ length: 201 }, (_, i) => `req-${i}`);
+    const many = await (
+      await VALIDATE(
+        req('POST', {
+          content: { checks: [{ elementId: 'c', criteria: 'x', requirementIds: refs }] },
+        }),
+      )
+    ).json();
+    expect(many.shapeIssues[0]).toMatchObject({ path: 'checks[0].requirementIds' });
+    expect((await VALIDATE(req('POST', [1]))).status).toBe(400);
   });
 });

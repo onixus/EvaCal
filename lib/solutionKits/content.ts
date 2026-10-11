@@ -142,6 +142,7 @@ export interface KitContentIssue {
     | 'dangling-ref'
     | 'wrong-ref-section'
     | 'driver-not-number'
+    | 'select-without-options'
     | 'check-without-requirement';
   message: string;
   elementId?: string;
@@ -172,6 +173,12 @@ export function emptyKitContent(): SolutionKitContent {
 const MAX_TEXT = 20_000;
 const MAX_ELEMENTS_PER_SECTION = 2_000;
 const MAX_HOURS = 100_000;
+/** Ссылок в одном списке (requirementIds, stageIds). */
+export const MAX_REFS_PER_LIST = 200;
+/** Сериализованное содержимое версии целиком. */
+export const KIT_CONTENT_MAX_BYTES = 2 * 1024 * 1024;
+/** Тело запроса к API библиотеки (содержимое + журнал + запас). */
+export const KIT_BODY_MAX_BYTES = KIT_CONTENT_MAX_BYTES + 256 * 1024;
 
 class ShapeReader {
   issues: KitContentIssue[] = [];
@@ -225,6 +232,10 @@ class ShapeReader {
       this.fail(`${path}.${key}`, 'массив строк (elementId)');
       return [];
     }
+    if (v.length > MAX_REFS_PER_LIST) {
+      this.fail(`${path}.${key}`, `не больше ${MAX_REFS_PER_LIST} ссылок`);
+      return [];
+    }
     return (v as string[]).map((x) => x.trim());
   }
 
@@ -263,6 +274,17 @@ export function parseKitContent(raw: unknown): {
   const r = new ShapeReader();
   const root = r.obj(raw, '$');
   if (!root) return { content: null, issues: r.issues };
+  let size = 0;
+  try {
+    size = new TextEncoder().encode(JSON.stringify(root)).length;
+  } catch {
+    r.fail('$', 'содержимое не сериализуется в JSON');
+    return { content: null, issues: r.issues };
+  }
+  if (size > KIT_CONTENT_MAX_BYTES) {
+    r.fail('$', `содержимое больше ${KIT_CONTENT_MAX_BYTES / 1024 / 1024} МБ`);
+    return { content: null, issues: r.issues };
+  }
   if (root.schemaVersion !== undefined && root.schemaVersion !== KIT_CONTENT_SCHEMA_VERSION) {
     r.fail('schemaVersion', `поддерживается только версия схемы ${KIT_CONTENT_SCHEMA_VERSION}`);
   }
@@ -452,6 +474,14 @@ export function validateKitContent(content: SolutionKitContent): KitContentIssue
 
   const keys = new Set<string>();
   content.fields.forEach((f, i) => {
+    if (f.type === 'select' && f.options.filter((o) => o.trim()).length === 0) {
+      issues.push({
+        path: `fields[${i}].options`,
+        code: 'select-without-options',
+        message: `у поля-списка «${f.key}» нет вариантов`,
+        elementId: f.elementId,
+      });
+    }
     if (keys.has(f.key)) {
       issues.push({
         path: `fields[${i}].key`,
