@@ -33,6 +33,10 @@ vi.mock('@/lib/prisma', () => {
       findMany: vi.fn(async () => []),
       create: vi.fn(),
     },
+    costItem: {
+      findMany: vi.fn(async () => []),
+      createMany: vi.fn(),
+    },
     risk: {
       create: vi.fn(),
     },
@@ -163,6 +167,7 @@ describe('lib/project', () => {
             approvalDays: 3,
           },
         ],
+        costItems: [],
         risks: [
           {
             id: 'rk_1',
@@ -238,6 +243,7 @@ describe('lib/project', () => {
               projectId: null,
               version: 1,
               stages: [],
+              costItems: [],
               risks: [],
             })
             .mockResolvedValueOnce({ id: 'calc_2' }),
@@ -293,6 +299,7 @@ describe('lib/project', () => {
           stage('st_b', 'Б'),
           stage('st_ap', 'Согл', { isApprovalTask: true, approvalForStageId: 'st_a' }),
         ],
+        costItems: [],
         risks: [],
       } as any);
       vi.mocked(prisma.calculation.findFirst).mockResolvedValue({ version: 1 } as any);

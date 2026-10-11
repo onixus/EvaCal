@@ -45,6 +45,7 @@ interface Template {
   workDayHours: number;
   includeWeekends: boolean;
   calendarId?: string | null;
+  minMarginPercent?: number | null;
   fields: Field[];
   stageTemplates: StageTemplate[];
   riskTemplates: RiskTemplate[];
@@ -226,6 +227,7 @@ export default function TemplateEditor({
     workDayHours?: number;
     includeWeekends?: boolean;
     calendarId?: string | null;
+    minMarginPercent?: number | null;
   }) {
     call(`/api/templates/${template.id}`, {
       method: 'PUT',
@@ -365,6 +367,32 @@ export default function TemplateEditor({
           ; тот же календарь учитывает ресурсный план. Даты уже построенных Гантов пересчитываются
           при следующем изменении этапов или даты старта.
         </p>
+      </div>
+
+      <div className="card p-6">
+        <h2 className="mb-1 font-medium">Порог прибыльности</h2>
+        <p className="mb-3 text-xs text-slate-500">
+          Минимальная маржа КП (% от выручки без НДС, с поставкой). Копируется в расчёт при
+          создании; расчёт с маржой ниже порога утверждается только после согласования скидки. Пусто
+          — без порога.
+        </p>
+        <label className="label" htmlFor="template-min-margin">
+          Порог маржи, %
+        </label>
+        <input
+          id="template-min-margin"
+          type="number"
+          min={0}
+          max={99.99}
+          step="0.01"
+          className="input w-28"
+          defaultValue={template.minMarginPercent ?? ''}
+          onBlur={(e) =>
+            updateTemplate({
+              minMarginPercent: e.target.value === '' ? null : e.target.valueAsNumber,
+            })
+          }
+        />
       </div>
 
       <div className="card p-6">

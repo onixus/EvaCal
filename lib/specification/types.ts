@@ -61,6 +61,20 @@ export interface SpecificationItem {
   confirmed: boolean;
   /** Decimal strings preserve source precision; null means unknown, not free. */
   unitPrice: string | null;
+  /**
+   * #101 §3 price split (all optional exact decimal strings, absent — not set).
+   * `unitPrice` keeps its meaning: the list/offer price per unit in `currency`
+   * (GPL or manual) — supply totals of the specification are qty × unitPrice.
+   * In the КП the customer price per unit is `salePrice` when set, otherwise
+   * `unitPrice`; `discountPercent` (0–100) reduces it per line; `vatRate`
+   * (percent, 0–100) overrides the calculation VAT for the line;
+   * `purchasePrice` is our cost per unit (absent — the line cost is unknown
+   * unless a cost item is linked to the row).
+   */
+  purchasePrice?: string;
+  salePrice?: string;
+  discountPercent?: string;
+  vatRate?: string;
   currency: string;
   /** Optional note explaining why this row changed in the revision (shown in diff). */
   changeReason?: string;
@@ -106,6 +120,24 @@ export interface SpecificationSnapshot {
   items: SpecificationItem[];
   /** Прогоны сайзинга, на которые ссылаются строки редакции (заполняется при сохранении). */
   sizingRunIds?: string[];
+  /**
+   * #101 §3: курсы, по которым суммы редакции пересчитываются в валюту КП.
+   * Хранятся в снимке вместе с датой и источником; исходные цены и валюты строк
+   * не меняются. Без курса пары валют пересчёт не выполняется (сумма неполная).
+   */
+  exchangeRates?: SpecificationExchangeRate[];
+}
+
+export interface SpecificationExchangeRate {
+  from: string;
+  to: string;
+  /** Exact decimal string, > 0, up to 8 fractional digits: 1 `from` = rate `to`. */
+  rate: string;
+  /** YYYY-MM-DD */
+  date: string;
+  source: string;
+  /** ExchangeRate row the value was copied from, when taken from the registry. */
+  rateId?: string;
 }
 
 export interface SavedSpecification {

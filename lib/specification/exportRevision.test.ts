@@ -6,7 +6,10 @@ vi.mock('@/lib/auth', async () => ({
   getSession: vi.fn(async () => null),
 }));
 vi.mock('@/lib/prisma', () => ({
-  prisma: { calculation: { findUnique: vi.fn(), update: vi.fn() } },
+  prisma: {
+    calculation: { findUnique: vi.fn(), update: vi.fn() },
+    costItem: { findMany: vi.fn(async () => []) },
+  },
 }));
 vi.mock('@/lib/specification/store', () => ({ loadSpecification: vi.fn() }));
 vi.mock('@/lib/project', () => ({

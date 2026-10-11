@@ -151,7 +151,13 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
     discountPercent: calc.discountPercent,
     vatPercent: calc.vatPercent,
     includeVat: calc.includeVat,
+    supply: calc.supply ?? null,
   });
+  const money = (v: number) =>
+    formatCurrency(v, commercial.currency, {
+      decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2,
+    });
+  const supply = commercial.supply;
 
   ensureSpace(140);
   doc.font('bold').fontSize(13).text('Трудозатраты и стоимость', 40, doc.y);
@@ -183,6 +189,9 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
       doc.y,
     );
   }
+  if (commercial.costItemsCost > 0) {
+    doc.text(`Дополнительные статьи затрат: ${money(commercial.costItemsCost)}`, 40, doc.y);
+  }
   doc.text(
     `${PRICING_MODE_LABELS[commercial.pricingMode]} (${commercial.marginPercent}%): ${formatCurrency(commercial.marginAmount, commercial.currency, { decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2 })}`,
     40,
@@ -212,11 +221,41 @@ export function renderCalculationPdf(calc: CalculationForPdf): PDFKit.PDFDocumen
       doc.y,
     );
   }
+  if (supply) {
+    // #103 §4.2: поставка рядом с трудом — собственные цены строк, без наценки.
+    doc.moveDown(0.5);
+    ensureSpace(60);
+    doc.font('bold').fontSize(12).text('Поставка оборудования и ПО', 40, doc.y);
+    doc.font('body').fontSize(9);
+    for (const line of supply.lines) {
+      const text = `${line.name}: ${line.explanation.slice(line.explanation.indexOf(':') + 2)}`;
+      ensureSpace(doc.heightOfString(text, { width: 515 }) + 2);
+      doc.text(text, 40, doc.y, { width: 515 });
+    }
+    for (const item of supply.costItems) {
+      const text = `Статья затрат: ${item.explanation}${item.state === 'linked' ? ' — себестоимость строки поставки' : ''}`;
+      ensureSpace(doc.heightOfString(text, { width: 515 }) + 2);
+      doc.text(text, 40, doc.y, { width: 515 });
+    }
+    doc.fontSize(10);
+    doc.text(`Поставка без НДС: ${money(supply.supplyPrice)}`, 40, doc.y);
+    if (calc.includeVat) doc.text(`НДС поставки: ${money(supply.supplyVat)}`, 40, doc.y);
+    doc.text(
+      `Себестоимость итого: ${money(commercial.total.cost)}. Прибыль: ${money(commercial.total.profit)}. Маржа без НДС: ${commercial.total.marginPercent === null ? 'не определена' : `${commercial.total.marginPercent.toFixed(2)}%`}`,
+      40,
+      doc.y,
+    );
+    if (supply.incomplete) {
+      const text = `Неполные данные (не считаются нулём): ${supply.problems.join('; ')}`;
+      ensureSpace(doc.heightOfString(text, { width: 515 }) + 2);
+      doc.text(text, 40, doc.y, { width: 515 });
+    }
+  }
   doc
     .font('bold')
     .fontSize(11)
     .text(
-      `ИТОГО К ОПЛАТЕ: ${formatCurrency(commercial.grandTotal, commercial.currency, { decimals: commercial.pricingMode === 'legacy_markup' ? 0 : 2 })}`,
+      `ИТОГО К ОПЛАТЕ: ${money(commercial.total.grandTotal)}${commercial.total.incomplete ? ' (неполная сумма)' : ''}`,
       40,
       doc.y,
     );

@@ -2,6 +2,8 @@ import { prisma } from './prisma';
 import { loadSpecification } from './specification/store';
 import { SpecificationError } from './specification/validation';
 import { safeJsonParse } from './json';
+import { loadSupply } from './commercialContourData';
+import type { SupplyBreakdown } from './supply';
 
 export interface StageForExport {
   name: string;
@@ -49,6 +51,8 @@ export interface CalculationForExport {
   discountPercent?: number;
   vatPercent?: number;
   includeVat?: boolean;
+  /** #103 §4.2: поставка и статьи затрат КП; null/undefined — только труд. */
+  supply?: SupplyBreakdown | null;
 }
 
 /** Shared shape/query for the PDF, XLSX and JSON export routes. */
@@ -94,6 +98,7 @@ export async function loadCalculationForExport(
     discountPercent: calculation.discountPercent,
     vatPercent: calculation.vatPercent,
     includeVat: calculation.includeVat,
+    supply: await loadSupply(calculation),
   };
 }
 

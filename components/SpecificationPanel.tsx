@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import ExchangeRatesEditor from './specification/ExchangeRatesEditor';
 import GplUpdatesPanel from './specification/GplUpdatesPanel';
 import ReplacementsPanel from './specification/ReplacementsPanel';
 import BomImportPanel from './specification/BomImportPanel';
@@ -302,6 +303,10 @@ export default function SpecificationPanel({
     ['rationale', 'Основание количества / выбора'],
     ['unitPrice', 'Цена за единицу (пусто — неизвестно; 0 — бесплатно)'],
     ['currency', 'Валюта'],
+    ['purchasePrice', 'Цена закупки за ед. (необязательно)'],
+    ['salePrice', 'Цена продажи за ед. в КП (пусто — цена за единицу)'],
+    ['discountPercent', 'Скидка строки, %'],
+    ['vatRate', 'НДС строки, % (пусто — ставка КП)'],
     ['changeReason', 'Причина изменения в этой редакции'],
   ];
 
@@ -647,6 +652,13 @@ export default function SpecificationPanel({
                   onChange={(e) => change({ ...spec, emptySupplyReason: e.target.value })}
                 />
               </label>
+            )}
+            {spec.items.length > 0 && (
+              <ExchangeRatesEditor
+                spec={spec}
+                disabled={disabled}
+                onChange={(exchangeRates) => change({ ...spec, exchangeRates })}
+              />
             )}
             <div className="flex flex-wrap gap-2">
               <button

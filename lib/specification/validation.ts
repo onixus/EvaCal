@@ -12,6 +12,7 @@ import {
   FINAL_SPECIFICATION_STATUSES,
   SpecificationItem,
   SpecificationSnapshot,
+  type SpecificationExchangeRate,
 } from './types';
 
 export class SpecificationError extends Error {
@@ -239,6 +240,7 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
       rationale: text(row.rationale, 'Основание'),
       confirmed: row.confirmed,
       unitPrice: row.unitPrice as string | null,
+      ...parsePriceSplit(row),
       currency,
       ...(changeReason ? { changeReason } : {}),
       ...(includedIn ? { includedIn } : {}),
@@ -271,7 +273,72 @@ export function parseSpecification(input: unknown): SpecificationSnapshot {
     emptySupplyReason: text(data.emptySupplyReason, 'Причина отсутствия поставки'),
     items,
     ...(sizingRunIds === undefined ? {} : { sizingRunIds }),
+    ...parseSnapshotExchangeRates(data.exchangeRates),
   };
+}
+
+const PERCENT_RE = /^(100(\.0{1,6})?|[1-9]?\d(\.\d{1,6})?)$/;
+export const RATE_RE = /^(0|[1-9]\d{0,9})(\.\d{1,8})?$/;
+
+/** #101 §3: optional price split of a row; empty/null/undefined — field not set. */
+export function parsePriceSplit(
+  row: Record<string, unknown>,
+): Pick<SpecificationItem, 'purchasePrice' | 'salePrice' | 'discountPercent' | 'vatRate'> {
+  const out: Pick<
+    SpecificationItem,
+    'purchasePrice' | 'salePrice' | 'discountPercent' | 'vatRate'
+  > = {};
+  const fields = [
+    ['purchasePrice', 'Цена закупки', isDecimal],
+    ['salePrice', 'Цена продажи', isDecimal],
+    [
+      'discountPercent',
+      'Скидка строки, %',
+      (v: unknown) => typeof v === 'string' && PERCENT_RE.test(v),
+    ],
+    [
+      'vatRate',
+      'Ставка НДС строки, %',
+      (v: unknown) => typeof v === 'string' && PERCENT_RE.test(v),
+    ],
+  ] as const;
+  for (const [key, label, valid] of fields) {
+    const value = row[key];
+    if (value === undefined || value === null || value === '') continue;
+    if (!valid(value)) throw new SpecificationError(`${label}: неотрицательное десятичное число`);
+    out[key] = value as string;
+  }
+  return out;
+}
+
+/** #101 §3: курсы пересчёта снимка; пара валют встречается не более одного раза. */
+export function parseSnapshotExchangeRates(input: unknown): {
+  exchangeRates?: SpecificationExchangeRate[];
+} {
+  if (input === undefined || input === null) return {};
+  if (!Array.isArray(input) || input.length > 50)
+    throw new SpecificationError('Курсы пересчёта: список до 50 пар валют');
+  const seen = new Set<string>();
+  const rates = input.map((raw: unknown) => {
+    const r = record(raw, 'курса');
+    const from = text(r.from, 'Курс: из валюты', 3);
+    const to = text(r.to, 'Курс: в валюту', 3);
+    if (!/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to) || from === to)
+      throw new SpecificationError('Курс: две разные валюты, коды из 3 букв');
+    if (typeof r.rate !== 'string' || !RATE_RE.test(r.rate) || !/[1-9]/.test(r.rate))
+      throw new SpecificationError(`Курс ${from}→${to}: положительное число, до 8 знаков`);
+    const date = text(r.date, 'Дата курса', 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`)))
+      throw new SpecificationError(`Курс ${from}→${to}: дата ГГГГ-ММ-ДД`);
+    const source = text(r.source, 'Источник курса', 200);
+    if (!source) throw new SpecificationError(`Курс ${from}→${to}: укажите источник`);
+    const key = `${from}>${to}`;
+    if (seen.has(key)) throw new SpecificationError(`Курс ${from}→${to} указан дважды`);
+    seen.add(key);
+    const rateId = r.rateId === undefined ? '' : text(r.rateId, 'ID курса', 100);
+    return { from, to, rate: r.rate, date, source, ...(rateId ? { rateId } : {}) };
+  });
+  return rates.length ? { exchangeRates: rates } : {};
 }
 
 export function specificationBlockers(spec?: SpecificationSnapshot): string[] {

@@ -31,6 +31,24 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
       return NextResponse.json({ error: 'Календарь не найден' }, { status: 400 });
     }
   }
+  // #103 §4.3: порог маржи, % (0 ≤ x < 100); null/'' — без порога.
+  let minMarginPercent: number | null | undefined;
+  if (body.minMarginPercent !== undefined) {
+    const raw = body.minMarginPercent;
+    minMarginPercent = raw === null || raw === '' ? null : Number(raw);
+    if (
+      minMarginPercent !== null &&
+      (typeof raw === 'boolean' ||
+        !Number.isFinite(minMarginPercent) ||
+        minMarginPercent < 0 ||
+        minMarginPercent >= 100)
+    ) {
+      return NextResponse.json(
+        { error: 'Порог маржи: от 0 до 100% (не включая) или пусто' },
+        { status: 400 },
+      );
+    }
+  }
   const template = await prisma.formTemplate.update({
     where: { id: params.id },
     data: {
@@ -46,6 +64,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
         : {}),
       ...(body.includeWeekends !== undefined ? { includeWeekends: !!body.includeWeekends } : {}),
       ...(calendarId !== undefined ? { calendarId } : {}),
+      ...(minMarginPercent !== undefined ? { minMarginPercent } : {}),
     },
   });
   return NextResponse.json(template);

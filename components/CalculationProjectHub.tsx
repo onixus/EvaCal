@@ -8,6 +8,7 @@ import GanttChart, { GanttStage } from './GanttChart';
 import TotalsSummary, { RiskRow } from './TotalsSummary';
 import ExportLinks from './ExportLinks';
 import CommercialProposalPanel from './CommercialProposalPanel';
+import CommercialContourPanel from './CommercialContourPanel';
 import TraceabilityMatrixView from './gost34/TraceabilityMatrixView';
 import ScenarioAnalysisPanel from './ScenarioAnalysisPanel';
 import SpecificationPanel from './SpecificationPanel';
@@ -260,6 +261,7 @@ export default function CalculationProjectHub({ calculation }: { calculation: Ca
           initialIncludeVat={calculation.includeVat}
         />
       )}
+      {activeTab === 'commercial' && <CommercialContourPanel calculationId={calculation.id} />}
 
       {/* Tab: Scenario Analysis */}
       {activeTab === 'scenarios' && (

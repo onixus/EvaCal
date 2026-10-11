@@ -1,6 +1,7 @@
 import { ROLES, roleLabel } from './roles';
 import { totalLaborHours } from './scheduling';
 import { risksTotalHours } from './totals';
+import type { SupplyBreakdown } from './supply';
 
 export const DEFAULT_ROLE_RATES: Record<string, number> = {
   architect: 5500,
@@ -62,6 +63,24 @@ export interface CommercialConfig {
   discountPercent?: number;
   vatPercent?: number;
   includeVat?: boolean;
+  /**
+   * #103 §4.2: поставка закреплённой спецификации и статьи затрат (см. lib/supply.ts).
+   * Не передано / null — КП только по труду, как в исторических расчётах.
+   */
+  supply?: SupplyBreakdown | null;
+}
+
+/** Итог КП: услуги (труд и статьи затрат) + поставка. */
+export interface CommercialTotal {
+  cost: number;
+  priceExVat: number;
+  vat: number;
+  grandTotal: number;
+  profit: number;
+  /** profit / priceExVat × 100; null — нулевая выручка. */
+  marginPercent: number | null;
+  /** Есть неизвестные цены, себестоимости или курсы: суммы — по известной части. */
+  incomplete: boolean;
 }
 
 export interface CommercialSummary {
@@ -93,6 +112,11 @@ export interface CommercialSummary {
   vatAmount: number;
   grandTotal: number;
   blendedHourlyRate: number; // Effective rate per hour (subtotal / directLaborHours)
+  /** Статьи затрат без связи со спецификацией: входят в totalCost до наценки. */
+  costItemsCost: number;
+  supply: SupplyBreakdown | null;
+  /** Итог с поставкой; без поставки совпадает с полями услуг. */
+  total: CommercialTotal;
 }
 
 export type PricingMode = 'legacy_markup' | 'markup' | 'target_margin';
@@ -281,12 +305,14 @@ export function calculateCommercialSummary(
     item.sharePercent = directLaborCost > 0 ? Math.round((item.cost / directLaborCost) * 100) : 0;
   }
 
-  // 6. Overheads
+  // 6. Overheads (only on labour) + standalone cost items (#103 §4.2)
+  const supply = config.supply ?? null;
+  const costItemsCost = supply?.costItemsCost ?? 0;
   const overheadAmount = money(directLaborCost * (overheadPercent / 100));
   const totalCost =
     pricingMode === 'legacy_markup'
-      ? directLaborCost + overheadAmount
-      : money(directLaborCost + overheadAmount);
+      ? directLaborCost + overheadAmount + money(costItemsCost)
+      : money(directLaborCost + overheadAmount + costItemsCost);
 
   // 7. Margin / Target Price
   const priceBeforeDiscount =
@@ -321,7 +347,39 @@ export function calculateCommercialSummary(
   // 10. Effective blended rate per hour
   const blendedHourlyRate = directLaborHours > 0 ? money(subtotalExVat / directLaborHours) : 0;
 
+  // 11. Total with supply: supply lines carry their own sale prices (no markup,
+  // no calculation-level discount); without supply the total equals the services.
+  let total: CommercialTotal;
+  if (!supply) {
+    total = {
+      cost: totalCost,
+      priceExVat: subtotalExVat,
+      vat: vatAmount,
+      grandTotal,
+      profit: profitAfterDiscount,
+      marginPercent: effectiveMarginPercent,
+      incomplete: false,
+    };
+  } else {
+    const cost = money(totalCost + supply.supplyCost);
+    const priceExVat = money(subtotalExVat + supply.supplyPrice);
+    const vat = money(vatAmount + (includeVat ? supply.supplyVat : 0));
+    const profit = money(priceExVat - cost);
+    total = {
+      cost,
+      priceExVat,
+      vat,
+      grandTotal: money(priceExVat + vat),
+      profit,
+      marginPercent: priceExVat > 0 ? (profit / priceExVat) * 100 : null,
+      incomplete: supply.incomplete,
+    };
+  }
+
   return {
+    costItemsCost,
+    supply,
+    total,
     pricingMode,
     profitAfterDiscount,
     effectiveMarginPercent,
