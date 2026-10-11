@@ -4,7 +4,10 @@ import { useState, useMemo, useEffect } from 'react';
 import { withShareHeaders } from '@/lib/shareClient';
 import { supplyItemsText } from '@/lib/gost34/traceability/supply';
 import type { SpecificationItem } from '@/lib/specification/types';
-import type { RequirementOptions } from '@/lib/specification/requirements';
+import {
+  requirementItemsFromOptions,
+  type RequirementOptions,
+} from '@/lib/specification/requirements';
 import {
   buildFullTraceabilityMatrix,
   TraceabilityMatrixItem,
@@ -57,15 +60,7 @@ export default function TraceabilityMatrixView({
     ])
       .then(([options, spec]: [RequirementOptions | null, { specification?: unknown } | null]) => {
         if (controller.signal.aborted) return;
-        setPackageRequirements(
-          (options?.requirements ?? []).map((r) => ({
-            id: r.id,
-            code: r.code,
-            category: (r.category || 'functional') as Gost34RequirementItem['category'],
-            title: r.title,
-            description: r.description,
-          })),
-        );
+        setPackageRequirements(requirementItemsFromOptions(options));
         const snapshot = (spec?.specification as { snapshot?: { items?: SpecificationItem[] } })
           ?.snapshot;
         setSpecificationItems(snapshot?.items ?? []);

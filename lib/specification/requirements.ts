@@ -8,6 +8,7 @@
  * документы печатали обоснование без обращения к текущему комплекту.
  */
 import type { SpecificationItem, SpecificationSnapshot } from './types';
+import type { Gost34RequirementItem } from '../gost34/types';
 
 export interface RequirementOption {
   id: string;
@@ -122,4 +123,20 @@ export function requirementBasisText(
   item: Pick<SpecificationItem, 'requirementIds' | 'requirementCodes'>,
 ): string {
   return (item.requirementIds ?? []).map((id) => item.requirementCodes?.[id] || id).join(', ');
+}
+
+/**
+ * Требования комплекта в форме генератора ГОСТ 34: общий источник матрицы
+ * прослеживаемости для вкладки «Трассируемость» и XLSX расчета.
+ */
+export function requirementItemsFromOptions(
+  options: RequirementOptions | null | undefined,
+): Gost34RequirementItem[] {
+  return (options?.requirements ?? []).map((r) => ({
+    id: r.id,
+    code: r.code,
+    category: (r.category || 'functional') as Gost34RequirementItem['category'],
+    title: r.title,
+    description: r.description,
+  }));
 }
