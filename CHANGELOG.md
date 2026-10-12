@@ -16,6 +16,7 @@
 - GOST 34 PZ/TZ no longer invent platforms or supply items; presale sizing defaults are marked as unconfirmed assumptions.
 - Presale picks the template and product for a calculation itself; hidden templates are no longer returned.
 - Migrated to Tailwind CSS 4; runtime dependency vulnerabilities fixed.
+- nginx config and certificate bind mounts are relabeled for SELinux (`:ro,z`), so installations on SELinux-enforcing hosts (RHEL, Fedora) no longer fail with `Permission denied` on `nginx.conf`.
 - Specification rows can reference GOST package requirements (`requirementIds`); unknown ids are saved with a warning, requirement codes are copied into the revision and printed in SPEC DOCX/XLSX, and the traceability matrix shows the supplying rows. Sizing metrics propose catalog candidates (several alternatives with quantity and cost from confirmed offers, unknown price stays unknown); a candidate is added to a draft only on explicit choice. Sizing inputs are no longer reset when the profile list reloads (#101, see [docs/specification.md](docs/specification.md), [docs/sizing.md](docs/sizing.md)).
 
 - Compliance evidence (software/hardware registry entries and certificates) per catalog product with source, check date, exact applicability, status and validity; SPEC and PZ print only current confirmed evidence of confirmed rows, otherwise «Не подтверждено»; the static vendor registry is removed (#101, see [docs/specification.md](docs/specification.md)).

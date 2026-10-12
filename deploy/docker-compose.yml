@@ -97,7 +97,7 @@ services:
     ports:
       - '${EVACAL_BIND_ADDRESS:-0.0.0.0}:${EVACAL_HTTP_PORT:-80}:80'
     volumes:
-      - ./nginx:/etc/nginx/evacal:ro
+      - ./nginx:/etc/nginx/evacal:ro,z
     command: ['nginx', '-c', '/etc/nginx/evacal/nginx.conf', '-g', 'daemon off;']
     healthcheck:
       test: ['CMD-SHELL', 'wget -q --spider http://127.0.0.1/api/health || exit 1']

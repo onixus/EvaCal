@@ -3,4 +3,4 @@ services:
     ports:
       - '${EVACAL_BIND_ADDRESS:-0.0.0.0}:${EVACAL_HTTPS_PORT:-443}:443'
     volumes:
-      - ./certs:/etc/nginx/certs:ro
+      - ./certs:/etc/nginx/certs:ro,z
