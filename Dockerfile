@@ -4,6 +4,8 @@ WORKDIR /app
 # prepare requires sources locally; in a dependency-only layer it must be skipped.
 ENV CI=true
 COPY package.json package-lock.json ./
+# xlsx is vendored (file:vendor/...) — SheetJS is not on the npm registry.
+COPY vendor ./vendor
 RUN npm ci
 
 # --- builder ---
