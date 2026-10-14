@@ -4,6 +4,9 @@ WORKDIR /app
 # prepare requires sources locally; in a dependency-only layer it must be skipped.
 ENV CI=true
 COPY package.json package-lock.json ./
+# xlsx is vendored (file:vendor/..., see vendor/README.md): the npm registry copy
+# is stuck at the vulnerable 0.18.5, newer versions ship only via cdn.sheetjs.com.
+COPY vendor ./vendor
 RUN npm ci
 
 # --- builder ---
