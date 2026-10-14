@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- SheetJS `xlsx` 0.20.3 is vendored as `vendor/xlsx-0.20.3.tgz` instead of the moving `xlsx-latest` CDN URL: `npm ci` and Docker builds no longer break on a new SheetJS release (integrity mismatch) or on `cdn.sheetjs.com` timeouts.
+- SheetJS `xlsx` 0.20.3 is vendored as `vendor/xlsx-0.20.3.tgz` instead of the moving `xlsx-latest` CDN URL: `npm ci` and Docker builds no longer break on a new SheetJS release (integrity mismatch) or on `cdn.sheetjs.com` timeouts (#139).
 
 ## 0.8.0 - 2026-10-11
 
