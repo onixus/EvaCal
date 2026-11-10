@@ -27,13 +27,16 @@ const STATUS_FILTERS = [
 export default async function CalculationsPage(props: {
   searchParams: Promise<{ page?: string; status?: string; search?: string }>;
 }) {
-  const session = await requireRole(['presale', 'architect', 'gap', 'admin'], '/calculations');
+  const session = await requireRole(['presale', 'architect', 'admin'], '/calculations');
   const sp = await props.searchParams;
   const page = parsePage(sp.page);
   const status = STATUS_FILTERS.some((f) => f.value === sp.status) ? sp.status! : 'all';
   const search = sp.search?.trim() || '';
 
-  const where: Record<string, unknown> = {};
+  // Тот же контур, что у GET /api/calculations: архитектор и админ видят архив,
+  // пресейл — только свои. ГАП к смете приходит из очереди ревью, не из архива.
+  const where: Record<string, unknown> =
+    session.role === 'presale' ? { createdBy: session.username } : {};
   if (status !== 'all') where.status = status;
   if (search) {
     where.OR = [

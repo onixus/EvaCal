@@ -1,4 +1,4 @@
-import { ROLES, roleLabel } from './roles';
+import { ROLES, roleLabel, canonicalRole, normalizeRoleKey } from './roles';
 import { totalLaborHours } from './scheduling';
 import { risksTotalHours } from './totals';
 import type { SupplyBreakdown } from './supply';
@@ -210,6 +210,32 @@ function safePercent(val: unknown, fallback: number): number {
 }
 
 /**
+ * Ключ ставки для этапа.
+ * Точный ключ в ставках побеждает (в том числе произвольный кастомный).
+ * Иначе — каноническая роль, если её ставка есть.
+ * Иначе — синоним целиком (`software engineer` → developer), но не подстрока.
+ * Неуверенное совпадение — `other`, никогда чужая платная роль.
+ */
+export function resolveStageRoleKey(
+  role: string | undefined,
+  rates: Record<string, number>,
+): string {
+  if (!role) return 'other';
+  if (rates[role] !== undefined) return role;
+  const canonical = canonicalRole(role);
+  if (canonical && rates[canonical] !== undefined) return canonical;
+  const normalized = normalizeRoleKey(role);
+  if (normalized !== 'other' && rates[normalized] !== undefined) return normalized;
+  return 'other';
+}
+
+/** Ставка часа: exact → canonical → уверенный синоним → other. */
+export function resolveStageRate(role: string, rates: Record<string, number>): number {
+  const key = resolveStageRoleKey(role, rates);
+  return rates[key] ?? rates.other ?? DEFAULT_ROLE_RATES.other ?? 3000;
+}
+
+/**
  * Calculates complete financial and commercial metrics for a calculation.
  */
 export function calculateCommercialSummary(
@@ -248,7 +274,7 @@ export function calculateCommercialSummary(
 
   for (const stage of stages) {
     if (stage.isApprovalTask) continue;
-    const roleKey = stage.role && roleRates[stage.role] !== undefined ? stage.role : 'other';
+    const roleKey = resolveStageRoleKey(stage.role, roleRates);
     roleHoursMap[roleKey] = (roleHoursMap[roleKey] || 0) + stage.hours;
   }
 

@@ -9,9 +9,9 @@ import { recordInternalChangeSafe } from '@/lib/changelog';
 import { countOpenBlockers } from '@/lib/review/store';
 import { notificationActorName, notifySafe, returnedDrafts } from '@/lib/review/notifications';
 import {
+  canDecideReviewStage,
   REVIEW_STAGE_LABELS,
   REVIEW_STAGE_ROLES,
-  SHARE_ALLOWED_STAGES,
   type ReviewStage,
 } from '@/lib/gost34/review/types';
 
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     if (access instanceof NextResponse) return access;
 
     const body = await req.json();
-    const { decision, comment, reviewerName } = body;
+    const { decision, comment } = body;
 
     if (decision !== 'approve' && decision !== 'reject') {
       return NextResponse.json(
@@ -55,33 +55,32 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       );
     }
 
-    const actorDisplayName =
-      reviewerName?.trim() || (access.kind === 'staff' ? access.session?.username : access.actorId);
-
     const stageBefore = (pkg.reviewStage === 'gap' ? 'gap' : 'tw') as ReviewStage;
 
-    // Решение на этапе выносит только та роль, которой этот этап принадлежит:
-    // нормоконтроль — ревьювер, финальную подпись — ГАП. Проверка стоит здесь,
-    // а не в UI, иначе прямой запрос к API обходит разделение ответственности.
-    const allowedRoles = REVIEW_STAGE_ROLES[stageBefore as 'tw' | 'gap'];
-    if (access.kind === 'staff') {
-      const role = access.session?.role ?? '';
-      if (!allowedRoles.includes(role)) {
-        return NextResponse.json(
-          {
-            error: `Этап «${REVIEW_STAGE_LABELS[stageBefore]}» выносит другая роль: ${allowedRoles.join(', ')}. Текущая роль — ${role || 'не определена'}.`,
-          },
-          { status: 403 },
-        );
-      }
-    } else if (!SHARE_ALLOWED_STAGES.includes(stageBefore)) {
+    // Вердикт выносит только сотрудник, чья роль закреплена за этапом
+    // (нормоконтроль — тех.писатель, выпуск — ГАП; админ ведёт оба).
+    // Share-ссылка и анонимный вход вердикта не выносят: scope `review` даёт
+    // чтение комплекта, но не подпись, иначе гость по ссылке ставил бы
+    // финальную подпись ГАПа и подменял approvedBy именем из тела запроса.
+    // Имя из тела (reviewerName) не используется вовсе.
+    if (access.kind !== 'staff' || !canDecideReviewStage(access.session?.role, stageBefore)) {
+      const allowedRoles = REVIEW_STAGE_ROLES[stageBefore as 'tw' | 'gap'];
+      const role = access.kind === 'staff' ? access.session?.role || 'не определена' : 'гость';
       return NextResponse.json(
         {
-          error: `Этап «${REVIEW_STAGE_LABELS[stageBefore]}» недоступен по share-ссылке: решение принимает ГАП в системе.`,
+          error:
+            access.kind === 'staff'
+              ? `Этап «${REVIEW_STAGE_LABELS[stageBefore]}» выносит другая роль: ${allowedRoles.join(', ')}. Текущая роль — ${role}.`
+              : `Этап «${REVIEW_STAGE_LABELS[stageBefore]}» недоступен по share-ссылке: решение принимает специалист в системе.`,
         },
         { status: 403 },
       );
     }
+
+    // Подпись и аудит — стабильный id сессии, не логин и не имя из тела.
+    // В журнал изменений пишем логин: там имя читает человек.
+    const actorId = access.session?.userId || access.actorId;
+    const actorUsername = access.session?.username || actorId;
 
     // Блокеры считаются на сервере из сохранённого состояния ревью, а не берутся
     // из тела запроса: иначе утверждение мимо UI обошло бы нормоконтроль.
@@ -92,15 +91,15 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const updated = await reviewGostPackage({
       packageId: pkg.id,
       decision,
-      actorId: actorDisplayName,
+      actorId,
       comment: comment?.trim(),
       openBlockers,
     });
 
     await recordInternalChangeSafe({
       calculationId: pkg.calculationId,
-      author: actorDisplayName || 'reviewer',
-      role: access.kind === 'staff' ? (access.session?.role ?? 'reviewer') : 'reviewer',
+      author: actorUsername,
+      role: access.session?.role ?? 'reviewer',
       docRef: `Комплект · v${pkg.version}`,
       text:
         decision === 'approve'
@@ -114,7 +113,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     await writeAudit({
       actorType: actorTypeFromAccess(access.kind),
-      actorId: actorDisplayName,
+      actorId,
       action: decision === 'approve' ? 'gost_package.approve' : 'gost_package.reject',
       entityType: 'gost_package',
       entityId: pkg.id,
@@ -124,6 +123,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         status: updated.status,
         stageBefore,
         stageAfter: updated.reviewStage,
+        username: access.session?.username ?? null,
       },
       ip: clientIp(req),
     });

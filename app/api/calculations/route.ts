@@ -11,21 +11,37 @@ import { grandTotalHours } from '@/lib/totals';
 import { pageArgs, paginationHeaders, parseLimit, parsePage } from '@/lib/pagination';
 import { createShareToken, requireCalcAccess, requireInternalRole } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
+import { validateCommercialUpdate } from '@/lib/commercial';
 import { getOrCreateProject } from '@/lib/project';
+import { hasArchitectPowers } from '@/lib/appRoles';
 
-// Список виден всем вошедшим сотрудникам (пресейл, архитектор, ревьювер,
-// админ), но не гостям по ссылке: анонимной выгрузки коммерческого архива нет.
+// Коммерческий архив: архитектор и админ видят все расчёты, пресейл — только
+// свои (createdBy = логин). Тех.писатель, ГАП и рецензент право `read` имеют,
+// но список ставок им не отдаётся — к расчёту они приходят по id комплекта.
+// Гости по share-ссылке общего листинга не имеют.
 export async function GET(req: NextRequest) {
   const auth = await requireInternalRole(['read']);
   if (auth instanceof NextResponse) return auth;
+
+  if (auth.role !== 'presale' && !hasArchitectPowers(auth.role)) {
+    return NextResponse.json(
+      { error: 'Коммерческий архив доступен архитектору, администратору и автору расчёта' },
+      { status: 403 },
+    );
+  }
 
   const { searchParams } = new URL(req.url);
   const limit = parseLimit(searchParams.get('limit'));
   const page = parsePage(searchParams.get('page') ?? undefined);
 
+  // createdBy хранится логином, не userId. Чужие, пустые и служебные
+  // (presale / presale-share / system) пресейлу не принадлежат.
+  const where = auth.role === 'presale' ? { createdBy: auth.username } : {};
+
   const [total, calculations] = await Promise.all([
-    prisma.calculation.count(),
+    prisma.calculation.count({ where }),
     prisma.calculation.findMany({
+      where,
       ...pageArgs(page, limit),
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
@@ -112,6 +128,24 @@ export async function POST(req: NextRequest) {
   });
   const version = (latestInProject?.version ?? 0) + 1;
 
+  // Ставки шаблона копируются как есть (колонка — JSON-строка, не кодируем повторно).
+  // Подменить их при создании могут только архитектор и админ: пресейл, share
+  // и аноним иначе обнулили бы ставки до первого сохранения сметы.
+  let resolvedRoleRatesJson = template.defaultRoleRates ?? null;
+  const mayOverrideRates = access.kind === 'staff' && hasArchitectPowers(access.session?.role);
+  if (mayOverrideRates && body.roleRates !== undefined && body.roleRates !== null) {
+    try {
+      validateCommercialUpdate(
+        { roleRates: body.roleRates },
+        { pricingMode: 'legacy_markup', marginPercent: 0 },
+      );
+    } catch (error) {
+      return NextResponse.json({ error: (error as Error).message }, { status: 400 });
+    }
+    resolvedRoleRatesJson =
+      typeof body.roleRates === 'object' ? JSON.stringify(body.roleRates) : body.roleRates;
+  }
+
   const calculation = await prisma.calculation.create({
     data: {
       name,
@@ -123,6 +157,7 @@ export async function POST(req: NextRequest) {
       createdBy,
       projectId: targetProjectId,
       version,
+      roleRates: resolvedRoleRatesJson,
       // #103 §4.3: порог маржи фиксируется в расчёте на момент создания.
       minMarginPercent: template.minMarginPercent ?? null,
     },

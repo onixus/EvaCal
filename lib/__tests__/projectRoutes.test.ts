@@ -10,6 +10,7 @@ import { POST as createVersion } from '@/app/api/calculations/[id]/version/route
 
 vi.mock('@/lib/access', () => ({
   requireStaff: vi.fn(),
+  requireInternalRole: vi.fn(),
   requireCalcAccess: vi.fn(),
 }));
 
@@ -48,7 +49,7 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
-import { requireStaff, requireCalcAccess } from '@/lib/access';
+import { requireStaff, requireCalcAccess, requireInternalRole } from '@/lib/access';
 import { requireApiRole } from '@/lib/auth';
 import { getOrCreateProject, getProjectDetails, createCalculationVersion } from '@/lib/project';
 import { prisma } from '@/lib/prisma';
@@ -60,7 +61,7 @@ describe('Project API routes', () => {
 
   describe('GET /api/projects', () => {
     it('returns paginated list of projects for staff', async () => {
-      vi.mocked(requireStaff).mockResolvedValue({
+      vi.mocked(requireInternalRole).mockResolvedValue({
         userId: 'u1',
         username: 'arch',
         role: 'architect',
@@ -89,7 +90,7 @@ describe('Project API routes', () => {
     });
 
     it('denies unauthenticated request', async () => {
-      vi.mocked(requireStaff).mockResolvedValue(
+      vi.mocked(requireInternalRole).mockResolvedValue(
         NextResponse.json({ error: 'unauthorized' }, { status: 401 }),
       );
 
@@ -146,7 +147,7 @@ describe('Project API routes', () => {
 
   describe('GET /api/projects/[id]', () => {
     it('returns project details', async () => {
-      vi.mocked(requireStaff).mockResolvedValue({
+      vi.mocked(requireInternalRole).mockResolvedValue({
         userId: 'u1',
         username: 'arch',
         role: 'architect',
@@ -165,6 +166,47 @@ describe('Project API routes', () => {
       expect(res.status).toBe(200);
       const json = await res.json();
       expect(json.id).toBe('p1');
+    });
+
+    it('пресейл видит в карточке только свои расчёты', async () => {
+      vi.mocked(requireInternalRole).mockResolvedValue({
+        userId: 'u1',
+        username: 'ivanov',
+        role: 'presale',
+        exp: Date.now() + 10000,
+      });
+
+      vi.mocked(getProjectDetails).mockResolvedValue({
+        id: 'p1',
+        name: 'Проект 1',
+        calculations: [
+          { id: 'c1', createdBy: 'ivanov' },
+          { id: 'c2', createdBy: 'petrov' },
+          { id: 'c3', createdBy: 'presale-share' },
+        ],
+      } as any);
+
+      const req = new NextRequest('http://localhost:3000/api/projects/p1');
+      const res = await getProject(req, { params: Promise.resolve({ id: 'p1' }) });
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.calculations.map((c: { id: string }) => c.id)).toEqual(['c1']);
+    });
+
+    it('тех.писатель карточку проекта не открывает', async () => {
+      vi.mocked(requireInternalRole).mockResolvedValue({
+        userId: 'u1',
+        username: 'tw',
+        role: 'techwriter',
+        exp: Date.now() + 10000,
+      });
+
+      const req = new NextRequest('http://localhost:3000/api/projects/p1');
+      const res = await getProject(req, { params: Promise.resolve({ id: 'p1' }) });
+
+      expect(res.status).toBe(403);
+      expect(getProjectDetails).not.toHaveBeenCalled();
     });
   });
 
@@ -295,6 +337,26 @@ describe('Project API routes', () => {
       const json = await res.json();
       expect(json.id).toBe('calc_v2');
       expect(json.version).toBe(2);
+    });
+
+    it('не даёт пресейлу клонировать чужой расчёт', async () => {
+      vi.mocked(requireCalcAccess).mockResolvedValue({
+        kind: 'staff',
+        session: { userId: 'u2', username: 'presale1', role: 'presale', exp: 123 },
+        actorId: 'u2',
+      });
+      vi.mocked(prisma.calculation.findUnique).mockResolvedValue({
+        createdBy: 'other',
+      } as never);
+
+      const req = new NextRequest('http://localhost:3000/api/calculations/calc_1/version', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      const res = await createVersion(req, { params: Promise.resolve({ id: 'calc_1' }) });
+
+      expect(res.status).toBe(403);
+      expect(createCalculationVersion).not.toHaveBeenCalled();
     });
   });
 });

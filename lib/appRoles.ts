@@ -227,7 +227,6 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     { href: '/review', label: 'Проверка документов', group: 'work', badgeKey: 'gapQueue' },
     BOARD,
     PROJECTS,
-    CALCULATIONS,
     CHANGELOG,
     STANDARDS,
     CAPACITY,

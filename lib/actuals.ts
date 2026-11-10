@@ -10,6 +10,8 @@ import {
   DEFAULT_ROLE_RATES,
   calculateCommercialSummary,
   resolveRoleRates,
+  resolveStageRate,
+  resolveStageRoleKey,
   type CommercialConfig,
 } from './commercial';
 import { median, round1, round2 } from './stats';
@@ -326,7 +328,8 @@ export function actualMargin(input: ActualMarginInput): ActualMargin {
   for (const s of work) {
     if (s.actualHours === null) continue;
     hours += s.actualHours;
-    cost += s.actualHours * (rates[s.role] ?? DEFAULT_ROLE_RATES.other);
+    const roleKey = resolveStageRoleKey(s.role, rates);
+    cost += s.actualHours * (rates[roleKey] ?? DEFAULT_ROLE_RATES.other);
   }
   if (input.actualPmHours !== null) {
     hours += input.actualPmHours;
@@ -953,9 +956,8 @@ function forecastLine(
  */
 export function profitForecast(input: ProfitForecastInput): ProfitForecast {
   const rates = resolveRoleRates(input.terms.roleRates ?? null);
-  // Так же, как в calculateCommercialSummary: неизвестная роль — ставка «other».
-  const rateOf = (role: string) =>
-    rates[role] !== undefined ? rates[role] : (rates.other ?? DEFAULT_ROLE_RATES.other);
+  // Так же, как в calculateCommercialSummary: exact → canonical → синоним, иначе ставка «other».
+  const rateOf = (role: string) => resolveStageRate(role, rates);
   const quote = calculateCommercialSummary(input.stages, input.pmHours, input.risks, input.terms);
   const overheadPercent = quote.overheadPercent;
   const lines: ForecastLine[] = input.stages
