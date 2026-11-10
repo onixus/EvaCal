@@ -31,7 +31,7 @@ export default async function CapacityPage(props: {
   return (
     <div className="page">
       <PageHeader
-        title="Ресурсный план"
+        title="Загрузка команды"
         description="Загрузка ролей по неделям из Гантов всех проектов. Твёрдый спрос — выигранные и утверждённые; с воронкой — плюс согласование и черновики с весом."
         actions={
           <a

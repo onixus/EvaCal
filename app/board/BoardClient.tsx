@@ -489,7 +489,7 @@ export default function BoardClient({
   return (
     <div className="page-wide">
       <PageHeader
-        title="Доска заявок"
+        title="Доска"
         description="Сметы на утверждение и комплекты ГОСТ 34 по этапам выпуска. Перетащите карточку в следующую колонку, чтобы вынести решение на своём этапе; черновики и возвраты выпускаются из Студии."
         actions={
           <span className="text-xs text-slate-500 dark:text-nord-muted">{total} на доске</span>

@@ -13,7 +13,7 @@ export default async function AgentsPage() {
   return (
     <div className="page">
       <PageHeader
-        title="Харнесс-агенты"
+        title="Помощники"
         description="Подключайте собственные агенты ревью и обогащения комплектов ГОСТ 34: платформа вызывает их по HTTP и показывает находки, ничего не меняя без вашего подтверждения."
       />
       <AgentsManager isAdmin={session.role === 'admin'} />

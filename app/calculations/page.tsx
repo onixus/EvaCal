@@ -79,7 +79,7 @@ export default async function CalculationsPage(props: {
   return (
     <div className="page">
       <PageHeader
-        title="Расчёты и сметы"
+        title="Расчёты"
         description="Все версии расчётов по всем проектам. Чтобы вести проект по этапам, откройте его карточку."
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
