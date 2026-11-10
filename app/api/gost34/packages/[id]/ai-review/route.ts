@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireStaff } from '@/lib/access';
+import { requireStaff, requireCalcAccess } from '@/lib/access';
+import { hasReviewerPowers } from '@/lib/appRoles';
 import { handleApiError } from '@/lib/apiHelpers';
 import { runGrokDocumentReview } from '@/lib/gost34/review/aiReviewEngine';
 import { EndpointNotAllowedError } from '@/lib/gost34/llm/endpointGuard';
@@ -9,6 +10,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const session = await requireStaff();
     if (session instanceof NextResponse) return session;
+
+    if (!hasReviewerPowers(session.role)) {
+      return NextResponse.json(
+        { error: 'Недостаточно прав для запуска ИИ-аудита документа' },
+        { status: 403 },
+      );
+    }
 
     const { id: packageId } = await params;
     const body = await req.json().catch(() => ({}));
@@ -22,6 +30,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!pkg) {
       return NextResponse.json({ error: 'Комплект не найден' }, { status: 404 });
     }
+
+    // Проверяем доступ к расчёту комплекта
+    const access = await requireCalcAccess(req, pkg.calculationId, ['read', 'review']);
+    if (access instanceof NextResponse) return access;
 
     // Собираем секции из сохраненного snapshot или метаданных
     let snapshot: any = null;

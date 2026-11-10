@@ -95,21 +95,28 @@ ${s.content.slice(0, 4000)}`,
     }
   }
 
-  const findings: AiReviewFinding[] = (parsed.findings || []).map((f: any) => ({
-    sectionId: String(f.sectionId || input.sections[0]?.id || 'general'),
-    severity:
-      f.severity === 'blocker' || f.severity === 'remark' || f.severity === 'suggestion'
-        ? f.severity
-        : 'remark',
-    text: String(f.text || '').trim(),
-    clauseRef: f.clauseRef ? String(f.clauseRef) : undefined,
-  }));
+  const findings: AiReviewFinding[] = (Array.isArray(parsed?.findings) ? parsed.findings : [])
+    .slice(0, 100)
+    .map((f: any) => ({
+      sectionId: String(f?.sectionId || input.sections[0]?.id || 'general').slice(0, 100),
+      severity:
+        f?.severity === 'blocker' || f?.severity === 'remark' || f?.severity === 'suggestion'
+          ? f.severity
+          : 'remark',
+      text: String(f?.text || '')
+        .trim()
+        .slice(0, 2000),
+      clauseRef: f?.clauseRef ? String(f.clauseRef).trim().slice(0, 200) : undefined,
+    }))
+    .filter((f: AiReviewFinding) => f.text.length > 0);
 
   return {
     ok: true,
     providerId: provider.id,
     model: completion.model,
-    summary: String(parsed.summary || 'Аудит успешно выполнен.').trim(),
+    summary: String(parsed?.summary || 'Аудит успешно выполнен.')
+      .trim()
+      .slice(0, 1000),
     findings,
     durationMs: Date.now() - started,
   };
