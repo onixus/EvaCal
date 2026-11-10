@@ -30,7 +30,7 @@ export default async function ChangelogIndexPage() {
   return (
     <div className="page">
       <PageHeader
-        title="Лист внутренних изменений"
+        title="Журнал правок"
         description="Журнал правок комплектов и расчётов: inline-правки студии, версии тех.писателя и решения ревью."
       />
 

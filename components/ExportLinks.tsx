@@ -82,10 +82,10 @@ export default function ExportLinks({
         <Link
           href={`/calculations/${calculationId}/studio`}
           className="btn-primary py-1.5! px-3! text-xs font-semibold shadow-xs"
-          title="Студия ГОСТ 34: профиль, требования, применимость, трассируемость и выпуск"
+          title="Документы по ГОСТ 34: профиль, требования, применимость, трассируемость и выпуск"
         >
           <span className="text-sm">📑</span>
-          <span>Студия ГОСТ 34</span>
+          <span>Документы по ГОСТ 34</span>
         </Link>
 
         <div className="flex items-center rounded-lg border border-slate-200 bg-white p-0.5 shadow-xs dark:border-nord-3 dark:bg-nord-2">

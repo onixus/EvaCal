@@ -56,13 +56,7 @@ export default async function ReviewQueuePage() {
   return (
     <div className="page">
       <PageHeader
-        title={
-          single === 'gap'
-            ? 'Финальное ревью — ГАП'
-            : single === 'tw'
-              ? 'Очередь ревью документации'
-              : 'Ревью документации'
-        }
+        title="Проверка документов"
         description={
           single === 'gap'
             ? 'Комплекты, прошедшие нормоконтроль тех.писателя и ожидающие решения о выпуске.'

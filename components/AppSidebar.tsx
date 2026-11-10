@@ -89,7 +89,7 @@ export default function AppSidebar() {
           <span className="flex flex-col leading-none">
             <span className="text-sm font-bold text-slate-900 dark:text-nord-6">EvaCal</span>
             <span className="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-nord-muted">
-              Сметы и ГОСТ 34
+              Сметы и документы по ГОСТ 34
             </span>
           </span>
         </Link>

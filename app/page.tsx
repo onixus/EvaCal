@@ -190,11 +190,11 @@ export default async function HomePage() {
         <div className="card overflow-hidden">
           <div className="bg-linear-to-br/srgb from-brand-600 to-brand-800 p-8 text-white dark:from-nord-1 dark:to-nord-0">
             <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-              Сметы трудозатрат и комплект ГОСТ 34
+              Смета, план и документы по проекту
             </h1>
             <p className="mt-3 max-w-xl text-sm text-brand-100 dark:text-nord-4">
               Один путь проекта: расчёт пресейла → согласование сметы → комплект документации →
-              нормоконтроль и подпись ГАП → сделка.
+              согласование и выпуск → сделка.
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
               <Link href="/login" className="btn btn-lg bg-white text-brand-700 hover:bg-brand-50">
@@ -212,7 +212,10 @@ export default async function HomePage() {
             {[
               ['Расчёт', 'Опросники и автоматическая оценка трудозатрат по ролям и этапам.'],
               ['План', 'Гант с задачами согласования, критический путь и ресурсный план.'],
-              ['ГОСТ 34', 'ТЗ, ПЗ, ПМИ и спецификация в DOCX; двухэтапное ревью выпуска.'],
+              [
+                'Документы',
+                'ТЗ, ПЗ, ПМИ и спецификация в DOCX по ГОСТ 34; двухэтапное ревью выпуска.',
+              ],
             ].map(([t, d]) => (
               <div key={t}>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-nord-6">{t}</h3>

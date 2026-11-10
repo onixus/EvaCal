@@ -45,7 +45,10 @@ export function resolveTitle(
 
   // Студия и лист изменений живут внутри расчёта — у них свои заголовки,
   // иначе они схлопнулись бы в общий «Рабочее пространство расчёта».
-  if (pathname.includes('/studio')) return { root: 'Документация', title: 'Студия ГОСТ 34' };
+  if (pathname.includes('/studio')) return { root: 'Документация', title: 'Документы по ГОСТ 34' };
+  // Журнал — список по всем расчётам. Внутри расчёта это документ комплекта,
+  // и его имя не совпадает с пунктом меню.
+  if (pathname === '/changelog') return { root: 'Документация', title: 'Журнал правок' };
   if (pathname.includes('/changelog')) {
     return { root: 'Документация', title: 'Лист внутренних изменений' };
   }
@@ -53,8 +56,7 @@ export function resolveTitle(
   const detail = DETAIL_TITLES.find(([prefix]) => pathname.startsWith(prefix));
   if (detail) return { root: detail[1], title: detail[2] };
 
-  // Подпись раздела зависит от роли («Очередь нормоконтроля» у тех.писателя,
-  // «Комплекты на подписи» у архитектора) — сперва ищем в её навигации.
+  // Подпись раздела совпадает для всех ролей (например, «Проверка документов» на /review).
   const own = navItemsFor(role).find((item) => item.href !== '/' && pathname.startsWith(item.href));
   const item =
     own ?? NAV_ROUTES.find((route) => route.href !== '/' && pathname.startsWith(route.href));
@@ -114,10 +116,10 @@ export default function AppHeader() {
               data-testid="header-inbox"
               title={
                 queue?.overdue
-                  ? `Требует моего действия: ${queue.count}, просрочено: ${queue.overdue}`
-                  : 'Требует моего действия'
+                  ? `Мои задачи: ${queue.count}, просрочено: ${queue.overdue}`
+                  : 'Мои задачи'
               }
-              aria-label={`Требует моего действия${queue?.count ? `: ${queue.count}` : ''}`}
+              aria-label={`Мои задачи${queue?.count ? `: ${queue.count}` : ''}`}
             >
               <svg
                 aria-hidden="true"

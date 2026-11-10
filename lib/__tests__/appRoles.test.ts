@@ -21,7 +21,8 @@ describe('Ролевая модель платформы', () => {
   it('содержит шесть ролей, включая тех.писателя и ГАПа', () => {
     expect(APP_ROLES.map((r) => r.value)).toEqual(ALL_ROLES);
     expect(appRoleLabel('techwriter')).toBe('Технический писатель');
-    expect(appRoleLabel('gap')).toBe('ГАП (главный архитектор проекта)');
+    expect(appRoleLabel('gap')).toBe('Главный архитектор');
+    expect(appRoleLabel('reviewer')).toBe('Рецензент');
   });
 
   it('у каждой роли есть стартовый экран и своя навигация', () => {

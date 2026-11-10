@@ -33,7 +33,7 @@ export default async function AdminPage(props: { searchParams: Promise<{ page?: 
         actions={
           <>
             <Link href="/admin/solution-kits" className="btn-secondary">
-              Библиотека решений
+              Типовые решения
             </Link>
             <Link href="/admin/capacity" className="btn-secondary">
               Ёмкость ролей

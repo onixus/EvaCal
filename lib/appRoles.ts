@@ -24,7 +24,7 @@ export const APP_ROLES: { value: AppRole; label: string; description: string }[]
   {
     value: 'architect',
     label: 'Архитектор',
-    description: 'Студия ГОСТ 34, выпуск комплектов, архитектурный каталог',
+    description: 'Документы по ГОСТ 34, выпуск комплектов, каталог этапов',
   },
   {
     value: 'techwriter',
@@ -33,12 +33,13 @@ export const APP_ROLES: { value: AppRole; label: string; description: string }[]
   },
   {
     value: 'gap',
-    label: 'ГАП (главный архитектор проекта)',
-    description: 'Финальное ревью и подпись выпуска по итогам нормоконтроля',
+    label: 'Главный архитектор',
+    description:
+      'Финальное ревью и подпись выпуска; главный архитектор проекта по итогам нормоконтроля',
   },
   {
     value: 'reviewer',
-    label: 'Рецензент документации',
+    label: 'Рецензент',
     description: 'Читает комплекты и ведёт замечания; вердикт выносят тех.писатель и ГАП',
   },
   {
@@ -139,38 +140,38 @@ const DASHBOARD: NavItem = { href: '/', label: 'Рабочий стол', group:
  */
 const INBOX: NavItem = {
   href: '/inbox',
-  label: 'Требует моего действия',
+  label: 'Мои задачи',
   group: 'work',
   badgeKey: 'myQueue',
 };
 const PROJECTS: NavItem = { href: '/projects', label: 'Проекты', group: 'work' };
-const CALCULATIONS: NavItem = { href: '/calculations', label: 'Расчёты и сметы', group: 'work' };
-const PRESALE: NavItem = { href: '/presale', label: 'Пресейл-мастер', group: 'work' };
+const CALCULATIONS: NavItem = { href: '/calculations', label: 'Расчёты', group: 'work' };
+const PRESALE: NavItem = { href: '/presale', label: 'Новый расчёт', group: 'work' };
 const STUDIO: NavItem = {
   href: '/studio',
-  label: 'Студия ГОСТ 34',
+  label: 'Документы по ГОСТ 34',
   group: 'work',
   badgeKey: 'studioDrafts',
 };
-const BOARD: NavItem = { href: '/board', label: 'Доска заявок', group: 'work' };
+const BOARD: NavItem = { href: '/board', label: 'Доска', group: 'work' };
 const CHANGELOG: NavItem = {
   href: '/changelog',
-  label: 'Лист внутренних изменений',
+  label: 'Журнал правок',
   group: 'docs',
 };
 const STANDARDS: NavItem = { href: '/standards', label: 'Чек-листы и стандарты', group: 'docs' };
-const SUPPLY_CATALOG: NavItem = { href: '/catalog', label: 'Каталог поставки', group: 'work' };
-const CATALOG: NavItem = { href: '/architect', label: 'Архитектурный каталог', group: 'docs' };
+const SUPPLY_CATALOG: NavItem = { href: '/catalog', label: 'Оборудование и ПО', group: 'work' };
+const CATALOG: NavItem = { href: '/architect', label: 'Каталог этапов', group: 'docs' };
 const SOLUTION_KITS: NavItem = {
   href: '/admin/solution-kits',
-  label: 'Библиотека решений',
+  label: 'Типовые решения',
   group: 'docs',
 };
-const CAPACITY: NavItem = { href: '/capacity', label: 'Ресурсный план', group: 'analytics' };
-const ANALYTICS: NavItem = { href: '/analytics', label: 'Сделки и точность', group: 'analytics' };
+const CAPACITY: NavItem = { href: '/capacity', label: 'Загрузка команды', group: 'analytics' };
+const ANALYTICS: NavItem = { href: '/analytics', label: 'Отчёты', group: 'analytics' };
 const LEADERBOARD: NavItem = { href: '/leaderboard', label: 'Рейтинг команды', group: 'analytics' };
-const AGENTS: NavItem = { href: '/agents', label: 'Харнесс-агенты', group: 'admin' };
-const ADMIN: NavItem = { href: '/admin', label: 'Шаблоны и пользователи', group: 'admin' };
+const AGENTS: NavItem = { href: '/agents', label: 'Помощники', group: 'admin' };
+const ADMIN: NavItem = { href: '/admin', label: 'Настройки', group: 'admin' };
 
 /**
  * Навигация зависит от роли: у каждой свой набор экранов. Пункты сгруппированы
@@ -198,7 +199,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     STUDIO,
     // Архитектор выпускает комплект, но подпись ставит ГАП: пункт ведёт на ту
     // же очередь как наблюдательный — видно, где стоят его выпуски.
-    { href: '/review', label: 'Комплекты на подписи', group: 'work', badgeKey: 'gapQueue' },
+    { href: '/review', label: 'Проверка документов', group: 'work', badgeKey: 'gapQueue' },
     BOARD,
     CHANGELOG,
     CATALOG,
@@ -212,7 +213,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   techwriter: [
     DASHBOARD,
     INBOX,
-    { href: '/review', label: 'Очередь нормоконтроля', group: 'work', badgeKey: 'reviewQueue' },
+    { href: '/review', label: 'Проверка документов', group: 'work', badgeKey: 'reviewQueue' },
     BOARD,
     CHANGELOG,
     STANDARDS,
@@ -223,7 +224,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   gap: [
     DASHBOARD,
     INBOX,
-    { href: '/review', label: 'Финальное ревью (ГАП)', group: 'work', badgeKey: 'gapQueue' },
+    { href: '/review', label: 'Проверка документов', group: 'work', badgeKey: 'gapQueue' },
     BOARD,
     PROJECTS,
     CALCULATIONS,
@@ -236,7 +237,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   reviewer: [
     DASHBOARD,
     INBOX,
-    { href: '/review', label: 'Очередь ревью', group: 'work', badgeKey: 'reviewQueue' },
+    { href: '/review', label: 'Проверка документов', group: 'work', badgeKey: 'reviewQueue' },
     BOARD,
     CHANGELOG,
     STANDARDS,
@@ -252,7 +253,7 @@ export const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     PRESALE,
     CALCULATIONS,
     STUDIO,
-    { href: '/review', label: 'Ревью документации', group: 'work', badgeKey: 'reviewQueue' },
+    { href: '/review', label: 'Проверка документов', group: 'work', badgeKey: 'reviewQueue' },
     BOARD,
     CHANGELOG,
     STANDARDS,
