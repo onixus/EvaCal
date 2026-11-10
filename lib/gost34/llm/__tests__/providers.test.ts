@@ -15,6 +15,8 @@ const ENV_KEYS = [
   'EVACAL_LLM_PROVIDERS',
   'EVACAL_LLM_DEFAULT_PROVIDER',
   'EVACAL_LLM_DISABLE_LOCAL',
+  'EVACAL_LLM_DISABLE_GOOGLE',
+  'EVACAL_LLM_DISABLE_GROK',
   'EVACAL_LLM_ALLOW_LOOPBACK',
   'EVACAL_LLM_ALLOW_PRIVATE_NETWORK',
 ];
@@ -36,8 +38,13 @@ afterEach(() => {
 });
 
 describe('built-in local providers', () => {
-  it('ships Ollama and LM Studio out of the box', () => {
-    expect(listLlmProviders().map((p) => p.id)).toEqual([OLLAMA_PROVIDER_ID, LMSTUDIO_PROVIDER_ID]);
+  it('ships Google Gemini, Grok, Ollama and LM Studio out of the box', () => {
+    expect(listLlmProviders().map((p) => p.id)).toEqual([
+      'cloud-google',
+      'cloud-grok',
+      OLLAMA_PROVIDER_ID,
+      LMSTUDIO_PROVIDER_ID,
+    ]);
   });
 
   it('honours OLLAMA_HOST / LMSTUDIO_HOST', () => {
@@ -47,11 +54,17 @@ describe('built-in local providers', () => {
 
   it('drops a built-in whose configured endpoint fails the guard', () => {
     process.env.OLLAMA_HOST = 'http://169.254.169.254';
-    expect(listLlmProviders().map((p) => p.id)).toEqual([LMSTUDIO_PROVIDER_ID]);
+    expect(listLlmProviders().map((p) => p.id)).toEqual([
+      'cloud-google',
+      'cloud-grok',
+      LMSTUDIO_PROVIDER_ID,
+    ]);
   });
 
   it('can be disabled entirely', () => {
     process.env.EVACAL_LLM_DISABLE_LOCAL = '1';
+    process.env.EVACAL_LLM_DISABLE_GOOGLE = '1';
+    process.env.EVACAL_LLM_DISABLE_GROK = '1';
     expect(listLlmProviders()).toEqual([]);
     expect(() => resolveLlmProvider()).toThrow(EndpointNotAllowedError);
   });
@@ -79,7 +92,7 @@ describe('EVACAL_LLM_PROVIDERS', () => {
 
   it('ignores malformed JSON instead of crashing', () => {
     process.env.EVACAL_LLM_PROVIDERS = '{not json';
-    expect(listLlmProviders().length).toBe(2);
+    expect(listLlmProviders().length).toBe(4);
   });
 
   it('skips entries without an id or an endpoint, and entries the guard rejects', () => {
@@ -109,7 +122,7 @@ describe('resolveLlmProvider', () => {
     expect(resolveLlmProvider().id).toBe(LMSTUDIO_PROVIDER_ID);
 
     delete process.env.EVACAL_LLM_DEFAULT_PROVIDER;
-    expect(resolveLlmProvider().id).toBe(OLLAMA_PROVIDER_ID);
+    expect(resolveLlmProvider().id).toBe('cloud-google');
   });
 });
 
@@ -126,7 +139,9 @@ describe('listPublicLlmProviders', () => {
     ]);
 
     for (const provider of listPublicLlmProviders()) {
-      expect(Object.keys(provider).sort()).toEqual(['id', 'kind', 'label']);
+      expect(provider).not.toHaveProperty('endpoint');
+      expect(provider).not.toHaveProperty('apiKeyEnv');
+      expect(['id', 'kind', 'label'].every((k) => k in provider)).toBe(true);
     }
   });
 });

@@ -12,15 +12,19 @@ import {
  * leave the server and are never accepted from a request. Adding a provider is
  * a deployment decision, made through environment variables.
  */
+export type LlmRolePurpose = 'general' | 'drafting' | 'review';
+
 export interface LlmProvider {
   id: string;
   label: string;
-  kind: 'ollama' | 'openai_compatible';
+  kind: 'ollama' | 'openai_compatible' | 'google';
   /** Server-side only. Never serialise this to a client. */
   endpoint: string;
   /** Name of the env var holding the API key, if the provider needs one. */
   apiKeyEnv?: string;
   defaultModel?: string;
+  /** Primary intended task role: drafting (e.g. Google), review (e.g. Grok) or general */
+  purpose?: LlmRolePurpose;
 }
 
 /** The subset that is safe to hand to the browser. */
@@ -28,10 +32,13 @@ export interface PublicLlmProvider {
   id: string;
   label: string;
   kind: LlmProvider['kind'];
+  purpose?: LlmRolePurpose;
 }
 
 export const OLLAMA_PROVIDER_ID = 'local-ollama';
 export const LMSTUDIO_PROVIDER_ID = 'local-lmstudio';
+export const GOOGLE_PROVIDER_ID = 'cloud-google';
+export const GROK_PROVIDER_ID = 'cloud-grok';
 
 function envFlag(name: string, fallback: boolean): boolean {
   const raw = process.env[name];
@@ -54,22 +61,55 @@ export function getEndpointPolicy(): EndpointPolicy {
  * working; set EVACAL_LLM_DISABLE_LOCAL=1 to drop them (e.g. in a SaaS deploy).
  */
 function builtinProviders(): LlmProvider[] {
-  if (envFlag('EVACAL_LLM_DISABLE_LOCAL', false)) return [];
+  const providers: LlmProvider[] = [];
 
-  return [
-    {
-      id: OLLAMA_PROVIDER_ID,
-      label: 'Ollama (локально)',
-      kind: 'ollama',
-      endpoint: process.env.OLLAMA_HOST || 'http://localhost:11434',
-    },
-    {
-      id: LMSTUDIO_PROVIDER_ID,
-      label: 'LM Studio / OpenAI-совместимый (локально)',
+  // Google Gemini (Cloud) — for drafting, normalization & fast synthesis
+  if (!envFlag('EVACAL_LLM_DISABLE_GOOGLE', false)) {
+    providers.push({
+      id: GOOGLE_PROVIDER_ID,
+      label: 'Google Gemini (Gemini 2.5 Flash / Pro)',
+      kind: 'google',
+      endpoint: process.env.GOOGLE_GEMINI_ENDPOINT || 'https://generativelanguage.googleapis.com',
+      apiKeyEnv: process.env.GOOGLE_API_KEY ? 'GOOGLE_API_KEY' : 'GEMINI_API_KEY',
+      defaultModel: process.env.GOOGLE_GEMINI_MODEL || 'gemini-2.5-flash',
+      purpose: 'drafting',
+    });
+  }
+
+  // xAI Grok (Cloud / OpenAI-compatible) — for thorough review, gap & hallucination audits
+  if (!envFlag('EVACAL_LLM_DISABLE_GROK', false)) {
+    providers.push({
+      id: GROK_PROVIDER_ID,
+      label: 'xAI Grok (grok-2 / grok-beta)',
       kind: 'openai_compatible',
-      endpoint: process.env.LMSTUDIO_HOST || 'http://localhost:1234/v1',
-    },
-  ];
+      endpoint: process.env.GROK_ENDPOINT || 'https://api.x.ai/v1',
+      apiKeyEnv: process.env.GROK_API_KEY ? 'GROK_API_KEY' : 'XAI_API_KEY',
+      defaultModel: process.env.GROK_MODEL || 'grok-2-latest',
+      purpose: 'review',
+    });
+  }
+
+  // Local fallback / dev providers
+  if (!envFlag('EVACAL_LLM_DISABLE_LOCAL', false)) {
+    providers.push(
+      {
+        id: OLLAMA_PROVIDER_ID,
+        label: 'Ollama (локально)',
+        kind: 'ollama',
+        endpoint: process.env.OLLAMA_HOST || 'http://localhost:11434',
+        purpose: 'general',
+      },
+      {
+        id: LMSTUDIO_PROVIDER_ID,
+        label: 'LM Studio / OpenAI-совместимый (локально)',
+        kind: 'openai_compatible',
+        endpoint: process.env.LMSTUDIO_HOST || 'http://localhost:1234/v1',
+        purpose: 'general',
+      },
+    );
+  }
+
+  return providers;
 }
 
 /**
@@ -132,11 +172,22 @@ export function listLlmProviders(): LlmProvider[] {
 }
 
 export function listPublicLlmProviders(): PublicLlmProvider[] {
-  return listLlmProviders().map(({ id, label, kind }) => ({ id, label, kind }));
+  return listLlmProviders().map(({ id, label, kind, purpose }) => {
+    const res: PublicLlmProvider = { id, label, kind };
+    if (purpose) res.purpose = purpose;
+    return res;
+  });
 }
 
-export function getDefaultLlmProviderId(): string | undefined {
-  return process.env.EVACAL_LLM_DEFAULT_PROVIDER || listLlmProviders()[0]?.id;
+export function getDefaultLlmProviderId(purpose: LlmRolePurpose = 'drafting'): string | undefined {
+  if (process.env.EVACAL_LLM_DEFAULT_PROVIDER) {
+    return process.env.EVACAL_LLM_DEFAULT_PROVIDER;
+  }
+  const all = listLlmProviders();
+  if (all.length === 0) return undefined;
+  // Match purpose first if available
+  const match = all.find((p) => p.purpose === purpose);
+  return match?.id || all[0]?.id;
 }
 
 /**

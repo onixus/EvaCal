@@ -102,6 +102,33 @@ export async function probeProvider(
     }
   }
 
+  // 3. Try Google Gemini API (/v1beta/models)
+  if (provider.kind === 'google') {
+    try {
+      const apiKey = getProviderApiKey(provider);
+      const url = apiKey
+        ? `${cleanEndpoint}/v1beta/models?key=${encodeURIComponent(apiKey)}`
+        : `${cleanEndpoint}/v1beta/models`;
+
+      const res = await fetchWithTimeout(url, { method: 'GET' }, LLM_PROBE_TIMEOUT_MS);
+      if (res.ok) {
+        const data = (await res.json()) as { models?: Array<{ name?: string }> };
+        const models = (data.models || [])
+          .map((m) => (m.name || '').replace(/^models\//, ''))
+          .filter((name): name is string => typeof name === 'string' && name.length > 0);
+        return { available: true, models };
+      }
+      // If endpoint is reachable or configured with default model
+      if (provider.defaultModel) {
+        return { available: true, models: [provider.defaultModel] };
+      }
+    } catch {
+      if (provider.defaultModel) {
+        return { available: true, models: [provider.defaultModel] };
+      }
+    }
+  }
+
   return { available: false, models: [] };
 }
 
@@ -207,6 +234,72 @@ export async function chatCompletion(req: LlmChatRequest): Promise<LlmChatResult
     const data = await res.json();
     const text = data.response?.trim();
     if (!text) throw new Error('Empty response from model');
+
+    return {
+      text,
+      model: req.model,
+      providerId: req.provider.id,
+      latencyMs: Date.now() - start,
+    };
+  } else if (req.provider.kind === 'google') {
+    // Google Gemini REST API (v1beta)
+    // Model identifier may be 'gemini-2.5-flash', format: /v1beta/models/{model}:generateContent
+    const cleanModel = req.model.replace(/^models\//, '');
+    const generateUrl = apiKey
+      ? `${cleanEndpoint}/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(apiKey)}`
+      : `${cleanEndpoint}/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent`;
+
+    // Map system and user messages to Google's contents / systemInstruction format
+    const systemMsg = req.messages.find((m) => m.role === 'system')?.content || '';
+    const userMsgs = req.messages
+      .filter((m) => m.role === 'user')
+      .map((m) => ({
+        role: 'user',
+        parts: [{ text: m.content }],
+      }));
+
+    const body: Record<string, any> = {
+      contents: userMsgs,
+      generationConfig: {
+        temperature: req.temperature,
+      },
+    };
+
+    if (systemMsg) {
+      body.systemInstruction = {
+        parts: [{ text: systemMsg }],
+      };
+    }
+
+    if (req.responseFormat === 'json') {
+      body.generationConfig.responseMimeType = 'application/json';
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    const res = await fetchWithTimeout(
+      generateUrl,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      },
+      LLM_CHAT_TIMEOUT_MS,
+    );
+
+    if (!res.ok) {
+      throw new Error(`Google Gemini chat error: ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    const candidate = data.candidates?.[0];
+    const text = candidate?.content?.parts
+      ?.map((p: any) => p.text || '')
+      .join('')
+      .trim();
+    if (!text) throw new Error('Empty response from Google Gemini model');
 
     return {
       text,
