@@ -239,8 +239,8 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
 
     // Нормоконтроль подписывает тех.писатель — не архитектор и не ГАП.
     // Пароль у всех сидированных учёток один (SEED_DEFAULT_PASSWORD в пайплайне).
-    // После его решения комплект уходит на финальный этап, где его утверждает
-    // Заказчик по share-ссылке (ниже) либо ГАП в системе.
+    // Финальную подпись ставит ГАП в системе. Share-ссылка Заказчика даёт
+    // скачать комплект, но вердикт по ней не выносится.
     await signReview(page, 'techwriter', password, 'Васильева Е.И. (нормоконтроль)', CUSTOMER_NAME);
 
     // Возврат в роль архитектора: share-ссылку выпускает он.
@@ -281,12 +281,13 @@ test.describe('RR-6: Severny Bank GOST 34 Release Flow', () => {
     expect(customerDownload.suggestedFilename()).toMatch(/\.zip$/);
     await customerPage.screenshot({ path: 'customer-portal.png' });
 
-    await customerPage.getByRole('button', { name: /Утвердить комплект/i }).click();
-    await customerPage.getByPlaceholder('ФИО и должность').fill('Иван Иванов, Директор');
-    await customerPage.getByRole('button', { name: /Отправить решение/i }).click();
-    await expect(customerPage.getByText('Комплект утверждён')).toBeVisible();
+    // Гость видит комплект, но кнопки вердикта нет: подпись выпуска — у ГАП.
+    await expect(customerPage.getByRole('button', { name: /Утвердить комплект/i })).toHaveCount(0);
+    await expect(customerPage.getByRole('button', { name: /Отправить решение/i })).toHaveCount(0);
 
     await customerContext.close();
+
+    await signReview(page, 'gap', password, 'Михайлов Д.П. (ГАП)', CUSTOMER_NAME);
 
     // 11. После утверждения конвейер проекта стоит на «Выпущен».
     await page.goto('/projects');
