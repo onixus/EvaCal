@@ -3,13 +3,13 @@ import { prisma } from '@/lib/prisma';
 import { requireInternalRole, requireStaff } from '@/lib/access';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { getProjectDetails } from '@/lib/project';
-import { PROJECT_VIEWER_ROLES } from '@/lib/appRoles';
+import { isAppRole, PROJECT_VIEWER_ROLES } from '@/lib/appRoles';
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const auth = await requireInternalRole(['read']);
   if (auth instanceof NextResponse) return auth;
 
-  if (!PROJECT_VIEWER_ROLES.includes(auth.role as any)) {
+  if (!isAppRole(auth.role) || !PROJECT_VIEWER_ROLES.includes(auth.role)) {
     return NextResponse.json({ error: 'Недостаточно прав' }, { status: 403 });
   }
 
@@ -18,6 +18,15 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
   if (!project) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  }
+
+  // Карточка проекта у пресейла не должна показывать чужие сметы.
+  // Архитектор, админ и ГАП видят версии как есть.
+  if (auth.role === 'presale') {
+    return NextResponse.json({
+      ...project,
+      calculations: project.calculations.filter((c) => c.createdBy === auth.username),
+    });
   }
 
   return NextResponse.json(project);

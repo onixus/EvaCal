@@ -18,6 +18,21 @@ import { lockCalculationLedger } from '@/lib/actualsLedgerData';
 import { requireCalcAccess, requireStaff } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 
+/**
+ * Пресейл владеет расчётом, только если createdBy — его логин.
+ * Пустая строка и служебные метки (presale, presale-share, system) чужие:
+ * иначе любой пресейл правил бы анонимные и шаренные расчёты.
+ * Share и аноним сюда не попадают — их допуск уже решил requireCalcAccess.
+ */
+function presaleOwnsCalculation(
+  role: string | null | undefined,
+  username: string | null | undefined,
+  createdBy: string | null | undefined,
+): boolean {
+  if (role !== 'presale') return true;
+  return Boolean(username) && createdBy === username;
+}
+
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const access = await requireCalcAccess(req, params.id, ['read']);
@@ -37,6 +52,19 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     },
   });
   if (!calculation) return NextResponse.json({ error: 'not found' }, { status: 404 });
+
+  // Право `read` есть у любого пресейла, но чужой расчёт ему не отдаём.
+  // Share-токен, привязанный к этому id, requireCalcAccess уже пропустил.
+  if (
+    access.kind === 'staff' &&
+    !presaleOwnsCalculation(access.session?.role, access.session?.username, calculation.createdBy)
+  ) {
+    return NextResponse.json(
+      { error: 'Пресейл может просматривать только свои расчеты' },
+      { status: 403 },
+    );
+  }
+
   return NextResponse.json({
     ...calculation,
     answers: JSON.parse(calculation.answers),
@@ -60,8 +88,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   // Пресейл может изменять только свои расчеты
   if (
     access.kind === 'staff' &&
-    access.session?.role === 'presale' &&
-    existing.createdBy !== access.session.username
+    !presaleOwnsCalculation(access.session?.role, access.session?.username, existing.createdBy)
   ) {
     return NextResponse.json(
       { error: 'Пресейл может редактировать только свои расчеты' },

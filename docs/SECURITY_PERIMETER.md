@@ -22,26 +22,26 @@
 
 ### Правила доступа к эндпоинтам и UI
 
-| Поверхность / Маршрут                      | Метод     | Минимальный доступ                                              | Ограничения и детали                                         |
-| ------------------------------------------ | --------- | --------------------------------------------------------------- | ------------------------------------------------------------ |
-| `GET /` (лендинг и архив)                  | UI        | Любой (гости видят лендинг без данных; staff видит реестр)      | Данные проектов не отдаются без авторизации                  |
-| `GET /leaderboard`, `GET /api/leaderboard` | UI / REST | Любой (открытый экран)                                          | Только логины и агрегаты; названий расчётов и заказчиков нет |
-| `GET /presale`                             | UI        | `staff` \| `presale` \| `create`-share \| `ALLOW_ANONYMOUS`     | Список чужих черновиков виден только авторизованным          |
-| `GET /presale/:id`                         | UI        | `staff` \| `presale` \| `?share=` (токен с привязкой к ID)      | Доступ строго по ID расчёта                                  |
-| `GET /projects/:id/studio`                 | UI        | `staff` (`architect` \| `admin`)                                | Студия ГОСТ 34 закрыта для пресейла, ревьювера и гостей      |
-| `GET /review`                              | UI        | `reviewer` (очередь TW) \| `architect` (очередь GAP) \| `admin` | Список разделяется на уровне сервера по стадии ревью         |
-| `GET /admin/*`                             | UI        | `admin`                                                         | Управление пользователями, шаблонами и системными ключами    |
-| `GET /api/calculations`                    | REST      | `staff` \| `presale` (только свои)                              | Пресейл видит только свои; гости не имеют общего листинга    |
-| `POST /api/calculations`                   | REST      | `staff` \| `presale` \| share(`create`) \| `ALLOW_ANONYMOUS`    | Создание расчёта по шаблону                                  |
-| `GET/PUT /api/calculations/:id`            | REST      | `staff` \| `presale` (свои) \| share bound (`read` / `write`)   | Попытка изменить чужой расчёт без прав возвращает 403        |
-| Экспорт (PDF, XLSX, DOCX, JSON)            | REST / UI | `staff` \| `presale` \| `reviewer` \| share (`export`)          | `export` подразумевает право `read`                          |
-| `POST /api/calculations/:id/submit`        | REST      | `staff` \| `presale` \| share (`write`)                         | Перевод расчёта в `pending_approval`                         |
-| `POST /api/calculations/:id/share`         | REST      | `staff` (`architect` \| `admin`)                                | Генерация гостевых share-токенов                             |
-| Миграция схемы ГОСТ 34                     | REST      | `staff` (`architect` \| `admin`)                                | Применение шаблонов и структур стандартов                    |
-| `POST /api/gost34/draft-tz`                | REST      | `staff` (`architect` \| `admin`)                                | **Строгий запрет:** share-токены и анонимы получают HTTP 403 |
-| `POST /api/gost34/draft-tz/decision`       | REST      | `staff` (`architect` \| `admin`)                                | **Строгий запрет:** share-токены и анонимы получают HTTP 403 |
-| `POST /api/gost34/packages/:id/review`     | REST      | `techwriter`/`admin` (tw), `gap`/`admin`/share (gap)            | Нормоконтроль закрыт для share, внешнее согласование — gap   |
-| Управление пользователями                  | REST      | `admin`                                                         | Создание, блокировка, сброс паролей                          |
+| Поверхность / Маршрут                        | Метод     | Минимальный доступ                                              | Ограничения и детали                                                               |
+| -------------------------------------------- | --------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `GET /` (лендинг и архив)                    | UI        | Любой (гости видят лендинг без данных; staff видит реестр)      | Данные проектов не отдаются без авторизации                                        |
+| `GET /leaderboard`, `GET /api/leaderboard`   | UI / REST | Любой (открытый экран)                                          | Только логины и агрегаты; названий расчётов и заказчиков нет                       |
+| `GET /presale`                               | UI        | `staff` \| `presale` \| `create`-share \| `ALLOW_ANONYMOUS`     | Список чужих черновиков виден только авторизованным                                |
+| `GET /presale/:id`                           | UI        | `staff` \| `presale` \| `?share=` (токен с привязкой к ID)      | Доступ строго по ID расчёта                                                        |
+| `GET /projects/:id/studio`                   | UI        | `staff` (`architect` \| `admin`)                                | Студия ГОСТ 34 закрыта для пресейла, ревьювера и гостей                            |
+| `GET /review`                                | UI        | `reviewer` (очередь TW) \| `architect` (очередь GAP) \| `admin` | Список разделяется на уровне сервера по стадии ревью                               |
+| `GET /admin/*`                               | UI        | `admin`                                                         | Управление пользователями, шаблонами и системными ключами                          |
+| `GET /api/calculations`, `GET /calculations` | REST / UI | `architect` \| `admin` (все) \| `presale` (только свои)         | Тех.писатель, ГАП и рецензент коммерческий архив не видят; гости листинга не имеют |
+| `POST /api/calculations`                     | REST      | `staff` \| `presale` \| share(`create`) \| `ALLOW_ANONYMOUS`    | Создание расчёта по шаблону                                                        |
+| `GET/PUT /api/calculations/:id`              | REST      | `staff` \| `presale` (свои) \| share bound (`read` / `write`)   | Попытка изменить чужой расчёт без прав возвращает 403                              |
+| Экспорт (PDF, XLSX, DOCX, JSON)              | REST / UI | `staff` \| `presale` \| `reviewer` \| share (`export`)          | `export` подразумевает право `read`                                                |
+| `POST /api/calculations/:id/submit`          | REST      | `staff` \| `presale` \| share (`write`)                         | Перевод расчёта в `pending_approval`                                               |
+| `POST /api/calculations/:id/share`           | REST      | `staff` (`architect` \| `admin`)                                | Генерация гостевых share-токенов                                                   |
+| Миграция схемы ГОСТ 34                       | REST      | `staff` (`architect` \| `admin`)                                | Применение шаблонов и структур стандартов                                          |
+| `POST /api/gost34/draft-tz`                  | REST      | `staff` (`architect` \| `admin`)                                | **Строгий запрет:** share-токены и анонимы получают HTTP 403                       |
+| `POST /api/gost34/draft-tz/decision`         | REST      | `staff` (`architect` \| `admin`)                                | **Строгий запрет:** share-токены и анонимы получают HTTP 403                       |
+| `POST /api/gost34/packages/:id/review`       | REST      | `techwriter` \| `admin` (tw), `gap` \| `admin` (gap)            | Share-токен вердикт не выносит ни на tw, ни на gap                                 |
+| Управление пользователями                    | REST      | `admin`                                                         | Создание, блокировка, сброс паролей                                                |
 
 ---
 
@@ -58,7 +58,7 @@
   - `write` — внесение правок в параметры и структуру опросника;
   - `export` — скачивание сгенерированных файлов (XLSX, PDF, JSON);
   - `create` — разовое создание нового расчёта по шаблону;
-  - `review` — просмотр чек-листа и выставление статуса нормоконтроля.
+  - `review` — просмотр комплекта и чек-листа. Вердикт и правка чек-листа этим скоупом не выдаются: подпись только у штатных ролей этапа.
 - **Передача клиентом:** заголовок `X-Share-Token`, `Authorization: Share <token>` или query-параметр `?share=<token>`.
 - **Обработка в UI:** при создании расчёта по токену клиент сохраняет его в `sessionStorage` и выполняет редирект на `/presale/:id?share=...`. При случайном переходе по ссылке без query-параметра компонент `ShareTokenRecovery` восстанавливает токен из `sessionStorage`.
 

@@ -21,6 +21,8 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 import { requireCalcAccess } from '@/lib/access';
+import { writeAudit } from '@/lib/audit';
+import { recordInternalChangeSafe } from '@/lib/changelog';
 import { prisma } from '@/lib/prisma';
 
 const staff = (role: string) => ({
@@ -128,24 +130,27 @@ describe('Разделение этапов ревью комплекта', () =
 
     expect(res.status).toBe(200);
     expect(vi.mocked(prisma.gostPackage.update).mock.calls[0][0]).toMatchObject({
-      data: { status: 'approved', reviewStage: 'done' },
+      data: { status: 'approved', reviewStage: 'done', approvedBy: 'u1' },
+    });
+    // Имя из тела не становится ни подписью, ни автором журнала, ни актором аудита.
+    expect(vi.mocked(writeAudit).mock.calls[0][0]).toMatchObject({ actorId: 'u1' });
+    expect(vi.mocked(recordInternalChangeSafe).mock.calls[0][0]).toMatchObject({
+      author: 'gap',
     });
   });
 
-  it('внешний согласующий Заказчика по share-ссылке решает на этапе gap', async () => {
-    // Разделение подписей: нормоконтроль ('tw') выполняет только тех.писатель/админ.
-    // Заказчик по share-ссылке утверждает ТЗ только на финальном этапе ('gap').
+  it('share-ссылка не утверждает комплект на этапе gap', async () => {
+    // Вердикт — только штатная роль этапа. Гость по ссылке не ставит подпись
+    // ГАПа, даже если токен выдан со scope review.
     vi.mocked(requireCalcAccess).mockResolvedValue(shareAccess as never);
     vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(
       pkg({ reviewStage: 'gap' }) as never,
     );
-    vi.mocked(prisma.gostPackage.update).mockResolvedValue(
-      pkg({ reviewStage: 'done', status: 'approved' }) as never,
-    );
 
-    const res = await decide({ decision: 'approve' });
+    const res = await decide({ decision: 'approve', reviewerName: 'Заказчик' });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
+    expect(prisma.gostPackage.update).not.toHaveBeenCalled();
   });
 
   it('внешнему согласующему по share-ссылке запрещён этап tw (нормоконтроль)', async () => {

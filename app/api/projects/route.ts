@@ -6,13 +6,13 @@ import { clientIp, writeAudit } from '@/lib/audit';
 import { getOrCreateProject } from '@/lib/project';
 import { pageArgs, paginationHeaders, parseLimit, parsePage } from '@/lib/pagination';
 import { containsInsensitive } from '@/lib/textSearch';
-import { PROJECT_VIEWER_ROLES } from '@/lib/appRoles';
+import { isAppRole, PROJECT_VIEWER_ROLES } from '@/lib/appRoles';
 
 export async function GET(req: NextRequest) {
   const auth = await requireInternalRole(['read']);
   if (auth instanceof NextResponse) return auth;
 
-  if (!PROJECT_VIEWER_ROLES.includes(auth.role as any)) {
+  if (!isAppRole(auth.role) || !PROJECT_VIEWER_ROLES.includes(auth.role)) {
     return NextResponse.json({ error: 'Недостаточно прав' }, { status: 403 });
   }
 

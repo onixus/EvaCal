@@ -10,9 +10,10 @@ import {
   DEFAULT_ROLE_RATES,
   calculateCommercialSummary,
   resolveRoleRates,
+  resolveStageRate,
+  resolveStageRoleKey,
   type CommercialConfig,
 } from './commercial';
-import { normalizeRoleKey } from './roles';
 import { median, round1, round2 } from './stats';
 
 // ---------------------------------------------------------------------------
@@ -327,7 +328,7 @@ export function actualMargin(input: ActualMarginInput): ActualMargin {
   for (const s of work) {
     if (s.actualHours === null) continue;
     hours += s.actualHours;
-    const roleKey = rates[s.role] !== undefined ? s.role : normalizeRoleKey(s.role);
+    const roleKey = resolveStageRoleKey(s.role, rates);
     cost += s.actualHours * (rates[roleKey] ?? DEFAULT_ROLE_RATES.other);
   }
   if (input.actualPmHours !== null) {
@@ -955,14 +956,8 @@ function forecastLine(
  */
 export function profitForecast(input: ProfitForecastInput): ProfitForecast {
   const rates = resolveRoleRates(input.terms.roleRates ?? null);
-  // Так же, как в calculateCommercialSummary: с нормализацией роли, неизвестная роль — ставка «other».
-  const rateOf = (role: string) => {
-    if (rates[role] !== undefined) return rates[role];
-    const normalized = normalizeRoleKey(role);
-    return rates[normalized] !== undefined
-      ? rates[normalized]
-      : (rates.other ?? DEFAULT_ROLE_RATES.other);
-  };
+  // Так же, как в calculateCommercialSummary: exact → canonical → синоним, иначе ставка «other».
+  const rateOf = (role: string) => resolveStageRate(role, rates);
   const quote = calculateCommercialSummary(input.stages, input.pmHours, input.risks, input.terms);
   const overheadPercent = quote.overheadPercent;
   const lines: ForecastLine[] = input.stages

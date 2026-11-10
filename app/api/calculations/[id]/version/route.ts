@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 import { requireCalcAccess } from '@/lib/access';
 import { actorTypeFromAccess, clientIp, writeAudit } from '@/lib/audit';
 import { createCalculationVersion } from '@/lib/project';
@@ -7,6 +8,22 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const params = await props.params;
   const access = await requireCalcAccess(req, params.id, ['write']);
   if (access instanceof NextResponse) return access;
+
+  // Пресейл не клонирует чужой расчёт: write есть у любой роли presale,
+  // а createdBy сравнивается с логином, не с userId.
+  if (access.kind === 'staff' && access.session?.role === 'presale') {
+    const existing = await prisma.calculation.findUnique({
+      where: { id: params.id },
+      select: { createdBy: true },
+    });
+    if (!existing) return NextResponse.json({ error: 'Calculation not found' }, { status: 404 });
+    if (!access.session.username || existing.createdBy !== access.session.username) {
+      return NextResponse.json(
+        { error: 'Пресейл может создавать версии только своих расчётов' },
+        { status: 403 },
+      );
+    }
+  }
 
   const body = await req.json().catch(() => ({}));
   const { versionComment, name, answers } = body;

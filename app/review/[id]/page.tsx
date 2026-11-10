@@ -7,7 +7,6 @@ import {
   canDecideReviewStage,
   parseChecklist,
   REVIEW_STAGE_ROLES,
-  SHARE_ALLOWED_STAGES,
   type ReviewStage,
 } from '@/lib/gost34/review/types';
 import { hasReviewerPowers } from '@/lib/appRoles';
@@ -72,14 +71,11 @@ export default async function PackageReviewPage(props: {
 
   /**
    * Кто вправе вынести решение на текущем этапе: нормоконтроль подписывает
-   * тех.писатель, выпуск — ГАП. Гость по share-ссылке с правом review вправе
-   * утверждать только этап gap (внешнее согласование ТЗ Заказчиком по ГОСТ 34.602).
+   * тех.писатель, выпуск — ГАП. Гость по share-ссылке вердикт не выносит ни на
+   * одном этапе (в том числе gap): кнопка решения не предлагается, API ответит 403.
    */
   const role = access.kind === 'staff' ? access.session?.role : null;
-  const canReview =
-    access.kind === 'share'
-      ? Boolean(access.share?.scopes.includes('review')) && SHARE_ALLOWED_STAGES.includes(stage)
-      : canDecideReviewStage(role, stage);
+  const canReview = access.kind === 'share' ? false : canDecideReviewStage(role, stage);
 
   // Вести замечания (ответы, «исправлено», проверка своих) может любой, у кого
   // есть право review; вердикт — только роль этапа (canReview выше).
