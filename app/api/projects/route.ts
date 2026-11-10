@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireStaff } from '@/lib/access';
+import { requireInternalRole } from '@/lib/access';
 import { requireApiRole } from '@/lib/auth';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { getOrCreateProject } from '@/lib/project';
 import { pageArgs, paginationHeaders, parseLimit, parsePage } from '@/lib/pagination';
 import { containsInsensitive } from '@/lib/textSearch';
+import { PROJECT_VIEWER_ROLES } from '@/lib/appRoles';
 
 export async function GET(req: NextRequest) {
-  const staff = await requireStaff();
-  if (staff instanceof NextResponse) return staff;
+  const auth = await requireInternalRole(['read']);
+  if (auth instanceof NextResponse) return auth;
+
+  if (!PROJECT_VIEWER_ROLES.includes(auth.role as any)) {
+    return NextResponse.json({ error: 'Недостаточно прав' }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
   const limit = parseLimit(searchParams.get('limit'));

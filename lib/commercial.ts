@@ -1,4 +1,4 @@
-import { ROLES, roleLabel } from './roles';
+import { ROLES, roleLabel, normalizeRoleKey } from './roles';
 import { totalLaborHours } from './scheduling';
 import { risksTotalHours } from './totals';
 import type { SupplyBreakdown } from './supply';
@@ -248,7 +248,13 @@ export function calculateCommercialSummary(
 
   for (const stage of stages) {
     if (stage.isApprovalTask) continue;
-    const roleKey = stage.role && roleRates[stage.role] !== undefined ? stage.role : 'other';
+    const normalizedKey = stage.role ? normalizeRoleKey(stage.role) : 'other';
+    const roleKey =
+      stage.role && roleRates[stage.role] !== undefined
+        ? stage.role
+        : roleRates[normalizedKey] !== undefined
+          ? normalizedKey
+          : 'other';
     roleHoursMap[roleKey] = (roleHoursMap[roleKey] || 0) + stage.hours;
   }
 

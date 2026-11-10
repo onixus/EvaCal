@@ -56,6 +56,19 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
     include: { template: { include: { stageTemplates: true, fields: true } } },
   });
   if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 });
+
+  // Пресейл может изменять только свои расчеты
+  if (
+    access.kind === 'staff' &&
+    access.session?.role === 'presale' &&
+    existing.createdBy !== access.session.username
+  ) {
+    return NextResponse.json(
+      { error: 'Пресейл может редактировать только свои расчеты' },
+      { status: 403 },
+    );
+  }
+
   if (existing.status === 'approved') {
     return NextResponse.json(
       { error: 'Расчёт уже утверждён и не может быть изменён' },

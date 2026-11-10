@@ -132,24 +132,30 @@ describe('Разделение этапов ревью комплекта', () =
     });
   });
 
-  it.each(['tw', 'gap'])(
-    'внешний согласующий Заказчика по share-ссылке решает на этапе %s',
-    async (stage) => {
-      // Разделение подписей — правило для сотрудников. По ГОСТ 34.602 ТЗ
-      // утверждает Заказчик, и портал согласования держится на этой ссылке.
-      vi.mocked(requireCalcAccess).mockResolvedValue(shareAccess as never);
-      vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(
-        pkg({ reviewStage: stage }) as never,
-      );
-      vi.mocked(prisma.gostPackage.update).mockResolvedValue(
-        pkg({ reviewStage: 'done', status: 'approved' }) as never,
-      );
+  it('внешний согласующий Заказчика по share-ссылке решает на этапе gap', async () => {
+    // Разделение подписей: нормоконтроль ('tw') выполняет только тех.писатель/админ.
+    // Заказчик по share-ссылке утверждает ТЗ только на финальном этапе ('gap').
+    vi.mocked(requireCalcAccess).mockResolvedValue(shareAccess as never);
+    vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(
+      pkg({ reviewStage: 'gap' }) as never,
+    );
+    vi.mocked(prisma.gostPackage.update).mockResolvedValue(
+      pkg({ reviewStage: 'done', status: 'approved' }) as never,
+    );
 
-      const res = await decide({ decision: 'approve' });
+    const res = await decide({ decision: 'approve' });
 
-      expect(res.status).toBe(200);
-    },
-  );
+    expect(res.status).toBe(200);
+  });
+
+  it('внешнему согласующему по share-ссылке запрещён этап tw (нормоконтроль)', async () => {
+    vi.mocked(requireCalcAccess).mockResolvedValue(shareAccess as never);
+    vi.mocked(prisma.gostPackage.findUnique).mockResolvedValue(pkg({ reviewStage: 'tw' }) as never);
+
+    const res = await decide({ decision: 'approve' });
+
+    expect(res.status).toBe(403);
+  });
 
   it('возврат с замечаниями тоже закреплён за ролью этапа', async () => {
     vi.mocked(requireCalcAccess).mockResolvedValue(staff('architect') as never);

@@ -55,14 +55,17 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       );
     }
 
+    // Для сотрудников имя берется строго из сессии, чтобы исключить спуфинг подписи.
     const actorDisplayName =
-      reviewerName?.trim() || (access.kind === 'staff' ? access.session?.username : access.actorId);
+      access.kind === 'staff'
+        ? access.session?.username || access.actorId
+        : reviewerName?.trim() || access.actorId;
 
     const stageBefore = (pkg.reviewStage === 'gap' ? 'gap' : 'tw') as ReviewStage;
 
     // Решение на этапе выносит только та роль, которой этот этап принадлежит:
-    // нормоконтроль — ревьювер, финальную подпись — ГАП. Проверка стоит здесь,
-    // а не в UI, иначе прямой запрос к API обходит разделение ответственности.
+    // нормоконтроль — тех.писатель, финальную подпись — ГАП (или Заказчик по share-ссылке на gap).
+    // Проверка стоит здесь, а не в UI, иначе прямой запрос к API обходит разделение ответственности.
     const allowedRoles = REVIEW_STAGE_ROLES[stageBefore as 'tw' | 'gap'];
     if (access.kind === 'staff') {
       const role = access.session?.role ?? '';
@@ -77,7 +80,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     } else if (!SHARE_ALLOWED_STAGES.includes(stageBefore)) {
       return NextResponse.json(
         {
-          error: `Этап «${REVIEW_STAGE_LABELS[stageBefore]}» недоступен по share-ссылке: решение принимает ГАП в системе.`,
+          error: `Этап «${REVIEW_STAGE_LABELS[stageBefore]}» недоступен по share-ссылке: решение принимает специалист в системе.`,
         },
         { status: 403 },
       );
@@ -114,7 +117,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     await writeAudit({
       actorType: actorTypeFromAccess(access.kind),
-      actorId: actorDisplayName,
+      actorId:
+        access.kind === 'staff' ? actorDisplayName : `${actorDisplayName} (${access.actorId})`,
       action: decision === 'approve' ? 'gost_package.approve' : 'gost_package.reject',
       entityType: 'gost_package',
       entityId: pkg.id,

@@ -10,6 +10,7 @@ import { POST as createVersion } from '@/app/api/calculations/[id]/version/route
 
 vi.mock('@/lib/access', () => ({
   requireStaff: vi.fn(),
+  requireInternalRole: vi.fn(),
   requireCalcAccess: vi.fn(),
 }));
 
@@ -48,7 +49,7 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
-import { requireStaff, requireCalcAccess } from '@/lib/access';
+import { requireStaff, requireCalcAccess, requireInternalRole } from '@/lib/access';
 import { requireApiRole } from '@/lib/auth';
 import { getOrCreateProject, getProjectDetails, createCalculationVersion } from '@/lib/project';
 import { prisma } from '@/lib/prisma';
@@ -60,7 +61,7 @@ describe('Project API routes', () => {
 
   describe('GET /api/projects', () => {
     it('returns paginated list of projects for staff', async () => {
-      vi.mocked(requireStaff).mockResolvedValue({
+      vi.mocked(requireInternalRole).mockResolvedValue({
         userId: 'u1',
         username: 'arch',
         role: 'architect',
@@ -89,7 +90,7 @@ describe('Project API routes', () => {
     });
 
     it('denies unauthenticated request', async () => {
-      vi.mocked(requireStaff).mockResolvedValue(
+      vi.mocked(requireInternalRole).mockResolvedValue(
         NextResponse.json({ error: 'unauthorized' }, { status: 401 }),
       );
 
@@ -146,7 +147,7 @@ describe('Project API routes', () => {
 
   describe('GET /api/projects/[id]', () => {
     it('returns project details', async () => {
-      vi.mocked(requireStaff).mockResolvedValue({
+      vi.mocked(requireInternalRole).mockResolvedValue({
         userId: 'u1',
         username: 'arch',
         role: 'architect',

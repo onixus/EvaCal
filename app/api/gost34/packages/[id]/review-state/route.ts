@@ -20,6 +20,26 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     const access = await requireCalcAccess(req, pkg.calculationId, ['review']);
     if (access instanceof NextResponse) return access;
 
+    // Чек-лист нормоконтроля вправе заполнять только штатные специалисты,
+    // отвечающие за этап 'tw' (techwriter, admin).
+    // Внешние читатели по share-ссылке и другие сотрудники (architect, reviewer, gap) не могут модифицировать чек-лист.
+    if (access.kind !== 'staff') {
+      return NextResponse.json(
+        { error: 'Редактировать чек-лист нормоконтроля могут только штатные сотрудники' },
+        { status: 403 },
+      );
+    }
+    const role = access.session?.role;
+    if (role !== 'techwriter' && role !== 'admin') {
+      return NextResponse.json(
+        {
+          error:
+            'Редактировать чек-лист нормоконтроля может только технический писатель или администратор',
+        },
+        { status: 403 },
+      );
+    }
+
     if (pkg.status === 'approved') {
       return NextResponse.json({ error: 'Утверждённый комплект неизменяем' }, { status: 409 });
     }

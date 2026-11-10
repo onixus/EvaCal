@@ -134,9 +134,11 @@ export default function ProjectDetailClient({
               <Link href={`/presale?projectId=${project.id}`} className="btn-primary">
                 + Новый расчёт
               </Link>
-              <button onClick={() => setIsEditModalOpen(true)} className="btn-secondary">
-                Редактировать
-              </button>
+              {canEditDeal && (
+                <button onClick={() => setIsEditModalOpen(true)} className="btn-secondary">
+                  Редактировать
+                </button>
+              )}
             </div>
           </div>
         </div>

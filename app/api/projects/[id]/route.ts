@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireStaff } from '@/lib/access';
+import { requireInternalRole, requireStaff } from '@/lib/access';
 import { clientIp, writeAudit } from '@/lib/audit';
 import { getProjectDetails } from '@/lib/project';
+import { PROJECT_VIEWER_ROLES } from '@/lib/appRoles';
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
-  const staff = await requireStaff();
-  if (staff instanceof NextResponse) return staff;
+  const auth = await requireInternalRole(['read']);
+  if (auth instanceof NextResponse) return auth;
+
+  if (!PROJECT_VIEWER_ROLES.includes(auth.role as any)) {
+    return NextResponse.json({ error: 'Недостаточно прав' }, { status: 403 });
+  }
 
   const params = await props.params;
   const project = await getProjectDetails(params.id);

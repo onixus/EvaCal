@@ -23,9 +23,13 @@ export async function GET(req: NextRequest) {
   const limit = parseLimit(searchParams.get('limit'));
   const page = parsePage(searchParams.get('page') ?? undefined);
 
+  // Пресейл видит только свои расчеты; staff и остальные читают все
+  const where = auth.role === 'presale' ? { createdBy: auth.username } : {};
+
   const [total, calculations] = await Promise.all([
-    prisma.calculation.count(),
+    prisma.calculation.count({ where }),
     prisma.calculation.findMany({
+      where,
       ...pageArgs(page, limit),
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: {
@@ -112,6 +116,16 @@ export async function POST(req: NextRequest) {
   });
   const version = (latestInProject?.version ?? 0) + 1;
 
+  // #103 / Fix: копируем ставки ролей шаблона в расчёт, если они заданы.
+  // Если в запросе переданы явные roleRates, используем их; иначе берем из шаблона.
+  const resolvedRoleRatesJson = body.roleRates
+    ? typeof body.roleRates === 'object'
+      ? JSON.stringify(body.roleRates)
+      : String(body.roleRates)
+    : template.defaultRoleRates
+      ? template.defaultRoleRates
+      : null;
+
   const calculation = await prisma.calculation.create({
     data: {
       name,
@@ -123,6 +137,7 @@ export async function POST(req: NextRequest) {
       createdBy,
       projectId: targetProjectId,
       version,
+      roleRates: resolvedRoleRatesJson,
       // #103 §4.3: порог маржи фиксируется в расчёте на момент создания.
       minMarginPercent: template.minMarginPercent ?? null,
     },
