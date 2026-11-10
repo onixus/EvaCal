@@ -58,7 +58,7 @@ export default async function ArchitectPage(props: { searchParams: Promise<{ pag
   return (
     <div className="page">
       <PageHeader
-        title="Интерфейс архитектора"
+        title="Каталог этапов"
         description="Правьте этапы, добавляйте новые и утверждайте расчёты, подготовленные пресейлом."
       />
 

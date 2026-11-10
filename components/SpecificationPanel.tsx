@@ -503,7 +503,7 @@ export default function SpecificationPanel({
           </button>
           {studioHref && (
             <Link className="btn-secondary" href={studioHref}>
-              Студия ГОСТ 34
+              Документы по ГОСТ 34
             </Link>
           )}
         </div>

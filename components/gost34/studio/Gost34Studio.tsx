@@ -590,7 +590,7 @@ export default function Gost34Studio({
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
         <div className="min-w-0">
           <h1 className="truncate text-xl font-extrabold tracking-tight text-slate-900 dark:text-nord-6">
-            Студия ГОСТ 34 — {calculationName}
+            Документы по ГОСТ 34 — {calculationName}
           </h1>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-muted">
             {docType} · {review ? review.profile.name : 'профиль загружается'} ·{' '}

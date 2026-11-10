@@ -45,7 +45,7 @@ export default async function AnalyticsPage(props: {
   return (
     <div className="page">
       <PageHeader
-        title="Сделки и точность оценок"
+        title="Отчёты"
         description="Чем заканчиваются сделки и насколько факт расходится с утверждённой оценкой."
       >
         <div className="space-y-3">

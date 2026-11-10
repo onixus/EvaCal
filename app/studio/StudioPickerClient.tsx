@@ -112,7 +112,7 @@ export default function StudioPickerClient({
   return (
     <div className="page">
       <PageHeader
-        title="Студия ГОСТ 34"
+        title="Документы по ГОСТ 34"
         description="Выберите расчёт для выпуска документации: требования, профиль, применимость, трассируемость и экспорт."
         actions={
           stats.rejected + stats.drafts + stats.underReview + stats.approved > 0 ? (

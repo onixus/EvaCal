@@ -21,7 +21,7 @@ export default async function InboxPage() {
   return (
     <div className="page">
       <PageHeader
-        title="Требует моего действия"
+        title="Мои задачи"
         description="Ваши назначения, исправления на проверку и возвращённые комплекты. Просроченное — сверху."
       />
       <InboxClient initial={queue} />

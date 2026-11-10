@@ -7,7 +7,7 @@ export default async function CatalogPage() {
   return (
     <div className="page">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-bold">Каталог поставки</h1>
+        <h1 className="text-xl font-bold">Оборудование и ПО</h1>
         <Link href="/catalog/exchange-rates" className="btn-secondary text-xs">
           Курсы валют
         </Link>
